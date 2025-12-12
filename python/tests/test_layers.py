@@ -1,8 +1,11 @@
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 import os
 from threading import Event
 import time
 import unittest
+
+from python.task.future_source import FutureSource
 
 from .test_plugin import RecordingTask
 from ..datasources.data_source import DataSourceManager
@@ -36,6 +39,9 @@ class TestPlugin(PluginProtocol):
 		self.started = True
 		self.start_args = (track, context)
 
+class NullMessageSink(MessageSink):
+	def send(self, msg: BasicMessage):
+		pass
 class MessageTriggerSink(MessageSink):
 	def __init__(self, trigger: Callable[[BasicMessage], bool]):
 		self.trigger = trigger
@@ -76,6 +82,8 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.layer.cm = create_configuration_manager()
 		self.layer.datasources = DataSourceManager(None, {})
 		self.layer.timer = TimerService(None)
+		sink = NullMessageSink()
+		self.layer.future_source = FutureSource(sink, ThreadPoolExecutor())
 
 	def test_start_playback_success(self):
 		# Prepare a plugin and a playlist with one track that references it
@@ -98,7 +106,7 @@ class PlaylistLayerTests(unittest.TestCase):
 		# Create a playlist with a single PlaylistSchedule track
 		track = PlaylistSchedule("p1", "t1", "Title", PlaylistScheduleData({}))
 		playlist = Playlist("pl1", "Main", items=[track])
-		self.layer.playlists = [playlist]
+		self.layer.playlists = [{"info": playlist}]
 		self.layer.state = 'loaded'
 
 		# Trigger playback
@@ -106,7 +114,7 @@ class PlaylistLayerTests(unittest.TestCase):
 
 		self.assertEqual(self.layer.state, 'playing')
 		self.assertIsNotNone(self.layer.playlist_state)
-		self.assertTrue(self.layer.playlist_state['active_plugin'].started)
+		self.assertTrue(self.layer.active_plugin.started)
 		# verify indices set
 		self.assertEqual(self.layer.playlist_state['current_playlist_index'], 0)
 		self.assertEqual(self.layer.playlist_state['current_track_index'], 0)
@@ -125,7 +133,7 @@ class PlaylistLayerTests(unittest.TestCase):
 		# Playlist refers to a plugin that is not in plugin_map
 		track = PlaylistSchedule("missing", "t2", "Title2", PlaylistScheduleData({}))
 		playlist = Playlist("pl2", "Main2", items=[track])
-		self.layer.playlists = [playlist]
+		self.layer.playlists = [{"info": playlist}]
 		self.layer.plugin_info = []
 		self.layer.state = 'loaded'
 

@@ -1,6 +1,8 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import logging
 
+from .future_source import FutureSource, SubmitFuture
 from ..datasources.data_source import DataSourceManager
 from ..model.schedule import MasterSchedule, Playlist, PlaylistBase
 from ..model.service_container import ServiceContainer
@@ -8,7 +10,7 @@ from ..plugins.plugin_base import BasicExecutionContext2, PluginBase, PluginProt
 from ..task.timer import TimerService
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from .display import DisplaySettings
-from .messages import ConfigureEvent, ExecuteMessage, MessageSink, PluginReceive, QuitMessage, Telemetry
+from .messages import ConfigureEvent, ExecuteMessage, FutureCompleted, MessageSink, PluginReceive, QuitMessage, Telemetry
 from .message_router import MessageRouter
 from .basic_task import BasicTask
 
@@ -38,6 +40,7 @@ class PlaylistLayer(BasicTask):
 		self.playlist_state = None
 		self.active_plugin: PluginProtocol = None
 		self.active_context: BasicExecutionContext2 = None
+		self.future_source: FutureSource = None
 		self.state = 'uninitialized'
 		self.logger = logging.getLogger(__name__)
 	def _evaluate_plugin(self, track:PlaylistBase):
@@ -69,6 +72,7 @@ class PlaylistLayer(BasicTask):
 		root.add_service(DataSourceManager, self.datasources)
 		root.add_service(MessageRouter, self.router)
 		root.add_service(TimerService, self.timer)
+		root.add_service(SubmitFuture, self.future_source)
 		root.add_service(MessageSink, self)
 		return BasicExecutionContext2(root, self.dimensions, datetime.now())
 	def _start_playback(self, msg: StartPlayback):
@@ -128,7 +132,29 @@ class PlaylistLayer(BasicTask):
 			self.active_plugin.receive(self.active_context, current_track, msg)
 		except Exception as e:
 			self.state = "error"
-			self.logger.error(f"Error handling PluginReceive message with plugin '{current_track.plugin_name}' for track '{current_track.title}': {e}", exc_info=True)
+			self.logger.error(f"Error invoke receive PluginReceive with plugin '{current_track.plugin_name}' track '{current_track.title}': {e}", exc_info=True)
+	def _future_completed(self, msg: FutureCompleted):
+		if self.state != 'playing':
+			self.logger.error(f"Cannot handle FutureCompleted message, state is '{self.state}'")
+			return
+		if self.playlist_state is None:
+			self.logger.error(f"No active playlist state to handle FutureCompleted message.")
+			return
+		if self.active_plugin is None:
+			self.logger.error(f"No active plugin to handle FutureCompleted message.")
+			return
+		if self.active_context is None:
+			self.logger.error(f"No active context to handle FutureCompleted message.")
+			return
+		if self.active_plugin.name != msg.plugin_name:
+			self.logger.error(f"Received FutureCompleted message for plugin '{msg.plugin_name}', but active plugin is '{self.active_plugin.name}'")
+			return
+		try:
+			current_track:PlaylistBase = self.playlist_state.get('current_track')
+			self.active_plugin.receive(self.active_context, current_track, msg)
+		except Exception as e:
+			self.state = "error"
+			self.logger.error(f"Error invoke receive FutureCompleted with plugin '{current_track.plugin_name}' track '{current_track.title}': {e}", exc_info=True)
 	def _plugin_stop(self):
 		if self.playlist_state is None:
 			self.logger.error(f"No active playlist state to invoke.")
@@ -144,7 +170,7 @@ class PlaylistLayer(BasicTask):
 			self.active_plugin.stop(self.active_context, current_track)
 		except Exception as e:
 			self.state = "error"
-			self.logger.error(f"Error invoke stop with plugin '{current_track.plugin_name}' for track '{current_track.title}': {e}", exc_info=True)
+			self.logger.error(f"Error invoke stop with plugin '{current_track.plugin_name}' track '{current_track.title}': {e}", exc_info=True)
 	def _plugin_start(self):
 		if self.playlist_state is None:
 			self.logger.error(f"No active playlist state to invoke.")
@@ -160,7 +186,7 @@ class PlaylistLayer(BasicTask):
 			self.active_plugin.start(self.active_context, current_track)
 		except Exception as e:
 			self.state = "error"
-			self.logger.error(f"Error invoke stop with plugin '{current_track.plugin_name}' for track '{current_track.title}': {e}", exc_info=True)
+			self.logger.error(f"Error invoke start with plugin '{current_track.plugin_name}' track '{current_track.title}': {e}", exc_info=True)
 	def _next_track(self, msg: NextTrack):
 		# Logic to move to the next track in the playlist
 		self.logger.info(f"'{self.name}' NextTrack")
@@ -230,6 +256,7 @@ class PlaylistLayer(BasicTask):
 				datasources = self.cm.load_datasources(datasource_info)
 				self.datasources = DataSourceManager(None, datasources)
 				self.logger.info(f"Datasources loaded: {list(datasources.keys())}")
+				self.future_source = FutureSource(self, ThreadPoolExecutor())
 				sm = self.cm.schedule_manager()
 				schedule_info = sm.load()
 				sm.validate(schedule_info)
@@ -253,6 +280,8 @@ class PlaylistLayer(BasicTask):
 			self._next_track(msg)
 		elif isinstance(msg, PluginReceive):
 			self._plugin_receive(msg)
+		elif isinstance(msg, FutureCompleted):
+			self._future_completed(msg)
 	def quitMsg(self, msg: QuitMessage):
 		self.logger.info(f"'{self.name}' quitting playback.")
 		try:
@@ -272,6 +301,9 @@ class PlaylistLayer(BasicTask):
 			if self.datasources is not None:
 				self.datasources.shutdown()
 				self.datasources = None
+			if self.future_source is not None:
+				self.future_source.shutdown()
+				self.future_source = None
 		except Exception as e:
 			self.logger.error(f"quit.unexpected: {e}", exc_info=True)
 		finally:

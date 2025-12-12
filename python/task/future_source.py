@@ -8,7 +8,8 @@ from .messages import BasicMessage, MessageSink
 
 type FutureResult = tuple[Any|None, Exception|None]
 type FutureContinuation = Callable[[bool, Any|None, Exception|None], BasicMessage|None]
-type FutureFunction = Callable[[Callable[[], bool]], Any]
+type CancelToken = Callable[[], bool]
+type FutureFunction = Callable[[CancelToken], Any]
 type SubmitResult = Callable[[],bool]
 class SubmitFuture(Protocol):
 	def submit_future(self, future: FutureFunction, continuation: FutureContinuation) -> SubmitResult:
@@ -49,10 +50,17 @@ class FutureSource(SubmitFuture):
 			result, exception = fx.result()
 			cancelled = cancel.is_set()
 			self.logger.debug(f"Future completed c:{cancelled} r:{result} e:{exception}, send continuation message.")
-			msg = continuation(cancelled, result, exception)
-			if msg is not None:
-				self._port.send(msg)
-
+			try:
+				msg = continuation(cancelled, result, exception)
+				if msg is not None:
+					try:
+						self._port.send(msg)
+					except Exception as ex:
+	#					self.logger.error(f"Error sending message: {ex}")
+						pass
+			except Exception as ex2:
+				self.logger.error(f"Continuation.unhandled: {ex2}")
+				pass
 		p_future = self._executor.submit(_the_future)
 		def cancelrequest() -> bool:
 			"""
