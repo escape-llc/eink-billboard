@@ -10,11 +10,11 @@ from ..plugins.plugin_base import BasicExecutionContext2, PluginBase, PluginProt
 from ..task.timer import TimerService
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from .display import DisplaySettings
-from .messages import ConfigureEvent, ExecuteMessage, FutureCompleted, MessageSink, PluginReceive, QuitMessage, Telemetry
+from .messages import BasicMessage, ConfigureEvent, FutureCompleted, MessageSink, PluginReceive, QuitMessage, Telemetry
 from .message_router import MessageRouter
-from .basic_task import BasicTask, DispatcherTask
+from .basic_task import DispatcherTask
 
-class PlaylistLayerMessage(ExecuteMessage):
+class PlaylistLayerMessage(BasicMessage):
 	def __init__(self, timestamp=None):
 		super().__init__(timestamp)
 class StartPlayback(PlaylistLayerMessage):

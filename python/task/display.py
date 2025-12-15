@@ -6,7 +6,7 @@ from ..display.mock_display import MockDisplay
 from ..display.tkinter_window import TkinterWindow
 from ..display.display_base import DisplayBase
 from ..model.configuration_manager import ConfigurationManager
-from ..task.basic_task import BasicTask
+from ..task.basic_task import BasicTask, DispatcherTask
 from ..task.timer_tick import TickMessage
 from ..task.messages import ConfigureEvent, ExecuteMessage, QuitMessage
 from .message_router import MessageRouter
@@ -32,9 +32,12 @@ class DisplaySettings(ExecuteMessage):
 	def __repr__(self):
 		return f" name='{self.name}' width={self.width} height={self.height}"
 
-class Display(BasicTask):
+class Display(DispatcherTask):
 	def __init__(self, name, router:MessageRouter):
 		super().__init__(name)
+		self._register_handler(ConfigureEvent, self._configure_event)
+		self._register_handler(TickMessage, self._tick_message)
+		self._register_handler(DisplayImage, self._display_message)
 		if router is None:
 			raise ValueError("router is None")
 		self.router = router
@@ -55,46 +58,43 @@ class Display(BasicTask):
 			self.display = None
 			super().quitMsg(msg)
 		pass
+	def _configure_event(self, msg: ConfigureEvent):
+		try:
+			self.cm = msg.content.cm
+			settings = self.cm.settings_manager()
+			self.display_settings = settings.load_settings("display")
+			display_type = self.display_settings.get("display_type", None)
+			if display_type == "mock":
+				self.display = MockDisplay("mock")
+			elif display_type == "tk":
+				self.display = TkinterWindow("tk")
+			else:
+				raise ValueError(f"Unrecognized display type: '{display_type}'")
+			self.resolution = self.display.initialize(self.cm)
+			self.logger.info(f"Loading display {display_type} {self.resolution[0]}x{self.resolution[1]}")
+			msg.notify()
+			self.router.send("display-settings", DisplaySettings(display_type, self.resolution[0], self.resolution[1]))
+		except Exception as e:
+			self.logger.error(f"configure.unhandled: {str(e)}")
+			msg.notify(True, e)
+	def _tick_message(self, msg: TickMessage):
+		self.lastTickSeen = msg
+	def _display_message(self, msg: DisplayImage):
+		try:
+			self.displayImageCount += 1
+			self.logger.info(f"Display {self.displayImageCount} '{msg.title}'")
+			if self.display is None:
+				self.logger.error("No driver is loaded")
+				return
+			# Resize and adjust orientation
+			image = msg.img
+			if self.display_settings is not None:
+				image = change_orientation(image, self.display_settings.get("orientation", "landscape"))
+				image = resize_image(image, self.resolution)
+				if self.display_settings.get("rotate180", False): image = image.rotate(180)
+				image = apply_image_enhancement(image, self.display_settings)
 
-	def execute(self, msg: ExecuteMessage):
-		self.logger.info(f"'{self.name}' receive: {msg}")
-		if isinstance(msg, ConfigureEvent):
-			try:
-				self.cm = msg.content.cm
-				settings = self.cm.settings_manager()
-				self.display_settings = settings.load_settings("display")
-				display_type = self.display_settings.get("display_type", None)
-				if display_type == "mock":
-					self.display = MockDisplay("mock")
-				elif display_type == "tk":
-					self.display = TkinterWindow("tk")
-				else:
-					raise ValueError(f"Unrecognized display type: '{display_type}'")
-				self.resolution = self.display.initialize(self.cm)
-				self.logger.info(f"Loading display {display_type} {self.resolution[0]}x{self.resolution[1]}")
-				msg.notify()
-				self.router.send("display-settings", DisplaySettings(display_type, self.resolution[0], self.resolution[1]))
-			except Exception as e:
-				self.logger.error(f"configure.unhandled: {str(e)}")
-				msg.notify(True, e)
-		elif isinstance(msg, TickMessage):
-			self.lastTickSeen = msg
-		elif isinstance(msg, DisplayImage):
-			try:
-				self.displayImageCount += 1
-				self.logger.info(f"Display {self.displayImageCount} '{msg.title}'")
-				if self.display is None:
-					self.logger.error("No driver is loaded")
-					return
-				# Resize and adjust orientation
-				image = msg.img
-				if self.display_settings is not None:
-					image = change_orientation(image, self.display_settings.get("orientation", "landscape"))
-					image = resize_image(image, self.resolution)
-					if self.display_settings.get("rotate180", False): image = image.rotate(180)
-					image = apply_image_enhancement(image, self.display_settings)
-
-				self.display.render(image, msg.title)
-			except Exception as e:
-				self.logger.error("displayimage.unhandled", e)
-				pass
+			self.display.render(image, msg.title)
+		except Exception as e:
+			self.logger.error("displayimage.unhandled", e)
+			pass

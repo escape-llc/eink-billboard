@@ -1,9 +1,12 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 import queue
 import threading
 import unittest
 import time
 import logging
+
+from python.task.future_source import FutureSource, SubmitFuture
 
 from ..datasources.comic.comic_feed import ComicFeed
 from ..datasources.data_source import DataSourceManager
@@ -182,8 +185,11 @@ class TestPlugins(unittest.TestCase):
 		context = BasicExecutionContext2(root, [800,480], datetime.now())
 		sink = PluginRecycleMessageSink(plugin, track, context)
 		root.add_service(MessageSink, sink)
+		fsource = FutureSource(sink, ThreadPoolExecutor())
+		root.add_service(SubmitFuture, fsource)
 		plugin.start(context, track)
-		sink.stopped.wait(timeout=timeout)
+		completed = sink.stopped.wait(timeout=timeout)
+		fsource.shutdown()
 		timer.shutdown()
 		display.send(QuitMessage())
 		display.join()
@@ -193,8 +199,8 @@ class TestPlugins(unittest.TestCase):
 		content = {
 			"dataSource": "image-folder",
 			"folder": "python/tests/images",
-			"slideshowMax": 0,
-			"slideshowMinutes": 1/60
+			"slideMax": 0,
+			"slideMinutes": 1/60
 		}
 		plugin_data = PlaylistScheduleData(content)
 		track = PlaylistSchedule(
@@ -211,8 +217,8 @@ class TestPlugins(unittest.TestCase):
 		content = {
 			"dataSource": "comic-feed",
 			"comic": "XKCD",
-			"slideshowMax": 0,
-			"slideshowMinutes": 3/60
+			"slideMax": 0,
+			"slideMinutes": 3/60
 		}
 		plugin_data = PlaylistScheduleData(content)
 		track = PlaylistSchedule(
@@ -228,8 +234,8 @@ class TestPlugins(unittest.TestCase):
 	def test_slide_show_with_wpotd(self):
 		content = {
 			"dataSource": "wpotd",
-			"slideshowMax": 0,
-			"slideshowMinutes": 3/60
+			"slideMax": 0,
+			"slideMinutes": 3/60
 		}
 		plugin_data = PlaylistScheduleData(content)
 		track = PlaylistSchedule(
@@ -246,8 +252,8 @@ class TestPlugins(unittest.TestCase):
 		content = {
 			"dataSource": "newspaper",
 			"slug": "ny_nyt",
-			"slideshowMax": 0,
-			"slideshowMinutes": 3/60
+			"slideMax": 0,
+			"slideMinutes": 3/60
 		}
 		plugin_data = PlaylistScheduleData(content)
 		track = PlaylistSchedule(
@@ -265,8 +271,8 @@ class TestPlugins(unittest.TestCase):
 		content = {
 			"dataSource": "openai-image",
 			"prompt": "A futuristic electronic inky display showing a slideshow of images in a modern home, digital art",
-			"slideshowMax": 0,
-			"slideshowMinutes": 1/60,
+			"slideMax": 0,
+			"slideMinutes": 1/60,
 			"timeoutSeconds": 60
 		}
 		plugin_data = PlaylistScheduleData(content)
