@@ -1,8 +1,8 @@
 
-from concurrent.futures import Executor, Future, ThreadPoolExecutor
+from concurrent.futures import Executor, Future
 import logging
 import threading
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Protocol, runtime_checkable
 
 from .messages import BasicMessage, MessageSink
 
@@ -10,7 +10,9 @@ type FutureResult = tuple[Any|None, Exception|None]
 type FutureContinuation = Callable[[bool, Any|None, Exception|None], BasicMessage|None]
 type CancelToken = Callable[[], bool]
 type FutureFunction = Callable[[CancelToken], Any]
-type SubmitResult = Callable[[],bool]
+type SubmitResult = Callable[[], bool]
+
+@runtime_checkable
 class SubmitFuture(Protocol):
 	def submit_future(self, future: FutureFunction, continuation: FutureContinuation) -> SubmitResult:
 		...
