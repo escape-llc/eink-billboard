@@ -110,7 +110,7 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.layer.state = 'loaded'
 
 		# Trigger playback
-		self.layer.execute(StartPlayback("start"))
+		self.layer._start_playback(StartPlayback("start"))
 
 		self.assertEqual(self.layer.state, 'playing')
 		self.assertIsNotNone(self.layer.playlist_state)
@@ -125,7 +125,7 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.layer.state = 'loaded'
 
 		# Should not raise, but should not start playback
-		self.layer.execute(StartPlayback("start"))
+		self.layer._start_playback(StartPlayback("start"))
 		self.assertNotEqual(self.layer.state, 'playing')
 		self.assertIsNone(self.layer.playlist_state)
 
@@ -138,7 +138,7 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.layer.state = 'loaded'
 
 		# Trigger playback; plugin missing should prevent start
-		self.layer.execute(StartPlayback("start"))
+		self.layer._start_playback(StartPlayback("start"))
 		self.assertNotEqual(self.layer.state, 'playing')
 		self.assertIsNone(self.layer.playlist_state)
 

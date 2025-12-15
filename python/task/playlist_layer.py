@@ -12,7 +12,7 @@ from ..model.configuration_manager import ConfigurationManager, SettingsConfigur
 from .display import DisplaySettings
 from .messages import ConfigureEvent, ExecuteMessage, FutureCompleted, MessageSink, PluginReceive, QuitMessage, Telemetry
 from .message_router import MessageRouter
-from .basic_task import BasicTask
+from .basic_task import BasicTask, DispatcherTask
 
 class PlaylistLayerMessage(ExecuteMessage):
 	def __init__(self, timestamp=None):
@@ -24,9 +24,15 @@ class NextTrack(PlaylistLayerMessage):
 	def __init__(self, timestamp=None):
 		super().__init__(timestamp)
 
-class PlaylistLayer(BasicTask):
+class PlaylistLayer(DispatcherTask):
 	def __init__(self, name, router: MessageRouter):
 		super().__init__(name)
+		self._register_handler(ConfigureEvent, self._configure_event)
+		self._register_handler(DisplaySettings, self._display_settings)
+		self._register_handler(StartPlayback, self._start_playback)
+		self._register_handler(NextTrack, self._next_track)
+		self._register_handler(FutureCompleted, self._future_completed)
+		self._register_handler(PluginReceive, self._plugin_receive)
 		if router is None:
 			raise ValueError("router is None")
 		self.router = router
@@ -244,44 +250,33 @@ class PlaylistLayer(BasicTask):
 				"current_playlist_index": self.playlist_state["current_playlist_index"],
 				"current_track_index": self.playlist_state["current_track_index"]
 			}))
-	def execute(self, msg: ExecuteMessage):
-		# Handle scheduling messages here
-		self.logger.info(f"'{self.name}' receive: {msg}")
-		if isinstance(msg, ConfigureEvent):
-			self.cm = msg.content.cm
-			try:
-				plugin_info = self.cm.enum_plugins()
-				self.plugin_info = plugin_info
-				datasource_info = self.cm.enum_datasources()
-				datasources = self.cm.load_datasources(datasource_info)
-				self.datasources = DataSourceManager(None, datasources)
-				self.logger.info(f"Datasources loaded: {list(datasources.keys())}")
-				self.future_source = FutureSource(self, ThreadPoolExecutor())
-				sm = self.cm.schedule_manager()
-				schedule_info = sm.load()
-				sm.validate(schedule_info)
-				self.master_schedule = schedule_info.get("master", None)
-				self.playlists = schedule_info.get("playlists", [])
-				self.timer = TimerService(None)
-				self.logger.info(f"schedule loaded")
-				self.state = 'loaded'
-				msg.notify()
-				self.send(StartPlayback("SystemStart"))
-			except Exception as e:
-				self.logger.error(f"Failed to load/validate schedules: {e}", exc_info=True)
-				self.state = 'error'
-				msg.notify(True, e)
-		elif isinstance(msg, DisplaySettings):
-			self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
-			self.dimensions = [msg.width, msg.height]
-		elif isinstance(msg, StartPlayback):
-			self._start_playback(msg)
-		elif isinstance(msg, NextTrack):
-			self._next_track(msg)
-		elif isinstance(msg, PluginReceive):
-			self._plugin_receive(msg)
-		elif isinstance(msg, FutureCompleted):
-			self._future_completed(msg)
+	def _configure_event(self, msg: ConfigureEvent):
+		self.cm = msg.content.cm
+		try:
+			plugin_info = self.cm.enum_plugins()
+			self.plugin_info = plugin_info
+			datasource_info = self.cm.enum_datasources()
+			datasources = self.cm.load_datasources(datasource_info)
+			self.datasources = DataSourceManager(None, datasources)
+			self.logger.info(f"Datasources loaded: {list(datasources.keys())}")
+			self.future_source = FutureSource(self, ThreadPoolExecutor())
+			sm = self.cm.schedule_manager()
+			schedule_info = sm.load()
+			sm.validate(schedule_info)
+			self.master_schedule = schedule_info.get("master", None)
+			self.playlists = schedule_info.get("playlists", [])
+			self.timer = TimerService(None)
+			self.logger.info(f"schedule loaded")
+			self.state = 'loaded'
+			msg.notify()
+			self.send(StartPlayback("SystemStart"))
+		except Exception as e:
+			self.logger.error(f"Failed to load/validate schedules: {e}", exc_info=True)
+			self.state = 'error'
+			msg.notify(True, e)
+	def _display_settings(self, msg: DisplaySettings):
+		self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
+		self.dimensions = [msg.width, msg.height]
 	def quitMsg(self, msg: QuitMessage):
 		self.logger.info(f"'{self.name}' quitting playback.")
 		try:
