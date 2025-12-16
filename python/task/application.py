@@ -7,60 +7,61 @@ from .messages import ConfigureNotify, StartEvent, StopEvent, QuitMessage, Confi
 from .scheduler import Scheduler
 from .display import Display, DisplaySettings
 from .timer_tick import TimerTick
-from .basic_task import BasicTask, ExecuteMessage, QuitMessage
+from .basic_task import DispatcherTask, QuitMessage
 from .message_router import MessageRouter, Route
 from .telemetry_sink import TelemetrySink
 
-class Application(BasicTask):
+class Application(DispatcherTask):
 	def __init__(self, name = None, sink: TelemetrySink = None):
 		super().__init__(name)
 		self.sink = sink
-		self.started = threading.Event()
+		self.app_started = threading.Event()
+		self.app_stopped = threading.Event()
 		self.cm:ConfigurationManager = None
+		self._register_handler(StartEvent, self._start_event)
+		self._register_handler(StopEvent, self._stop_event)
+		self._register_handler(DisplaySettings, self._display_settings)
+		self._register_handler(ConfigureNotify, self._configure_notify)
 
-	def execute(self, msg: ExecuteMessage):
-		# Handle Start and Stop events
-		if isinstance(msg, StartEvent):
-			try:
-				self._handleStart(msg)
-				self.logger.info(f"'{self.name}' started.")
-				self.started.set()
-			except Exception as e:
-				self.logger.error(f"Failed to start '{self.name}': {e}", exc_info=True)
-				self.stopped.set()
-		elif isinstance(msg, StopEvent):
-			try:
-				self._handleStop()
-			except Exception as e:
-				self.logger.error(f"Failed to stop '{self.name}': {e}", exc_info=True)
-			finally:
-				self.stopped.set()
-				self.logger.info(f"'{self.name}' stopped.")
-		elif isinstance(msg, DisplaySettings):
-			# STEP 3 configure scheduler (it also receives DisplaySettings)
-			self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
-			configs = ConfigureEvent("scheduler", ConfigureOptions(cm=self.cm.duplicate()), self)
-			self.scheduler.send(configs)
-			pass
-		elif isinstance(msg, ConfigureNotify):
-			# STEP 4 start the timer if scheduler configured successfully
-			self.logger.info(f"'{self.name}' ConfigureNotify {msg.token} {msg.error} {msg.content}.")
-			if msg.error == True and self.sink:
-				self.sink.send(msg)
+	def _start_event(self, msg: StartEvent):
+		try:
+			self._handleStart(msg)
+			self.logger.info(f"'{self.name}' started.")
+			self.app_started.set()
+		except Exception as e:
+			self.logger.error(f"Failed to start '{self.name}': {e}", exc_info=True)
+			self.app_stopped.set()
+			self.stopped.set()
+	def _stop_event(self, msg: StopEvent):
+		try:
+			self._handleStop()
+		except Exception as e:
+			self.logger.error(f"Failed to stop '{self.name}': {e}", exc_info=True)
+		finally:
+			self.app_stopped.set()
+			self.stopped.set()
+			self.logger.info(f"'{self.name}' stopped.")
+	def _display_settings(self, msg: DisplaySettings):
+		# STEP 3 configure scheduler (it also receives DisplaySettings)
+		self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
+		configs = ConfigureEvent("scheduler", ConfigureOptions(cm=self.cm.duplicate()), self)
+		self.scheduler.send(configs)
+	def _configure_notify(self, msg: ConfigureNotify):
+		# STEP 4 start the timer if scheduler configured successfully
+		self.logger.info(f"'{self.name}' ConfigureNotify {msg.token} {msg.error} {msg.content}.")
+		if msg.error == True and self.sink:
+			self.sink.send(msg)
 
-			if msg.token == "scheduler":
-				if msg.error == False:
-					self.logger.info(f"'{self.name}' starting timer.")
-					self.timer.start()
-				else:
-					self.logger.error(f"'{self.name}' Cannot start the timer; scheduler failed to initialize")
-					self.logger.error(f"{msg.content}")
-		else:
-			self.logger.warning(f"'{self.name}' received unknown message: {msg}")
-
+		if msg.token == "scheduler":
+			if msg.error == False:
+				self.logger.info(f"'{self.name}' starting timer.")
+				self.timer.start()
+			else:
+				self.logger.error(f"'{self.name}' Cannot start the timer; scheduler failed to initialize")
+				self.logger.error(f"{msg.content}")
 	def quitMsg(self, msg: QuitMessage):
 		self.logger.info(f"'{self.name}' quitting.")
-		if self.started.is_set() and not self.stopped.is_set():
+		if self.app_started.is_set() and not self.stopped.is_set():
 			try:
 				self._handleStop()
 				self.logger.info(f"'{self.name}' stopped during quit.")
@@ -70,7 +71,6 @@ class Application(BasicTask):
 				super().quitMsg(msg)
 		else:
 			super().quitMsg(msg)
-
 	def _handleStart(self, msg: StartEvent):
 		if msg.options is not None:
 			self.logger.info(f"'{self.name}' basePath: {msg.options.basePath}, storagePath: {msg.options.storagePath}")
@@ -101,7 +101,6 @@ class Application(BasicTask):
 		self.display.start()
 		# STEP 2 create but do not start timer
 		self.timer = msg.timerTask(self.router) if msg.timerTask is not None else TimerTick(self.router, interval=60, align_to_minute=True)
-
 	def _handleStop(self):
 		if self.timer.is_alive():
 			self.timer.stop()

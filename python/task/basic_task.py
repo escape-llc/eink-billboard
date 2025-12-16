@@ -51,30 +51,6 @@ class CoreTask(threading.Thread, MessageSink):
 			self.msg_queue.shutdown()
 
 
-class BasicTask(CoreTask):
-	"""Task that runs in its own thread and processes messages."""
-	def __init__(self, name=None):
-		super().__init__(name=name)
-
-	def _dispatch(self, msg):
-		if isinstance(msg, QuitMessage):
-			try:
-				self.quitMsg(msg)
-			except Exception as e:
-				self.logger.error(f"quit.unhandled '{self.name}': {e}", exc_info=True)
-		elif isinstance(msg, ExecuteMessage):
-			try:
-				self.execute(msg)
-			except Exception as e:
-				self.logger.error(f"execute.unhandled '{self.name}': {e}", exc_info=True)
-		# Optionally handle other message types
-		else:
-			self.logger.warning(f"'{self.name}' received unknown message type: {msg}")
-
-	def execute(self, msg: ExecuteMessage):
-		"""Abstract method to execute a message."""
-		pass
-
 type HandlerFunc = Callable[[BasicMessage], None]
 class DispatcherTask(CoreTask):
 	"""Task that dispatches messages to handlers registered by message class.
@@ -113,7 +89,6 @@ class DispatcherTask(CoreTask):
 	# — ExecuteMessage handling must be done via registered handlers.
 
 	def _dispatch(self, msg):
-		# Keep QuitMessage handling identical to BasicTask
 		if isinstance(msg, QuitMessage):
 			try:
 				self.quitMsg(msg)

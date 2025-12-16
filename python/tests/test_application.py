@@ -51,17 +51,19 @@ class TestApplication(unittest.TestCase):
 		options = StartOptions(basePath=None, storagePath=storage, hardReset=False)
 		app.send(StartEvent(options=options, timerTask=lambda router: DebugTimerTask(router, eventlist, app)))
 		# Wait for the started event to be set
-		started = app.started.wait(timeout=1)
+		started = app.app_started.wait(timeout=1)
 		self.assertTrue(started, "Application did not start as expected.")
 		if started:
 			# Wait for the stopped event to be set
-			stopped = app.stopped.wait()
+			stopped = app.app_stopped.wait()
 			self.assertTrue(stopped, "Application did not stop as expected.")
 
 		app.join()
 		self.assertFalse(app.is_alive(), "Application thread did not quit as expected.")
-		appstopped = app.stopped.is_set()
-		self.assertTrue(appstopped, "Application did not set stopped event as expected.")
+		appstopped = app.app_stopped.is_set()
+		self.assertTrue(appstopped, "Application did not set app_stopped event as expected.")
+		tkstopped = app.stopped.is_set()
+		self.assertTrue(tkstopped, "Application did not set stopped event as expected.")
 
 		self.assertEqual(TICKS - 1, app.scheduler.lastTickSeen.tick_number, "scheduler ticks failed")
 		self.assertIsNotNone(app.display.lastTickSeen, "display lastTickSeen failed")

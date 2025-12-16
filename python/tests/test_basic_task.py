@@ -1,17 +1,18 @@
 import unittest
 import logging
-from ..task.basic_task import BasicTask
+from ..task.basic_task import DispatcherTask
 from ..task.messages import ExecuteMessage, ExecuteMessageWithContent, QuitMessage
 
-class RecordingTask(BasicTask):
+class RecordingTask(DispatcherTask):
 	def __init__(self):
 		super().__init__()
 		self.received = []
+		self._register_handler(ExecuteMessage, self._execute_message)
 
-	def execute(self, msg: ExecuteMessage):
+	def _execute_message(self, msg: ExecuteMessage):
 		self.received.append(msg.content)
 
-class TestBasicTask(unittest.TestCase):
+class TestDispatcherTask(unittest.TestCase):
 	def test_execute_message(self):
 		task = RecordingTask()
 		task.start()

@@ -6,7 +6,7 @@ from ..display.mock_display import MockDisplay
 from ..display.tkinter_window import TkinterWindow
 from ..display.display_base import DisplayBase
 from ..model.configuration_manager import ConfigurationManager
-from ..task.basic_task import BasicTask, DispatcherTask
+from ..task.basic_task import DispatcherTask
 from ..task.timer_tick import TickMessage
 from ..task.messages import ConfigureEvent, ExecuteMessage, QuitMessage
 from .message_router import MessageRouter
@@ -35,11 +35,11 @@ class DisplaySettings(ExecuteMessage):
 class Display(DispatcherTask):
 	def __init__(self, name, router:MessageRouter):
 		super().__init__(name)
+		if router is None:
+			raise ValueError("router is None")
 		self._register_handler(ConfigureEvent, self._configure_event)
 		self._register_handler(TickMessage, self._tick_message)
 		self._register_handler(DisplayImage, self._display_message)
-		if router is None:
-			raise ValueError("router is None")
 		self.router = router
 		self.cm:ConfigurationManager = None
 		self.display:DisplayBase = None

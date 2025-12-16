@@ -27,7 +27,7 @@ class BasicTimer(threading.Thread):
 class TimerTick(BasicTimer):
 	def __init__(self, router: MessageRouter, interval=60, align_to_minute=True):
 		"""
-		:param tasks: List of BasicTask instances to send TickMessage to.
+		:param router: MessageRouter instance to send TickMessage to.
 		:param interval: Time in seconds between ticks.
 		:param align_to_minute: If True, align second (and later) tick to the next minute.
 		"""

@@ -5,7 +5,7 @@ import logging
 
 from ..task.message_router import MessageRouter, Route
 from ..task.timer_tick import BasicTimer, TimerTick, TickMessage
-from ..task.basic_task import BasicTask
+from ..task.basic_task import DispatcherTask
 from ..task.messages import QuitMessage
 
 logging.basicConfig(
@@ -33,17 +33,17 @@ class DebugTimerTask(BasicTimer):
 		finally:
 			self.logger.info("DebugTimerTask thread exiting.")
 
-class RecordingTask(BasicTask):
+class RecordingTask(DispatcherTask):
 	def __init__(self, name):
 		super().__init__(name)
 		self.ticks = []
 		self.logger = logging.getLogger(__name__)
+		self._register_handler(TickMessage, self._tick_message)
 
-	def execute(self, msg):
+	def _tick_message(self, msg: TickMessage):
 		self.logger.debug(f"{self.name}: {msg}")
 		# Only record TickMessage
-		if isinstance(msg, TickMessage):
-			self.ticks.append((msg.tick_ts, msg.tick_number))
+		self.ticks.append((msg.tick_ts, msg.tick_number))
 		time.sleep(0.06)
 
 class TestTimerTick(unittest.TestCase):

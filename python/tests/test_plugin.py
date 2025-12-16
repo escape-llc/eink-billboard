@@ -6,8 +6,6 @@ import unittest
 import time
 import logging
 
-from python.task.future_source import FutureSource, SubmitFuture
-
 from ..datasources.comic.comic_feed import ComicFeed
 from ..datasources.data_source import DataSourceManager
 from ..datasources.image_folder.image_folder import ImageFolder
@@ -21,12 +19,13 @@ from ..task.timer import TimerService
 from ..tests.utils import create_configuration_manager, save_image, save_images, test_output_path_for
 from ..model.schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, PluginSchedule, PluginScheduleData
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
-from ..plugins.plugin_base import BasicExecutionContext, BasicExecutionContext2, PluginBase, PluginExecutionContext, PluginProtocol
+from ..plugins.plugin_base import BasicExecutionContext2, PluginBase, PluginExecutionContext, PluginProtocol
 from ..task.active_plugin import ActivePlugin
 from ..task.display import DisplayImage
+from ..task.future_source import FutureSource, SubmitFuture
 from ..task.message_router import MessageRouter, Route
 from ..task.messages import BasicMessage, MessageSink, QuitMessage
-from ..task.basic_task import BasicTask
+from ..task.basic_task import DispatcherTask
 from ..task.timer_tick import TickMessage
 
 logging.basicConfig(
@@ -56,13 +55,14 @@ class PluginRecycleMessageSink(MessageSink):
 		else:
 			self.plugin.receive(self.context, self.track, msg)
 
-class RecordingTask(BasicTask):
+class RecordingTask(DispatcherTask):
 	def __init__(self, name):
 		super().__init__(name)
+		self._register_handler(BasicMessage, self._basic_message)
 		self.msgs = []
 		self.logger = logging.getLogger(__name__)
 
-	def execute(self, msg):
+	def _basic_message(self, msg: BasicMessage):
 		self.logger.debug(f"{self.name}: {msg}")
 		self.msgs.append(msg)
 

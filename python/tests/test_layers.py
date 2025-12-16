@@ -111,7 +111,8 @@ class PlaylistLayerTests(unittest.TestCase):
 
 		# Trigger playback
 		self.layer._start_playback(StartPlayback("start"))
-
+		self.layer.timer.shutdown()
+		self.layer.future_source.shutdown()
 		self.assertEqual(self.layer.state, 'playing')
 		self.assertIsNotNone(self.layer.playlist_state)
 		self.assertTrue(self.layer.active_plugin.started)

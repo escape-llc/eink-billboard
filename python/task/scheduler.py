@@ -1,8 +1,7 @@
-from concurrent.futures import Executor, ThreadPoolExecutor
 import logging
 from datetime import datetime, timedelta
 
-from .messages import MessageSink, FutureCompleted
+from .messages import FutureCompleted
 from ..plugins.plugin_base import PluginBase, PluginExecutionContext
 from ..model.configuration_manager import ConfigurationManager
 from ..model.schedule import MasterSchedule, TimedSchedule
@@ -10,14 +9,18 @@ from .application import ConfigureEvent
 from .active_plugin import ActivePlugin
 from .display import DisplaySettings
 from .timer_tick import TickMessage
-from .basic_task import BasicTask, ExecuteMessage
+from .basic_task import DispatcherTask
 from .message_router import MessageRouter
 
-class Scheduler(BasicTask):
+class Scheduler(DispatcherTask):
 	def __init__(self, name, router: MessageRouter):
 		super().__init__(name)
 		if router is None:
 			raise ValueError("router is None")
+		self._register_handler(ConfigureEvent, self._configure_event)
+		self._register_handler(DisplaySettings, self._display_settings)
+		self._register_handler(FutureCompleted, self._future_completed)
+		self._register_handler(TickMessage, self._tick_message)
 		self.router = router
 		self.schedules = []
 		self.master_schedule:MasterSchedule = None
@@ -144,66 +147,62 @@ class Scheduler(BasicTask):
 		ctx = PluginExecutionContext(timeslot, stm, scm, psm, self.active_plugin, self.resolution, schedule_ts, self.router)
 		return (plugin, ctx)
 
-	def execute(self, msg: ExecuteMessage):
-		# Handle scheduling messages here
-		self.logger.info(f"'{self.name}' receive: {msg}")
-		if isinstance(msg, ConfigureEvent):
-			self.cm = msg.content.cm
-			try:
-				plugin_info = self.cm.enum_plugins()
-				plugins = self.cm.load_plugins(plugin_info)
-				self.logger.info(f"Plugins loaded: {list(plugins.keys())}")
-				self.plugin_info = plugin_info
-				self.plugin_map = plugins
-				sm = self.cm.schedule_manager()
-				schedule_info = sm.load()
-				sm.validate(schedule_info)
-				self.master_schedule = schedule_info.get("master", None)
-				self.schedules = schedule_info.get("schedules", [])
-				self.logger.info(f"schedule loaded")
-				self.state = 'loaded'
-				msg.notify()
-			except Exception as e:
-				self.logger.error(f"Failed to load/validate schedules: {e}", exc_info=True)
-				self.state = 'error'
-				msg.notify(True, e)
-		elif isinstance(msg, DisplaySettings):
-			self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
-			self.resolution = [msg.width, msg.height]
-		elif isinstance(msg, FutureCompleted):
-			# make sure the active plugin is same as what generated this message
-			self.logger.info(f"'{self.name}' FutureCompleted {msg.plugin_name}:{msg.token} {msg.is_success}.")
-			if self.active_plugin is None:
-				self.logger.warning(f"Message arrived late, discarded. No active plugin")
+	def _configure_event(self, msg: ConfigureEvent):
+		self.cm = msg.content.cm
+		try:
+			plugin_info = self.cm.enum_plugins()
+			plugins = self.cm.load_plugins(plugin_info)
+			self.logger.info(f"Plugins loaded: {list(plugins.keys())}")
+			self.plugin_info = plugin_info
+			self.plugin_map = plugins
+			sm = self.cm.schedule_manager()
+			schedule_info = sm.load()
+			sm.validate(schedule_info)
+			self.master_schedule = schedule_info.get("master", None)
+			self.schedules = schedule_info.get("schedules", [])
+			self.logger.info(f"schedule loaded")
+			self.state = 'loaded'
+			msg.notify()
+		except Exception as e:
+			self.logger.error(f"Failed to load/validate schedules: {e}", exc_info=True)
+			self.state = 'error'
+			msg.notify(True, e)
+	def _display_settings(self, msg: DisplaySettings):
+		self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
+		self.resolution = [msg.width, msg.height]
+	def _future_completed(self, msg: FutureCompleted):
+		# make sure the active plugin is same as what generated this message
+		self.logger.info(f"'{self.name}' FutureCompleted {msg.plugin_name}:{msg.token} {msg.is_success}.")
+		if self.active_plugin is None:
+			self.logger.warning(f"Message arrived late, discarded. No active plugin")
+		else:
+			if self.active_plugin.name == msg.plugin_name:
+				if self.active_plugin.state != "future":
+					self.logger.warning(f"Active plugin state mismatch. expected 'future' actual '{self.active_plugin.state}'")
+				self.active_plugin.state = "notify"
+				try:
+					(plugin,ctx) = self.create_context(self.lastTickSeen.tick_ts, self.current_schedule_state)
+					plugin.receive(ctx, msg)
+					self.active_plugin.notify_complete()
+				except Exception as e:
+					self.logger.error(f"Error executing plugin '{self.active_plugin.name}': {e}", exc_info=True)
 			else:
-				if self.active_plugin.name == msg.plugin_name:
-					if self.active_plugin.state != "future":
-						self.logger.warning(f"Active plugin state mismatch. expected 'future' actual '{self.active_plugin.state}'")
-					self.active_plugin.state = "notify"
-					try:
-						(plugin,ctx) = self.create_context(self.lastTickSeen.tick_ts, self.current_schedule_state)
-						plugin.receive(ctx, msg)
-						self.active_plugin.notify_complete()
-					except Exception as e:
-						self.logger.error(f"Error executing plugin '{self.active_plugin.name}': {e}", exc_info=True)
-				else:
-					self.logger.warning(f"Message arrived late, discarded. Active plugin is {self.active_plugin.name}")
-		elif isinstance(msg, TickMessage):
-			self.lastTickSeen = msg
-			# Perform scheduled tasks
-			if self.state != 'loaded':
-				self.logger.warning(f"'{self.name}' waiting for configuration. Current state: {self.state}")
-				return
-			if self.master_schedule is None:
-				self.logger.error(f"'{self.name}' has no schedule loaded.")
-				return
-			schedule_ts = msg.tick_ts.replace(second=0,microsecond=0)
-			for schedule in self.schedules:
-				info = schedule.get("info", None)
-				if info is not None and isinstance(info, TimedSchedule):
-					info.set_date_controller(lambda: schedule_ts)
-			self.logger.info(f"schedule {msg.tick_ts}[{msg.tick_number}]: {schedule_ts}")
-			schedule_state = self.calculate_current_state(schedule_ts, msg)
+				self.logger.warning(f"Message arrived late, discarded. Active plugin is {self.active_plugin.name}")
+	def _tick_message(self, msg: TickMessage):
+		self.lastTickSeen = msg
+		# Perform scheduled tasks
+		if self.state != 'loaded':
+			self.logger.warning(f"'{self.name}' waiting for configuration. Current state: {self.state}")
+			return
+		if self.master_schedule is None:
+			self.logger.error(f"'{self.name}' has no schedule loaded.")
+			return
+		schedule_ts = msg.tick_ts.replace(second=0,microsecond=0)
+		for schedule in self.schedules:
+			info = schedule.get("info", None)
+			if info is not None and isinstance(info, TimedSchedule):
+				info.set_date_controller(lambda: schedule_ts)
+		self.logger.info(f"schedule {msg.tick_ts}[{msg.tick_number}]: {schedule_ts}")
+		schedule_state = self.calculate_current_state(schedule_ts, msg)
 #			self.logger.info(f"schedule state {schedule_state}")
-			self.evaluate_schedule_state(schedule_ts, schedule_state)
-			pass
+		self.evaluate_schedule_state(schedule_ts, schedule_state)

@@ -27,14 +27,14 @@ class NextTrack(PlaylistLayerMessage):
 class PlaylistLayer(DispatcherTask):
 	def __init__(self, name, router: MessageRouter):
 		super().__init__(name)
+		if router is None:
+			raise ValueError("router is None")
 		self._register_handler(ConfigureEvent, self._configure_event)
 		self._register_handler(DisplaySettings, self._display_settings)
 		self._register_handler(StartPlayback, self._start_playback)
 		self._register_handler(NextTrack, self._next_track)
 		self._register_handler(FutureCompleted, self._future_completed)
 		self._register_handler(PluginReceive, self._plugin_receive)
-		if router is None:
-			raise ValueError("router is None")
 		self.router = router
 		self.cm:ConfigurationManager = None
 		self.playlists = []
