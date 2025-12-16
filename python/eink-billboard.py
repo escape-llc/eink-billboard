@@ -120,7 +120,7 @@ if __name__ == '__main__':
 			logger.info("No storage folder detected, force_reset")
 		options = StartOptions(storagePath=STORAGE,hardReset=force_reset)
 		xapp.send(StartEvent(options))
-		started = xapp.started.wait(timeout=5)
+		started = xapp.app_started.wait(timeout=5)
 		if not started:
 			logger.warning(f"Application start timed out")
 		else:
