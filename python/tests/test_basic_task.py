@@ -7,7 +7,6 @@ class RecordingTask(DispatcherTask):
 	def __init__(self):
 		super().__init__()
 		self.received = []
-		self._register_handler(ExecuteMessage, self._execute_message)
 
 	def _execute_message(self, msg: ExecuteMessage):
 		self.received.append(msg.content)

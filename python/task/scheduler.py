@@ -17,10 +17,6 @@ class Scheduler(DispatcherTask):
 		super().__init__(name)
 		if router is None:
 			raise ValueError("router is None")
-		self._register_handler(ConfigureEvent, self._configure_event)
-		self._register_handler(DisplaySettings, self._display_settings)
-		self._register_handler(FutureCompleted, self._future_completed)
-		self._register_handler(TickMessage, self._tick_message)
 		self.router = router
 		self.schedules = []
 		self.master_schedule:MasterSchedule = None

@@ -37,9 +37,6 @@ class Display(DispatcherTask):
 		super().__init__(name)
 		if router is None:
 			raise ValueError("router is None")
-		self._register_handler(ConfigureEvent, self._configure_event)
-		self._register_handler(TickMessage, self._tick_message)
-		self._register_handler(DisplayImage, self._display_message)
 		self.router = router
 		self.cm:ConfigurationManager = None
 		self.display:DisplayBase = None

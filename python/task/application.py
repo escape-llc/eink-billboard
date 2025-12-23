@@ -3,7 +3,7 @@ import threading
 from datetime import datetime, timedelta
 
 from ..model.configuration_manager import ConfigurationManager
-from .messages import ConfigureNotify, StartEvent, StopEvent, QuitMessage, ConfigureOptions, ConfigureEvent
+from .messages import ConfigureNotify, StartEvent, StartOptions, StopEvent, QuitMessage, ConfigureOptions, ConfigureEvent
 from .scheduler import Scheduler
 from .display import Display, DisplaySettings
 from .timer_tick import TimerTick
@@ -18,14 +18,10 @@ class Application(DispatcherTask):
 		self.app_started = threading.Event()
 		self.app_stopped = threading.Event()
 		self.cm:ConfigurationManager = None
-		self._register_handler(StartEvent, self._start_event)
-		self._register_handler(StopEvent, self._stop_event)
-		self._register_handler(DisplaySettings, self._display_settings)
-		self._register_handler(ConfigureNotify, self._configure_notify)
 
 	def _start_event(self, msg: StartEvent):
 		try:
-			self._handleStart(msg)
+			self._handleStart(msg.options, msg.timerTask)
 			self.logger.info(f"'{self.name}' started.")
 			self.app_started.set()
 		except Exception as e:
@@ -71,14 +67,14 @@ class Application(DispatcherTask):
 				super().quitMsg(msg)
 		else:
 			super().quitMsg(msg)
-	def _handleStart(self, msg: StartEvent):
-		if msg.options is not None:
-			self.logger.info(f"'{self.name}' basePath: {msg.options.basePath}, storagePath: {msg.options.storagePath}")
+	def _handleStart(self, options: StartOptions, timerTask: callable):
+		if options is not None:
+			self.logger.info(f"'{self.name}' basePath: {options.basePath}, storagePath: {options.storagePath}")
 		self.cm = ConfigurationManager(
-			source_path=msg.options.basePath if msg.options is not None else None,
-			storage_path=msg.options.storagePath if msg.options is not None else None
+			source_path=options.basePath if options is not None else None,
+			storage_path=options.storagePath if options is not None else None
 			)
-		if msg.options is not None and msg.options.hardReset:
+		if options is not None and options.hardReset:
 			self.logger.info(f"'{self.name}' hard reset configuration.")
 			self.cm.hard_reset()
 		else:
@@ -100,7 +96,7 @@ class Application(DispatcherTask):
 		self.scheduler.start()
 		self.display.start()
 		# STEP 2 create but do not start timer
-		self.timer = msg.timerTask(self.router) if msg.timerTask is not None else TimerTick(self.router, interval=60, align_to_minute=True)
+		self.timer = timerTask(self.router) if timerTask is not None else TimerTick(self.router, interval=60, align_to_minute=True)
 	def _handleStop(self):
 		if self.timer.is_alive():
 			self.timer.stop()

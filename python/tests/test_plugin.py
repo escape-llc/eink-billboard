@@ -58,7 +58,6 @@ class PluginRecycleMessageSink(MessageSink):
 class RecordingTask(DispatcherTask):
 	def __init__(self, name):
 		super().__init__(name)
-		self._register_handler(BasicMessage, self._basic_message)
 		self.msgs = []
 		self.logger = logging.getLogger(__name__)
 

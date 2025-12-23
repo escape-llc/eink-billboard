@@ -38,7 +38,6 @@ class RecordingTask(DispatcherTask):
 		super().__init__(name)
 		self.ticks = []
 		self.logger = logging.getLogger(__name__)
-		self._register_handler(TickMessage, self._tick_message)
 
 	def _tick_message(self, msg: TickMessage):
 		self.logger.debug(f"{self.name}: {msg}")
