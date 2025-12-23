@@ -1,14 +1,15 @@
 from typing_extensions import Protocol
-from typing import TypeVar, Type, Optional
+from typing import TypeVar, Type, Optional, runtime_checkable
 import threading
 
 T = TypeVar('T')
 
-
+@runtime_checkable
 class IServiceProvider(Protocol):
 	def get_service(self, service_type: Type[T]) -> Optional[T]:
 		...
 
+@runtime_checkable
 class IServiceContainer(IServiceProvider, Protocol):
 	def add_service(self, service_type: Type[T], service_instance: T) -> None:
 		...
