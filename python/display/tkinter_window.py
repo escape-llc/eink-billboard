@@ -46,7 +46,7 @@ class TkinterWindow(DisplayBase):
 		if self.tkthread:
 			self.tkthread.join(timeout=5)
 
-	def render(self, img: Image):
+	def render(self, img: Image, title: str = None):
 		self.logger.info(f"'{self.name}' render")
 		if self.display_settings is None:
 			self.logger.error("No display_settings loaded")
