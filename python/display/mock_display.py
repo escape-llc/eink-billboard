@@ -19,6 +19,9 @@ class MockDisplay(DisplayBase):
 		resolution = self.display_settings.get("mock.resolution", [800,480])
 		return resolution
 
+	def shutdown(self):
+		pass
+
 	def render(self, img: Image, title: str = None):
 		self.logger.info(f"'{self.name}' render")
 		if self.display_settings is None:
