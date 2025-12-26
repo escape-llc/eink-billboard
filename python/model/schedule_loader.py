@@ -3,7 +3,7 @@ from datetime import datetime
 import uuid
 
 from ..model.hash_manager import HashManager
-from .schedule import MasterSchedule, MasterScheduleItem, Playlist, PlaylistSchedule, PlaylistScheduleData, TimedSchedule, PluginSchedule, PluginScheduleData, TimerTaskItem, TimerTasks
+from .schedule import MasterSchedule, MasterScheduleItem, Playlist, PlaylistSchedule, PlaylistScheduleData, TimedSchedule, PluginSchedule, PluginScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks
 
 class ScheduleLoader:
 	@staticmethod
@@ -141,6 +141,15 @@ class ScheduleLoader:
 			title = entry.get("title", "")
 			desc = entry.get("description", "")
 			enabled = entry.get("enabled", True)
-			item = TimerTaskItem(id, title, enabled, desc, entry.get("task", {}), entry.get("trigger", {}))
+			etask = entry.get("task", None)
+			if etask is None:
+				raise ValueError(f"Timer task entry '{title}' is missing 'task' field.")
+			# only TimerTaskTask is supported currently
+			task = TimerTaskTask(
+				etask.get("plugin_name", None),
+				etask.get("title", None),
+				etask.get("duration_minutes", None),
+				etask.get("content", {}))
+			item = TimerTaskItem(id, title, enabled, desc, task, entry.get("trigger", {}))
 			items.append(item)
 		return TimerTasks(sid, name, items)
