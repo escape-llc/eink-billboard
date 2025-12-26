@@ -26,6 +26,7 @@ class ScheduleManager:
 			hm (HashManager, optional): Hash manager for validating hashes. Defaults to None.
 		Returns:
 			dict: A dictionary containing the master schedule and a list of schedules.
+			keys: "master", "schedules", "playlists", "tasks"
 		"""
 		master_schedule_file = os.path.join(self.ROOT_PATH, MASTER)
 		if not os.path.isfile(master_schedule_file):

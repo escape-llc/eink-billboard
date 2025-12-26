@@ -8,7 +8,7 @@ from ...task.display import DisplayImage
 from ...task.message_router import MessageRouter
 from ...model.schedule import PlaylistBase, PlaylistSchedule, PluginSchedule, SchedulableBase
 from ...task.messages import BasicMessage, FutureCompleted, MessageSink, PluginReceive
-from ..plugin_base import BasicExecutionContext2, PluginProtocol
+from ..plugin_base import BasicExecutionContext2, PluginProtocol, TrackType
 import logging
 
 class SlideShowTimerExpired(PluginReceive):
@@ -112,7 +112,7 @@ class SlideShow(PluginProtocol):
 		router.send("display", DisplayImage(title, image))
 		slideMinutes = settings.get("slideMinutes", 15)
 		self.timer_info = timer.create_timer(timedelta(minutes=slideMinutes), timer_sink, SlideShowTimerExpired(state))
-	def start(self, context: BasicExecutionContext2, track: SchedulableBase|PlaylistBase) -> None:
+	def start(self, context: BasicExecutionContext2, track: TrackType) -> None:
 		self.logger.info(f"{self.id} start '{track.title}'")
 		if isinstance(track, PlaylistSchedule):
 			submit = context.provider.get_service(SubmitFuture)
@@ -124,7 +124,7 @@ class SlideShow(PluginProtocol):
 			raise RuntimeError(f"Unsupported track type: {type(track)}")
 		else:
 			raise RuntimeError(f"Unsupported track type: {type(track)}")
-	def stop(self, context: BasicExecutionContext2, track: SchedulableBase|PlaylistBase) -> None:
+	def stop(self, context: BasicExecutionContext2, track: TrackType) -> None:
 		self.logger.info(f"{self.id} stop '{track.title}'")
 		if self.timer_info is not None:
 			self.timer_info[1]()
@@ -132,7 +132,7 @@ class SlideShow(PluginProtocol):
 		if self.submit_result is not None:
 			self.submit_result()
 			self.submit_result = None
-	def receive(self, context: BasicExecutionContext2, track: SchedulableBase|PlaylistBase, msg: BasicMessage) -> None:
+	def receive(self, context: BasicExecutionContext2, track: TrackType, msg: BasicMessage) -> None:
 		self.logger.info(f"{self.id} receive '{track.title}' {msg}")
 		if isinstance(track, PlaylistSchedule):
 			if isinstance(msg, FutureCompleted):

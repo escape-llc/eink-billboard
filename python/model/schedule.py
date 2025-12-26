@@ -289,6 +289,14 @@ def generate_schedule(now: datetime, trigger: dict) -> Generator[datetime, None,
 
 class TimerTaskTask:
 	def __init__(self, plugin_name: str, title: str, duration_minutes: int, content: dict):
+		if plugin_name is None:
+			raise ValueError("plugin_name cannot be None")
+		if title is None:
+			raise ValueError("title cannot be None")
+		if duration_minutes is None:
+			raise ValueError("duration_minutes cannot be None")
+		if content is None:
+			raise ValueError("content cannot be None")
 		self.plugin_name = plugin_name
 		self.title = title
 		self.duration_minutes = duration_minutes
@@ -304,6 +312,14 @@ class TimerTaskTask:
 	pass
 class TimerTaskItem:
 	def __init__(self, id: str, name: str, enabled: bool, desc: str, task: TimerTaskTask, trigger: dict):
+		if id is None:
+			raise ValueError("id cannot be None")
+		if name is None:
+			raise ValueError("name cannot be None")
+		if task is None:
+			raise ValueError("task cannot be None")
+		if trigger is None:
+			raise ValueError("trigger cannot be None")
 		self.id = id
 		self.name = name
 		self.enabled = enabled
@@ -322,6 +338,12 @@ class TimerTaskItem:
 		return retv
 class TimerTasks:
 	def __init__(self, id: str, name: str, items: list[TimerTaskItem] = None):
+		if id is None:
+			raise ValueError("id cannot be None")
+		if name is None:
+			raise ValueError("name cannot be None")
+		if items is None:
+			raise ValueError("items cannot be None")
 		self.id = id
 		self.name = name
 		self.items = items if items is not None else []

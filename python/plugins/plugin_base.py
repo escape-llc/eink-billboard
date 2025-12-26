@@ -7,7 +7,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from ..datasources.data_source import DataSource, DataSourceExecutionContext, DataSourceManager
 from ..model.service_container import IServiceProvider, ServiceContainer, ServiceContainer
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, PluginConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
-from ..model.schedule import PlaylistBase, SchedulableBase
+from ..model.schedule import PlaylistBase, SchedulableBase, TimerTaskTask
 from ..task.active_plugin import ActivePlugin
 from ..task.message_router import MessageRouter
 from ..task.messages import BasicMessage
@@ -18,6 +18,10 @@ class BasicExecutionContext2:
 	def __init__(self, isp: IServiceProvider, dimensions: tuple[int, int], schedule_ts: datetime.datetime):
 		if isp is None:
 			raise ValueError("isp is None")
+		if dimensions is None:
+			raise ValueError("dimensions is None")
+		if schedule_ts is None:
+			raise ValueError("schedule_ts is None")
 		self._isp = isp
 		self._dimensions = dimensions
 		self._schedule_ts = schedule_ts
@@ -118,6 +122,7 @@ class RenderSession:
 		return render_html_arglist(rendered_html, [f"--window-size={dimensions[0]},{dimensions[1]}"])
 	pass
 
+type TrackType = SchedulableBase | PlaylistBase | TimerTaskTask
 @runtime_checkable
 class PluginProtocol(Protocol):
 	@property
@@ -126,11 +131,11 @@ class PluginProtocol(Protocol):
 	@property
 	def name(self) -> str:
 		...
-	def start(self, context: BasicExecutionContext2, track: SchedulableBase|PlaylistBase) -> None:
+	def start(self, context: BasicExecutionContext2, track: TrackType) -> None:
 		...
-	def receive(self, context: BasicExecutionContext2, track: SchedulableBase|PlaylistBase, msg: BasicMessage) -> None:
+	def receive(self, context: BasicExecutionContext2, track: TrackType, msg: BasicMessage) -> None:
 		...
-	def stop(self, context: BasicExecutionContext2, track: SchedulableBase|PlaylistBase) -> None:
+	def stop(self, context: BasicExecutionContext2, track: TrackType) -> None:
 		...
 
 class PluginBase(ABC):

@@ -5,15 +5,16 @@ from typing import Callable, Type
 from .messages import MessageSink, BasicMessage, ExecuteMessage, QuitMessage
 
 class CoreTask(threading.Thread, MessageSink):
-	"""Core threading and message-queue logic shared by task implementations.
+	"""
+	Core threading and message-queue logic shared by task implementations.
 
-	Subclasses must implement `_dispatch(msg)` to handle messages pulled from
-	the internal queue. `CoreTask` provides `run()`, `send()` and a default
-	`quitMsg()` implementation used by tasks to stop gracefully.
+	Subclasses must implement `_dispatch(msg)` to handle messages pulled from the internal queue.
+
+	`CoreTask` provides `run()`, `send()` and a default `quitMsg()` implementation used by tasks to stop gracefully.
 	"""
 
 	def __init__(self, name=None):
-		super().__init__()
+		super().__init__(daemon=True)
 		self.msg_queue = queue.Queue()
 		self.name = name or self.__class__.__name__
 		self.stopped = threading.Event()

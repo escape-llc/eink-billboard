@@ -30,13 +30,15 @@ class TkinterWindow(DisplayBase):
 	def initialize(self, cm: ConfigurationManager):
 		self.logger.info(f"'{self.name}' initialize")
 		settings = cm.settings_manager()
-		self.root = tk.Tk()
-		self.root.title("Image Display")
-		self.image_label = tk.Label(self.root)
-		self.image_label.pack()
 		self.display_settings = settings.load_settings("display")
 		resolution = self.display_settings.get("mock.resolution", [800,480])
-		self.root.geometry(f"{resolution[0]}x{resolution[1]}")
+		self.root = tk.Tk()
+		self.root.title("Image Display")
+		self.frame = tk.Frame(self.root, width=resolution[0], height=resolution[1])
+		self.frame.pack(padx=8, pady=8)
+		self.image_label = tk.Label(self.frame, image=None, text="e-Ink Billboard Display", compound=tk.TOP)
+		self.image_label.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+		#self.root.geometry(f"{resolution[0]}x{resolution[1]}")
 		self.tkthread = TkThread(self.root)
 		self.tkthread.start()
 		return resolution
@@ -54,7 +56,10 @@ class TkinterWindow(DisplayBase):
 		if self.root:
 			try:
 				tk_image = ImageTk.PhotoImage(img)
-				self.image_label.config(image=tk_image)
+				self.image_label.config(image=tk_image, text=title if title else "E-Ink Billboard Display", compound=tk.TOP)
+				# important keep a reference to avoid garbage collection
+				self.tk_image = tk_image
+				self.image_label.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 				self.root.update()
 			except Exception as e:
 				self.logger.error(f"render.unhandled: {str(e)}")
