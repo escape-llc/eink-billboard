@@ -124,7 +124,7 @@ class TimerLayer(DispatcherTask):
 		plugin_eval = self._evaluate_plugin(current_track)
 		active_plugin:PluginProtocol = plugin_eval.get("plugin", None)
 		if active_plugin is None:
-			self.logger.error(f"Cannot start playback, plugin '{current_track.plugin_name}' for task '{current_track.title}' is not available.")
+			self.logger.error(f"Cannot start playback, plugin '{current_track.task.plugin_name}' for task '{current_track.task.title}' is not available.")
 			return
 		self.active_plugin = active_plugin
 		self.active_context = self._create_context()
