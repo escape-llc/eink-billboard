@@ -63,18 +63,25 @@ COMICS = {
 def get_items(comic_name):
 	comic = COMICS[comic_name]
 	feed = feedparser.parse(comic["feed"])
-	index:int = 0
 	items = []
 	for entry in feed.entries:
-		element = comic["element"](entry)
-		data = 	{
-			"name": comic_name,
-			"index": index,
-			"count": len(feed.entries),
-			"image_url": comic["url"](element),
-			"title": comic["title"](entry),
-			"caption": comic["caption"](element),
-		}
-		items.append(data)
+		try:
+			element = comic["element"](entry)
+			data = 	{
+				"name": comic_name,
+				"index": 0,
+				"count": 0,
+				"image_url": comic["url"](element),
+				"title": comic["title"](entry),
+				"caption": comic["caption"](element),
+			}
+			items.append(data)
+		except Exception as e:
+			# malformed entry, skip it
+			continue
+	index: int = 0
+	for item in items:
+		item["index"] = index
+		item["count"] = len(items)
 		index += 1
 	return items
