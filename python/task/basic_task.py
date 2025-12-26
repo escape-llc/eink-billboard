@@ -2,7 +2,7 @@ import threading
 import queue
 import logging
 from typing import Callable, Type
-from .messages import MessageSink, BasicMessage, ExecuteMessage, QuitMessage
+from .messages import MessageSink, BasicMessage, QuitMessage
 
 class CoreTask(threading.Thread, MessageSink):
 	"""

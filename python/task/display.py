@@ -8,10 +8,10 @@ from ..display.display_base import DisplayBase
 from ..model.configuration_manager import ConfigurationManager
 from ..task.basic_task import DispatcherTask
 from ..task.timer_tick import TickMessage
-from ..task.messages import ConfigureEvent, ExecuteMessage, QuitMessage
+from ..task.messages import BasicMessage, ConfigureEvent, QuitMessage
 from .message_router import MessageRouter
 
-class DisplayImage(ExecuteMessage):
+class DisplayImage(BasicMessage):
 	def __init__(self, title:str, img: Image):
 		super().__init__()
 		self.title = title
@@ -20,7 +20,7 @@ class DisplayImage(ExecuteMessage):
 		return f" title='{self.title}' img={self.img.width}x{self.img.height}"
 
 
-class DisplaySettings(ExecuteMessage):
+class DisplaySettings(BasicMessage):
 	"""
 	Notify tasks of the current display settings.
 	"""

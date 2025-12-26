@@ -14,13 +14,13 @@ from .messages import BasicMessage, ConfigureEvent, FutureCompleted, MessageSink
 from .message_router import MessageRouter
 from .basic_task import DispatcherTask
 
-class PlaylistLayerMessage(BasicMessage):
+class LayerControlMessage(BasicMessage):
 	def __init__(self, timestamp=None):
 		super().__init__(timestamp)
-class StartPlayback(PlaylistLayerMessage):
+class StartPlayback(LayerControlMessage):
 	def __init__(self, timestamp=None):
 		super().__init__(timestamp)
-class NextTrack(PlaylistLayerMessage):
+class NextTrack(LayerControlMessage):
 	def __init__(self, timestamp=None):
 		super().__init__(timestamp)
 
@@ -263,7 +263,7 @@ class PlaylistLayer(DispatcherTask):
 			self.logger.info(f"schedule loaded")
 			self.state = 'loaded'
 			msg.notify()
-			self.send(StartPlayback("SystemStart"))
+			self.send(StartPlayback(msg.timestamp))
 		except Exception as e:
 			self.logger.error(f"Failed to load/validate schedules: {e}", exc_info=True)
 			self.state = 'error'

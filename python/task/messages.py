@@ -3,6 +3,7 @@ from typing import Generic, TypeVar
 from datetime import datetime
 
 from ..model.configuration_manager import ConfigurationManager
+from ..model.service_container import IServiceProvider
 
 T = TypeVar('T')
 
@@ -20,12 +21,7 @@ class QuitMessage(BasicMessage):
 	def __init__(self, timestamp: datetime = datetime.now()):
 		super().__init__(timestamp)
 
-class ExecuteMessage(BasicMessage):
-	"""Message to execute a command."""
-	def __init__(self, timestamp: datetime = datetime.now()):
-		super().__init__(timestamp)
-
-class ExecuteMessageWithContent(ExecuteMessage, Generic[T]):
+class MessageWithContent(BasicMessage, Generic[T]):
 	"""Message to execute a command with content."""
 	def __init__(self, content: T, timestamp: datetime = datetime.now()):
 		super().__init__(timestamp)
@@ -37,14 +33,14 @@ class StartOptions:
 		self.basePath = basePath
 		self.storagePath = storagePath
 		self.hardReset = hardReset
-class StartEvent(ExecuteMessage):
+class StartEvent(BasicMessage):
 	"""Event to start the application with given options and timer task."""
-	def __init__(self, options: StartOptions = None, timerTask: callable = None, timestamp: datetime = datetime.now()):
+	def __init__(self, options: StartOptions = None, root: IServiceProvider = None, timestamp: datetime = datetime.now()):
 		super().__init__(timestamp)
 		self.options = options
-		self.timerTask = timerTask
+		self.root = root
 
-class StopEvent(ExecuteMessage):
+class StopEvent(BasicMessage):
 	"""Event to stop the application."""
 	def __init__(self, timestamp: datetime = datetime.now()):
 		super().__init__(timestamp)
@@ -56,7 +52,7 @@ class ConfigureOptions:
 			raise ValueError("cm cannot be None")
 		self.cm = cm
 
-class ConfigureEvent(ExecuteMessageWithContent[ConfigureOptions]):
+class ConfigureEvent(MessageWithContent[ConfigureOptions]):
 	"""Event to configure tasks with given options."""
 	def __init__(self, token: str, content = None, notifyTo: MessageSink = None, timestamp: datetime = datetime.now()):
 		super().__init__(content, timestamp)
@@ -67,14 +63,14 @@ class ConfigureEvent(ExecuteMessageWithContent[ConfigureOptions]):
 		if self.notifyTo is not None:
 			self.notifyTo.send(ConfigureNotify(self.token, error, content))
 
-class ConfigureNotify(ExecuteMessage):
+class ConfigureNotify(BasicMessage):
 	def __init__(self, token: str, error: bool = False, content = None, timestamp: datetime = datetime.now()):
 		super().__init__(timestamp)
 		self.token = token
 		self.error = error
 		self.content = content
 
-class FutureCompleted(ExecuteMessage):
+class FutureCompleted(BasicMessage):
 	def __init__(self, plugin_name: str, token: str, result, error = None, timestamp: datetime = datetime.now()):
 		super().__init__(timestamp)
 		self.plugin_name = plugin_name
@@ -85,7 +81,7 @@ class FutureCompleted(ExecuteMessage):
 	def __repr__(self):
 		return f" plugin_name='{self.plugin_name}' token='{self.token}' is_success={self.is_success} error={self.error} result={self.result}"
 
-class PluginReceive(ExecuteMessage):
+class PluginReceive(BasicMessage):
 	def __init__(self, timestamp: datetime = None):
 		super().__init__(timestamp)
 

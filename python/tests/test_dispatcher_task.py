@@ -1,7 +1,7 @@
 import unittest
 import logging
 from ..task.basic_task import DispatcherTask
-from ..task.messages import BasicMessage, ExecuteMessage, ExecuteMessageWithContent, QuitMessage
+from ..task.messages import BasicMessage, MessageWithContent, QuitMessage
 
 
 class RecordingDispatcher(DispatcherTask):
@@ -24,12 +24,12 @@ class TestDispatcherTask(unittest.TestCase):
 			def __init__(self):
 				super().__init__()
 
-			def _handler(self, msg: ExecuteMessageWithContent):
+			def _handler(self, msg: MessageWithContent):
 				self.received.append(('handler', msg.content))
 
 		task = RegisteredDispatcher()
 		task.start()
-		task.send(ExecuteMessageWithContent('payload'))
+		task.send(MessageWithContent('payload'))
 		task.send(QuitMessage())
 		task.join()
 
@@ -41,13 +41,13 @@ class TestDispatcherTask(unittest.TestCase):
 	def test_baseclass_handler_with_message_subclass(self):
 		task = RecordingDispatcher()
 		task.start()
-		# Send a plain ExecuteMessage which has no exact-class handler
-		task.send(ExecuteMessage())
+		# Send a MessageWithContext which has no exact-class handler
+		task.send(MessageWithContent('payload'))
 		task.send(QuitMessage())
 		task.join()
 
 		# Handler exists for BasicMessage should record it
-		self.assertIn(('ExecuteMessage', None), task.received)
+		self.assertIn(('MessageWithContent', 'payload'), task.received)
 		self.assertTrue(task.stopped.is_set())
 
 	def test_sub_emessage_handler_before_super_message_handler(self):
@@ -55,13 +55,13 @@ class TestDispatcherTask(unittest.TestCase):
 			def __init__(self):
 				super().__init__()
 			# called instead of the BasicMessage handler
-			def _handler(self, msg: ExecuteMessage):
+			def _handler(self, msg: BasicMessage):
 				content = getattr(msg, 'content', None)
 				self.received.append(('superhandler', content))
 
 		task = SubHandlerDispatcher()
 		task.start()
-		task.send(ExecuteMessageWithContent('payload2'))
+		task.send(MessageWithContent('payload2'))
 		task.send(QuitMessage())
 		task.join()
 

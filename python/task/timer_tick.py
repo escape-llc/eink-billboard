@@ -3,9 +3,9 @@ import logging
 from datetime import datetime, timedelta
 
 from .message_router import MessageRouter
-from .messages import ExecuteMessage
+from .messages import BasicMessage
 
-class TickMessage(ExecuteMessage):
+class TickMessage(BasicMessage):
 	"""Message indicating a timer tick."""
 	def __init__(self, tick_ts:datetime, tick_number:int):
 		super().__init__()
