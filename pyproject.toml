@@ -27,5 +27,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "coverage>=7.13.0",
     "flask-cors==6.0.1",
 ]
