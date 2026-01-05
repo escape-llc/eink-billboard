@@ -7,7 +7,7 @@ from python.task.playlist_layer import PlaylistLayer
 from python.task.timer_layer import TimerLayer
 
 from ..model.configuration_manager import ConfigurationManager
-from .messages import ConfigureNotify, StartEvent, StartOptions, StopEvent, QuitMessage, ConfigureOptions, ConfigureEvent
+from .messages import ConfigureNotify, MessageSink, StartEvent, StartOptions, StopEvent, QuitMessage, ConfigureOptions, ConfigureEvent
 from .display import Display, DisplaySettings
 from .timer_tick import TimerTick
 from .basic_task import DispatcherTask, QuitMessage
@@ -15,7 +15,7 @@ from .message_router import MessageRouter, Route
 from .telemetry_sink import TelemetrySink
 
 class Application(DispatcherTask):
-	def __init__(self, name = None, sink: TelemetrySink = None):
+	def __init__(self, name = None, sink: MessageSink = None):
 		super().__init__(name)
 		self.sink = sink
 		self.app_started = threading.Event()
