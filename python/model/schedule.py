@@ -306,7 +306,7 @@ class TimerTaskTask:
 			"title": self.title,
 			"plugin_name": self.plugin_name,
 			"duration_minutes": self.duration_minutes,
-			"content": self.content
+			"content": self.content.copy()
 		}
 		return retv
 	pass
@@ -332,7 +332,7 @@ class TimerTaskItem:
 			"name": self.name,
 			"enabled": self.enabled,
 			"description": self.description,
-			"trigger": self.trigger,
+			"trigger": self.trigger.copy(),
 			"task": self.task.to_dict()
 		}
 		return retv
