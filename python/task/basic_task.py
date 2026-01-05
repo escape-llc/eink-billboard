@@ -1,3 +1,4 @@
+import inspect
 import threading
 import queue
 import logging
@@ -167,54 +168,8 @@ class MyClass:
 obj = MyClass()
 config = {str: "REPLACED", int: 777}
 
-# Since methods are ONLY called via registry, we use the type key
-# Because the constructor bound the methods, we don't pass 'obj' again
-obj.registry[str](config, "original_a", "original_b")
+obj.process_str(config, "original_a", "original_b")
 # Output: String logic executed: REPLACED, REPLACED
 
-obj.registry[int](config, 0, 1.5) 
+obj.process_int(config, 0, 1.5) 
 # Output: Int logic executed: 777, None (1.5 is float, not in config)
-
-import inspect
-from typing import Type, Callable
-
-class MyTargetBaseType: pass
-class MySubClassA(MyTargetBaseType): pass
-class MySubClassB(MyTargetBaseType): pass
-
-class MethodMapper:
-	def __init__(self):
-		# Dictionary to store {ParamType: BoundMethod}
-		self.method_registry: dict[Type, Callable] = {}
-
-		# 1. Inspect all bound methods
-		for name, method in inspect.getmembers(self, predicate=inspect.ismethod):
-			if name.startswith("__"):
-				continue
-
-			# 2. Get signature (excludes 'self' for bound methods)
-			sig = inspect.signature(method)
-			params = list(sig.parameters.values())
-
-			if params:
-				# 3. Extract the type hint of the first argument
-				param_type = params[0].annotation
-
-				# 4. Filter and store if it matches your base type
-				if inspect.isclass(param_type) and issubclass(param_type, BasicMessage):
-					self.method_registry[param_type] = method
-
-	def handle_a(self, data: MySubClassA):
-		print(f"Executing handle_a with {type(data).__name__}")
-
-	def handle_b(self, data: MySubClassB):
-		print(f"Executing handle_b with {type(data).__name__}")
-
-# Example Usage
-mapper = MethodMapper()
-print(f"Registry: {mapper.method_registry}")
-
-# Dynamic dispatch using the stored types
-obj = MySubClassA()
-if type(obj) in mapper.method_registry:
-	mapper.method_registry[type(obj)](obj)
