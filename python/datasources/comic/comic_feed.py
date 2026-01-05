@@ -28,12 +28,8 @@ class ComicFeed(DataSource, MediaList):
 		future = self._es.submit(future_feed_image)
 		return future
 	def _generate_image(self, context: DataSourceExecutionContext, params, item) -> Image.Image:
-		scm = context.provider.get_service(SettingsConfigurationManager)
-		if scm is None:
-			raise RuntimeError("SettingsConfigurationManager service is not available")
-		stm = context.provider.get_service(StaticConfigurationManager)
-		if stm is None:
-			raise RuntimeError("StaticConfigurationManager service is not available")
+		scm = context.provider.required(SettingsConfigurationManager)
+		stm = context.provider.required(StaticConfigurationManager)
 		display_settings = scm.load_settings("display")
 		dimensions = context.dimensions
 		is_caption = params.get("titleCaption") == "true"

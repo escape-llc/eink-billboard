@@ -21,12 +21,8 @@ class OpenAI(DataSource,MediaList):
 		if self._es is None:
 			raise RuntimeError("Executor not set for DataSource")
 		def locate_image_url():
-			dscm = dsec.provider.get_service(DatasourceConfigurationManager)
-			if dscm is None:
-				raise RuntimeError("DatasourceConfigurationManager service is not available")
-			scm = dsec.provider.get_service(SettingsConfigurationManager)
-			if scm is None:
-				raise RuntimeError("SettingsConfigurationManager service is not available")
+			dscm = dsec.provider.required(DatasourceConfigurationManager)
+			scm = dsec.provider.required(SettingsConfigurationManager)
 			ds_settings = dscm.load_settings()
 			if not ds_settings:
 				raise RuntimeError("Open AI Image datasource not configured.")

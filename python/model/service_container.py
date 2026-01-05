@@ -8,6 +8,20 @@ T = TypeVar('T')
 class IServiceProvider(Protocol):
 	def get_service(self, service_type: Type[T]) -> Optional[T]:
 		...
+	def required(self, service_type: Type[T]) -> T:
+		"""
+		Return the requested service instance, raising ValueError if not available.
+		
+		:param self: Description
+		:param service_type: Description
+		:type service_type: Type[T]
+		:return: Description
+		:rtype: T
+		"""
+		inst = self.get_service(service_type)
+		if inst is None:
+			raise ValueError(f"Required service {service_type} is not available.")
+		return inst
 
 @runtime_checkable
 class IServiceContainer(IServiceProvider, Protocol):

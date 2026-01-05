@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from python.task.future_source import CancelToken, FutureSource, SubmitFuture
+from python.task.future_source import CancelToken, SubmitFuture
 from ...task.playlist_layer import NextTrack
 from ...task.timer import TimerService
 from ...datasources.data_source import DataSourceExecutionContext, DataSourceManager, MediaList
@@ -30,21 +30,13 @@ class SlideShow(PluginProtocol):
 	@property
 	def name(self) -> str:
 		return self._name
-	def _source_start(self, is_cancelled:CancelToken, context: DataSourceExecutionContext, track:PlaylistSchedule) -> bool|None:
+	def _source_start(self, is_cancelled:CancelToken, context: BasicExecutionContext2, track:PlaylistSchedule) -> bool|None:
 		settings = track.content.data
 		# assert required services are available
-		dsm = context.provider.get_service(DataSourceManager)
-		if dsm is None:
-			raise RuntimeError("DataSourceManager is not available")
-		router = context.provider.get_service(MessageRouter)
-		if router is None:
-			raise RuntimeError("MessageRouter is not available")
-		timer = context.provider.get_service(TimerService)
-		if timer is None:
-			raise RuntimeError("TimerService is not available")
-		timer_sink = context.provider.get_service(MessageSink)
-		if timer_sink is None:
-			raise RuntimeError("MessageSink is not available")
+		dsm = context.provider.required(DataSourceManager)
+		router = context.provider.required(MessageRouter)
+		timer = context.provider.required(TimerService)
+		timer_sink = context.provider.required(MessageSink)
 		# safe to continue
 		dataSourceName = settings.get("dataSource", None)
 		if dataSourceName is None:
@@ -67,21 +59,13 @@ class SlideShow(PluginProtocol):
 		if cancelled:
 			return None
 		return FutureCompleted(self._name, "start", result, exception)
-	def _source_next(self, is_cancelled:CancelToken, context: DataSourceExecutionContext, track:PlaylistSchedule, msg: SlideShowTimerExpired) -> None:
+	def _source_next(self, is_cancelled:CancelToken, context: BasicExecutionContext2, track:PlaylistSchedule, msg: SlideShowTimerExpired) -> None:
 		settings = track.content.data
 		# assert required services are available
-		dsm = context.provider.get_service(DataSourceManager)
-		if dsm is None:
-			raise RuntimeError("DataSourceManager is not available")
-		router = context.provider.get_service(MessageRouter)
-		if router is None:
-			raise RuntimeError("MessageRouter is not available")
-		timer = context.provider.get_service(TimerService)
-		if timer is None:
-			raise RuntimeError("TimerService is not available")
-		local_sink = context.provider.get_service(MessageSink)
-		if local_sink is None:
-			raise RuntimeError("MessageSink is not available")
+		dsm = context.provider.required(DataSourceManager)
+		router = context.provider.required(MessageRouter)
+		timer = context.provider.required(TimerService)
+		local_sink = context.provider.required(MessageSink)
 		# safe to continue
 		dataSourceName = settings.get("dataSource", None)
 		if dataSourceName is None:
@@ -115,9 +99,7 @@ class SlideShow(PluginProtocol):
 	def start(self, context: BasicExecutionContext2, track: TrackType) -> None:
 		self.logger.info(f"{self.id} start '{track.title}'")
 		if isinstance(track, PlaylistSchedule):
-			submit = context.provider.get_service(SubmitFuture)
-			if submit is None:
-				raise RuntimeError("SubmitFuture is not available")
+			submit = context.provider.required(SubmitFuture)
 			self.submit_result = submit.submit_future(lambda x: self._source_start(x, context, track),
 													 lambda cancelled,result,exception: self._continuation_start(cancelled,result,exception	))
 		elif isinstance(track, PluginSchedule):
@@ -139,9 +121,7 @@ class SlideShow(PluginProtocol):
 				self.logger.info(f"{self.name} FutureCompleted {msg}")
 				self.submit_result = None
 			elif isinstance(msg, SlideShowTimerExpired):
-				submit = context.provider.get_service(SubmitFuture)
-				if submit is None:
-					raise RuntimeError("SubmitFuture is not available")
+				submit = context.provider.required(SubmitFuture)
 				self.submit_result = submit.submit_future(lambda x: self._source_next(x, context, track, msg), lambda cancelled,result,exception: self._continuation_next(cancelled,result,exception))
 		elif isinstance(track, PluginSchedule):
 			raise RuntimeError(f"Unsupported track type: {type(track)}")

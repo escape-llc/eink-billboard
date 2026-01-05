@@ -35,9 +35,7 @@ class BasicExecutionContext2:
 	def schedule_ts(self) -> datetime.datetime:
 		return self._schedule_ts
 	def create_datasource_context(self, ds:DataSource):
-		cm = self._isp.get_service(ConfigurationManager)
-		if cm is None:
-			raise RuntimeError("ConfigurationManager service is not available")
+		cm = self._isp.required(ConfigurationManager)
 		dscm = cm.datasource_manager(ds.name)
 		local = ServiceContainer(self._isp)
 		local.add_service(DatasourceConfigurationManager, dscm)

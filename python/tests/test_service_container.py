@@ -36,6 +36,20 @@ class TestServiceContainer(unittest.TestCase):
 		class MissingService: pass
 		self.assertIsNone(child.get_service(MissingService))
 
+	def test_required_returns_instance(self):
+		container = ServiceContainer()
+		class ServiceX: pass
+		obj = ServiceX()
+		container.add_service(ServiceX, obj)
+		# required() should return the registered instance
+		self.assertIs(container.required(ServiceX), obj)
+
+	def test_required_raises_when_missing(self):
+		container = ServiceContainer()
+		class MissingService: pass
+		with self.assertRaises(ValueError):
+			container.required(MissingService)
+
 	def test_concurrent_add_same_type_raises(self):
 		parent = ServiceContainer()
 		child = ServiceContainer(parent=parent)
