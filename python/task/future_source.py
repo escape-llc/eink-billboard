@@ -18,24 +18,27 @@ class SubmitFuture(Protocol):
 		...
 
 class FutureSource(SubmitFuture):
-	def __init__(self, completion_port:MessageSink, executor:Executor) -> None:
+	def __init__(self, owner: str, completion_port:MessageSink, executor:Executor) -> None:
+		if owner is None:
+			raise ValueError("FutureSource: owner is None")
 		if completion_port is None:
-			raise ValueError("completion_port is None")
+			raise ValueError(f"{owner}: completion_port is None")
 		if executor is None:
-			raise ValueError("executor is None")
+			raise ValueError(f"{owner}: executor is None")
 		self._port = completion_port
 		self._executor:Executor = executor
+		self._owner = owner
 		self.logger = logging.getLogger(__name__)
 	def shutdown(self) -> None:
 		if self._executor is not None:
-			self.logger.debug("Shutting down FutureSource executor.")
+			self.logger.debug(f"{self._owner}: Shutting down FutureSource executor.")
 			self._executor.shutdown(cancel_futures=True)
 			self._executor = None
 	def submit_future(self, future: FutureFunction, continuation: FutureContinuation) -> SubmitResult:
 		if future is None:
-			raise ValueError("future is None")
+			raise ValueError(f"{self._owner}: future is None")
 		if continuation is None:
-			raise ValueError("continuation is None")
+			raise ValueError(f"{self._owner}: continuation is None")
 		cancel = threading.Event()
 		def _the_future() -> FutureResult:
 			def _check_cancelled() -> bool:
@@ -43,7 +46,7 @@ class FutureSource(SubmitFuture):
 			result = None
 			exception = None
 			try:
-				self.logger.debug("Starting future execution.")
+				self.logger.debug(f"{self._owner}: Starting future execution.")
 				result = future(_check_cancelled)
 			except Exception as ex:
 				exception = ex
@@ -51,7 +54,7 @@ class FutureSource(SubmitFuture):
 		def _future_completed(fx: Future[FutureResult], continuation: FutureContinuation) -> None:
 			result, exception = fx.result()
 			cancelled = cancel.is_set()
-			self.logger.debug(f"Future completed c:{cancelled} r:{result} e:{exception}, send continuation message.")
+			self.logger.debug(f"{self._owner}: Future completed c:{cancelled} r:{result} e:{exception}, send continuation message.")
 			try:
 				msg = continuation(cancelled, result, exception)
 				if msg is not None:
@@ -61,7 +64,7 @@ class FutureSource(SubmitFuture):
 	#					self.logger.error(f"Error sending message: {ex}")
 						pass
 			except Exception as ex2:
-				self.logger.error(f"Continuation.unhandled: {ex2}")
+				self.logger.error(f"{self._owner}: Continuation.unhandled: {ex2}")
 				pass
 		p_future = self._executor.submit(_the_future)
 		def cancelrequest() -> bool:

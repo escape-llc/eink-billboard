@@ -1,17 +1,24 @@
 from datetime import datetime, timedelta
 import os
 from pathlib import Path
+import threading
+from typing import Callable
 import unittest
 import time
 import logging
 
 from .utils import storage_path
 from ..task.application import Application
-from ..task.messages import QuitMessage, StartEvent, StartOptions
+from ..task.messages import BasicMessage, MessageSink, QuitMessage, StartEvent, StartOptions, StopEvent, Telemetry
 from ..task.timer_tick import BasicTimer, TickMessage
 
 TICK_RATE = 0.05
 TICK_RATE = 1
+
+logging.basicConfig(
+	level=logging.DEBUG,  # Or DEBUG for more detail
+	format='%(asctime)s %(levelname)s %(name)s: %(message)s'
+)
 
 class DebugTimerTask(BasicTimer):
 	def __init__(self, router, eventList, app):
@@ -35,6 +42,16 @@ class DebugTimerTask(BasicTimer):
 		finally:
 			self.logger.info("DebugTimerTask thread exiting.")
 
+class MessageTriggerSink(MessageSink):
+	def __init__(self, trigger: Callable[[BasicMessage], bool]):
+		self.trigger = trigger
+		self.stopped = threading.Event()
+		self.logger = logging.getLogger(__name__)
+	def send(self, msg: BasicMessage):
+		self.logger.info(f"MessageTriggerSink received message: {msg}")
+		if self.trigger(msg):
+			self.stopped.set()
+
 class TestApplication(unittest.TestCase):
 	def create_timer_task(self, now, count=10):
 		nowx = now.replace(minute=0,second=0,microsecond=0)
@@ -43,7 +60,8 @@ class TestApplication(unittest.TestCase):
 
 #	@unittest.skip("Skipping start/stop test to avoid long waits during routine testing.")
 	def test_start_configure_stop(self):
-		app = Application("TestApp")
+		stopsink = MessageTriggerSink(lambda msg: isinstance(msg, Telemetry) and msg.name == "playlist_layer" and msg.values.get("current_track_index", None) == 3)
+		app = Application("TestApp", stopsink)
 		app.start()
 #		TICKS = 60*24
 #		eventlist = self.create_timer_task(datetime.now(), TICKS)
@@ -54,11 +72,16 @@ class TestApplication(unittest.TestCase):
 		started = app.app_started.wait(timeout=1)
 		self.assertTrue(started, "Application did not start as expected.")
 		if started:
+			# wait on the stop sink, then send QuitMessage
+			sinkstopped = stopsink.stopped.wait(timeout=120)
+			self.assertTrue(sinkstopped, "Stop Sink did not stop as expected.")
+			app.send(StopEvent())
 			# Wait for the stopped event to be set
 			stopped = app.app_stopped.wait()
 			self.assertTrue(stopped, "Application did not stop as expected.")
 
-		app.join()
+		app.send(QuitMessage())
+		app.join(timeout=2)
 		self.assertFalse(app.is_alive(), "Application thread did not quit as expected.")
 		appstopped = app.app_stopped.is_set()
 		self.assertTrue(appstopped, "Application did not set app_stopped event as expected.")

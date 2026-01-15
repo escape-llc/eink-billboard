@@ -85,7 +85,7 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.layer.datasources = DataSourceManager(None, {})
 		self.layer.timer = TimerService(None)
 		sink = NullMessageSink()
-		self.layer.future_source = FutureSource(sink, ThreadPoolExecutor())
+		self.layer.future_source = FutureSource("playlist_layer_test", sink, ThreadPoolExecutor())
 
 	def test_start_playback_success(self):
 		# Prepare a plugin and a playlist with one track that references it
@@ -154,7 +154,7 @@ class TimerLayerTests(unittest.TestCase):
 		self.layer.datasources = DataSourceManager(None, {})
 		self.layer.timer = TimerService(None)
 		sink = NullMessageSink()
-		self.layer.future_source = FutureSource(sink, ThreadPoolExecutor())
+		self.layer.future_source = FutureSource("timer_layer_test", sink, ThreadPoolExecutor())
 	def test_start_schedule_success(self):
 		# Prepare a plugin and a playlist with one track that references it
 #		plugin = TestPlugin("p1", "TestPlugin")

@@ -82,7 +82,7 @@ class TimerLayer(DispatcherTask):
 			datasources = self.cm.load_datasources(datasource_info)
 			self.datasources = DataSourceManager(None, datasources)
 			self.logger.info(f"Datasources loaded: {list(datasources.keys())}")
-			self.future_source = FutureSource(self, ThreadPoolExecutor())
+			self.future_source = FutureSource("timer_layer", self, ThreadPoolExecutor())
 			sm = self.cm.schedule_manager()
 			schedule_info = sm.load()
 			sm.validate(schedule_info)

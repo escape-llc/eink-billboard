@@ -184,7 +184,7 @@ class TestPlugins(unittest.TestCase):
 		context = BasicExecutionContext2(root, [800,480], datetime.now())
 		sink = PluginRecycleMessageSink(plugin, track, context)
 		root.add_service(MessageSink, sink)
-		fsource = FutureSource(sink, ThreadPoolExecutor())
+		fsource = FutureSource("plugin_test", sink, ThreadPoolExecutor())
 		root.add_service(SubmitFuture, fsource)
 		plugin.start(context, track)
 		completed = sink.stopped.wait(timeout=timeout)

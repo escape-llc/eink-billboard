@@ -18,6 +18,7 @@ class CoreTask(threading.Thread, MessageSink):
 		super().__init__(daemon=True)
 		self.msg_queue = queue.Queue()
 		self.name = name or self.__class__.__name__
+		# stopped: QuitMessage processed
 		self.stopped = threading.Event()
 		self.logger = logging.getLogger(__name__)
 

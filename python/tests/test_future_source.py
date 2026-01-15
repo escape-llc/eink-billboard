@@ -26,7 +26,7 @@ class FutureSourceTests(unittest.TestCase):
 	def test_future_success_triggers_continuation(self):
 		port = FakePort()
 		with ThreadPoolExecutor(max_workers=2) as ex:
-			fs = FutureSource(port, ex)
+			fs = FutureSource("test", port, ex)
 
 			def future_fn(is_cancelled):
 				# simple computation
@@ -50,7 +50,7 @@ class FutureSourceTests(unittest.TestCase):
 	def test_future_exception_passed_to_continuation(self):
 		port = FakePort()
 		with ThreadPoolExecutor(max_workers=2) as ex:
-			fs = FutureSource(port, ex)
+			fs = FutureSource("test", port, ex)
 
 			def future_fn(is_cancelled):
 				raise RuntimeError("boom")
@@ -73,7 +73,7 @@ class FutureSourceTests(unittest.TestCase):
 	def test_cancel_before_completion_marks_cancelled(self):
 		port = FakePort()
 		with ThreadPoolExecutor(max_workers=2) as ex:
-			fs = FutureSource(port, ex)
+			fs = FutureSource("test", port, ex)
 
 			def future_fn(is_cancelled):
 				# spin until cancelled
@@ -103,7 +103,7 @@ class FutureSourceTests(unittest.TestCase):
 	def test_shutdown_stops_executor(self):
 		port = FakePort()
 		ex = ThreadPoolExecutor(max_workers=1)
-		fs = FutureSource(port, ex)
+		fs = FutureSource("test", port, ex)
 		fs.shutdown()
 		# subsequent shutdown is harmless
 		fs.shutdown()

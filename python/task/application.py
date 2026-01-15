@@ -9,16 +9,16 @@ from python.task.timer_layer import TimerLayer
 from ..model.configuration_manager import ConfigurationManager
 from .messages import ConfigureNotify, MessageSink, StartEvent, StartOptions, StopEvent, QuitMessage, ConfigureOptions, ConfigureEvent
 from .display import Display, DisplaySettings
-from .timer_tick import TimerTick
 from .basic_task import DispatcherTask, QuitMessage
 from .message_router import MessageRouter, Route
-from .telemetry_sink import TelemetrySink
 
 class Application(DispatcherTask):
 	def __init__(self, name = None, sink: MessageSink = None):
 		super().__init__(name)
 		self.sink = sink
+		# app_started: StartEvent was processed successfully
 		self.app_started = threading.Event()
+		# app_stopped: StopEvent processed or QuitMessage w/o StopEvent processed
 		self.app_stopped = threading.Event()
 		self.cm:ConfigurationManager = None
 		self.router:MessageRouter = None
@@ -35,7 +35,6 @@ class Application(DispatcherTask):
 		except Exception as e:
 			self.logger.error(f"Failed to start '{self.name}': {e}", exc_info=True)
 			self.app_stopped.set()
-			self.stopped.set()
 	def _stop_event(self, msg: StopEvent):
 		try:
 			self._handleStop()
@@ -43,7 +42,6 @@ class Application(DispatcherTask):
 			self.logger.error(f"Failed to stop '{self.name}': {e}", exc_info=True)
 		finally:
 			self.app_stopped.set()
-			self.stopped.set()
 			self.logger.info(f"'{self.name}' stopped.")
 	def _display_settings(self, msg: DisplaySettings):
 		# STEP 3 configure scheduler (it also receives DisplaySettings)
@@ -81,6 +79,7 @@ class Application(DispatcherTask):
 			except Exception as e:
 				self.logger.error(f"Failed to stop '{self.name}' during quit: {e}", exc_info=True)
 			finally:
+				self.app_stopped.set()
 				super().quitMsg(msg)
 		else:
 			super().quitMsg(msg)
@@ -124,12 +123,15 @@ class Application(DispatcherTask):
 #			self.timer.stop()
 #			self.timer.join()
 #			self.logger.info("Timer stopped");
-		self.timer_layer.send(QuitMessage())
-		self.timer_layer.join()
-		self.logger.info("TimerLayer stopped");
-		self.playlist_layer.send(QuitMessage())
-		self.playlist_layer.join()
-		self.logger.info("PlaylistLayer stopped");
-		self.display.send(QuitMessage())
-		self.display.join()
-		self.logger.info("Display stopped");
+		if self.timer_layer.is_alive():
+			self.timer_layer.send(QuitMessage())
+			self.timer_layer.join()
+			self.logger.info("TimerLayer stopped");
+		if self.playlist_layer.is_alive():
+			self.playlist_layer.send(QuitMessage())
+			self.playlist_layer.join()
+			self.logger.info("PlaylistLayer stopped");
+		if self.display.is_alive():
+			self.display.send(QuitMessage())
+			self.display.join()
+			self.logger.info("Display stopped");
