@@ -45,23 +45,23 @@ class TestHeadlessRender(unittest.TestCase):
 	def test_800x480_ws_off_si_off(self):
 		# dimensions have no effect without any screen-info or window-size
 		dimensions = (800,480)
-		self.run_test(dimensions, "headless.html", "800x480 WS-off SI-off")
+		self.run_test(dimensions, "input/headless.html", "800x480 WS-off SI-off")
 	def test_800x480_ws_on_si_off(self):
 		dimensions = (800,480)
 		arglist = ["--window-size=800,480", "--timeout=1000"]
-		self.run_test(dimensions, "headless.html", "800x480 WS-on SI-off", arglist)
+		self.run_test(dimensions, "input/headless.html", "800x480 WS-on SI-off", arglist)
 	def test_800x480_ws_on_si_on(self):
 		dimensions = (800,480)
 		arglist = ["--window-size=800,480", "--screen-info={0,0 800x480}", "--timeout=1000"]
-		self.run_test(dimensions, "headless.html", "800x480 WS-on SI-on", arglist)
+		self.run_test(dimensions, "input/headless.html", "800x480 WS-on SI-on", arglist)
 	def test_800x480_ws_off_si_on(self):
 		dimensions = (800,480)
 		arglist = ["--screen-info={0,0 800x480}", "--timeout=1000"]
-		self.run_test(dimensions, "headless.html", "800x480 WS-off SI-on", arglist)
+		self.run_test(dimensions, "input/headless.html", "800x480 WS-off SI-on", arglist)
 	def test_800x480_ws_off_si_on_oversize(self):
 		dimensions = (800,480)
 		arglist = ["--screen-info={0,0 836x595}", "--timeout=1000"]
-		self.run_test(dimensions, "headless.html", "800x480 WS-off SI-on oversize", arglist)
+		self.run_test(dimensions, "input/headless.html", "800x480 WS-off SI-on oversize", arglist)
 
 if __name__ == "__main__":
 	unittest.main()
