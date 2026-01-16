@@ -1,13 +1,11 @@
 from datetime import datetime, timedelta
-import os
-from pathlib import Path
 import threading
 from typing import Callable
 import unittest
 import time
 import logging
 
-from .utils import storage_path
+from .utils import storage_path, MessageTriggerSink
 from ..task.application import Application
 from ..task.messages import BasicMessage, MessageSink, QuitMessage, StartEvent, StartOptions, StopEvent, Telemetry
 from ..task.timer_tick import BasicTimer, TickMessage
@@ -42,16 +40,6 @@ class DebugTimerTask(BasicTimer):
 		finally:
 			self.logger.info("DebugTimerTask thread exiting.")
 
-class MessageTriggerSink(MessageSink):
-	def __init__(self, trigger: Callable[[BasicMessage], bool]):
-		self.trigger = trigger
-		self.stopped = threading.Event()
-		self.logger = logging.getLogger(__name__)
-	def send(self, msg: BasicMessage):
-		self.logger.info(f"MessageTriggerSink received message: {msg}")
-		if self.trigger(msg):
-			self.stopped.set()
-
 class TestApplication(unittest.TestCase):
 	def create_timer_task(self, now, count=10):
 		nowx = now.replace(minute=0,second=0,microsecond=0)
@@ -60,11 +48,10 @@ class TestApplication(unittest.TestCase):
 
 #	@unittest.skip("Skipping start/stop test to avoid long waits during routine testing.")
 	def test_start_configure_stop(self):
+		# stop when playlist_layer gets to the 4th track (index 3)
 		stopsink = MessageTriggerSink(lambda msg: isinstance(msg, Telemetry) and msg.name == "playlist_layer" and msg.values.get("current_track_index", None) == 3)
 		app = Application("TestApp", stopsink)
 		app.start()
-#		TICKS = 60*24
-#		eventlist = self.create_timer_task(datetime.now(), TICKS)
 		storage = storage_path()
 		options = StartOptions(basePath=None, storagePath=storage, hardReset=False)
 		app.send(StartEvent(options))
@@ -87,10 +74,6 @@ class TestApplication(unittest.TestCase):
 		self.assertTrue(appstopped, "Application did not set app_stopped event as expected.")
 		tkstopped = app.stopped.is_set()
 		self.assertTrue(tkstopped, "Application did not set stopped event as expected.")
-
-#		self.assertEqual(TICKS - 1, app.scheduler.lastTickSeen.tick_number, "scheduler ticks failed")
-#		self.assertIsNotNone(app.display.lastTickSeen, "display lastTickSeen failed")
-#		self.assertEqual(TICKS - 1, app.display.lastTickSeen.tick_number, "display ticks failed")
 
 if __name__ == "__main__":
     unittest.main()

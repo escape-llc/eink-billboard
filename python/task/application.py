@@ -1,4 +1,3 @@
-import logging
 import threading
 from datetime import datetime, timedelta
 
@@ -18,7 +17,7 @@ class Application(DispatcherTask):
 		self.sink = sink
 		# app_started: StartEvent was processed successfully
 		self.app_started = threading.Event()
-		# app_stopped: StopEvent processed or QuitMessage w/o StopEvent processed
+		# app_stopped: StartEvent failed OR StopEvent processed OR QuitMessage w/o StopEvent processed
 		self.app_stopped = threading.Event()
 		self.cm:ConfigurationManager = None
 		self.router:MessageRouter = None
@@ -64,8 +63,6 @@ class Application(DispatcherTask):
 				self.logger.error(f"{msg.content}")
 		if msg.token == "timer-layer":
 			if msg.error == False:
-#				self.logger.info(f"'{self.name}' starting timer.")
-#				self.timer.start()
 				self.logger.info(f"'{self.name}' timer-layer configured successfully.")
 			else:
 				self.logger.error(f"'{self.name}' Cannot start the timer; timer-layer failed to initialize")
@@ -105,7 +102,6 @@ class Application(DispatcherTask):
 		self.router.addRoute(Route("display", [self.display]))
 		self.router.addRoute(Route("playlist-layer", [self.playlist_layer]))
 		self.router.addRoute(Route("timer-layer", [self.timer_layer]))
-#		self.router.addRoute(Route("tick", [self.display]))
 		self.router.addRoute(Route("display-settings", [self, self.playlist_layer, self.timer_layer]))
 		if self.sink is not None:
 			self.router.addRoute(Route('telemetry', [self.sink]))
@@ -116,13 +112,7 @@ class Application(DispatcherTask):
 		self.display.start()
 		self.playlist_layer.start()
 		self.timer_layer.start()
-		# STEP 2 create but do not start timer
-#		self.timer = timerTask(self.router) if timerTask is not None else TimerTick(self.router, interval=60, align_to_minute=True)
 	def _handleStop(self):
-#		if self.timer.is_alive():
-#			self.timer.stop()
-#			self.timer.join()
-#			self.logger.info("Timer stopped");
 		if self.timer_layer.is_alive():
 			self.timer_layer.send(QuitMessage())
 			self.timer_layer.join()

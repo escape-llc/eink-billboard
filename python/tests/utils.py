@@ -1,12 +1,27 @@
 import os
 from pathlib import Path
-
+import threading
+import logging
+from typing import Callable
 from pathvalidate import sanitize_filename
-
+from ..task.messages import BasicMessage, MessageSink
 from ..task.display import DisplayImage
 from ..tests.test_timer_tick import RecordingTask
 from ..model.configuration_manager import ConfigurationManager
 from PIL import Image
+
+class MessageTriggerSink(MessageSink):
+	"""
+	Set the stopped event when a message matching the trigger is received.
+	"""
+	def __init__(self, trigger: Callable[[BasicMessage], bool]):
+		self.trigger = trigger
+		self.stopped = threading.Event()
+		self.logger = logging.getLogger(__name__)
+	def send(self, msg: BasicMessage):
+		self.logger.info(f"MessageTriggerSink received message: {msg}")
+		if self.trigger(msg):
+			self.stopped.set()
 
 def test_output_path_for(folder: str) -> str:
 	"""
