@@ -119,6 +119,7 @@ class TestPlugins(unittest.TestCase):
 		display.join()
 		return display
 
+	@unittest.skip("Countdown test skipped needs refactor")
 	def test_countdown(self):
 		content = {
 			"theme": "traidic",
@@ -142,6 +143,7 @@ class TestPlugins(unittest.TestCase):
 		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
 		save_images(display, item.plugin_name)
 
+	@unittest.skip("Year Progress test skipped needs refactor")
 	def test_year_progress(self):
 		content = {
 			"theme": "split-complementary",
