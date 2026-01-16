@@ -10,6 +10,22 @@ from ..tests.test_timer_tick import RecordingTask
 from ..model.configuration_manager import ConfigurationManager
 from PIL import Image
 
+class FakePort(MessageSink):
+	"""
+	Set an event when a message is sent.
+	Saves messages to a list for inspection.
+	"""
+	def __init__(self):
+		self.messages = []
+		self._event = threading.Event()
+
+	def send(self, msg: BasicMessage):
+		self.messages.append(msg)
+		self._event.set()
+
+	def wait_for_message(self, timeout=2.0):
+		return self._event.wait(timeout)
+
 class MessageTriggerSink(MessageSink):
 	"""
 	Set the stopped event when a message matching the trigger is received.

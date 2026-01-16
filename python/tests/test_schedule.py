@@ -3,7 +3,19 @@ from datetime import datetime, timedelta
 import random
 import string
 
-from ..model.schedule import TimedSchedule, PluginSchedule, PluginScheduleData, generate_schedule, generate_trigger_time
+from ..model.schedule import (
+	TimedSchedule,
+	PluginSchedule,
+	PluginScheduleData,
+	Playlist,
+	PlaylistSchedule,
+	PlaylistScheduleData,
+	TimerTaskTask,
+	TimerTaskItem,
+	TimerTasks,
+	generate_schedule,
+	generate_trigger_time,
+)
 
 def random_plugin_data():
 	return PluginScheduleData({
@@ -117,6 +129,64 @@ class TestSchedule(unittest.TestCase):
 		schedule_no_overlap = TimedSchedule("NoOverlap", non_overlapping_items)
 		overlaps = schedule_no_overlap.validate()
 		self.assertIsNone(overlaps)
+
+	def test_plugin_schedule_to_dict(self):
+		ps = PluginSchedule(
+			plugin_name="PluginZ",
+			id="pz",
+			title="PZ",
+			start_minutes=5,
+			duration_minutes=10,
+			content=PluginScheduleData({"foo": "bar"}),
+		)
+		d = ps.to_dict()
+		self.assertEqual(d["id"], "pz")
+		self.assertEqual(d["plugin_name"], "PluginZ")
+		self.assertIn("content", d)
+		self.assertEqual(d["content"], {"foo": "bar"})
+
+	def test_playlist_and_playlist_schedule_to_dict(self):
+		pl_item = PlaylistSchedule(
+			plugin_name="PluginP",
+			id="pl1",
+			title="PL1",
+			content=PlaylistScheduleData({"a": 1}),
+		)
+		playlist = Playlist("plist", "MyPlaylist", items=[pl_item])
+		d = playlist.to_dict()
+		self.assertEqual(d["id"], "plist")
+		self.assertEqual(d["name"], "MyPlaylist")
+		self.assertEqual(d["_schema"], "urn:inky:storage:schedule:playlist:1")
+		self.assertIsInstance(d["items"], list)
+		self.assertEqual(d["items"][0]["plugin_name"], "PluginP")
+
+	def test_timed_schedule_to_dict(self):
+		ps1 = PluginSchedule("PluginA", "t1", "T1", 0, 10, PluginScheduleData({}))
+		ps2 = PluginSchedule("PluginB", "t2", "T2", 20, 5, PluginScheduleData({}))
+		ts = TimedSchedule("tsid", "TSName", items=[ps1, ps2])
+		d = ts.to_dict()
+		self.assertEqual(d["id"], "tsid")
+		self.assertEqual(d["name"], "TSName")
+		self.assertEqual(d["_schema"], "urn:inky:storage:schedule:timed:1")
+		self.assertEqual(len(d["items"]), 2)
+
+	def test_timer_task_to_dicts(self):
+		task = TimerTaskTask("p1", "TaskTitle", 15, {"x": 1})
+		td = task.to_dict()
+		self.assertEqual(td["plugin_name"], "p1")
+		self.assertEqual(td["title"], "TaskTitle")
+		self.assertEqual(td["duration_minutes"], 15)
+
+		item = TimerTaskItem("it1", "ItemName", True, "desc", task, {"time": {}})
+		idct = item.to_dict()
+		self.assertEqual(idct["id"], "it1")
+		self.assertEqual(idct["task"]["plugin_name"], "p1")
+
+		tasks = TimerTasks("tid", "TasksName", items=[item])
+		tdct = tasks.to_dict()
+		self.assertEqual(tdct["id"], "tid")
+		self.assertEqual(tdct["_schema"], "urn:inky:storage:schedule:tasks:1")
+		self.assertEqual(len(tdct["items"]), 1)
 
 class TestTriggers(unittest.TestCase):
 	def test_generate_trigger_time_hourly(self):

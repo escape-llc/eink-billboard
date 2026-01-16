@@ -43,17 +43,17 @@ class ScheduleManager:
 		tasks_list = [item for item in item_list if item.get("type") == "urn:inky:storage:schedule:tasks:1"]
 		return { "master": master_schedule, "schedules": schedule_list, "playlists": playlist_list, "tasks": tasks_list }
 
-	def validate(self, schedule_list):
-		if schedule_list is None:
+	def validate(self, schedule: dict):
+		if schedule is None:
 			raise ValueError("schedule_list cannot be None")
-		master = schedule_list.get("master", None)
+		master = schedule.get("master", None)
 		if master is None:
 			raise ValueError("Master schedule is missing.")
 		if isinstance(master, MasterSchedule):
-			validation_error = master.validate(schedule_list)
+			validation_error = master.validate(schedule)
 			if validation_error is not None:
 				raise ValueError(f"Validation error in master schedule '{master.get('name', 'unknown')}': {validation_error}")
-		for playlist in schedule_list.get("schedules", []):
+		for playlist in schedule.get("schedules", []):
 			info = playlist.get("info", None)
 			if info is None:
 				raise ValueError(f"Schedule info is None for {playlist.get('name', 'unknown')}")
@@ -61,7 +61,7 @@ class ScheduleManager:
 				validation_error = info.validate()
 				if validation_error is not None:
 					raise ValueError(f"Validation error in schedule '{playlist.get('name', 'unknown')}': {validation_error}")
-		for playlist in schedule_list.get("playlists", []):
+		for playlist in schedule.get("playlists", []):
 			info = playlist.get("info", None)
 			if info is None:
 				raise ValueError(f"Playlist info is None for {playlist.get('name', 'unknown')}")

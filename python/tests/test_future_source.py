@@ -4,18 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from ..task.future_source import FutureSource
 from ..task.messages import BasicMessage
-
-class FakePort:
-	def __init__(self):
-		self.messages = []
-		self._event = __import__('threading').Event()
-
-	def send(self, msg: BasicMessage):
-		self.messages.append(msg)
-		self._event.set()
-
-	def wait_for_message(self, timeout=2.0):
-		return self._event.wait(timeout)
+from .utils import FakePort
 
 class TestMsg(BasicMessage):
 	def __init__(self, text):
@@ -107,6 +96,36 @@ class FutureSourceTests(unittest.TestCase):
 		fs.shutdown()
 		# subsequent shutdown is harmless
 		fs.shutdown()
+
+	def test_ctor_invalid_owner(self):
+		port = FakePort()
+		with ThreadPoolExecutor(max_workers=1) as ex:
+			with self.assertRaises(ValueError):
+				FutureSource(None, port, ex)
+
+	def test_ctor_invalid_completion_port(self):
+		with ThreadPoolExecutor(max_workers=1) as ex:
+			with self.assertRaises(ValueError):
+				FutureSource("owner", None, ex)
+
+	def test_ctor_invalid_executor(self):
+		port = FakePort()
+		with self.assertRaises(ValueError):
+			FutureSource("owner", port, None)
+
+	def test_submit_future_invalid_future(self):
+		port = FakePort()
+		with ThreadPoolExecutor(max_workers=1) as ex:
+			fs = FutureSource("test", port, ex)
+			with self.assertRaises(ValueError):
+				fs.submit_future(None, lambda cancelled, result, exception: None)
+
+	def test_submit_future_invalid_continuation(self):
+		port = FakePort()
+		with ThreadPoolExecutor(max_workers=1) as ex:
+			fs = FutureSource("test", port, ex)
+			with self.assertRaises(ValueError):
+				fs.submit_future(lambda is_cancelled: None, None)
 
 
 if __name__ == '__main__':

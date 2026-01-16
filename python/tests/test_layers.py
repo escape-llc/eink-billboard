@@ -133,6 +133,10 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.assertNotEqual(self.layer.state, 'playing')
 		self.assertIsNone(self.layer.playlist_state)
 
+	def test_ctor_invalid_router(self):
+		with self.assertRaises(ValueError):
+			PlaylistLayer("bad", None)
+
 	def test_start_playback_missing_plugin(self):
 		# Playlist refers to a plugin that is not in plugin_map
 		track = PlaylistSchedule("missing", "t2", "Title2", PlaylistScheduleData({}))
@@ -202,6 +206,10 @@ class TimerLayerTests(unittest.TestCase):
 		self.assertEqual(self.layer.playlist_state['current_schedule_index'], 0)
 		self.assertEqual(self.layer.playlist_state['current_track_index'], 0)
 		self.assertIsNotNone(self.layer.playlist_state['schedule_ts'])
+
+	def test_ctor_invalid_router(self):
+		with self.assertRaises(ValueError):
+			TimerLayer("bad", None)
 
 if __name__ == '__main__':
 	unittest.main()
