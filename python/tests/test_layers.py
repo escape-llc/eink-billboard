@@ -3,7 +3,6 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import os
 from threading import Event
-import time
 import unittest
 
 from .test_plugin import RecordingTask
@@ -160,12 +159,12 @@ class TimerLayerTests(unittest.TestCase):
 		sink = NullMessageSink()
 		self.layer.future_source = FutureSource("timer_layer_test", sink, ThreadPoolExecutor())
 	def test_start_schedule_success(self):
-		# Prepare a plugin and a playlist with one track that references it
-#		plugin = TestPlugin("p1", "TestPlugin")
+		# Prepare a plugin_info and a playlist with one track that references it
 		# plugin_map keys are plugin ids used in PlaylistSchedule.plugin_name
 		test_file_path = os.path.abspath(__file__)
 		folder = os.path.dirname(test_file_path)
 		self.layer.plugin_info = [
+			# reference the plugin defined in this file
 			{
 				"info": {
 					"id": "p1", "name": "Test Plugin",
@@ -203,7 +202,6 @@ class TimerLayerTests(unittest.TestCase):
 		self.assertIsNotNone(self.layer.playlist_state)
 		self.assertTrue(self.layer.active_plugin.started)
 		# verify indices set
-		self.assertEqual(self.layer.playlist_state['current_schedule_index'], 0)
 		self.assertEqual(self.layer.playlist_state['current_track_index'], 0)
 		self.assertIsNotNone(self.layer.playlist_state['schedule_ts'])
 
