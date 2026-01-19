@@ -1,5 +1,5 @@
 from abc import abstractmethod, ABC
-from typing import Generator, Generic, TypeVar, List
+from typing import Generator, Generic, TypeVar, List, Protocol, runtime_checkable
 from datetime import datetime, timedelta
 
 T = TypeVar('T')
@@ -65,44 +65,59 @@ class MasterScheduleItem:
 		self.enabled = enabled
 		self.schedule = schedule
 
-class PlaylistBase(ABC):
-	def __init__(self, id: str, title: str, dc: callable = None):
-		self.id = id
-		self.title = title
-		self.date_controller = dc if dc is not None else lambda : datetime.now()
-	@abstractmethod
-	def to_dict(self):
-		retv = {
-			"id": self.id,
-			"title": self.title
-		}
-		return retv
+@runtime_checkable
+class PlaylistBase(Protocol):
+	@property
+	def id(self) -> str: ...
+
+	@property
+	def title(self) -> str: ...
+
+	def to_dict(self): ...
 
 class PlaylistItem(PlaylistBase, Generic[T]):
-	def __init__(self, id: str, title: str, content: T, dc: callable = None):
-		super().__init__(id, title, dc)
+	def __init__(self, id: str, title: str, content: T):
+		self._id = id
+		self._title = title
 		self.content = content
+	@property
+	def id(self) -> str:
+		return self._id
+	@property
+	def title(self) -> str:
+		return self._title
+	def to_dict(self):
+		return {"id": self.id, "title": self.title}
 
 class PlaylistScheduleData:
 	def __init__(self, data: dict):
 		self.data = data
 
 class PlaylistSchedule(PlaylistItem[PlaylistScheduleData]):
-	def __init__(self, plugin_name: str, id: str, title: str, content: PlaylistScheduleData, dc: callable = None):
-		super().__init__(id, title, content, dc)
+	def __init__(self, plugin_name: str, id: str, title: str, content: PlaylistScheduleData):
+		super().__init__(id, title, content)
 		self.plugin_name = plugin_name
 	def to_dict(self):
 		retv = super().to_dict()
 		retv["plugin_name"] = self.plugin_name
-		retv["content"] = self.content.data
+		retv["content"] = self.content.data.copy()
 		return retv
 
 class Playlist:
-	def __init__(self, id: str, name: str, items: list[PlaylistBase] = None, dc: callable = None):
-		self.id = id
+	def __init__(self, id: str, name: str, items: list[PlaylistBase]):
+		if items is None:
+			raise ValueError("items cannot be None")
+		self._id = id
+		self._title = name
+		# legacy attribute
 		self.name = name
-		self.items = items if items is not None else []
-		self.date_controller = dc if dc is not None else lambda : datetime.now()
+		self.items = items
+	@property
+	def id(self) -> str:
+		return self._id
+	@property
+	def title(self) -> str:
+		return self._title
 	def to_dict(self):
 		retv = {
 			"id": self.id,
@@ -310,7 +325,7 @@ class TimerTaskTask:
 		}
 		return retv
 	pass
-class TimerTaskItem:
+class TimerTaskItem(PlaylistBase):
 	def __init__(self, id: str, name: str, enabled: bool, desc: str, task: TimerTaskTask, trigger: dict):
 		if id is None:
 			raise ValueError("id cannot be None")
@@ -320,16 +335,25 @@ class TimerTaskItem:
 			raise ValueError("task cannot be None")
 		if trigger is None:
 			raise ValueError("trigger cannot be None")
-		self.id = id
+		# store id internally and keep `name` for backward compatibility
+		self._id = id
 		self.name = name
 		self.enabled = enabled
 		self.description = desc
 		self.task = task
 		self.trigger = trigger
+	@property
+	def id(self) -> str:
+		return self._id
+	@property
+	def title(self) -> str:
+		# provide `title` property to satisfy PlaylistBase protocol
+		return self.name
 	def to_dict(self):
 		retv = {
-			"id": self.id,
+			"id": self._id,
 			"name": self.name,
+			"title": self.title,
 			"enabled": self.enabled,
 			"description": self.description,
 			"trigger": self.trigger.copy(),
