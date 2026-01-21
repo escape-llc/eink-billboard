@@ -13,7 +13,7 @@ class TelemetrySink(MessageSink):
 		except Exception as e:
 			return None
 
-	def send(self, msg: BasicMessage):
+	def accept(self, msg: BasicMessage):
 		try:
 			self.msg_queue.put_nowait(msg)
 		except Exception as e:

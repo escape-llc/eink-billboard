@@ -27,7 +27,7 @@ class MessageRouter:
 			if rroute is not None:
 				for kx in rroute.receivers:
 					try:
-						kx.send(msg)
+						kx.accept(msg)
 					except ShutDown:
 						pass
 					except Exception as e:

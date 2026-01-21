@@ -78,7 +78,7 @@ class SlideShow(PluginProtocol):
 			if len(state) == 0:
 				self.logger.info(f"{dataSourceName}: Slide show completed, moving to next track")
 				self.timer_info = None
-				local_sink.send(NextTrack())
+				local_sink.accept(NextTrack())
 				return None
 			dsec = context.create_datasource_context(dataSource)
 			self._render_image(track.title, dsec, dataSource, settings, state, router, timer, local_sink)

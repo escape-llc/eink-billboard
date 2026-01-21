@@ -54,7 +54,7 @@ class TestApplication(unittest.TestCase):
 		app.start()
 		storage = storage_path()
 		options = StartOptions(basePath=None, storagePath=storage, hardReset=False)
-		app.send(StartEvent(options))
+		app.accept(StartEvent(options))
 		# Wait for the started event to be set
 		started = app.app_started.wait(timeout=1)
 		self.assertTrue(started, "Application did not start as expected.")
@@ -62,12 +62,12 @@ class TestApplication(unittest.TestCase):
 			# wait on the stop sink, then send QuitMessage
 			sinkstopped = stopsink.stopped.wait(timeout=120)
 			self.assertTrue(sinkstopped, "Stop Sink did not stop as expected.")
-			app.send(StopEvent())
+			app.accept(StopEvent())
 			# Wait for the stopped event to be set
 			stopped = app.app_stopped.wait()
 			self.assertTrue(stopped, "Application did not stop as expected.")
 
-		app.send(QuitMessage())
+		app.accept(QuitMessage())
 		app.join(timeout=2)
 		self.assertFalse(app.is_alive(), "Application thread did not quit as expected.")
 		appstopped = app.app_stopped.is_set()

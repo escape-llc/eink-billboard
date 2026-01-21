@@ -46,14 +46,14 @@ class Application(DispatcherTask):
 		# STEP 3 configure scheduler (it also receives DisplaySettings)
 		self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
 		configs = ConfigureEvent("playlist-layer", ConfigureOptions(cm=self.cm.duplicate()), self, msg.timestamp)
-		self.playlist_layer.send(configs)
+		self.playlist_layer.accept(configs)
 		configt = ConfigureEvent("timer-layer", ConfigureOptions(cm=self.cm.duplicate()), self, msg.timestamp)
-		self.timer_layer.send(configt)
+		self.timer_layer.accept(configt)
 	def _configure_notify(self, msg: ConfigureNotify):
 		# STEP 4 start playback if layers configured successfully
 		self.logger.info(f"'{self.name}' ConfigureNotify {msg.token} {msg.error} {msg.content}.")
 		if msg.error == True and self.sink:
-			self.sink.send(msg)
+			self.sink.accept(msg)
 
 		if msg.token == "playlist-layer":
 			if msg.error == False:
@@ -107,21 +107,21 @@ class Application(DispatcherTask):
 			self.router.addRoute(Route('telemetry', [self.sink]))
 		# STEP 1 configure the Display task
 		configd = ConfigureEvent("display", ConfigureOptions(cm=self.cm.duplicate()), self, timestamp_ts)
-		self.display.send(configd)
+		self.display.accept(configd)
 		# start tasks
 		self.display.start()
 		self.playlist_layer.start()
 		self.timer_layer.start()
 	def _handleStop(self):
 		if self.timer_layer.is_alive():
-			self.timer_layer.send(QuitMessage())
+			self.timer_layer.accept(QuitMessage())
 			self.timer_layer.join()
 			self.logger.info("TimerLayer stopped");
 		if self.playlist_layer.is_alive():
-			self.playlist_layer.send(QuitMessage())
+			self.playlist_layer.accept(QuitMessage())
 			self.playlist_layer.join()
 			self.logger.info("PlaylistLayer stopped");
 		if self.display.is_alive():
-			self.display.send(QuitMessage())
+			self.display.accept(QuitMessage())
 			self.display.join()
 			self.logger.info("Display stopped");

@@ -13,7 +13,8 @@ class BasicMessage:
 		self.timestamp = timestamp
 
 class MessageSink(Protocol):
-	def send(self, msg: BasicMessage):
+	"""Ability to accept messages."""
+	def accept(self, msg: BasicMessage):
 		pass
 
 class QuitMessage(BasicMessage):
@@ -51,17 +52,15 @@ class ConfigureOptions:
 		if cm is None:
 			raise ValueError("cm cannot be None")
 		self.cm = cm
-
 class ConfigureEvent(MessageWithContent[ConfigureOptions]):
 	"""Event to configure tasks with given options."""
 	def __init__(self, token: str, content = None, notifyTo: MessageSink = None, timestamp: datetime = datetime.now()):
 		super().__init__(content, timestamp)
 		self.token = token
 		self.notifyTo = notifyTo
-
 	def notify(self, error: bool = False, content = None):
 		if self.notifyTo is not None:
-			self.notifyTo.send(ConfigureNotify(self.token, error, content))
+			self.notifyTo.accept(ConfigureNotify(self.token, error, content))
 
 class ConfigureNotify(BasicMessage):
 	def __init__(self, token: str, error: bool = False, content = None, timestamp: datetime = datetime.now()):

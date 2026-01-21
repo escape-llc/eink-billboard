@@ -263,7 +263,7 @@ class PlaylistLayer(DispatcherTask):
 			self.logger.info(f"schedule loaded")
 			self.state = 'loaded'
 			msg.notify()
-			self.send(StartPlayback(msg.timestamp))
+			self.accept(StartPlayback(msg.timestamp))
 		except Exception as e:
 			self.logger.error(f"Failed to load/validate schedules: {e}", exc_info=True)
 			self.state = 'error'

@@ -33,28 +33,28 @@ class TestPlugin(PluginProtocol):
 		return self._name
 	def start(self, context: BasicExecutionContext2, track: TrackType):
 		self.started = True
+		self.start_args = (track, context)
 	def receive(self, context: BasicExecutionContext2, track: TrackType, msg: BasicMessage):
 		self.received.append(msg)
 	# PlaylistLayer expects plugin to expose a `start(track, context)` method
-	def start(self, track, context):
-		self.started = True
-		self.start_args = (track, context)
 
 class NullMessageSink(MessageSink):
-	def send(self, msg: BasicMessage):
+	def accept(self, msg: BasicMessage):
 		pass
 class MessageTriggerSink(MessageSink):
 	def __init__(self, trigger: Callable[[BasicMessage], bool]):
 		self.trigger = trigger
+		self.captured:BasicMessage = None
 		self.stopped = Event()
-	def send(self, msg: BasicMessage):
+	def accept(self, msg: BasicMessage):
 		if self.trigger(msg):
+			self.captured = msg
 			self.stopped.set()
 
 class PlaylistLayerSimulation(unittest.TestCase):
 	def test_simulate_playlist_layer(self):
 		display = RecordingTask("FakeDisplay")
-		tsink = MessageTriggerSink(lambda msg: isinstance(msg, Telemetry) and msg.values.get("current_track_index", None) == 3)
+		tsink = MessageTriggerSink(lambda msg: isinstance(msg, Telemetry) and (msg.values.get("state", None) == "error" or msg.values.get("current_track_index", None) == 3))
 		router = MessageRouter()
 		router.addRoute(Route("display", [display]))
 		router.addRoute(Route("telemetry", [tsink]))
@@ -65,16 +65,47 @@ class PlaylistLayerSimulation(unittest.TestCase):
 		dev = DisplaySettings("none", 800, 480)
 		display.start()
 		layer.start()
-		layer.send(dev)
-		layer.send(configure)
+		layer.accept(dev)
+		layer.accept(configure)
 		# wait until the trigger condition is met
 		completed = tsink.stopped.wait(timeout=20)
-		layer.send(QuitMessage())
+		layer.accept(QuitMessage())
 		layer.join(timeout=2)
-		display.send(QuitMessage())
+		display.accept(QuitMessage())
 		display.join()
 		save_images(display, "playlist_layer_simulation")
 		self.assertTrue(completed, "PlaylistLayer simulation timed out before reaching trigger condition.")
+		self.assertIsNotNone(tsink.captured)
+		telemetry:Telemetry = tsink.captured
+		self.assertNotEqual(telemetry.values.get("state", None), "error", f"PlaylistLayer encountered error: {telemetry.values.get('message', '')}")
+
+class TimerLayerSimulation(unittest.TestCase):
+	def test_simulate_timer_layer(self):
+		display = RecordingTask("FakeDisplay")
+		tsink = MessageTriggerSink(lambda msg: isinstance(msg, Telemetry) and (msg.values.get("state", None) == "error" or msg.values.get("schedule_ts", None) is not None))
+		router = MessageRouter()
+		router.addRoute(Route("display", [display]))
+		router.addRoute(Route("telemetry", [tsink]))
+		cm = create_configuration_manager()
+		options = ConfigureOptions(cm)
+		configure = ConfigureEvent("configure", options)
+		layer = TimerLayer("timerlayer", router)
+		dev = DisplaySettings("none", 800, 480)
+		display.start()
+		layer.start()
+		layer.accept(dev)
+		layer.accept(configure)
+		# wait until the trigger condition is met
+		completed = tsink.stopped.wait(timeout=20000)
+		layer.accept(QuitMessage())
+		layer.join(timeout=2)
+		display.accept(QuitMessage())
+		display.join()
+		save_images(display, "timer_layer_simulation")
+		self.assertTrue(completed, "TimerLayer simulation timed out before reaching trigger condition.")
+		self.assertIsNotNone(tsink.captured)
+		telemetry:Telemetry = tsink.captured
+		self.assertNotEqual(telemetry.values.get("state", None), "error", f"TimerLayer encountered error: {telemetry.values.get('message', '')}")
 
 class PlaylistLayerTests(unittest.TestCase):
 	def setUp(self):
@@ -117,6 +148,8 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.layer.future_source.shutdown()
 		self.assertEqual(self.layer.state, 'playing')
 		self.assertIsNotNone(self.layer.playlist_state)
+		self.assertIsNotNone(self.layer.active_context)
+		self.assertIsNotNone(self.layer.active_plugin)
 		self.assertTrue(self.layer.active_plugin.started)
 		# verify indices set
 		self.assertEqual(self.layer.playlist_state['current_playlist_index'], 0)
@@ -198,10 +231,14 @@ class TimerLayerTests(unittest.TestCase):
 		self.layer._start_playback(StartPlayback(startts))
 		self.layer.timer.shutdown()
 		self.layer.future_source.shutdown()
-		self.assertEqual(self.layer.state, 'playing')
+		self.assertEqual(self.layer.state, 'waiting')
 		self.assertIsNotNone(self.layer.playlist_state)
-		self.assertTrue(self.layer.active_plugin.started)
+		self.assertIsNotNone(self.layer.active_context)
+		self.assertIsNotNone(self.layer.active_plugin)
+		self.assertTrue(isinstance(self.layer.active_plugin, TestPlugin))
+		self.assertFalse(self.layer.active_plugin.started)
 		# verify indices set
+		self.assertIsNotNone(self.layer.playlist_state['current_playlist'])
 		self.assertEqual(self.layer.playlist_state['current_track_index'], 0)
 		self.assertIsNotNone(self.layer.playlist_state['schedule_ts'])
 

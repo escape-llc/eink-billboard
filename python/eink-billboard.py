@@ -119,7 +119,7 @@ if __name__ == '__main__':
 		if force_reset:
 			logger.info("No storage folder detected, force_reset")
 		options = StartOptions(storagePath=STORAGE,hardReset=force_reset)
-		xapp.send(StartEvent(options))
+		xapp.accept(StartEvent(options))
 		started = xapp.app_started.wait(timeout=5)
 		if not started:
 			logger.warning(f"Application start timed out")
@@ -156,7 +156,7 @@ if __name__ == '__main__':
 	finally:
 		logger.info("eInk Billboard application shut down start")
 		try:
-			xapp.send(QuitMessage())
+			xapp.accept(QuitMessage())
 			xapp.join(timeout=5)
 			if hash_manager is not None:
 				hash_manager.stop()

@@ -47,7 +47,7 @@ class TimerService:
 				if not timeout:
 					if sink is not None:
 						self.logger.debug(f"sending message {completed}")
-						sink.send(completed)
+						sink.accept(completed)
 					return completed
 				else:
 					return None

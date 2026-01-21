@@ -44,7 +44,7 @@ class CoreTask(threading.Thread, MessageSink):
 		self.stopped.set()
 		self.logger.info(f"'{self.name}' Quit.")
 
-	def send(self, msg: BasicMessage):
+	def accept(self, msg: BasicMessage):
 		if self.msg_queue.is_shutdown:
 			raise ValueError("Cannot send message to stopped task.")
 		self.msg_queue.put(msg)
@@ -72,7 +72,7 @@ class DispatcherTask(CoreTask):
 		for name, method in inspect.getmembers(self, predicate=inspect.ismethod):
 			if name.startswith("__"):
 				continue
-			if name == "quitMsg" or name == "_dispatch" or name == "send":
+			if name == "quitMsg" or name == "_dispatch" or name == "accept":
 				continue
 			# 2. Get signature (excludes 'self' for bound methods)
 			sig = inspect.signature(method)

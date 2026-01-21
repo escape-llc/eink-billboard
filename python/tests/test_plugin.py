@@ -36,7 +36,7 @@ logging.basicConfig(
 class DebugMessageSink(MessageSink):
 	def __init__(self):
 		self.msg_queue = queue.Queue()
-	def send(self, msg: BasicMessage):
+	def accept(self, msg: BasicMessage):
 		self.msg_queue.put(msg)
 
 class PluginRecycleMessageSink(MessageSink):
@@ -47,7 +47,7 @@ class PluginRecycleMessageSink(MessageSink):
 		self.context = context
 		self.stopped = threading.Event()
 		self.logger = logging.getLogger(__name__)
-	def send(self, msg: BasicMessage):
+	def accept(self, msg: BasicMessage):
 		self.logger.debug(f"PluginRecycleMessageSink: {msg}")
 		if isinstance(msg, NextTrack):
 			self.logger.info("PluginRecycleMessageSink: received NextTrack, stopping")
@@ -115,7 +115,7 @@ class TestPlugins(unittest.TestCase):
 			except queue.Empty as e:
 				pass
 		active_plugin.shutdown()
-		display.send(QuitMessage())
+		display.accept(QuitMessage())
 		display.join()
 		return display
 
@@ -192,7 +192,7 @@ class TestPlugins(unittest.TestCase):
 		completed = sink.stopped.wait(timeout=timeout)
 		fsource.shutdown()
 		timer.shutdown()
-		display.send(QuitMessage())
+		display.accept(QuitMessage())
 		display.join()
 		save_images(display, plugin.name)
 		return display

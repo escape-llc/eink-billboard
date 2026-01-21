@@ -59,7 +59,7 @@ class FutureSource(SubmitFuture):
 				msg = continuation(cancelled, result, exception)
 				if msg is not None:
 					try:
-						self._port.send(msg)
+						self._port.accept(msg)
 					except Exception as ex:
 	#					self.logger.error(f"Error sending message: {ex}")
 						pass

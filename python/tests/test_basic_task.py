@@ -14,8 +14,8 @@ class TestDispatcherTask(unittest.TestCase):
 	def test_message_with_content(self):
 		task = RecordingTask()
 		task.start()
-		task.send(MessageWithContent("Hello"))
-		task.send(QuitMessage())
+		task.accept(MessageWithContent("Hello"))
+		task.accept(QuitMessage())
 		task.join()
 		self.assertFalse(task.is_alive())
 		self.assertEqual(len(task.received), 1, 'Should have received 1 messages')
@@ -24,7 +24,7 @@ class TestDispatcherTask(unittest.TestCase):
 	def test_quit_message_stops_thread(self):
 		task = RecordingTask()
 		task.start()
-		task.send(QuitMessage())
+		task.accept(QuitMessage())
 		task.join(timeout=1)
 		self.assertFalse(task.is_alive())
 		self.assertEqual(task.received, [])

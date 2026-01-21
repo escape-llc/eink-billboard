@@ -19,7 +19,7 @@ class FakePort(MessageSink):
 		self.messages = []
 		self._event = threading.Event()
 
-	def send(self, msg: BasicMessage):
+	def accept(self, msg: BasicMessage):
 		self.messages.append(msg)
 		self._event.set()
 
@@ -34,7 +34,7 @@ class MessageTriggerSink(MessageSink):
 		self.trigger = trigger
 		self.stopped = threading.Event()
 		self.logger = logging.getLogger(__name__)
-	def send(self, msg: BasicMessage):
+	def accept(self, msg: BasicMessage):
 		self.logger.info(f"MessageTriggerSink received message: {msg}")
 		if self.trigger(msg):
 			self.stopped.set()

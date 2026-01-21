@@ -34,9 +34,9 @@ class ActivePlugin:
 		p_future = self.executor.submit(cx)
 		def _future_completed(fx):
 			if fx.exception():
-				self.port.send(FutureCompleted(self.name, token, None, fx.exception()))
+				self.port.accept(FutureCompleted(self.name, token, None, fx.exception()))
 			else:
-				self.port.send(FutureCompleted(self.name, token, fx.result()))
+				self.port.accept(FutureCompleted(self.name, token, fx.result()))
 
 		self.state = "future"
 		p_future.add_done_callback(_future_completed)

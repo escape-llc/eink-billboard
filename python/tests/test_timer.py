@@ -54,7 +54,7 @@ class TestSink(MessageSink):
 	def __init__(self):
 		self.received = False
 		self.message = None
-	def send(self, message: BasicMessage):
+	def accept(self, message: BasicMessage):
 		self.received = True
 		self.message = message
 
