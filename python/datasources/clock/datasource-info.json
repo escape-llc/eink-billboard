@@ -1,0 +1,64 @@
+{
+	"id": "clock",
+	"name": "Clock Data Source",
+	"version": "0.0.1",
+	"class": "Clock",
+	"file": "clock.py",
+	"module": "python.datasources.clock.clock",
+	"description": "A clock with various faces.",
+	"disabled": false,
+	"features": ["media-image"],
+	"settings": {
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+				"clockFace": {
+				}
+			},
+			"properties": [
+				{
+					"name": "clockFace",
+					"type": "string",
+					"required": true,
+					"default": null,
+					"lookup": "clockFace",
+					"label": "Clock Face",
+					"description": "The clock face.",
+					"enum": [
+						"Gradient Clock",
+						"Digital Clock",
+						"Divided Clock",
+						"Word Clock"
+					]
+				},
+				{
+					"name": "primaryColor",
+					"type": "string",
+					"required": true,
+					"default": null,
+					"label": "Primary Color",
+					"description": "The primary color."
+				},
+				{
+					"name": "secondaryColor",
+					"type": "string",
+					"required": true,
+					"default": null,
+					"label": "Secondary Color",
+					"description": "The secondary color."
+				}
+			]
+		},
+		"default": {
+			"clockFace": "Gradient Clock",
+			"primaryColor": "#db3246",
+			"secondaryColor": "#000000"
+		}
+	}
+}
