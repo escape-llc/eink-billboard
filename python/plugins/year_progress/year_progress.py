@@ -34,7 +34,7 @@ class YearProgress(PluginBase):
 				self.logger.error(f"Failed to draw year progress image: {str(e)}")
 			if img is not None:
 				self.logger.debug(f"display {ctx.schedule_ts}")
-				ctx.router.send("display", DisplayImage(f"{ctx.schedule_ts} year progress", img))
+				ctx.router.send("display", DisplayImage(f"{ctx.schedule_ts} year progress", img, ctx.schedule_ts))
 
 	def timeslot_end(self, ctx: PluginExecutionContext):
 		self.logger.info(f"'{self.name}' timeslot.end '{ctx.sb.title}'.")

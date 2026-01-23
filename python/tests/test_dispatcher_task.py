@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 import unittest
 import logging
 from ..task.basic_task import DispatcherTask

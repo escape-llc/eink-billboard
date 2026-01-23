@@ -18,7 +18,7 @@ from ..task.message_router import MessageRouter
 from ..task.timer import TimerService
 
 class TimerExpired(BasicMessage):
-	def __init__(self, timestamp=None):
+	def __init__(self, timestamp: datetime):
 		super().__init__(timestamp)
 
 class TimerLayer(DispatcherTask):

@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 from PIL import Image
 
@@ -12,8 +13,8 @@ from ..task.messages import BasicMessage, ConfigureEvent, QuitMessage
 from .message_router import MessageRouter
 
 class DisplayImage(BasicMessage):
-	def __init__(self, title:str, img: Image):
-		super().__init__()
+	def __init__(self, title:str, img: Image, timestamp: datetime):
+		super().__init__(timestamp)
 		self.title = title
 		self.img = img
 	def __repr__(self):
@@ -24,8 +25,8 @@ class DisplaySettings(BasicMessage):
 	"""
 	Notify tasks of the current display settings.
 	"""
-	def __init__(self, name:str, width: int, height: int):
-		super().__init__()
+	def __init__(self, name:str, width: int, height: int, timestamp: datetime):
+		super().__init__(timestamp)
 		self.name = name
 		self.width = width
 		self.height = height
@@ -70,7 +71,7 @@ class Display(DispatcherTask):
 			self.resolution = self.display.initialize(self.cm)
 			self.logger.info(f"Loading display {display_type} {self.resolution[0]}x{self.resolution[1]}")
 			msg.notify()
-			self.router.send("display-settings", DisplaySettings(display_type, self.resolution[0], self.resolution[1]))
+			self.router.send("display-settings", DisplaySettings(display_type, self.resolution[0], self.resolution[1], msg.timestamp))
 		except Exception as e:
 			self.logger.error(f"configure.unhandled: {str(e)}")
 			msg.notify(True, e)

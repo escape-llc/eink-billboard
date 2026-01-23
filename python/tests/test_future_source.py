@@ -1,3 +1,4 @@
+from datetime import datetime
 import unittest
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -8,7 +9,7 @@ from .utils import FakePort
 
 class TestMsg(BasicMessage):
 	def __init__(self, text):
-		super().__init__()
+		super().__init__(datetime.now())
 		self.text = text
 
 class FutureSourceTests(unittest.TestCase):

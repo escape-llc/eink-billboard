@@ -63,9 +63,9 @@ class PlaylistLayerSimulation(unittest.TestCase):
 		cm = create_configuration_manager()
 		ctr = ServiceContainer()
 		options = ConfigureOptions(cm, isp=ctr)
-		configure = ConfigureEvent("configure", options, datetime.now())
+		configure = ConfigureEvent("configure", options, None, datetime.now())
 		layer = PlaylistLayer("testlayer", router)
-		dev = DisplaySettings("none", 800, 480)
+		dev = DisplaySettings("none", 800, 480, datetime.now())
 		display.start()
 		layer.start()
 		layer.accept(dev)
@@ -92,9 +92,9 @@ class TimerLayerSimulation(unittest.TestCase):
 		cm = create_configuration_manager()
 		ctr = ServiceContainer()
 		options = ConfigureOptions(cm, ctr)
-		configure = ConfigureEvent("configure", options, datetime.now())
+		configure = ConfigureEvent("configure", options, None, datetime.now())
 		layer = TimerLayer("timerlayer", router)
-		dev = DisplaySettings("none", 800, 480)
+		dev = DisplaySettings("none", 800, 480, datetime.now())
 		display.start()
 		layer.start()
 		layer.accept(dev)
@@ -165,7 +165,7 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.layer.state = 'loaded'
 
 		# Should not raise, but should not start playback
-		self.layer._start_playback(StartPlayback())
+		self.layer._start_playback(StartPlayback(datetime.now()))
 		self.assertNotEqual(self.layer.state, 'playing')
 		self.assertIsNone(self.layer.playlist_state)
 
@@ -182,7 +182,7 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.layer.state = 'loaded'
 
 		# Trigger playback; plugin missing should prevent start
-		self.layer._start_playback(StartPlayback())
+		self.layer._start_playback(StartPlayback(datetime.now()))
 		self.assertNotEqual(self.layer.state, 'playing')
 		self.assertIsNone(self.layer.playlist_state)
 

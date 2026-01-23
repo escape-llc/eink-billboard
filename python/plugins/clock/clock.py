@@ -51,7 +51,7 @@ class Clock(PluginBase):
 					# raise RuntimeError("Failed to display clock.")
 			if img is not None:
 				self.logger.debug(f"display {ctx.schedule_ts} {clock_face} primary {primary_color} secondary {secondary_color}")
-				ctx.router.send("display", DisplayImage(f"{ctx.schedule_ts} {clock_face}", img))
+				ctx.router.send("display", DisplayImage(f"{ctx.schedule_ts} {clock_face}", img, ctx.schedule_ts))
 
 	def draw_conic_clock(self, dimensions, time, primary_color=(219, 50, 70, 255), secondary_color=(0, 0, 0, 255) ):
 		width, height = dimensions

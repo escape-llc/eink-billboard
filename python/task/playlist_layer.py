@@ -15,13 +15,13 @@ from .message_router import MessageRouter
 from .basic_task import DispatcherTask
 
 class LayerControlMessage(BasicMessage):
-	def __init__(self, timestamp=None):
+	def __init__(self, timestamp:datetime):
 		super().__init__(timestamp)
 class StartPlayback(LayerControlMessage):
-	def __init__(self, timestamp=None):
+	def __init__(self, timestamp:datetime):
 		super().__init__(timestamp)
 class NextTrack(LayerControlMessage):
-	def __init__(self, timestamp=None):
+	def __init__(self, timestamp:datetime):
 		super().__init__(timestamp)
 
 class PlaylistLayer(DispatcherTask):

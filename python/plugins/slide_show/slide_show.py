@@ -12,7 +12,7 @@ from ..plugin_base import BasicExecutionContext2, PluginProtocol, TrackType
 import logging
 
 class SlideShowTimerExpired(PluginReceive):
-	def __init__(self, remaining_state: list, timestamp: datetime = None):
+	def __init__(self, remaining_state: list, timestamp: datetime):
 		super().__init__(timestamp)
 		self.remaining_state = remaining_state
 	def __repr__(self) -> str:
@@ -79,24 +79,24 @@ class SlideShow(PluginProtocol):
 			if len(state) == 0:
 				self.logger.info(f"{dataSourceName}: Slide show completed, moving to next track")
 				self.timer_info = None
-				local_sink.accept(NextTrack())
+				local_sink.accept(NextTrack(msg.timestamp))
 				return None
 			dsec = context.create_datasource_context(dataSource)
 			self._render_image(track.title, dsec, dataSource, settings, state, router, timer, local_sink)
 		return None
-	def _continuation_next(self, cancelled:bool, result, exception) -> BasicMessage:
+	def _continuation_next(self, cancelled:bool, result, exception, msg_ts: datetime) -> BasicMessage:
 		if cancelled:
 			return None
-		return FutureCompleted(self._name, "next", result, exception)
+		return FutureCompleted(self._name, "next", result, exception, msg_ts)
 	def _render_image(self, title: str, context: DataSourceExecutionContext, dataSource: MediaList, settings: dict, state: list, router: MessageRouter, timer: TimerService, timer_sink: MessageSink):
 		item = state[0]
 		future2 = dataSource.render(context, settings, item)
 		ftimeout = settings.get("timeoutSeconds", 10)
 		image = future2.result(timeout=ftimeout)
 		state.pop(0)
-		router.send("display", DisplayImage(title, image))
+		router.send("display", DisplayImage(title, image, context.schedule_ts))
 		slideMinutes = settings.get("slideMinutes", 15)
-		self.timer_info = timer.create_timer(timedelta(minutes=slideMinutes), timer_sink, SlideShowTimerExpired(state))
+		self.timer_info = timer.create_timer(timedelta(minutes=slideMinutes), timer_sink, SlideShowTimerExpired(state, context.schedule_ts))
 	def start(self, context: BasicExecutionContext2, track: TrackType) -> None:
 		self.logger.info(f"{self.id} start '{track.title}'")
 		if isinstance(track, PlaylistSchedule):
@@ -123,7 +123,7 @@ class SlideShow(PluginProtocol):
 				self.submit_result = None
 			elif isinstance(msg, SlideShowTimerExpired):
 				submit = context.provider.required(SubmitFuture)
-				self.submit_result = submit.submit_future(lambda x: self._source_next(x, context, track, msg), lambda cancelled,result,exception: self._continuation_next(cancelled,result,exception))
+				self.submit_result = submit.submit_future(lambda x: self._source_next(x, context, track, msg), lambda cancelled,result,exception: self._continuation_next(cancelled,result,exception, context.schedule_ts))
 		elif isinstance(track, PluginSchedule):
 			raise RuntimeError(f"Unsupported track type: {type(track)}")
 		else:
