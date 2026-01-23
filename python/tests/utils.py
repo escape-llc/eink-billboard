@@ -1,14 +1,42 @@
+import datetime
 import os
 from pathlib import Path
 import threading
 import logging
 from typing import Callable
 from pathvalidate import sanitize_filename
+
+from ..model.time_of_day import TimeOfDay
 from ..task.messages import BasicMessage, MessageSink
 from ..task.display import DisplayImage
 from ..tests.test_timer_tick import RecordingTask
 from ..model.configuration_manager import ConfigurationManager
 from PIL import Image
+
+
+class ScaledTimeService(TimeOfDay):
+	def __init__(self, start_time:datetime, scale:float):
+		super().__init__()
+		if start_time.tzinfo is None:
+			raise ValueError("start_time must be timezone-aware (have tzinfo)")
+		if scale <= 0:
+			raise ValueError("scale must be greater than zero")
+		self._start_time = start_time
+		self._scale = scale
+	def current_time(self) -> datetime.datetime:
+		# Use current local time matching start_time tzinfo
+		now = datetime.datetime.now(self._start_time.tzinfo)
+		interval = now - self._start_time
+		scaled_interval = interval.total_seconds() * self._scale
+		return self._start_time + datetime.timedelta(seconds=scaled_interval)
+	def current_time_utc(self) -> datetime.datetime:
+		# start_time is timezone-aware; convert to UTC then compare to current UTC
+		start_utc = self._start_time.astimezone(datetime.timezone.utc)
+		now_utc = datetime.datetime.now(datetime.timezone.utc)
+		interval = now_utc - start_utc
+		scaled_interval = interval.total_seconds() * self._scale
+		return start_utc + datetime.timedelta(seconds=scaled_interval)
+	pass
 
 class FakePort(MessageSink):
 	"""
