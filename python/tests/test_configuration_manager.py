@@ -18,7 +18,7 @@ class TestConfigurationManager(unittest.TestCase):
 		cm = ConfigurationManager()
 		list = cm.enum_plugins()
 		self.assertIsNotNone(list)
-		self.assertEqual(len(list), 5)  # Adjust based on expected number of plugins
+		self.assertEqual(len(list), 6)  # Adjust based on expected number of plugins
 		info0 = list[0].get('info', None)
 		self.assertIsNotNone(info0, 'info0 failed')
 		self.assertEqual(info0['id'], 'clock', 'info0.id failed')
@@ -32,22 +32,22 @@ class TestConfigurationManager(unittest.TestCase):
 		cm = ConfigurationManager()
 		list = cm.enum_datasources()
 		self.assertIsNotNone(list)
-		self.assertEqual(len(list), 5)  # Adjust based on expected number of datasources
+		self.assertEqual(len(list), 6)  # Adjust based on expected number of datasources
 		info0 = list[0].get('info', None)
 		self.assertIsNotNone(info0, 'info0 failed')
-		self.assertEqual(info0['id'], 'comic')
-		self.assertEqual(info0['class'], 'ComicFeed')
+		self.assertEqual(info0['id'], 'clock')
+		self.assertEqual(info0['class'], 'Clock')
 		info1 = list[1].get('info', None)
 		self.assertIsNotNone(info1, 'info1 failed')
-		self.assertEqual(info1['id'], 'image-folder')
-		self.assertEqual(info1['class'], 'ImageFolder')
+		self.assertEqual(info1['id'], 'comic')
+		self.assertEqual(info1['class'], 'ComicFeed')
 
 	def test_load_plugins(self):
 		cm = ConfigurationManager()
 		infos = cm.enum_plugins()
 		plugins = cm.load_plugins(infos)
 		self.assertIsNotNone(plugins)
-		self.assertEqual(len(plugins), 5)  # Adjust based on expected number of loaded plugins
+		self.assertEqual(len(plugins), 6)  # Adjust based on expected number of loaded plugins
 		plugin = plugins.get('debug', None)
 		self.assertIsNotNone(plugin, 'plugin debug failed')
 		self.assertEqual(plugin.id, 'debug')
@@ -58,7 +58,7 @@ class TestConfigurationManager(unittest.TestCase):
 		infos = cm.enum_datasources()
 		datasources = cm.load_datasources(infos)
 		self.assertIsNotNone(datasources)
-		self.assertEqual(len(datasources), 5)  # Adjust based on expected number of loaded datasources
+		self.assertEqual(len(datasources), 6)  # Adjust based on expected number of loaded datasources
 		datasource = datasources.get('comic', None)
 		self.assertIsNotNone(datasource, 'datasource comic failed')
 		self.assertEqual(datasource.name, 'Comic Plugin')

@@ -3,7 +3,10 @@
 # run from root folder
 # python -m python.eink-billboard --dev --cors "http://localhost:5173" --host localhost --storage ../.storage
 
+import datetime
 import os, logging.config
+
+from python.model.service_container import ServiceContainer
 
 from .model.configuration_manager import ConfigurationManager
 
@@ -119,7 +122,8 @@ if __name__ == '__main__':
 		if force_reset:
 			logger.info("No storage folder detected, force_reset")
 		options = StartOptions(storagePath=STORAGE,hardReset=force_reset)
-		xapp.accept(StartEvent(options))
+		root = ServiceContainer()
+		xapp.accept(StartEvent(options, root, datetime.datetime.now()))
 		started = xapp.app_started.wait(timeout=5)
 		if not started:
 			logger.warning(f"Application start timed out")
@@ -156,7 +160,7 @@ if __name__ == '__main__':
 	finally:
 		logger.info("eInk Billboard application shut down start")
 		try:
-			xapp.accept(QuitMessage())
+			xapp.accept(QuitMessage(datetime.now()))
 			xapp.join(timeout=5)
 			if hash_manager is not None:
 				hash_manager.stop()

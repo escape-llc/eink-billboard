@@ -110,7 +110,7 @@ class PlaylistLayer(DispatcherTask):
 				"state": self.state,
 				"current_playlist_index": self.playlist_state["current_playlist_index"],
 				"current_track_index": self.playlist_state["current_track_index"]
-			}))
+			}, msg.timestamp))
 		except Exception as e:
 			self.logger.error(f"Error starting playback with plugin '{current_track.plugin_name}' for track '{current_track.title}': {e}", exc_info=True)
 			self.state = 'error'
@@ -219,7 +219,7 @@ class PlaylistLayer(DispatcherTask):
 				"state": self.state,
 				"current_playlist_index": self.playlist_state["current_playlist_index"],
 				"current_track_index": self.playlist_state["current_track_index"]
-			}))
+			}, msg.timestamp))
 		else:
 			self.logger.info(f"End of playlist '{current_playlist.name}' reached.")
 			current_playlist_index = self.playlist_state.get('current_playlist_index')
@@ -243,7 +243,7 @@ class PlaylistLayer(DispatcherTask):
 				"state": self.state,
 				"current_playlist_index": self.playlist_state["current_playlist_index"],
 				"current_track_index": self.playlist_state["current_track_index"]
-			}))
+			}, msg.timestamp))
 	def _configure_event(self, msg: ConfigureEvent):
 		self.cm = msg.content.cm
 		try:

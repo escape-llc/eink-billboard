@@ -5,6 +5,8 @@ import os
 from threading import Event
 import unittest
 
+from python.model.service_container import ServiceContainer
+
 from .test_plugin import RecordingTask
 from ..datasources.data_source import DataSourceManager
 from ..model.schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks
@@ -59,8 +61,9 @@ class PlaylistLayerSimulation(unittest.TestCase):
 		router.addRoute(Route("display", [display]))
 		router.addRoute(Route("telemetry", [tsink]))
 		cm = create_configuration_manager()
-		options = ConfigureOptions(cm)
-		configure = ConfigureEvent("configure", options)
+		ctr = ServiceContainer()
+		options = ConfigureOptions(cm, isp=ctr)
+		configure = ConfigureEvent("configure", options, datetime.now())
 		layer = PlaylistLayer("testlayer", router)
 		dev = DisplaySettings("none", 800, 480)
 		display.start()
@@ -69,9 +72,9 @@ class PlaylistLayerSimulation(unittest.TestCase):
 		layer.accept(configure)
 		# wait until the trigger condition is met
 		completed = tsink.stopped.wait(timeout=20)
-		layer.accept(QuitMessage())
+		layer.accept(QuitMessage(datetime.now()))
 		layer.join(timeout=2)
-		display.accept(QuitMessage())
+		display.accept(QuitMessage(datetime.now()))
 		display.join()
 		save_images(display, "playlist_layer_simulation")
 		self.assertTrue(completed, "PlaylistLayer simulation timed out before reaching trigger condition.")
@@ -87,8 +90,9 @@ class TimerLayerSimulation(unittest.TestCase):
 		router.addRoute(Route("display", [display]))
 		router.addRoute(Route("telemetry", [tsink]))
 		cm = create_configuration_manager()
-		options = ConfigureOptions(cm)
-		configure = ConfigureEvent("configure", options)
+		ctr = ServiceContainer()
+		options = ConfigureOptions(cm, ctr)
+		configure = ConfigureEvent("configure", options, datetime.now())
 		layer = TimerLayer("timerlayer", router)
 		dev = DisplaySettings("none", 800, 480)
 		display.start()
@@ -97,9 +101,9 @@ class TimerLayerSimulation(unittest.TestCase):
 		layer.accept(configure)
 		# wait until the trigger condition is met
 		completed = tsink.stopped.wait(timeout=20000)
-		layer.accept(QuitMessage())
+		layer.accept(QuitMessage(datetime.now()))
 		layer.join(timeout=2)
-		display.accept(QuitMessage())
+		display.accept(QuitMessage(datetime.now()))
 		display.join()
 		save_images(display, "timer_layer_simulation")
 		self.assertTrue(completed, "TimerLayer simulation timed out before reaching trigger condition.")

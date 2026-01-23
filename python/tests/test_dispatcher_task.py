@@ -1,3 +1,4 @@
+import datetime
 import unittest
 import logging
 from ..task.basic_task import DispatcherTask
@@ -29,8 +30,8 @@ class TestDispatcherTask(unittest.TestCase):
 
 		task = RegisteredDispatcher()
 		task.start()
-		task.accept(MessageWithContent('payload'))
-		task.accept(QuitMessage())
+		task.accept(MessageWithContent('payload', datetime.now()))
+		task.accept(QuitMessage(datetime.now()))
 		task.join()
 
 		self.assertFalse(task.is_alive())
@@ -42,8 +43,8 @@ class TestDispatcherTask(unittest.TestCase):
 		task = RecordingDispatcher()
 		task.start()
 		# Send a MessageWithContext which has no exact-class handler
-		task.accept(MessageWithContent('payload'))
-		task.accept(QuitMessage())
+		task.accept(MessageWithContent('payload', datetime.now()))
+		task.accept(QuitMessage(datetime.now()))
 		task.join()
 
 		# Handler exists for BasicMessage should record it
@@ -61,8 +62,8 @@ class TestDispatcherTask(unittest.TestCase):
 
 		task = SubHandlerDispatcher()
 		task.start()
-		task.accept(MessageWithContent('payload2'))
-		task.accept(QuitMessage())
+		task.accept(MessageWithContent('payload2', datetime.now()))
+		task.accept(QuitMessage(datetime.now()))
 		task.join()
 
 		self.assertIn(('superhandler', 'payload2'), task.received)
@@ -79,7 +80,7 @@ class TestDispatcherTask(unittest.TestCase):
 
 		task = QuitOverrideDispatcher()
 		task.start()
-		task.accept(QuitMessage())
+		task.accept(QuitMessage(datetime.now()))
 		task.join()
 
 		self.assertIn(('quit_called', None), task.received)

@@ -65,8 +65,8 @@ class TestTimerTick(unittest.TestCase):
 		timer.join()
 
 		# Stop tasks
-		task1.accept(QuitMessage())
-		task2.accept(QuitMessage())
+		task1.accept(QuitMessage(datetime.now()))
+		task2.accept(QuitMessage(datetime.now()))
 		task1.join()
 		task2.join()
 
@@ -96,8 +96,8 @@ class TestTimerTick(unittest.TestCase):
 		# run until done
 		timer.join()
 		# Stop tasks
-		task1.accept(QuitMessage())
-		task2.accept(QuitMessage())
+		task1.accept(QuitMessage(datetime.now()))
+		task2.accept(QuitMessage(datetime.now()))
 		task1.join()
 		task2.join()
 

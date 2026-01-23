@@ -1,9 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-import os
 import unittest
 import logging
 
+from ..datasources.clock.clock import Clock
 from ..datasources.openai_image.openai_image import OpenAI
 from ..datasources.comic.comic_feed import ComicFeed
 from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager
@@ -20,7 +20,7 @@ logging.basicConfig(
 )
 
 class TestDataSources(unittest.TestCase):
-	def create_data_source_context(self, dsid:str):
+	def create_data_source_context(self, dsid:str, schedule_ts: datetime = datetime.now()) -> DataSourceExecutionContext:
 		cm = create_configuration_manager()
 		cm.ensure_folders()
 		scm = cm.settings_manager()
@@ -32,7 +32,7 @@ class TestDataSources(unittest.TestCase):
 		root.add_service(SettingsConfigurationManager, scm)
 		root.add_service(DatasourceConfigurationManager, dscm)
 		resolution = (800,480)
-		return DataSourceExecutionContext(root, resolution, datetime.now())
+		return DataSourceExecutionContext(root, resolution, schedule_ts)
 
 	def run_datasource(self, ds, params, image_size, image_count, timeout = 5):
 		tpe = ThreadPoolExecutor(max_workers=2)
@@ -56,6 +56,28 @@ class TestDataSources(unittest.TestCase):
 				save_image(result, folder, ix, f"item_{ix}")
 				ix += 1
 				self.assertEqual(result.size, image_size)
+			self.assertEqual(len(images), image_count)
+		finally:
+			ds.set_executor(None)
+			tpe.shutdown(wait=True, cancel_futures=True)
+	def run_datasource2(self, ds, params, image_size, image_count, timeout = 5):
+		tpe = ThreadPoolExecutor(max_workers=2)
+		ds.set_executor(tpe)
+		try:
+			folder = test_output_path_for(f"ds-{ds.id}")
+			dsec = self.create_data_source_context(ds.id)
+			future_state = ds.open(dsec, params)
+			state = future_state.result(timeout=5)
+			self.assertIsNotNone(state)
+			images = []
+			ix = 0
+			item = state
+			future_img = ds.render(dsec, params, item)
+			result = future_img.result(timeout=timeout)
+			self.assertIsNotNone(result)
+			images.append(result)
+			save_image(result, folder, ix, f"item_{ix}")
+			self.assertEqual(result.size, image_size)
 			self.assertEqual(len(images), image_count)
 		finally:
 			ds.set_executor(None)
@@ -86,6 +108,38 @@ class TestDataSources(unittest.TestCase):
 			"slug": "ny_nyt"
 		}
 		self.run_datasource(ds, params, (700, 1166), 1)
+	def test_clock_gradient(self):
+		ds = Clock("clock-gradient", "clock")
+		params = {
+			"clockFace": "Gradient Clock",
+			"primaryColor": "#db3246",
+			"secondaryColor": "#000000"
+		}
+		self.run_datasource2(ds, params, (800, 480), 1)
+	def test_clock_digital(self):
+		ds = Clock("clock-digital", "clock")
+		params = {
+			"clockFace": "Digital Clock",
+			"primaryColor": "#ffffff",
+			"secondaryColor": "#000000"
+		}
+		self.run_datasource2(ds, params, (800, 480), 1)
+	def test_clock_word(self):
+		ds = Clock("clock-word", "clock")
+		params = {
+			"clockFace": "Word Clock",
+			"primaryColor": "#000000",
+			"secondaryColor": "#ffffff"
+		}
+		self.run_datasource2(ds, params, (800, 480), 1)
+	def test_clock_divided(self):
+		ds = Clock("clock-divided", "clock")
+		params = {
+			"clockFace": "Divided Clock",
+			"primaryColor": "#20b7ae",
+			"secondaryColor": "#ffffff"
+		}
+		self.run_datasource2(ds, params, (800, 480), 1)
 	@unittest.skip("OpenAI Image tests cost money!")
 	def test_openai(self):
 		ds = OpenAI("openai-image", "openai-image")

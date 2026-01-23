@@ -22,6 +22,7 @@ class SlideShow(PluginProtocol):
 	def __init__(self, id, name):
 		self._id = id
 		self._name = name
+		self.submit_result = None
 		self.timer_info = None
 		self.logger = logging.getLogger(__name__)
 	@property
@@ -55,10 +56,10 @@ class SlideShow(PluginProtocol):
 				return True
 			self._render_image(track.title, dsec, dataSource, settings, state, router, timer, timer_sink)
 		return None
-	def _continuation_start(self, cancelled:bool, result, exception) -> BasicMessage:
+	def _continuation_start(self, cancelled:bool, result, exception, msg_ts) -> BasicMessage:
 		if cancelled:
 			return None
-		return FutureCompleted(self._name, "start", result, exception)
+		return FutureCompleted(self._name, "start", result, exception, msg_ts)
 	def _source_next(self, is_cancelled:CancelToken, context: BasicExecutionContext2, track:PlaylistSchedule, msg: SlideShowTimerExpired) -> None:
 		settings = track.content.data
 		# assert required services are available
@@ -101,7 +102,7 @@ class SlideShow(PluginProtocol):
 		if isinstance(track, PlaylistSchedule):
 			submit = context.provider.required(SubmitFuture)
 			self.submit_result = submit.submit_future(lambda x: self._source_start(x, context, track),
-													 lambda cancelled,result,exception: self._continuation_start(cancelled,result,exception	))
+													 lambda cancelled,result,exception: self._continuation_start(cancelled,result,exception, context.schedule_ts))
 		elif isinstance(track, PluginSchedule):
 			raise RuntimeError(f"Unsupported track type: {type(track)}")
 		else:

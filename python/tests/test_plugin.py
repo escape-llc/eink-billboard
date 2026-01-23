@@ -115,7 +115,7 @@ class TestPlugins(unittest.TestCase):
 			except queue.Empty as e:
 				pass
 		active_plugin.shutdown()
-		display.accept(QuitMessage())
+		display.accept(QuitMessage(datetime.now()))
 		display.join()
 		return display
 
@@ -192,7 +192,7 @@ class TestPlugins(unittest.TestCase):
 		completed = sink.stopped.wait(timeout=timeout)
 		fsource.shutdown()
 		timer.shutdown()
-		display.accept(QuitMessage())
+		display.accept(QuitMessage(datetime.now()))
 		display.join()
 		save_images(display, plugin.name)
 		return display

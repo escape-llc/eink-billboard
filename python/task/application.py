@@ -1,7 +1,7 @@
 import threading
 from datetime import datetime, timedelta
 
-from python.model.service_container import IServiceProvider
+from python.model.service_container import IServiceProvider, ServiceContainer
 from python.task.playlist_layer import PlaylistLayer
 from python.task.timer_layer import TimerLayer
 
@@ -36,7 +36,7 @@ class Application(DispatcherTask):
 			self.app_stopped.set()
 	def _stop_event(self, msg: StopEvent):
 		try:
-			self._handleStop()
+			self._handleStop(msg.timestamp)
 		except Exception as e:
 			self.logger.error(f"Failed to stop '{self.name}': {e}", exc_info=True)
 		finally:
@@ -45,9 +45,13 @@ class Application(DispatcherTask):
 	def _display_settings(self, msg: DisplaySettings):
 		# STEP 3 configure scheduler (it also receives DisplaySettings)
 		self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
-		configs = ConfigureEvent("playlist-layer", ConfigureOptions(cm=self.cm.duplicate()), self, msg.timestamp)
+		plcontainer = ServiceContainer()
+		# TODO populate root container
+		configs = ConfigureEvent("playlist-layer", ConfigureOptions(cm=self.cm.duplicate(), isp=plcontainer), self, msg.timestamp)
 		self.playlist_layer.accept(configs)
-		configt = ConfigureEvent("timer-layer", ConfigureOptions(cm=self.cm.duplicate()), self, msg.timestamp)
+		# TODO populate root container
+		tlcontainer = ServiceContainer()
+		configt = ConfigureEvent("timer-layer", ConfigureOptions(cm=self.cm.duplicate(), isp=tlcontainer), self, msg.timestamp)
 		self.timer_layer.accept(configt)
 	def _configure_notify(self, msg: ConfigureNotify):
 		# STEP 4 start playback if layers configured successfully
@@ -106,22 +110,23 @@ class Application(DispatcherTask):
 		if self.sink is not None:
 			self.router.addRoute(Route('telemetry', [self.sink]))
 		# STEP 1 configure the Display task
-		configd = ConfigureEvent("display", ConfigureOptions(cm=self.cm.duplicate()), self, timestamp_ts)
+		dpcontainer = ServiceContainer()
+		configd = ConfigureEvent("display", ConfigureOptions(cm=self.cm.duplicate(), isp=dpcontainer), self, timestamp_ts)
 		self.display.accept(configd)
 		# start tasks
 		self.display.start()
 		self.playlist_layer.start()
 		self.timer_layer.start()
-	def _handleStop(self):
+	def _handleStop(self, timestamp: datetime):
 		if self.timer_layer.is_alive():
-			self.timer_layer.accept(QuitMessage())
+			self.timer_layer.accept(QuitMessage(timestamp))
 			self.timer_layer.join()
 			self.logger.info("TimerLayer stopped");
 		if self.playlist_layer.is_alive():
-			self.playlist_layer.accept(QuitMessage())
+			self.playlist_layer.accept(QuitMessage(timestamp))
 			self.playlist_layer.join()
 			self.logger.info("PlaylistLayer stopped");
 		if self.display.is_alive():
-			self.display.accept(QuitMessage())
+			self.display.accept(QuitMessage(timestamp))
 			self.display.join()
 			self.logger.info("Display stopped");
