@@ -193,6 +193,7 @@ class MasterSchedule:
 		return matching_schedules[-1] if matching_schedules else None
 
 class TimedSchedule:
+	"""deprecated original schedule impl"""
 	def __init__(self, id: str, name: str, items: list[SchedulableBase] = None, dc: callable = None):
 		self.id = id
 		self.name = name
@@ -245,7 +246,7 @@ class TimedSchedule:
 		}
 		return retv
 
-def generate_trigger_time(now: datetime, time: dict) -> Generator[datetime, None, None]:
+def generate_trigger_time(now: datetime, time: dict[str,any]) -> Generator[datetime, None, None]:
 	time_type = time.get("type", None)
 	if time_type is None:
 		raise ValueError("Time Trigger must contain 'type' field")
@@ -276,7 +277,7 @@ def generate_trigger_time(now: datetime, time: dict) -> Generator[datetime, None
 		case None:
 			pass
 	pass
-def generate_schedule(now: datetime, trigger: dict) -> Generator[datetime, None, None]:
+def generate_schedule(now: datetime, trigger: dict[str,any]) -> Generator[datetime, None, None]:
 	day = trigger.get("day", None)
 	time = trigger.get("time", None)
 	if day is None or time is None:
@@ -303,24 +304,20 @@ def generate_schedule(now: datetime, trigger: dict) -> Generator[datetime, None,
 	pass
 
 class TimerTaskTask:
-	def __init__(self, plugin_name: str, title: str, duration_minutes: int, content: dict):
+	def __init__(self, plugin_name: str, title: str, content: dict):
 		if plugin_name is None:
 			raise ValueError("plugin_name cannot be None")
 		if title is None:
 			raise ValueError("title cannot be None")
-		if duration_minutes is None:
-			raise ValueError("duration_minutes cannot be None")
 		if content is None:
 			raise ValueError("content cannot be None")
 		self.plugin_name = plugin_name
 		self.title = title
-		self.duration_minutes = duration_minutes
 		self.content = content
 	def to_dict(self):
 		retv = {
 			"title": self.title,
 			"plugin_name": self.plugin_name,
-			"duration_minutes": self.duration_minutes,
 			"content": self.content.copy()
 		}
 		return retv

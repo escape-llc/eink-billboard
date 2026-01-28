@@ -148,7 +148,6 @@ class ScheduleLoader:
 			task = TimerTaskTask(
 				etask.get("plugin_name", None),
 				etask.get("title", None),
-				etask.get("duration_minutes", None),
 				etask.get("content", {}))
 			item = TimerTaskItem(id, title, enabled, desc, task, entry.get("trigger", {}))
 			items.append(item)

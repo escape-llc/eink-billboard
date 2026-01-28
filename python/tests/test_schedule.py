@@ -171,11 +171,11 @@ class TestSchedule(unittest.TestCase):
 		self.assertEqual(len(d["items"]), 2)
 
 	def test_timer_task_to_dicts(self):
-		task = TimerTaskTask("p1", "TaskTitle", 15, {"x": 1})
+		task = TimerTaskTask("p1", "TaskTitle", {"x": 1})
 		td = task.to_dict()
 		self.assertEqual(td["plugin_name"], "p1")
 		self.assertEqual(td["title"], "TaskTitle")
-		self.assertEqual(td["duration_minutes"], 15)
+#		self.assertEqual(td["duration_minutes"], 15)
 
 		item = TimerTaskItem("it1", "ItemName", True, "desc", task, {"time": {}})
 		idct = item.to_dict()
