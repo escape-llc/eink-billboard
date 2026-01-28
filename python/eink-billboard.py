@@ -6,7 +6,10 @@
 import datetime
 import os, logging.config
 
+from python.model.configuration_watcher import ConfigurationWatcher
+from python.model.hash_manager_eviction_sink import HashManagerEvictionSink
 from python.model.service_container import ServiceContainer
+from python.model.time_of_day import SystemTimeOfDay, TimeOfDay
 
 from .model.configuration_manager import ConfigurationManager
 
@@ -105,7 +108,10 @@ if __name__ == '__main__':
 
 	try:
 		cm = ConfigurationManager(storage_path=STORAGE)
+		time_base = SystemTimeOfDay()
 		hash_manager = HashManager(cm.STORAGE_PATH)
+		watcher_sink = HashManagerEvictionSink(hash_manager)
+		config_watcher = ConfigurationWatcher(time_base, watcher_sink, cm.ROOT_PATH)
 		# register plugin blueprints
 		blueprint_map = cm.load_blueprints(cm.enum_plugins())
 		for bp_name, bp in blueprint_map.items():
@@ -123,7 +129,11 @@ if __name__ == '__main__':
 			logger.info("No storage folder detected, force_reset")
 		options = StartOptions(storagePath=STORAGE,hardReset=force_reset)
 		root = ServiceContainer()
-		xapp.accept(StartEvent(options, root, datetime.datetime.now()))
+		root.add_service(TimeOfDay, time_base)
+		root.add_service(HashManager, hash_manager)
+		root.add_service(TelemetrySink, sink)
+		root.add_service(Application, xapp)
+		xapp.accept(StartEvent(options, root, time_base.current_time()))
 		started = xapp.app_started.wait(timeout=5)
 		if not started:
 			logger.warning(f"Application start timed out")
@@ -140,7 +150,7 @@ if __name__ == '__main__':
 			logger.warning(f"startup message {msg}")
 			msg = sink.receive()
 
-		hash_manager.start()
+		config_watcher.start()
 
 		# Get local IP address for display (only in dev mode when running on non-Pi)
 		if DEV_MODE and HOST == '0.0.0.0':
@@ -160,10 +170,10 @@ if __name__ == '__main__':
 	finally:
 		logger.info("eInk Billboard application shut down start")
 		try:
-			xapp.accept(QuitMessage(datetime.now()))
+			xapp.accept(QuitMessage(time_base.current_time()))
 			xapp.join(timeout=5)
-			if hash_manager is not None:
-				hash_manager.stop()
+			if config_watcher is not None:
+				config_watcher.stop()
 		except Exception as ee:
 			logger.error(f"Exception during shutdown: {ee}", exc_info=True)
 		finally:
