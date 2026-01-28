@@ -3,7 +3,6 @@
 # run from root folder
 # python -m python.eink-billboard --dev --cors "http://localhost:5173" --host localhost --storage ../.storage
 
-import datetime
 import os, logging.config
 
 from python.model.configuration_watcher import ConfigurationWatcher
@@ -108,6 +107,7 @@ if __name__ == '__main__':
 
 	try:
 		cm = ConfigurationManager(storage_path=STORAGE)
+		# TODO get system settings timezone and use it in SystemTimeOfDay
 		time_base = SystemTimeOfDay()
 		hash_manager = HashManager(cm.STORAGE_PATH)
 		watcher_sink = HashManagerEvictionSink(hash_manager)
