@@ -1,23 +1,24 @@
 import logging
 
-from ...model.configuration_manager import PluginConfigurationManager
-from ...model.schedule import SchedulableBase
 from ...task.messages import BasicMessage
-from ..plugin_base import PluginBase, PluginExecutionContext
+from ..plugin_base import BasicExecutionContext2, PluginProtocol, TrackType
 
 
-class DebugPlugin(PluginBase):
+class DebugPlugin(PluginProtocol):
 	def __init__(self, id, name):
-		super().__init__(id, name)
+		self._id = id
+		self._name = name
 		self.logger = logging.getLogger(__name__)
+	@property
+	def id(self) -> str:
+		return self._id
+	@property
+	def name(self) -> str:
+		return self._name
 
-	def timeslot_start(self, sb: SchedulableBase, pcm: PluginConfigurationManager):
-		self.logger.info(f"'{self.name}' timeslot.start '{sb.title}'.")
-	def timeslot_end(self, sb: SchedulableBase, pcm: PluginConfigurationManager):
-		self.logger.info(f"'{self.name}' timeslot.end '{sb.title}'.")
-	def schedule(self, sb: SchedulableBase, pcm: PluginConfigurationManager):
-		self.logger.info(f"'{self.name}' schedule '{sb.title}'.")
-	def receive(self, pec: PluginExecutionContext, msg: BasicMessage):
-		self.logger.info(f"'{self.name}' receive: {msg}")
-	def reconfigure(self, pec: PluginExecutionContext, config):
-		self.logger.info(f"'{self.name}' reconfigure: {config}")
+	def start(self, context: BasicExecutionContext2, track: TrackType) -> None:
+		self.logger.info(f"'{self.name}' start '{track.title}'")
+	def stop(self, context: BasicExecutionContext2, track: TrackType) -> None:
+		self.logger.info(f"'{self.name}' stop '{track.title}'")
+	def receive(self, context: BasicExecutionContext2, track: TrackType, msg: BasicMessage) -> None:
+		self.logger.info(f"'{self.name}' '{track.title}' receive: {msg}")

@@ -52,7 +52,7 @@ class MediaRender(Protocol):
 	def render(self, dsec: DataSourceExecutionContext, params:dict[str,any], state:any) -> Future[Image.Image | None]:
 		"""
 		Ability to render an image from the params and state.
-		
+
 		:param self: Description
 		:param dsec: Execution context
 		:type dsec: DataSourceExecutionContext
