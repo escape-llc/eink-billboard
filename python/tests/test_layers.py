@@ -6,6 +6,7 @@ from threading import Event
 import unittest
 
 from python.model.service_container import ServiceContainer
+from python.model.time_of_day import SystemTimeOfDay, TimeOfDay
 
 from .test_plugin import RecordingTask
 from ..datasources.data_source import DataSourceManager
@@ -18,7 +19,7 @@ from ..task.playlist_layer import PlaylistLayer, StartPlayback
 from ..task.message_router import MessageRouter, Route
 from ..task.future_source import FutureSource
 from ..task.timer_layer import TimerLayer
-from .utils import create_configuration_manager, save_images
+from .utils import ScaledTimeOfDay, create_configuration_manager, save_images
 
 class TestPlugin(PluginProtocol):
 	def __init__(self, id, name):
@@ -60,21 +61,25 @@ class PlaylistLayerSimulation(unittest.TestCase):
 		router = MessageRouter()
 		router.addRoute(Route("display", [display]))
 		router.addRoute(Route("telemetry", [tsink]))
+		time_base = SystemTimeOfDay()
 		cm = create_configuration_manager()
 		ctr = ServiceContainer()
+		ctr.add_service(TimeOfDay, time_base)
 		options = ConfigureOptions(cm, isp=ctr)
-		configure = ConfigureEvent("configure", options, None, datetime.now())
+		evtime = time_base.current_time()
+		configure = ConfigureEvent("configure", options, None, evtime)
 		layer = PlaylistLayer("testlayer", router)
-		dev = DisplaySettings("none", 800, 480, datetime.now())
+		dev = DisplaySettings("none", 800, 480, evtime)
 		display.start()
 		layer.start()
 		layer.accept(dev)
 		layer.accept(configure)
 		# wait until the trigger condition is met
 		completed = tsink.stopped.wait(timeout=20)
-		layer.accept(QuitMessage(datetime.now()))
+		evtime = time_base.current_time()
+		layer.accept(QuitMessage(evtime))
 		layer.join(timeout=2)
-		display.accept(QuitMessage(datetime.now()))
+		display.accept(QuitMessage(evtime))
 		display.join()
 		save_images(display, "playlist_layer_simulation")
 		self.assertTrue(completed, "PlaylistLayer simulation timed out before reaching trigger condition.")
@@ -90,20 +95,24 @@ class TimerLayerSimulation(unittest.TestCase):
 		router.addRoute(Route("display", [display]))
 		router.addRoute(Route("telemetry", [tsink]))
 		cm = create_configuration_manager()
+		time_base = ScaledTimeOfDay(datetime.now().astimezone(), 60)
 		ctr = ServiceContainer()
+		ctr.add_service(TimeOfDay, time_base)
 		options = ConfigureOptions(cm, ctr)
-		configure = ConfigureEvent("configure", options, None, datetime.now())
+		evtime = time_base.current_time()
+		configure = ConfigureEvent("configure", options, None, evtime)
 		layer = TimerLayer("timerlayer", router)
-		dev = DisplaySettings("none", 800, 480, datetime.now())
+		dev = DisplaySettings("none", 800, 480, evtime)
 		display.start()
 		layer.start()
 		layer.accept(dev)
 		layer.accept(configure)
 		# wait until the trigger condition is met
 		completed = tsink.stopped.wait(timeout=20000)
-		layer.accept(QuitMessage(datetime.now()))
+		evtime = time_base.current_time()
+		layer.accept(QuitMessage(evtime))
 		layer.join(timeout=2)
-		display.accept(QuitMessage(datetime.now()))
+		display.accept(QuitMessage(evtime))
 		display.join()
 		save_images(display, "timer_layer_simulation")
 		self.assertTrue(completed, "TimerLayer simulation timed out before reaching trigger condition.")
@@ -214,7 +223,7 @@ class TimerLayerTests(unittest.TestCase):
 		]
 
 		# Create a playlist with a single TimedSchedule track
-		task = TimerTaskTask("p1", "t1", 1, {})
+		task = TimerTaskTask("p1", "t1", {})
 		trigger = {
 			"day": {
 				"type": "dayofweek",

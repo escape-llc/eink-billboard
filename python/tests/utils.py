@@ -1,3 +1,4 @@
+from concurrent.futures import Executor, Future
 import datetime
 import os
 from pathlib import Path
@@ -9,12 +10,13 @@ from pathvalidate import sanitize_filename
 from ..model.time_of_day import TimeOfDay
 from ..task.messages import BasicMessage, MessageSink
 from ..task.display import DisplayImage
+from ..task.timer import IProvideTimer
 from ..tests.test_timer_tick import RecordingTask
 from ..model.configuration_manager import ConfigurationManager
 from PIL import Image
 
 
-class ScaledTimeService(TimeOfDay):
+class ScaledTimeOfDay(TimeOfDay):
 	def __init__(self, start_time:datetime, scale:float):
 		super().__init__()
 		if start_time.tzinfo is None:
@@ -37,6 +39,43 @@ class ScaledTimeService(TimeOfDay):
 		scaled_interval = interval.total_seconds() * self._scale
 		return start_utc + datetime.timedelta(seconds=scaled_interval)
 	pass
+
+class ScaledTimerService(IProvideTimer):
+	def __init__(self, scale: float, es: Executor = None):
+		if scale <= 0:
+			raise ValueError("scale must be greater than zero")
+		self._es = es if es is not None else ThreadPoolExecutor(max_workers=4)
+		self._scale = scale
+		self.logger = logging.getLogger(__name__)
+	def create_timer(self, deltatime: datetime.timedelta, sink: MessageSink|None, completed: BasicMessage) -> tuple[Future[BasicMessage|None], callable]:
+		"""
+		Creates a timer that waits for deltatime and then sends the completed message to the sink.
+		Returns a tuple of (future, cancel_function). The future completes with the completed message when the timer expires, or None if cancelled.
+		"""
+		stopped = threading.Event()
+		def fx() -> BasicMessage|None:
+			try:
+				scaled = deltatime.total_seconds() / self._scale
+				self.logger.debug(f"Sleep {deltatime} scaled to {scaled} seconds")
+				timeout = stopped.wait(scaled)
+				self.logger.debug(f"Stopped {timeout}")
+				if not timeout:
+					if sink is not None:
+						self.logger.debug(f"sending message {completed}")
+						sink.accept(completed)
+					return completed
+				else:
+					return None
+			except Exception as ex:
+				self.logger.error(f"Timer exception: {ex}")
+		def cancel() -> None:
+			self.logger.debug("Timer cancel requested.")
+			stopped.set()
+		future = self._es.submit(fx)
+		return (future, cancel)
+	def shutdown(self):
+		if self._es is not None:
+			self._es.shutdown(wait=True, cancel_futures=True)
 
 class FakePort(MessageSink):
 	"""

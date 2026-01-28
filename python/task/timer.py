@@ -3,6 +3,7 @@ from concurrent.futures import Executor, ThreadPoolExecutor, Future
 from datetime import timedelta
 import threading
 import logging
+from typing import Protocol, runtime_checkable
 
 from .messages import BasicMessage, MessageSink
 from .timer_tick import TickMessage
@@ -29,7 +30,17 @@ class Timer(ABC):
 	def timer_expired(self):
 		pass
 
-class TimerService:
+@runtime_checkable
+class IProvideTimer(Protocol):
+	@abstractmethod
+	def create_timer(self, deltatime: timedelta, sink: MessageSink|None, completed: BasicMessage) -> tuple[Future[BasicMessage|None], callable]:
+		"""
+		Creates a timer that waits for deltatime and then sends the completed message to the sink.
+		Returns a tuple of (future, cancel_function). The future completes with the completed message when the timer expires, or None if cancelled.
+		"""
+		...
+
+class TimerService(IProvideTimer):
 	def __init__(self, es: Executor = None):
 		self._es = es if es is not None else ThreadPoolExecutor(max_workers=4)
 		self.logger = logging.getLogger(__name__)
