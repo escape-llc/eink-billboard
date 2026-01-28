@@ -17,7 +17,8 @@ class TimeOfDay(Protocol):
 		...
 
 class SystemTimeOfDay(TimeOfDay):
+	# TODO take the zoneinfo from system settings.
 	def current_time(self) -> datetime.datetime:
-		return datetime.datetime.now()
+		return datetime.datetime.now().astimezone()
 	def current_time_utc(self) -> datetime.datetime:
 		return datetime.datetime.now(datetime.timezone.utc)
