@@ -101,3 +101,9 @@ class Telemetry(BasicMessage):
 	@property
 	def values(self) -> dict[str,any]:
 		return self._values
+
+class ConfigurationWatcherEvent(BasicMessage):
+	def __init__(self, type: str, path: str, timestamp: datetime):
+		super().__init__(timestamp)
+		self.type = type
+		self.path = path
