@@ -1,8 +1,6 @@
 import json
 import hashlib
 import threading
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
 
 class HashEntry:
 	def __init__(self, id:str, path:str, hash:str):
@@ -10,44 +8,12 @@ class HashEntry:
 		self.path = path
 		self.hash = hash
 
-class HashHandler(FileSystemEventHandler):
-	def __init__(self, hm: 'HashManager'):
-		super().__init__()
-		self.hm = hm
-	def on_created(self, event):
-		if not event.is_directory:
-			print(f"File created: {event.src_path}")
-
-	def on_modified(self, event):
-		if not event.is_directory:
-			print(f"File modified: {event.src_path}")
-			self.hm.evict(event.src_path)
-
-	def on_deleted(self, event):
-		if not event.is_directory:
-			print(f"File deleted: {event.src_path}")
-			self.hm.evict(event.src_path)
-
-	def on_moved(self, event):
-		if not event.is_directory:
-			print(f"File moved from {event.src_path} to {event.dest_path}")
-			self.hm.evict(event.src_path)
-
 HASH_KEY = "_rev"
 class HashManager:
 	def __init__(self, root_path: str = "."):
 		self.root_path = root_path
 		self.lock = threading.Lock()
 		self.hashdict = {}
-	def start(self):
-		self.event_handler = HashHandler(self)
-		self.observer = Observer()
-		self.observer.schedule(self.event_handler, path=self.root_path, recursive=True)
-		self.observer.start()
-	def stop(self):
-		if self.observer is not None:
-			self.observer.stop()
-			self.observer.join()
 	def evict(self, path:str):
 		with self.lock:
 			entries_to_remove = [id for id, entry in self.hashdict.items() if entry.path == path]
@@ -157,3 +123,4 @@ class HashManager:
 		object_hash = hashlib.sha256(byte_string).hexdigest()
 
 		return object_hash
+
