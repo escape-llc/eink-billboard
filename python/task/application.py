@@ -2,6 +2,7 @@ import threading
 from datetime import datetime, timedelta
 
 from python.model.service_container import IServiceProvider, ServiceContainer
+from python.model.time_of_day import TimeOfDay
 from python.task.playlist_layer import PlaylistLayer
 from python.task.timer_layer import TimerLayer
 
@@ -45,16 +46,19 @@ class Application(DispatcherTask):
 	def _display_settings(self, msg: DisplaySettings):
 		# STEP 3 configure scheduler (it also receives DisplaySettings)
 		self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
+		# populate root containers
 		plcontainer = ServiceContainer()
-		# TODO populate root container
+		tlcontainer = ServiceContainer()
+		tod = self.root_container.get_service(TimeOfDay)
+		if tod:
+			plcontainer.add_service(TimeOfDay, tod)
+			tlcontainer.add_service(TimeOfDay, tod)
 		configs = ConfigureEvent("playlist-layer", ConfigureOptions(cm=self.cm.duplicate(), isp=plcontainer), self, msg.timestamp)
 		self.playlist_layer.accept(configs)
-		# TODO populate root container
-		tlcontainer = ServiceContainer()
 		configt = ConfigureEvent("timer-layer", ConfigureOptions(cm=self.cm.duplicate(), isp=tlcontainer), self, msg.timestamp)
 		self.timer_layer.accept(configt)
 	def _configure_notify(self, msg: ConfigureNotify):
-		# STEP 4 start playback if layers configured successfully
+		# STEP 4 playback started if layer configured successfully
 		self.logger.info(f"'{self.name}' ConfigureNotify {msg.token} {msg.error} {msg.content}.")
 		if msg.error == True and self.sink:
 			self.sink.accept(msg)
@@ -111,6 +115,8 @@ class Application(DispatcherTask):
 			self.router.addRoute(Route('telemetry', [self.sink]))
 		# STEP 1 configure the Display task
 		dpcontainer = ServiceContainer()
+		if self.root_container.get_service(TimeOfDay):
+			dpcontainer.add_service(TimeOfDay, self.root_container.get_service(TimeOfDay))
 		configd = ConfigureEvent("display", ConfigureOptions(cm=self.cm.duplicate(), isp=dpcontainer), self, timestamp_ts)
 		self.display.accept(configd)
 		# start tasks
