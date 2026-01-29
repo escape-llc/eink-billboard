@@ -4,9 +4,9 @@ import requests
 
 from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
 from .comic_parser import get_items
-from ..data_source import DataSource, DataSourceExecutionContext, MediaList
+from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaRender
 
-class ComicFeed(DataSource, MediaList):
+class ComicFeed(DataSource, MediaList, MediaRender):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 	def open(self, dsec: DataSourceExecutionContext, params: dict[str, any]) -> Future[list]:

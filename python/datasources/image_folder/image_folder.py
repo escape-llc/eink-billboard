@@ -3,7 +3,7 @@ import logging
 import os
 
 from PIL import Image, ImageOps, ImageFilter
-from ..data_source import DataSource, DataSourceExecutionContext, MediaList
+from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaRender
 
 def list_files_in_folder(folder_path):
 	"""Return a list of image file paths in the given folder, excluding hidden files."""
@@ -36,7 +36,7 @@ def grab_image(image_path, dimensions, pad_image, logger):
 		logger.error(f"Error loading image from {image_path}: {e}")
 		return None
 
-class ImageFolder(DataSource, MediaList):
+class ImageFolder(DataSource, MediaList, MediaRender):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 	def open(self, dsec: DataSourceExecutionContext, params: dict[str, any]) -> Future[list]:

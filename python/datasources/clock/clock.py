@@ -5,9 +5,9 @@ from PIL import Image, ImageColor, ImageDraw, ImageFont
 from concurrent.futures import Future
 
 from ...model.configuration_manager import StaticConfigurationManager
-from ..data_source import DataSource, DataSourceExecutionContext, MediaItem
+from ..data_source import DataSource, DataSourceExecutionContext, MediaItem, MediaRender
 
-class Clock(DataSource, MediaItem):
+class Clock(DataSource, MediaItem, MediaRender):
 	"""
 	Data source that provides the current time.
 	"""

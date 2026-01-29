@@ -8,12 +8,12 @@ import requests
 import openai
 
 from ...model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager
-from ..data_source import DataSource, DataSourceExecutionContext, MediaList
+from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaRender
 
 DEFAULT_IMAGE_MODEL = "dall-e-3"
 DEFAULT_IMAGE_QUALITY = "standard"
 IMAGE_MODELS = ["dall-e-3", "dall-e-2", "gpt-image-1"]
-class OpenAI(DataSource,MediaList):
+class OpenAI(DataSource, MediaList, MediaRender):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)

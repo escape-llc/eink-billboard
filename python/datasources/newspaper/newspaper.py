@@ -4,11 +4,11 @@ from datetime import timedelta
 import datetime
 import logging
 
-from ..data_source import DataSource, DataSourceExecutionContext, MediaList
+from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaRender
 from ...utils.image_utils import get_image
 
 FREEDOM_FORUM_URL = "https://cdn.freedomforum.org/dfp/jpg{}/lg/{}.jpg"
-class Newspaper(DataSource, MediaList):
+class Newspaper(DataSource, MediaList, MediaRender):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)

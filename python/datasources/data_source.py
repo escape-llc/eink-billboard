@@ -48,12 +48,13 @@ class DataSourceExecutionContext:
 
 @runtime_checkable
 class MediaRender(Protocol):
-	"""Protocol for rendering media."""
+	"""Ability to render media from the source's state (element for a MediaList)."""
 	def render(self, dsec: DataSourceExecutionContext, params:dict[str,any], state:any) -> Future[Image.Image | None]:
 		"""
 		Ability to render an image from the params and state.
 
-		:param self: Description
+		:param self: data source
+		:type self: MediaRender
 		:param dsec: Execution context
 		:type dsec: DataSourceExecutionContext
 		:param params: options for this render (visual)
@@ -61,16 +62,33 @@ class MediaRender(Protocol):
 		:param state: state for this render (data)
 		:type state: any
 		:return: The future to (image or None).
-		:rtype: Future[Image | None]
+		:rtype: Future[Image.Image | None]
 		"""
 		...
 @runtime_checkable
-class MediaItem(MediaRender, Protocol):
+class MediaItem(Protocol):
+	"""Ability to return a single media item."""
 	def open(self, dsec: DataSourceExecutionContext, params:dict[str,any]) -> Future[any]:
 		...
 @runtime_checkable
-class MediaList(MediaRender,Protocol):
+class MediaList(Protocol):
+	"""Ability to return a list of media items."""
 	def open(self, dsec: DataSourceExecutionContext, params:dict[str,any]) -> Future[list]:
+		...
+
+@runtime_checkable
+class DataSourceMessage(Protocol):
+	"""
+	Tag specific messages with this protocol for the data source manager.
+	"""
+	@property
+	def source_id(self) -> str:
+		...
+
+@runtime_checkable
+class DataSourceAccept(Protocol):
+	"""Data Source accepting messages protocol."""
+	def accept(self, msg: DataSourceMessage) -> None:
 		...
 
 class DataSourceManager:
@@ -87,3 +105,9 @@ class DataSourceManager:
 		return self.sources.get(name, None)
 	def shutdown(self) -> None:
 		self.es.shutdown(wait=True, cancel_futures=True)
+	def accept(self, msg: DataSourceMessage) -> None:
+		source = self.get_source(msg.source_id)
+		if source is not None and isinstance(source, DataSourceAccept):
+			# Handle the message with the appropriate data source
+			source.accept(msg)
+		pass

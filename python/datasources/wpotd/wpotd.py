@@ -24,11 +24,11 @@ from random import randint
 import requests
 from io import BytesIO
 
-from ..data_source import DataSource, DataSourceExecutionContext, MediaList
+from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaRender
 
-class Wpotd(DataSource, MediaList):
+class Wpotd(DataSource, MediaList, MediaRender):
 	API_URL = "https://en.wikipedia.org/w/api.php"
-	HEADERS = {'User-Agent': 'eInkBillboard/0.0 (https://github.com/escape-llc/inky-pi-2/)'}
+	HEADERS = {'User-Agent': 'eInkBillboard/0.0 (https://github.com/escape-llc/eink-billboard/)'}
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
