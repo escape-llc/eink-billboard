@@ -18,15 +18,15 @@ class TestConfigurationManager(unittest.TestCase):
 		cm = ConfigurationManager()
 		list = cm.enum_plugins()
 		self.assertIsNotNone(list)
-		self.assertEqual(len(list), 6)  # Adjust based on expected number of plugins
+		self.assertEqual(len(list), 5)  # Adjust based on expected number of plugins
 		info0 = list[0].get('info', None)
 		self.assertIsNotNone(info0, 'info0 failed')
-		self.assertEqual(info0['id'], 'clock', 'info0.id failed')
-		self.assertEqual(info0['class'], 'Clock', 'info0.class failed')
+		self.assertEqual(info0['id'], 'countdown', 'info0.id failed')
+		self.assertEqual(info0['class'], 'Countdown', 'info0.class failed')
 		info1 = list[1].get('info', None)
 		self.assertIsNotNone(info1, 'info1 failed')
-		self.assertEqual(info1['id'], 'countdown', 'info1.id failed')
-		self.assertEqual(info1['class'], 'Countdown', 'info1.class failed')
+		self.assertEqual(info1['id'], 'debug', 'info1.id failed')
+		self.assertEqual(info1['class'], 'DebugPlugin', 'info1.class failed')
 
 	def test_enum_datasources(self):
 		cm = ConfigurationManager()
@@ -47,7 +47,7 @@ class TestConfigurationManager(unittest.TestCase):
 		infos = cm.enum_plugins()
 		plugins = cm.load_plugins(infos)
 		self.assertIsNotNone(plugins)
-		self.assertEqual(len(plugins), 6)  # Adjust based on expected number of loaded plugins
+		self.assertEqual(len(plugins), 5)  # Adjust based on expected number of loaded plugins
 		plugin = plugins.get('debug', None)
 		self.assertIsNotNone(plugin, 'plugin debug failed')
 		self.assertEqual(plugin.id, 'debug')
