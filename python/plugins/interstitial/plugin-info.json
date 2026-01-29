@@ -1,0 +1,37 @@
+{
+	"id": "interstitial",
+	"name": "Interstitial Overlay",
+	"version": "0.0.1",
+	"class": "Interstitial",
+	"file": "interstitial.py",
+	"module": "python.plugins.interstitial.interstitial",
+	"description": "Interrupts the current display with an image.",
+	"disabled": false,
+	"features": ["media-image"],
+	"settings": {
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+			},
+			"properties": [
+				{
+					"name": "dataSource",
+					"type": "string",
+					"required": true,
+					"default": null,
+					"label": "Data Source",
+					"description": "Single image source."
+				}
+			]
+		},
+		"default": {
+			"dataSource": null
+		}
+	}
+}
