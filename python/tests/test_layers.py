@@ -13,13 +13,13 @@ from ..datasources.data_source import DataSourceManager
 from ..model.schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks
 from ..plugins.plugin_base import BasicExecutionContext2, PluginProtocol, TrackType
 from ..task.display import DisplaySettings
-from ..task.timer import TimerService
+from ..task.timer import IProvideTimer, TimerService
 from ..task.messages import BasicMessage, ConfigureEvent, ConfigureOptions, MessageSink, QuitMessage, Telemetry
 from ..task.playlist_layer import PlaylistLayer, StartPlayback
 from ..task.message_router import MessageRouter, Route
 from ..task.future_source import FutureSource
 from ..task.timer_layer import TimerLayer
-from .utils import ScaledTimeOfDay, create_configuration_manager, save_images
+from .utils import ScaledTimeOfDay, ScaledTimerService, create_configuration_manager, save_images
 
 class TestPlugin(PluginProtocol):
 	def __init__(self, id, name):
@@ -61,10 +61,12 @@ class PlaylistLayerSimulation(unittest.TestCase):
 		router = MessageRouter()
 		router.addRoute(Route("display", [display]))
 		router.addRoute(Route("telemetry", [tsink]))
-		time_base = SystemTimeOfDay()
+		time_base = ScaledTimeOfDay(datetime.now().astimezone(), 60)
+		timer = ScaledTimerService(60, ThreadPoolExecutor(thread_name_prefix="PlaylistLayerSimulation"))
 		cm = create_configuration_manager()
 		ctr = ServiceContainer()
 		ctr.add_service(TimeOfDay, time_base)
+		ctr.add_service(IProvideTimer, timer)
 		options = ConfigureOptions(cm, isp=ctr)
 		evtime = time_base.current_time()
 		configure = ConfigureEvent("configure", options, None, evtime)
@@ -75,12 +77,13 @@ class PlaylistLayerSimulation(unittest.TestCase):
 		layer.accept(dev)
 		layer.accept(configure)
 		# wait until the trigger condition is met
-		completed = tsink.stopped.wait(timeout=20)
+		completed = tsink.stopped.wait(timeout=60)
 		evtime = time_base.current_time()
 		layer.accept(QuitMessage(evtime))
 		layer.join(timeout=2)
 		display.accept(QuitMessage(evtime))
 		display.join()
+		timer.shutdown()
 		save_images(display, "playlist_layer_simulation")
 		self.assertTrue(completed, "PlaylistLayer simulation timed out before reaching trigger condition.")
 		self.assertIsNotNone(tsink.captured)
@@ -96,8 +99,10 @@ class TimerLayerSimulation(unittest.TestCase):
 		router.addRoute(Route("telemetry", [tsink]))
 		cm = create_configuration_manager()
 		time_base = ScaledTimeOfDay(datetime.now().astimezone(), 60)
+		timer = ScaledTimerService(60, ThreadPoolExecutor(thread_name_prefix="TimerLayerSimulation"))
 		ctr = ServiceContainer()
 		ctr.add_service(TimeOfDay, time_base)
+		ctr.add_service(IProvideTimer, timer)
 		options = ConfigureOptions(cm, ctr)
 		evtime = time_base.current_time()
 		configure = ConfigureEvent("configure", options, None, evtime)
@@ -108,12 +113,13 @@ class TimerLayerSimulation(unittest.TestCase):
 		layer.accept(dev)
 		layer.accept(configure)
 		# wait until the trigger condition is met
-		completed = tsink.stopped.wait(timeout=20000)
+		completed = tsink.stopped.wait(timeout=10)
 		evtime = time_base.current_time()
 		layer.accept(QuitMessage(evtime))
 		layer.join(timeout=2)
 		display.accept(QuitMessage(evtime))
 		display.join()
+		timer.shutdown()
 		save_images(display, "timer_layer_simulation")
 		self.assertTrue(completed, "TimerLayer simulation timed out before reaching trigger condition.")
 		self.assertIsNotNone(tsink.captured)
@@ -126,7 +132,8 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.layer = PlaylistLayer("playlistlayer", self.router)
 		self.layer.cm = create_configuration_manager()
 		self.layer.datasources = DataSourceManager(None, {})
-		self.layer.timer = TimerService(None)
+		self.layer.time_of_day = ScaledTimeOfDay(datetime.now().astimezone(), 60)
+		self.layer.timer = ScaledTimerService(60, ThreadPoolExecutor())
 		sink = NullMessageSink()
 		self.layer.future_source = FutureSource("playlist_layer_test", sink, ThreadPoolExecutor())
 
@@ -201,7 +208,8 @@ class TimerLayerTests(unittest.TestCase):
 		self.layer = TimerLayer("timerlayer", self.router)
 		self.layer.cm = create_configuration_manager()
 		self.layer.datasources = DataSourceManager(None, {})
-		self.layer.timer = TimerService(None)
+		self.layer.time_of_day = ScaledTimeOfDay(datetime.now().astimezone(), 60)
+		self.layer.timer = ScaledTimerService(60, ThreadPoolExecutor())
 		sink = NullMessageSink()
 		self.layer.future_source = FutureSource("timer_layer_test", sink, ThreadPoolExecutor())
 	def test_start_schedule_success(self):

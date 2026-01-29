@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import logging
 
 from python.model.service_container import ServiceContainer
+from python.model.time_of_day import SystemTimeOfDay, TimeOfDay
 
 from ..datasources.data_source import DataSourceManager
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
@@ -11,11 +12,11 @@ from ..model.schedule import MasterSchedule, PlaylistBase, TimerTaskItem, TimerT
 from ..plugins.plugin_base import BasicExecutionContext2, PluginBase, PluginProtocol
 from ..task.basic_task import DispatcherTask
 from ..task.display import DisplaySettings
-from ..task.messages import BasicMessage, ConfigureEvent, FutureCompleted, MessageSink, QuitMessage, Telemetry
+from ..task.messages import BasicMessage, ConfigureEvent, FutureCompleted, MessageSink, PluginReceive, QuitMessage, Telemetry
 from ..task.playlist_layer import NextTrack, StartPlayback
 from ..task.future_source import FutureSource, SubmitFuture
 from ..task.message_router import MessageRouter
-from ..task.timer import TimerService
+from ..task.timer import IProvideTimer, TimerService
 
 class TimerExpired(BasicMessage):
 	def __init__(self, timestamp: datetime):
@@ -32,12 +33,13 @@ class TimerLayer(DispatcherTask):
 		self.master_schedule:MasterSchedule = None
 		self.plugin_info = None
 		self.datasources: DataSourceManager = None
-		self.timer: TimerService = None
+		self.timer: IProvideTimer = None
 		self.dimensions = [800,480]
 		self.playlist_state = None
 		self.active_plugin: PluginProtocol = None
 		self.active_context: BasicExecutionContext2 = None
-		self.future_source: FutureSource = None
+		self.future_source: SubmitFuture = None
+		self.time_of_day: TimeOfDay = None
 		self.state = 'uninitialized'
 		self.logger = logging.getLogger(__name__)
 	def _evaluate_plugin(self, track:TimerTaskItem):
@@ -69,34 +71,48 @@ class TimerLayer(DispatcherTask):
 		root.add_service(SettingsConfigurationManager, scm)
 		root.add_service(DataSourceManager, self.datasources)
 		root.add_service(MessageRouter, self.router)
-		root.add_service(TimerService, self.timer)
+		root.add_service(IProvideTimer, self.timer)
 		root.add_service(SubmitFuture, self.future_source)
+		root.add_service(TimeOfDay, self.time_of_day)
 		root.add_service(MessageSink, self)
-		return BasicExecutionContext2(root, self.dimensions, datetime.now())
+		return BasicExecutionContext2(root, self.dimensions, self.time_of_day.current_time())
 	def _configure_event(self, msg: ConfigureEvent):
 		self.cm = msg.content.cm
 		try:
-			plugin_info = self.cm.enum_plugins()
-			self.plugin_info = plugin_info
-			datasource_info = self.cm.enum_datasources()
-			datasources = self.cm.load_datasources(datasource_info)
-			self.datasources = DataSourceManager(None, datasources)
-			self.logger.info(f"Datasources loaded: {list(datasources.keys())}")
-			self.future_source = FutureSource("timer_layer", self, ThreadPoolExecutor())
+			# validate the schedule before allocating resources
 			sm = self.cm.schedule_manager()
 			schedule_info = sm.load()
 			sm.validate(schedule_info)
 			self.master_schedule = schedule_info.get("master", None)
 			self.tasks = schedule_info.get("tasks", [])
-			self.timer = TimerService(None)
+
+			plugin_info = self.cm.enum_plugins()
+			self.plugin_info = plugin_info
+
+			tod = msg.content.isp.get_service(TimeOfDay)
+			self.time_of_day = tod if tod is not None else SystemTimeOfDay()
+			ts = msg.content.isp.get_service(IProvideTimer)
+			self.timer = ts if ts is not None else TimerService(ThreadPoolExecutor())
+			dsm = msg.content.isp.get_service(DataSourceManager)
+			if dsm is None:
+				datasource_info = self.cm.enum_datasources()
+				datasources = self.cm.load_datasources(datasource_info)
+				self.logger.info(f"Datasources loaded: {list(datasources.keys())}")
+				self.datasources = DataSourceManager(None, datasources)
+			else:
+				self.datasources = dsm
+			sf = msg.content.isp.get_service(SubmitFuture)
+			self.future_source = sf if sf is not None else FutureSource("timer_layer", self, ThreadPoolExecutor(thread_name_prefix="TimerLayer"))
+
 			self.logger.info(f"schedule loaded")
 			self.state = 'loaded'
 			msg.notify()
-			self.accept(StartPlayback(msg.timestamp))
+			self.accept(StartPlayback(self.time_of_day.current_time()))
 		except Exception as e:
 			self.logger.error(f"Failed to load/validate schedules: {e}", exc_info=True)
 			self.state = 'error'
 			msg.notify(True, e)
+			self._error_with_telemetry(f"ConfigureEvent failed: {e}", msg.timestamp)
 	def _display_settings(self, msg: DisplaySettings):
 		self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
 		self.dimensions = [msg.width, msg.height]
@@ -240,6 +256,26 @@ class TimerLayer(DispatcherTask):
 			self.state = "error"
 			emsg = f"Error invoke stop with plugin '{current_track.task.plugin_name}' track '{current_track.title}': {e}"
 			self._error_with_telemetry(emsg, msg_ts)
+	def _plugin_receive(self, msg: PluginReceive):
+		if self.state != 'playing':
+			self.logger.error(f"Cannot handle PluginReceive message, state is '{self.state}'")
+			return
+		if self.playlist_state is None:
+			self.logger.error(f"No active playlist state to handle PluginReceive message.")
+			return
+		if self.active_plugin is None:
+			self.logger.error(f"No active plugin to handle PluginReceive message.")
+			return
+		if self.active_context is None:
+			self.logger.error(f"No active context to handle PluginReceive message.")
+			return
+		try:
+			current_track:PlaylistBase = self.playlist_state.get('current_track')
+			self.active_plugin.receive(self.active_context, current_track, msg)
+		except Exception as e:
+			self.state = "error"
+			emsg = f"Error invoke receive PluginReceive with plugin '{current_track.plugin_name}' track '{current_track.title}': {e}"
+			self._error_with_telemetry(emsg, msg.timestamp)
 	def _next_scheduled_playlist(self, now: datetime, enabled_task_items: list[TimerTaskItem]) -> tuple[datetime,Playlist]|None:
 		# Build list of (item, next_datetime) for each enabled task that has a next scheduled time
 		scheduled: list[tuple[TimerTaskItem, datetime]] = []

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from python.model.service_container import IServiceProvider, ServiceContainer
 from python.model.time_of_day import TimeOfDay
 from python.task.playlist_layer import PlaylistLayer
+from python.task.timer import IProvideTimer
 from python.task.timer_layer import TimerLayer
 
 from ..model.configuration_manager import ConfigurationManager
@@ -53,6 +54,10 @@ class Application(DispatcherTask):
 		if tod:
 			plcontainer.add_service(TimeOfDay, tod)
 			tlcontainer.add_service(TimeOfDay, tod)
+		ipt = self.root_container.get_service(IProvideTimer)
+		if ipt:
+			plcontainer.add_service(IProvideTimer, ipt)
+			tlcontainer.add_service(IProvideTimer, ipt)
 		configs = ConfigureEvent("playlist-layer", ConfigureOptions(cm=self.cm.duplicate(), isp=plcontainer), self, msg.timestamp)
 		self.playlist_layer.accept(configs)
 		configt = ConfigureEvent("timer-layer", ConfigureOptions(cm=self.cm.duplicate(), isp=tlcontainer), self, msg.timestamp)
@@ -79,7 +84,7 @@ class Application(DispatcherTask):
 		self.logger.info(f"'{self.name}' quitting.")
 		if self.app_started.is_set() and not self.stopped.is_set():
 			try:
-				self._handleStop()
+				self._handleStop(msg.timestamp)
 				self.logger.info(f"'{self.name}' stopped during quit.")
 			except Exception as e:
 				self.logger.error(f"Failed to stop '{self.name}' during quit: {e}", exc_info=True)
@@ -115,8 +120,12 @@ class Application(DispatcherTask):
 			self.router.addRoute(Route('telemetry', [self.sink]))
 		# STEP 1 configure the Display task
 		dpcontainer = ServiceContainer()
-		if self.root_container.get_service(TimeOfDay):
-			dpcontainer.add_service(TimeOfDay, self.root_container.get_service(TimeOfDay))
+		tod = self.root_container.get_service(TimeOfDay)
+		if tod:
+			dpcontainer.add_service(TimeOfDay, tod)
+		ipt = self.root_container.get_service(IProvideTimer)
+		if ipt:
+			dpcontainer.add_service(IProvideTimer, ipt)
 		configd = ConfigureEvent("display", ConfigureOptions(cm=self.cm.duplicate(), isp=dpcontainer), self, timestamp_ts)
 		self.display.accept(configd)
 		# start tasks

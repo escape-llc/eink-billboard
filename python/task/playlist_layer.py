@@ -2,12 +2,14 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import logging
 
+from python.model.time_of_day import SystemTimeOfDay, TimeOfDay
+
 from .future_source import FutureSource, SubmitFuture
 from ..datasources.data_source import DataSourceManager
 from ..model.schedule import MasterSchedule, Playlist, PlaylistBase
 from ..model.service_container import ServiceContainer
 from ..plugins.plugin_base import BasicExecutionContext2, PluginBase, PluginProtocol
-from ..task.timer import TimerService
+from ..task.timer import IProvideTimer, TimerService
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from .display import DisplaySettings
 from .messages import BasicMessage, ConfigureEvent, FutureCompleted, MessageSink, PluginReceive, QuitMessage, Telemetry
@@ -35,12 +37,13 @@ class PlaylistLayer(DispatcherTask):
 		self.master_schedule:MasterSchedule = None
 		self.plugin_info = None
 		self.datasources: DataSourceManager = None
-		self.timer: TimerService = None
+		self.timer: IProvideTimer = None
 		self.dimensions = [800,480]
 		self.playlist_state = None
 		self.active_plugin: PluginProtocol = None
 		self.active_context: BasicExecutionContext2 = None
-		self.future_source: FutureSource = None
+		self.future_source: SubmitFuture = None
+		self.time_of_day: TimeOfDay = None
 		self.state = 'uninitialized'
 		self.logger = logging.getLogger(__name__)
 	def _evaluate_plugin(self, track:PlaylistBase):
@@ -71,10 +74,11 @@ class PlaylistLayer(DispatcherTask):
 		root.add_service(SettingsConfigurationManager, scm)
 		root.add_service(DataSourceManager, self.datasources)
 		root.add_service(MessageRouter, self.router)
-		root.add_service(TimerService, self.timer)
+		root.add_service(IProvideTimer, self.timer)
 		root.add_service(SubmitFuture, self.future_source)
+		root.add_service(TimeOfDay, self.time_of_day)
 		root.add_service(MessageSink, self)
-		return BasicExecutionContext2(root, self.dimensions, datetime.now())
+		return BasicExecutionContext2(root, self.dimensions, self.time_of_day.current_time())
 	def _start_playback(self, msg: StartPlayback):
 		self.logger.info(f"'{self.name}' StartPlayback {self.state}")
 		if self.state != 'loaded':
@@ -247,23 +251,35 @@ class PlaylistLayer(DispatcherTask):
 	def _configure_event(self, msg: ConfigureEvent):
 		self.cm = msg.content.cm
 		try:
-			plugin_info = self.cm.enum_plugins()
-			self.plugin_info = plugin_info
-			datasource_info = self.cm.enum_datasources()
-			datasources = self.cm.load_datasources(datasource_info)
-			self.datasources = DataSourceManager(None, datasources)
-			self.logger.info(f"Datasources loaded: {list(datasources.keys())}")
-			self.future_source = FutureSource("playlist_layer", self, ThreadPoolExecutor())
+			# validate the schedule before allocating resources
 			sm = self.cm.schedule_manager()
 			schedule_info = sm.load()
 			sm.validate(schedule_info)
 			self.master_schedule = schedule_info.get("master", None)
 			self.playlists = schedule_info.get("playlists", [])
-			self.timer = TimerService(None)
+
+			plugin_info = self.cm.enum_plugins()
+			self.plugin_info = plugin_info
+
+			tod = msg.content.isp.get_service(TimeOfDay)
+			self.time_of_day = tod if tod is not None else SystemTimeOfDay()
+			ts = msg.content.isp.get_service(IProvideTimer)
+			self.timer = ts if ts is not None else TimerService(ThreadPoolExecutor())
+			dsm = msg.content.isp.get_service(DataSourceManager)
+			if dsm is None:
+				datasource_info = self.cm.enum_datasources()
+				datasources = self.cm.load_datasources(datasource_info)
+				self.logger.info(f"Datasources loaded: {list(datasources.keys())}")
+				self.datasources = DataSourceManager(None, datasources)
+			else:
+				self.datasources = dsm
+			sf = msg.content.isp.get_service(SubmitFuture)
+			self.future_source = sf if sf is not None else FutureSource("playlist_layer", self, ThreadPoolExecutor(thread_name_prefix="PlaylistLayer"))
+
 			self.logger.info(f"schedule loaded")
 			self.state = 'loaded'
 			msg.notify()
-			self.accept(StartPlayback(msg.timestamp))
+			self.accept(StartPlayback(self.time_of_day.current_time()))
 		except Exception as e:
 			self.logger.error(f"Failed to load/validate schedules: {e}", exc_info=True)
 			self.state = 'error'

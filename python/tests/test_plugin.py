@@ -175,7 +175,7 @@ class TestPlugins(unittest.TestCase):
 		display.start()
 		router = MessageRouter()
 		router.addRoute(Route("display", [display]))
-		timer = TimerService()
+		timer = TimerService(ThreadPoolExecutor())
 		root = ServiceContainer()
 		root.add_service(ConfigurationManager, cm)
 		root.add_service(StaticConfigurationManager, stm)

@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 import unittest
 import time
@@ -62,7 +63,7 @@ SLEEP_INTERVAL = 0.1
 class TestTimerService(unittest.TestCase):
 	def test_timer_service(self):
 		sink = TestSink()
-		timer_service = TimerService()
+		timer_service = TimerService(ThreadPoolExecutor())
 		execute_message = BasicMessage(datetime.now())
 		(timer_future, cancel) = timer_service.create_timer(timedelta(seconds=SLEEP_INTERVAL), sink, execute_message)
 		self.assertFalse(sink.received)
@@ -74,7 +75,7 @@ class TestTimerService(unittest.TestCase):
 		self.assertIs(sink.message, execute_message)
 		timer_service.shutdown()
 	def test_timer_service_no_sink(self):
-		timer_service = TimerService()
+		timer_service = TimerService(ThreadPoolExecutor())
 		execute_message = BasicMessage(datetime.now())
 		(timer_future, cancel) = timer_service.create_timer(timedelta(seconds=SLEEP_INTERVAL), None, execute_message)
 		timer_future.result(timeout=2 * SLEEP_INTERVAL)
@@ -84,7 +85,7 @@ class TestTimerService(unittest.TestCase):
 		timer_service.shutdown()
 	def test_timer_cancel(self):
 		sink = TestSink()
-		timer_service = TimerService()
+		timer_service = TimerService(ThreadPoolExecutor())
 		execute_message = BasicMessage(datetime.now())
 		(timer_future, cancel) = timer_service.create_timer(timedelta(seconds=SLEEP_INTERVAL), sink, execute_message)
 		self.assertFalse(sink.received)
@@ -101,7 +102,7 @@ class TestTimerService(unittest.TestCase):
 		self.assertIs(sink.message, None)
 		timer_service.shutdown()
 	def test_timer_cancel_no_sink(self):
-		timer_service = TimerService()
+		timer_service = TimerService(ThreadPoolExecutor())
 		execute_message = BasicMessage(datetime.now())
 		(timer_future, cancel) = timer_service.create_timer(timedelta(seconds=SLEEP_INTERVAL), None, execute_message)
 		# already running so it won't cancel

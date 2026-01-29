@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from python.task.future_source import CancelToken, SubmitFuture
 from ...task.playlist_layer import NextTrack
-from ...task.timer import TimerService
+from ...task.timer import IProvideTimer
 from ...datasources.data_source import DataSourceExecutionContext, DataSourceManager, MediaList
 from ...task.display import DisplayImage
 from ...task.message_router import MessageRouter
@@ -36,7 +36,7 @@ class SlideShow(PluginProtocol):
 		# assert required services are available
 		dsm = context.provider.required(DataSourceManager)
 		router = context.provider.required(MessageRouter)
-		timer = context.provider.required(TimerService)
+		timer = context.provider.required(IProvideTimer)
 		timer_sink = context.provider.required(MessageSink)
 		# safe to continue
 		dataSourceName = settings.get("dataSource", None)
@@ -65,7 +65,7 @@ class SlideShow(PluginProtocol):
 		# assert required services are available
 		dsm = context.provider.required(DataSourceManager)
 		router = context.provider.required(MessageRouter)
-		timer = context.provider.required(TimerService)
+		timer = context.provider.required(IProvideTimer)
 		local_sink = context.provider.required(MessageSink)
 		# safe to continue
 		dataSourceName = settings.get("dataSource", None)
@@ -88,7 +88,7 @@ class SlideShow(PluginProtocol):
 		if cancelled:
 			return None
 		return FutureCompleted(self._name, "next", result, exception, msg_ts)
-	def _render_image(self, title: str, context: DataSourceExecutionContext, dataSource: MediaList, settings: dict, state: list, router: MessageRouter, timer: TimerService, timer_sink: MessageSink):
+	def _render_image(self, title: str, context: DataSourceExecutionContext, dataSource: MediaList, settings: dict, state: list, router: MessageRouter, timer: IProvideTimer, timer_sink: MessageSink):
 		item = state[0]
 		future2 = dataSource.render(context, settings, item)
 		ftimeout = settings.get("timeoutSeconds", 10)
