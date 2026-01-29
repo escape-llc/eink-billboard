@@ -4,8 +4,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from .utils import ScaledTimeOfDay, ScaledTimerService, FakePort
-from python.task.messages import BasicMessage
-
+from ..task.messages import BasicMessage
 
 class TestScaledTimeOfDay(unittest.TestCase):
 	def test_current_time_scaling(self):

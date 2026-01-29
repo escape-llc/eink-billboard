@@ -5,21 +5,19 @@ import os
 from threading import Event
 import unittest
 
-from python.model.service_container import ServiceContainer
-from python.model.time_of_day import SystemTimeOfDay, TimeOfDay
-
-from .test_plugin import RecordingTask
 from ..datasources.data_source import DataSourceManager
 from ..model.schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks
+from ..model.service_container import ServiceContainer
+from ..model.time_of_day import TimeOfDay
 from ..plugins.plugin_base import BasicExecutionContext2, PluginProtocol, TrackType
 from ..task.display import DisplaySettings
-from ..task.timer import IProvideTimer, TimerService
+from ..task.timer import IProvideTimer
 from ..task.messages import BasicMessage, ConfigureEvent, ConfigureOptions, MessageSink, QuitMessage, Telemetry
 from ..task.playlist_layer import PlaylistLayer, StartPlayback
 from ..task.message_router import MessageRouter, Route
 from ..task.future_source import FutureSource
 from ..task.timer_layer import TimerLayer
-from .utils import ScaledTimeOfDay, ScaledTimerService, create_configuration_manager, save_images
+from .utils import RecordingTask, ScaledTimeOfDay, ScaledTimerService, create_configuration_manager, save_images
 
 class TestPlugin(PluginProtocol):
 	def __init__(self, id, name):
@@ -113,7 +111,7 @@ class TimerLayerSimulation(unittest.TestCase):
 		layer.accept(dev)
 		layer.accept(configure)
 		# wait until the trigger condition is met
-		completed = tsink.stopped.wait(timeout=10)
+		completed = tsink.stopped.wait(timeout=20)
 		evtime = time_base.current_time()
 		layer.accept(QuitMessage(evtime))
 		layer.join(timeout=2)

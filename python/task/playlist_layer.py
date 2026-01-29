@@ -2,19 +2,18 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import logging
 
-from python.model.time_of_day import SystemTimeOfDay, TimeOfDay
-
 from .future_source import FutureSource, SubmitFuture
+from .display import DisplaySettings
+from .messages import BasicMessage, ConfigureEvent, FutureCompleted, MessageSink, PluginReceive, QuitMessage, Telemetry
+from .message_router import MessageRouter
+from .basic_task import DispatcherTask
 from ..datasources.data_source import DataSourceManager
+from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..model.schedule import MasterSchedule, Playlist, PlaylistBase
 from ..model.service_container import ServiceContainer
 from ..plugins.plugin_base import BasicExecutionContext2, PluginBase, PluginProtocol
 from ..task.timer import IProvideTimer, TimerService
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
-from .display import DisplaySettings
-from .messages import BasicMessage, ConfigureEvent, FutureCompleted, MessageSink, PluginReceive, QuitMessage, Telemetry
-from .message_router import MessageRouter
-from .basic_task import DispatcherTask
 
 class LayerControlMessage(BasicMessage):
 	def __init__(self, timestamp:datetime):

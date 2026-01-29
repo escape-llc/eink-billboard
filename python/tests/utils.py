@@ -8,13 +8,22 @@ from typing import Callable
 from pathvalidate import sanitize_filename
 
 from ..model.time_of_day import TimeOfDay
+from ..task.basic_task import DispatcherTask
 from ..task.messages import BasicMessage, MessageSink
 from ..task.display import DisplayImage
 from ..task.timer import IProvideTimer
-from ..tests.test_timer_tick import RecordingTask
 from ..model.configuration_manager import ConfigurationManager
 from PIL import Image
 
+class RecordingTask(DispatcherTask):
+	def __init__(self, name):
+		super().__init__(name)
+		self.msgs = []
+		self.logger = logging.getLogger(__name__)
+
+	def _basic_message(self, msg: BasicMessage):
+		self.logger.debug(f"{self.name}: {msg}")
+		self.msgs.append(msg)
 
 class ScaledTimeOfDay(TimeOfDay):
 	def __init__(self, start_time:datetime, scale:float):

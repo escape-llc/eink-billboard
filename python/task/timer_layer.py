@@ -1,15 +1,14 @@
 
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
-
-from python.model.service_container import ServiceContainer
-from python.model.time_of_day import SystemTimeOfDay, TimeOfDay
 
 from ..datasources.data_source import DataSourceManager
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.schedule import MasterSchedule, PlaylistBase, TimerTaskItem, TimerTasks, generate_schedule, Playlist
-from ..plugins.plugin_base import BasicExecutionContext2, PluginBase, PluginProtocol
+from ..model.service_container import ServiceContainer
+from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
+from ..plugins.plugin_base import BasicExecutionContext2, PluginProtocol
 from ..task.basic_task import DispatcherTask
 from ..task.display import DisplaySettings
 from ..task.messages import BasicMessage, ConfigureEvent, FutureCompleted, MessageSink, PluginReceive, QuitMessage, Telemetry

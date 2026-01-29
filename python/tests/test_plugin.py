@@ -3,11 +3,9 @@ from datetime import datetime, timedelta
 import queue
 import threading
 import unittest
-import time
 import logging
 
-from python.model.time_of_day import SystemTimeOfDay, TimeOfDay
-
+from ..model.time_of_day import TimeOfDay
 from ..datasources.comic.comic_feed import ComicFeed
 from ..datasources.data_source import DataSourceManager
 from ..datasources.image_folder.image_folder import ImageFolder
@@ -17,18 +15,14 @@ from ..datasources.wpotd.wpotd import Wpotd
 from ..model.service_container import ServiceContainer
 from ..plugins.slide_show.slide_show import SlideShow
 from ..task.playlist_layer import NextTrack
-from ..task.timer import IProvideTimer, TimerService
-from ..tests.utils import ScaledTimeOfDay, ScaledTimerService, create_configuration_manager, save_image, save_images, test_output_path_for
-from ..model.schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, PluginSchedule, PluginScheduleData
+from ..task.timer import IProvideTimer
+from .utils import RecordingTask, ScaledTimeOfDay, ScaledTimerService, create_configuration_manager, save_images
+from ..model.schedule import PlaylistSchedule, PlaylistScheduleData
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
-from ..plugins.plugin_base import BasicExecutionContext2, PluginBase, PluginExecutionContext, PluginProtocol
-from ..task.active_plugin import ActivePlugin
-from ..task.display import DisplayImage
+from ..plugins.plugin_base import BasicExecutionContext2, PluginProtocol
 from ..task.future_source import FutureSource, SubmitFuture
 from ..task.message_router import MessageRouter, Route
 from ..task.messages import BasicMessage, MessageSink, QuitMessage
-from ..task.basic_task import DispatcherTask
-from ..task.timer_tick import TickMessage
 
 logging.basicConfig(
 	level=logging.DEBUG,  # Or DEBUG for more detail
@@ -57,116 +51,11 @@ class PluginRecycleMessageSink(MessageSink):
 		else:
 			self.plugin.receive(self.context, self.track, msg)
 
-class RecordingTask(DispatcherTask):
-	def __init__(self, name):
-		super().__init__(name)
-		self.msgs = []
-		self.logger = logging.getLogger(__name__)
-
-	def _basic_message(self, msg: BasicMessage):
-		self.logger.debug(f"{self.name}: {msg}")
-		self.msgs.append(msg)
-
 TICK_RATE_FAST = 0.05
 TICK_RATE_SLOW = 1
 TICKS = 60*1
 
 class TestPlugins(unittest.TestCase):
-	def create_timer_task(self, now, count=10):
-		nowx = now.replace(minute=0, second=0, microsecond=0)
-		eventlist = [TickMessage(nowx + timedelta(minutes=ix), ix) for ix in range(count)];
-		return eventlist
-
-	def run_plugin_schedule(self, item:PluginSchedule, tick_rate = TICK_RATE_FAST):
-		eventlist = self.create_timer_task(datetime.now(), TICKS)
-		cm = create_configuration_manager()
-		plugin_info = cm.enum_plugins()
-		plugins = cm.load_plugins(plugin_info)
-		plugin:PluginBase = plugins[item.plugin_name]
-		self.assertIsNotNone(plugin, "plugin failed")
-		psm = cm.plugin_manager(item.plugin_name)
-		scm = cm.settings_manager()
-		stm = cm.static_manager()
-		resolution = [800,480]
-		sink = DebugMessageSink()
-		display = RecordingTask("FakeDisplay")
-		display.start()
-		router = MessageRouter()
-		router.addRoute(Route("display", [display]))
-		active_plugin = ActivePlugin(item.plugin_name, sink)
-		resolution = [800,480]
-		for event in eventlist:
-			ctx = PluginExecutionContext(item, stm, scm, psm, active_plugin, resolution, event.tick_ts, router)
-			if event.tick_number == 0:
-				plugin.timeslot_start(ctx)
-				if active_plugin.state == "ready":
-					plugin.schedule(ctx)
-			elif event.tick_number == TICKS - 1:
-				plugin.timeslot_end(ctx)
-			else:
-				active_plugin.check_alarm_clock(event.tick_ts)
-				if active_plugin.state == "ready":
-					plugin.schedule(ctx)
-			time.sleep(tick_rate)
-			try:
-				sinkmsg = sink.msg_queue.get_nowait()
-				# dispatch callback
-				active_plugin.state = "notify"
-				plugin.receive(ctx, sinkmsg)
-				active_plugin.notify_complete()
-			except queue.Empty as e:
-				pass
-		active_plugin.shutdown()
-		display.accept(QuitMessage(datetime.now()))
-		display.join()
-		return display
-
-	@unittest.skip("Countdown test skipped needs refactor")
-	def test_countdown(self):
-		content = {
-			"theme": "traidic",
-			"theme-h": 210,
-			"theme-s": "70%",
-			"theme-l": "50%",
-			"frame": "Rectangle",
-			"title": "Project Deadline",
-			"targetDate": "2029-01-20"
-		}
-		plugin_data = PluginScheduleData(content)
-		item = PluginSchedule(
-			plugin_name="countdown",
-			id="10",
-			title="10 Item",
-			start_minutes=600,
-			duration_minutes=10,
-			content=plugin_data
-		)
-		display = self.run_plugin_schedule(item)
-		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
-		save_images(display, item.plugin_name)
-
-	@unittest.skip("Year Progress test skipped needs refactor")
-	def test_year_progress(self):
-		content = {
-			"theme": "split-complementary",
-			"theme-h": 130,
-			"theme-s": "70%",
-			"theme-l": "50%",
-			"frame": "Rectangle",
-		}
-		plugin_data = PluginScheduleData(content)
-		item = PluginSchedule(
-			plugin_name="year_progress",
-			id="10",
-			title="10 Item",
-			start_minutes=600,
-			duration_minutes=10,
-			content=plugin_data
-		)
-		display = self.run_plugin_schedule(item)
-		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
-		save_images(display, item.plugin_name)
-
 	def run_slide_show(self, track:PlaylistSchedule, dsm: DataSourceManager, timeout=10):
 		plugin = SlideShow("slide-show", "Slide Show Plugin")
 		cm = create_configuration_manager()

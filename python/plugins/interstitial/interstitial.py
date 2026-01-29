@@ -1,15 +1,15 @@
 from datetime import timedelta
 import logging
 
-from python.datasources.data_source import DataSourceExecutionContext, DataSourceManager, MediaItem
-from python.model.schedule import TimerTaskItem
-from python.plugins.slide_show.slide_show import SlideShowTimerExpired
-from python.task.display import DisplayImage
-from python.task.future_source import CancelToken, SubmitFuture
-from python.task.message_router import MessageRouter
-from python.task.messages import BasicMessage, FutureCompleted, MessageSink
-from python.task.playlist_layer import NextTrack
-from python.task.timer import IProvideTimer
+from ...datasources.data_source import DataSourceExecutionContext, DataSourceManager, MediaItem
+from ...model.schedule import TimerTaskItem
+from ...plugins.slide_show.slide_show import SlideShowTimerExpired
+from ...task.display import DisplayImage
+from ...task.future_source import CancelToken, SubmitFuture
+from ...task.message_router import MessageRouter
+from ...task.messages import BasicMessage, FutureCompleted, MessageSink
+from ...task.playlist_layer import NextTrack
+from ...task.timer import IProvideTimer
 from ..plugin_base import BasicExecutionContext2, TrackType, PluginProtocol
 
 class Interstitial(PluginProtocol):

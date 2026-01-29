@@ -1,17 +1,16 @@
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from python.model.service_container import IServiceProvider, ServiceContainer
-from python.model.time_of_day import TimeOfDay
-from python.task.playlist_layer import PlaylistLayer
-from python.task.timer import IProvideTimer
-from python.task.timer_layer import TimerLayer
-
-from ..model.configuration_manager import ConfigurationManager
 from .messages import ConfigureNotify, MessageSink, StartEvent, StartOptions, StopEvent, QuitMessage, ConfigureOptions, ConfigureEvent
 from .display import Display, DisplaySettings
 from .basic_task import DispatcherTask, QuitMessage
 from .message_router import MessageRouter, Route
+from ..model.configuration_manager import ConfigurationManager
+from ..model.service_container import IServiceProvider, ServiceContainer
+from ..model.time_of_day import TimeOfDay
+from ..task.playlist_layer import PlaylistLayer
+from ..task.timer import IProvideTimer
+from ..task.timer_layer import TimerLayer
 
 class Application(DispatcherTask):
 	def __init__(self, name = None, sink: MessageSink = None):
