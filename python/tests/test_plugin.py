@@ -6,6 +6,8 @@ import unittest
 import time
 import logging
 
+from python.model.time_of_day import SystemTimeOfDay, TimeOfDay
+
 from ..datasources.comic.comic_feed import ComicFeed
 from ..datasources.data_source import DataSourceManager
 from ..datasources.image_folder.image_folder import ImageFolder
@@ -15,8 +17,8 @@ from ..datasources.wpotd.wpotd import Wpotd
 from ..model.service_container import ServiceContainer
 from ..plugins.slide_show.slide_show import SlideShow
 from ..task.playlist_layer import NextTrack
-from ..task.timer import TimerService
-from ..tests.utils import create_configuration_manager, save_image, save_images, test_output_path_for
+from ..task.timer import IProvideTimer, TimerService
+from ..tests.utils import ScaledTimeOfDay, ScaledTimerService, create_configuration_manager, save_image, save_images, test_output_path_for
 from ..model.schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, PluginSchedule, PluginScheduleData
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..plugins.plugin_base import BasicExecutionContext2, PluginBase, PluginExecutionContext, PluginProtocol
@@ -175,14 +177,16 @@ class TestPlugins(unittest.TestCase):
 		display.start()
 		router = MessageRouter()
 		router.addRoute(Route("display", [display]))
-		timer = TimerService(ThreadPoolExecutor())
+		time_of_day = ScaledTimeOfDay(datetime.now().astimezone(), 60)
+		timer = ScaledTimerService(60, ThreadPoolExecutor())
 		root = ServiceContainer()
 		root.add_service(ConfigurationManager, cm)
 		root.add_service(StaticConfigurationManager, stm)
 		root.add_service(SettingsConfigurationManager, scm)
 		root.add_service(DataSourceManager, dsm)
 		root.add_service(MessageRouter, router)
-		root.add_service(TimerService, timer)
+		root.add_service(IProvideTimer, timer)
+		root.add_service(TimeOfDay, time_of_day)
 		context = BasicExecutionContext2(root, [800,480], datetime.now())
 		sink = PluginRecycleMessageSink(plugin, track, context)
 		root.add_service(MessageSink, sink)
@@ -201,7 +205,7 @@ class TestPlugins(unittest.TestCase):
 			"dataSource": "image-folder",
 			"folder": "python/tests/images",
 			"slideMax": 0,
-			"slideMinutes": 1/60
+			"slideMinutes": 1
 		}
 		plugin_data = PlaylistScheduleData(content)
 		track = PlaylistSchedule(
@@ -219,7 +223,7 @@ class TestPlugins(unittest.TestCase):
 			"dataSource": "comic-feed",
 			"comic": "XKCD",
 			"slideMax": 0,
-			"slideMinutes": 3/60
+			"slideMinutes": 3
 		}
 		plugin_data = PlaylistScheduleData(content)
 		track = PlaylistSchedule(
@@ -236,7 +240,7 @@ class TestPlugins(unittest.TestCase):
 		content = {
 			"dataSource": "wpotd",
 			"slideMax": 0,
-			"slideMinutes": 3/60
+			"slideMinutes": 3
 		}
 		plugin_data = PlaylistScheduleData(content)
 		track = PlaylistSchedule(
@@ -254,7 +258,7 @@ class TestPlugins(unittest.TestCase):
 			"dataSource": "newspaper",
 			"slug": "ny_nyt",
 			"slideMax": 0,
-			"slideMinutes": 3/60
+			"slideMinutes": 3
 		}
 		plugin_data = PlaylistScheduleData(content)
 		track = PlaylistSchedule(
@@ -273,7 +277,7 @@ class TestPlugins(unittest.TestCase):
 			"dataSource": "openai-image",
 			"prompt": "A futuristic electronic inky display showing a slideshow of images in a modern home, digital art",
 			"slideMax": 0,
-			"slideMinutes": 1/60,
+			"slideMinutes": 5,
 			"timeoutSeconds": 60
 		}
 		plugin_data = PlaylistScheduleData(content)
