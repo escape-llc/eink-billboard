@@ -4,7 +4,7 @@
 	"version": "0.0.1",
 	"class": "Countdown",
 	"file": "countdown.py",
-	"module": "python.plugins.countdown.countdown",
+	"module": "python.datasources.countdown.countdown",
 	"description": "Countdown to specfic date/time.",
 	"disabled": false,
 	"settings": {

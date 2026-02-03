@@ -4,7 +4,7 @@
 	"version": "0.0.1",
 	"class": "YearProgress",
 	"file": "year_progress.py",
-	"module": "python.plugins.year_progress.year_progress",
+	"module": "python.datasources.year_progress.year_progress",
 	"description": "Measure progress through the year.",
 	"disabled": false,
 	"settings": {

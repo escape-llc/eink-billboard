@@ -1,47 +1,39 @@
+from concurrent.futures import Future
+from datetime import datetime
+import logging
 import os
 from pathlib import Path
 from PIL import Image
-from datetime import datetime, timezone
-import logging
 import pytz
 
-from ...task.display import DisplayImage
-from ...task.messages import BasicMessage
-from ...model.configuration_manager import StaticConfigurationManager
-from ...model.schedule import PluginSchedule
+from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
+from ...plugins.plugin_base import RenderSession
 from ...utils.file_utils import path_to_file_url
-from ..plugin_base import PluginBase, PluginExecutionContext, RenderSession
+from ...datasources.data_source import DataSource, DataSourceExecutionContext, MediaItem, MediaRender
 
-logger = logging.getLogger(__name__)
-class Countdown(PluginBase):
-	def __init__(self, id, name):
+class Countdown(DataSource, MediaItem, MediaRender):
+	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
-
-	def receive(self, pec: PluginExecutionContext, msg: BasicMessage):
-		pass
-	def reconfigure(self, pec: PluginExecutionContext, config):
-		pass
-	def timeslot_start(self, ctx: PluginExecutionContext):
-		self.logger.info(f"'{self.name}' timeslot.start '{ctx.sb.title}'.")
-		if isinstance(ctx.sb, PluginSchedule):
-			dimensions = ctx.resoluion
-			data = ctx.sb.content.data
-			display_config = ctx.scm.load_settings("display")
-			img = None
-			try:
-				img = self.generate_image(ctx.schedule_ts, ctx.stm, dimensions, data, display_config)
-			except Exception as e:
-				self.logger.error(f"Failed to draw year progress image: {str(e)}")
-			if img is not None:
-				self.logger.debug(f"display {ctx.schedule_ts}")
-				ctx.router.send("display", DisplayImage(f"{ctx.schedule_ts} year progress", img, ctx.schedule_ts))
-
-	def timeslot_end(self, ctx: PluginExecutionContext):
-		self.logger.info(f"'{self.name}' timeslot.end '{ctx.sb.title}'.")
-	def schedule(self, ctx: PluginExecutionContext):
-		self.logger.info(f"'{self.name}' schedule '{ctx.sb.title}'.")
-
+	def open(self, dsec: DataSourceExecutionContext, params: dict[str, any]) -> Future[any]:
+		if self._es is None:
+			raise RuntimeError("Executor not set for DataSource")
+		def open_countdown():
+			return {}
+			pass
+		future = self._es.submit(open_countdown)
+		return future
+	def render(self, context: DataSourceExecutionContext, params:dict[str,any], state:any) -> Future[Image.Image | None]:
+		if self._es is None:
+			raise RuntimeError("Executor not set for DataSource")
+		scm = context.provider.required(SettingsConfigurationManager)
+		stm = context.provider.required(StaticConfigurationManager)
+		def render_countdown():
+			display_cob = scm.load_settings("display")
+			(_, display_config) = display_cob.get()
+			return self.generate_image(context.schedule_ts, stm, context.dimensions, params, display_config)
+		future = self._es.submit(render_countdown)
+		return future
 	def generate_image(self, schedule_ts:datetime, stm: StaticConfigurationManager, dimensions, settings, display_config):
 		#title = settings.get('title')
 		countdown_date_str = settings.get('targetDate')
