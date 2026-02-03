@@ -3,11 +3,10 @@ import os
 from typing import Protocol, runtime_checkable
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from ..datasources.data_source import DataSource, DataSourceExecutionContext, DataSourceManager
+from ..datasources.data_source import DataSource, DataSourceExecutionContext
 from ..model.service_container import IServiceProvider, ServiceContainer, ServiceContainer
-from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
+from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, StaticConfigurationManager
 from ..model.schedule import PlaylistBase, SchedulableBase, TimerTaskTask
-from ..task.message_router import MessageRouter
 from ..task.messages import BasicMessage
 from ..utils.image_utils import render_html_arglist
 from ..utils.file_utils import path_to_file_url
@@ -43,22 +42,6 @@ class BasicExecutionContext2:
 			self.schedule_ts
 		)
 		return dsec
-
-class BasicExecutionContext:
-	def __init__(self, stm: StaticConfigurationManager, scm: SettingsConfigurationManager, dsm: DataSourceManager, dimensions, router:MessageRouter):
-		if stm is None:
-			raise ValueError("stm is None")
-		if scm is None:
-			raise ValueError("scm is None")
-		if dsm is None:
-			raise ValueError("dsm is None")
-		if router is None:
-			raise ValueError("router is None")
-		self.scm = scm
-		self.stm = stm
-		self.dsm = dsm
-		self.dimensions = dimensions
-		self.router = router
 
 class RenderSession:
 	def __init__(self, stm: StaticConfigurationManager, render_dir:str, html_file:str, css_file:str=None):
