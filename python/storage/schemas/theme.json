@@ -1,0 +1,58 @@
+{
+	"_schema": "urn:inky:storage:schema:theme:1",
+	"schema": {
+		"lookups": {
+			"theme": {
+				"items": [
+					{"name": "Analogous", "value": "analogous" },
+					{"name": "Complementary", "value": "complementary" },
+					{"name": "Monochrome", "value": "monochrome" },
+					{"name": "Triadic", "value": "triadic" },
+					{"name": "Tetradic", "value": "tetradic" }
+				]
+			}
+		},
+		"properties": [
+			{
+				"name":"theme",
+				"type": "string",
+				"label": "Theme",
+				"lookup": "theme",
+				"required": true
+			},
+			{
+				"name":"hue",
+				"type": "number",
+				"label": "Hue",
+				"min": 0,
+				"max": 360,
+				"step": 1,
+				"required": true
+			},
+			{
+				"name":"saturation",
+				"type": "number",
+				"label": "Saturation",
+				"min": 0,
+				"max": 100,
+				"step": 1,
+				"required": true
+			},
+			{
+				"name":"lightness",
+				"type": "number",
+				"label": "Lightness",
+				"min": 20,
+				"max": 80,
+				"step": 1,
+				"required": true
+			}
+		]
+	},
+	"default": {
+		"theme": "complementary",
+		"hue": 220,
+		"saturation": 80,
+		"lightness": 50
+	}
+}
