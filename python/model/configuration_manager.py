@@ -67,6 +67,7 @@ class ConfigurationObject:
 		return self
 	def __exit__(self, exc_type, exc_val, exc_tb):
 		self._lock.release()
+		return False
 
 	def get(self) -> tuple[str|None,dict|None]:
 		with self._lock:
