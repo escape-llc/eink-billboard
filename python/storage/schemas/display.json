@@ -1,4 +1,5 @@
 {
+	"_schema": "urn:inky:storage:schema:display:1",
 	"schema": {
 		"lookups":{
 			"display": {

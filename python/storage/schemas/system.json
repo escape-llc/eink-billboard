@@ -1,4 +1,5 @@
 {
+	"_schema": "urn:inky:storage:schema:system:1",
 	"schema": {
 		"lookups": {
 			"timezone":{
