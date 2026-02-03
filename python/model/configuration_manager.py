@@ -1,17 +1,16 @@
 import importlib
-from pathlib import Path
 import os
 import json
 import logging
 import shutil
 import threading
+from pathlib import Path
 from typing import Any, Callable, Protocol
 from PIL import ImageFont
 
-from python.model.hash_manager import create_hash
-
 from ..datasources.data_source import DataSource
 from ..utils.file_utils import path_to_file_url
+from .hash_manager import create_hash
 from .schedule_manager import ScheduleManager
 
 logger = logging.getLogger(__name__)
@@ -39,16 +38,17 @@ def _internal_save(file_path: str, data: dict) -> None:
 	except Exception as e:
 		logger.error(f"Error saving file '{file_path}': {e}")
 
-type LoaderFunc = Callable[[str], dict|None]
-type SaverFunc = Callable[[str, dict], None]
-type TxFunc = Callable[[dict|None], dict|None]
+type LoadFunc = Callable[[str], dict|None]
+type SaveFunc = Callable[[str, dict], None]
+type GetResult = tuple[str|None,dict|None]
+type SaveResult = tuple[bool, str|None]
 
 class ConfigurationObject:
 	"""A small configuration holder that lazily loads content and persists
 	changes via the provided loader/saver. Methods are protected by a
 	per-instance reentrant lock to make operations thread-safe.
 	"""
-	def __init__(self, moniker: str, loader: LoaderFunc, saver: SaverFunc):
+	def __init__(self, moniker: str, loader: LoadFunc, saver: SaveFunc):
 		if moniker == None:
 			raise ValueError("moniker cannot be None")
 		if loader == None:
@@ -68,34 +68,32 @@ class ConfigurationObject:
 	def __exit__(self, exc_type, exc_val, exc_tb):
 		self._lock.release()
 		return False
-
-	def get(self) -> tuple[str|None,dict|None]:
+	def get(self) -> GetResult:
 		with self._lock:
 			if self._content is None:
 				self._content = self._loader(self.moniker)
 				self._hash = create_hash(self._content) if self._content is not None else None
 			return (self._hash, self._content.copy() if self._content is not None else None)
-
-	def save(self, hash: str, content: dict) -> bool:
+	def save(self, hash: str, content: dict) -> SaveResult:
 		with self._lock:
 			if self._content is None:
 				self._content = self._loader(self.moniker)
 				self._hash = create_hash(self._content) if self._content is not None else None
 			if self._hash != hash:
-				return False
+				return (False, None)
 			# Persist new state and force reload on next get()
 			self._saver(self.moniker, content)
+			hash = create_hash(content)
 			self._content = None
 			self._hash = None
-			return True
-
-	def evict(self):
+			return (True, hash)
+	def evict(self) -> None:
 		with self._lock:
 			self._content = None
 			self._hash = None
 
 class ConfigurationObjectFactory(Protocol):
-	def obtain(self, moniker: str, loader: LoaderFunc, saver: SaverFunc) -> tuple[bool, ConfigurationObject]:
+	def obtain(self, moniker: str, loader: LoadFunc, saver: SaveFunc) -> tuple[bool, ConfigurationObject]:
 		...
 
 class DatasourceConfigurationManager:
@@ -103,15 +101,18 @@ class DatasourceConfigurationManager:
 	Manage settings, state, etc. for a datasource.
 	Rooted at the "datasources/<datasource_id>" folder in storage.
 	"""
-	def __init__(self, root_path, datasource_id):
+	def __init__(self, root_path:str, datasource_id:str, cof: ConfigurationObjectFactory):
 		if root_path == None:
 			raise ValueError("root_path cannot be None")
 		if datasource_id == None:
 			raise ValueError("datasource_id cannot be None")
+		if cof == None:
+			raise ValueError("cof cannot be None")
 		if not os.path.exists(root_path):
 			raise ValueError(f"root_path {root_path} does not exist.")
 		self.datasource_id = datasource_id
 		self.ROOT_PATH = os.path.join(root_path, self.datasource_id)
+		self._cof = cof
 	def ensure_folders(self):
 		try:
 			os.makedirs(self.ROOT_PATH, exist_ok=True)
@@ -129,37 +130,36 @@ class PluginConfigurationManager:
 	Manage settings, state, etc. for a plugin.
 	Rooted at the "plugins/<plugin_id>" folder in storage.
 	"""
-	def __init__(self, root_path, plugin_id):
+	def __init__(self, root_path:str, plugin_id:str, cof: ConfigurationObjectFactory):
 		if root_path == None:
 			raise ValueError("root_path cannot be None")
 		if plugin_id == None:
 			raise ValueError("plugin_id cannot be None")
+		if cof == None:
+			raise ValueError("cof cannot be None")
 		if not os.path.exists(root_path):
 			raise ValueError(f"root_path {root_path} does not exist.")
 		self.plugin_id = plugin_id
 		self.ROOT_PATH = os.path.join(root_path, self.plugin_id)
+		self._cof = cof
 #		logger.debug(f"ROOT_PATH: {self.ROOT_PATH}")
-
 	def ensure_folders(self):
 		try:
 			os.makedirs(self.ROOT_PATH, exist_ok=True)
 			logger.debug(f"Created: {self.ROOT_PATH}")
 		except Exception as e:
 			logger.error(f"Error: {self.ROOT_PATH}: {e}")
-
 	def load_state(self):
 		"""Loads the state for a given plugin from its JSON file."""
 		plugin_state_file = os.path.join(self.ROOT_PATH, "state.json")
 		state = _internal_load(plugin_state_file)
 		return state
-
 	def save_state(self, state):
 		"""Saves the state for a given plugin to its JSON file."""
 		if not os.path.exists(self.ROOT_PATH):
 			raise ValueError(f"Directory {self.ROOT_PATH} does not exist. Call ensure_folders() first.")
 		plugin_state_file = os.path.join(self.ROOT_PATH, "state.json")
 		_internal_save(plugin_state_file, state)
-
 	def delete_state(self):
 		if not os.path.exists(self.ROOT_PATH):
 			return
@@ -170,17 +170,14 @@ class PluginConfigurationManager:
 			os.remove(plugin_state_file)
 		except Exception as e:
 			logger.error(f"Error deleting file '{plugin_state_file}': {e}")
-
 	def load_settings(self):
 		"""Loads the state for a given plugin from its JSON file."""
 		plugin_state_file = os.path.join(self.ROOT_PATH, "settings.json")
 		state = _internal_load(plugin_state_file)
 		return state
-
 	def settings_path(self):
 		"""Returns the path to the settings.json file for this plugin."""
 		return os.path.join(self.ROOT_PATH, "settings.json")
-
 	def save_settings(self, state):
 		"""Saves the state for a given plugin to its JSON file."""
 		if not os.path.exists(self.ROOT_PATH):
@@ -214,7 +211,6 @@ class SettingsConfigurationManager:
 			loader=_internal_load,
 			saver=_internal_save
 		)
-#		state = _internal_load(settings_file)
 		return cob[1]
 
 	def settings_path(self, settings: str):
@@ -335,9 +331,6 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		# Load environment variables from a .env file if present
 		# load_dotenv()
 
-	def duplicate(self):
-		return ConfigurationManager(source_path=self.ROOT_PATH, storage_path=self.STORAGE_PATH, nve_path=self.NVE_PATH)
-
 	def hard_reset(self):
 		"""Deletes all storage folders and recreates them."""
 		with self._lock:
@@ -442,7 +435,15 @@ class ConfigurationManager(ConfigurationObjectFactory):
 				else:
 					logger.debug(f"EnsureFolders exists: {directory}")
 
-	def obtain(self, moniker: str, loader: LoaderFunc, saver: SaverFunc) -> tuple[bool, ConfigurationObject]:
+	def find(self, moniker: str) -> ConfigurationObject|None:
+		"""Find a ConfigurationObject for the given moniker, or None if not found."""
+		if moniker == None:
+			raise ValueError("moniker cannot be None")
+		with self._lock:
+			ox = self._objectMap.get(moniker, None)
+			return ox
+
+	def obtain(self, moniker: str, loader: LoadFunc, saver: SaveFunc) -> tuple[bool, ConfigurationObject]:
 		"""Obtain a ConfigurationObject for the given moniker, loader, and saver."""
 		if moniker == None:
 			raise ValueError("moniker cannot be None")
@@ -458,35 +459,35 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			self._objectMap[moniker] = obj
 			return (True, obj)
 
-	def plugin_manager(self, plugin_id):
+	def plugin_manager(self, plugin_id) -> PluginConfigurationManager:
 		"""Returns a PluginConfigurationManager for the given plugin_id."""
 		if plugin_id == None:
 			raise ValueError("plugin_id cannot be None")
 		with self._lock:
-			manager = PluginConfigurationManager(self.storage_plugins, plugin_id)
+			manager = PluginConfigurationManager(self.storage_plugins, plugin_id, self)
 			manager.ensure_folders()
 			return manager
 
-	def datasource_manager(self, datasource_id):
+	def datasource_manager(self, datasource_id) -> DatasourceConfigurationManager:
 		"""Returns a DatasourceConfigurationManager for the given datasource_id."""
 		if datasource_id == None:
 			raise ValueError("datasource_id cannot be None")
 		with self._lock:
-			manager = DatasourceConfigurationManager(self.storage_ds, datasource_id)
+			manager = DatasourceConfigurationManager(self.storage_ds, datasource_id, self)
 			manager.ensure_folders()
 			return manager
 
-	def schedule_manager(self):
+	def schedule_manager(self) -> ScheduleManager:
 		"""Create a ScheduleManager bound to the schedule storage folder."""
 		manager = ScheduleManager(self.storage_schedules)
 		return manager
 
-	def settings_manager(self):
+	def settings_manager(self) -> SettingsConfigurationManager:
 		"""Create a SettingsConfigurationManager bound to settings storage folder."""
 		manager = SettingsConfigurationManager(self.storage_settings, self)
 		return manager
 
-	def static_manager(self):
+	def static_manager(self) -> StaticConfigurationManager:
 		"""Create a StaticConfigurationManager bound to the root path."""
 		manager = StaticConfigurationManager(self.static_path)
 		return manager
