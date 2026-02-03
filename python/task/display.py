@@ -42,7 +42,6 @@ class Display(DispatcherTask):
 		self.cm:ConfigurationManager = None
 		self.display:DisplayBase = None
 		self.resolution = [800,480]
-		self.lastTickSeen:TickMessage = None
 		self.displayImageCount = 0
 		self.logger = logging.getLogger(__name__)
 
@@ -60,7 +59,8 @@ class Display(DispatcherTask):
 		try:
 			self.cm = msg.content.cm
 			settings = self.cm.settings_manager()
-			self.display_settings = settings.load_settings("display")
+			display_cob = settings.load_settings("display")
+			(_, self.display_settings) = display_cob.get()
 			display_type = self.display_settings.get("display_type", None)
 			if display_type == "mock":
 				self.display = MockDisplay("mock")
@@ -75,8 +75,6 @@ class Display(DispatcherTask):
 		except Exception as e:
 			self.logger.error(f"configure.unhandled: {str(e)}")
 			msg.notify(True, e)
-	def _tick_message(self, msg: TickMessage):
-		self.lastTickSeen = msg
 	def _display_message(self, msg: DisplayImage):
 		try:
 			self.displayImageCount += 1

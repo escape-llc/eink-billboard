@@ -30,7 +30,8 @@ class TkinterWindow(DisplayBase):
 	def initialize(self, cm: ConfigurationManager):
 		self.logger.info(f"'{self.name}' initialize")
 		settings = cm.settings_manager()
-		self.display_settings = settings.load_settings("display")
+		display_cob = settings.load_settings("display")
+		(_, self.display_settings) = display_cob.get()
 		resolution = self.display_settings.get("mock.resolution", [800,480])
 		self.root = tk.Tk()
 		self.root.title("Image Display")

@@ -35,7 +35,8 @@ class OpenAI(DataSource, MediaList, MediaRender):
 				raise RuntimeError(f"Invalid Image Model provided: {image_model}")
 			image_quality = params.get('quality', "medium" if image_model == "gpt-image-1" else "standard")
 			randomize_prompt = params.get('randomizePrompt') == True
-			display_settings = scm.load_settings("display")
+			display_cob = scm.load_settings("display")
+			(_, display_settings) = display_cob.get()
 			orientation = display_settings.get("orientation", "landscape")
 			return [{ "api_key": api_key, "text_prompt": text_prompt, "image_model": image_model, "image_quality": image_quality, "randomize_prompt": randomize_prompt, "orientation": orientation }]
 		future = self._es.submit(locate_image_url)

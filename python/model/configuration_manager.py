@@ -4,8 +4,11 @@ import os
 import json
 import logging
 import shutil
-from typing import Any
+import threading
+from typing import Any, Callable, Protocol
 from PIL import ImageFont
+
+from python.model.hash_manager import create_hash
 
 from ..datasources.data_source import DataSource
 from ..utils.file_utils import path_to_file_url
@@ -13,7 +16,7 @@ from .schedule_manager import ScheduleManager
 
 logger = logging.getLogger(__name__)
 
-def _internal_load(file_path):
+def _internal_load(file_path: str) -> dict|None:
 	if os.path.isfile(file_path):
 		try:
 			with open(file_path, 'r') as fx:
@@ -24,13 +27,75 @@ def _internal_load(file_path):
 			return None
 	return None
 
-def _internal_save(file_path, data):
+def _internal_save(file_path: str, data: dict) -> None:
 	try:
+		if file_path is None:
+			raise ValueError("file_path cannot be None")
+		if data is None:
+			raise ValueError("data cannot be None")
 		with open(file_path, 'w') as fx:
 			json.dump(data, fx, indent=2)
 #			logger.debug(f"File '{file_path}' saved successfully.")
 	except Exception as e:
 		logger.error(f"Error saving file '{file_path}': {e}")
+
+type LoaderFunc = Callable[[str], dict|None]
+type SaverFunc = Callable[[str, dict], None]
+type TxFunc = Callable[[dict|None], dict|None]
+
+class ConfigurationObject:
+	"""A small configuration holder that lazily loads content and persists
+	changes via the provided loader/saver. Methods are protected by a
+	per-instance reentrant lock to make operations thread-safe.
+	"""
+	def __init__(self, moniker: str, loader: LoaderFunc, saver: SaverFunc):
+		if moniker == None:
+			raise ValueError("moniker cannot be None")
+		if loader == None:
+			raise ValueError("loader cannot be None")
+		if saver == None:
+			raise ValueError("saver cannot be None")
+		self.moniker = moniker
+		self._content: dict|None = None
+		self._hash: str|None = None
+		self._loader = loader
+		self._saver = saver
+		# Use RLock so the same thread can re-enter safely if needed
+		self._lock = threading.RLock()
+	def __enter__(self):
+		self._lock.acquire()
+		return self
+	def __exit__(self, exc_type, exc_val, exc_tb):
+		self._lock.release()
+
+	def get(self) -> tuple[str|None,dict|None]:
+		with self._lock:
+			if self._content is None:
+				self._content = self._loader(self.moniker)
+				self._hash = create_hash(self._content) if self._content is not None else None
+			return (self._hash, self._content.copy() if self._content is not None else None)
+
+	def save(self, hash: str, content: dict) -> bool:
+		with self._lock:
+			if self._content is None:
+				self._content = self._loader(self.moniker)
+				self._hash = create_hash(self._content) if self._content is not None else None
+			if self._hash != hash:
+				return False
+			# Persist new state and force reload on next get()
+			self._saver(self.moniker, content)
+			self._content = None
+			self._hash = None
+			return True
+
+	def evict(self):
+		with self._lock:
+			self._content = None
+			self._hash = None
+
+class ConfigurationObjectFactory(Protocol):
+	def obtain(self, moniker: str, loader: LoaderFunc, saver: SaverFunc) -> tuple[bool, ConfigurationObject]:
+		...
 
 class DatasourceConfigurationManager:
 	"""
@@ -129,19 +194,27 @@ class SettingsConfigurationManager:
 	Manage system-level settings, e.g. system, display (not plugins).
 	Rooted at the "settings" folder in storage.
 	"""
-	def __init__(self, root_path):
+	def __init__(self, root_path:str, cof: ConfigurationObjectFactory):
 		if root_path == None:
 			raise ValueError("root_path cannot be None")
 		if not os.path.exists(root_path):
 			raise ValueError(f"root_path {root_path} does not exist.")
+		if cof == None:
+			raise ValueError("cof cannot be None")
 		self.ROOT_PATH = root_path
+		self._cof = cof
 #		logger.debug(f"ROOT_PATH: {self.ROOT_PATH}")
 
-	def load_settings(self, settings: str):
+	def load_settings(self, settings: str) -> ConfigurationObject:
 		"""Loads the state for a given settings from its JSON file."""
 		settings_file = self.settings_path(settings)
-		state = _internal_load(settings_file)
-		return state
+		cob = self._cof.obtain(
+			settings_file,
+			loader=_internal_load,
+			saver=_internal_save
+		)
+#		state = _internal_load(settings_file)
+		return cob[1]
 
 	def settings_path(self, settings: str):
 		"""Returns the path to the JSON file for this settings."""
@@ -206,12 +279,14 @@ class StaticConfigurationManager:
 				return ImageFont.truetype(font_path, font_size)
 		raise ValueError(f"Font not found: font_name={font_name}, font_weight={font_weight}")
 
-class ConfigurationManager:
+class ConfigurationManager(ConfigurationObjectFactory):
 	"""
 	Manage the paths used for configuration and working storage.
 	Act as a factory for other "sub" managers.
 	"""
 	def __init__(self, source_path=None, storage_path=None, nve_path=None):
+		self._lock = threading.RLock()
+		self._objectMap: dict[str, ConfigurationObject] = {}
 		# Source path is the python directory
 		# Storage path is where working storage is hosted (SHOULD be OUTSIDE the source tree)
 		# NVE path (Non-Volatile Environment) is the source used to initialize Storage
@@ -264,24 +339,25 @@ class ConfigurationManager:
 
 	def hard_reset(self):
 		"""Deletes all storage folders and recreates them."""
-		if os.path.exists(self.STORAGE_PATH):
-			try:
-				for item in os.listdir(self.STORAGE_PATH):
-					item_path = os.path.join(self.STORAGE_PATH, item)
-					if os.path.isfile(item_path):
-							os.remove(item_path)  # Remove files
-					elif os.path.isdir(item_path):
-							shutil.rmtree(item_path)
-				logger.info(f"HardReset '{self.STORAGE_PATH}' all contents deleted successfully.")
-			except OSError as e:
-				logger.error(f"HardReset: {self.STORAGE_PATH} : {e.strerror}")
-		else:
-			logger.debug(f"HardReset '{self.STORAGE_PATH}' does not exist.")
+		with self._lock:
+			if os.path.exists(self.STORAGE_PATH):
+				try:
+					for item in os.listdir(self.STORAGE_PATH):
+						item_path = os.path.join(self.STORAGE_PATH, item)
+						if os.path.isfile(item_path):
+								os.remove(item_path)  # Remove files
+						elif os.path.isdir(item_path):
+								shutil.rmtree(item_path)
+					logger.info(f"HardReset '{self.STORAGE_PATH}' all contents deleted successfully.")
+				except OSError as e:
+					logger.error(f"HardReset: {self.STORAGE_PATH} : {e.strerror}")
+			else:
+				logger.debug(f"HardReset '{self.STORAGE_PATH}' does not exist.")
 
-		self.ensure_folders()
-		self._reset_storage()
-		self._reset_plugins()
-		self._reset_datasources()
+			self.ensure_folders()
+			self._reset_storage()
+			self._reset_plugins()
+			self._reset_datasources()
 
 	def _reset_storage(self):
 		"""Copy the NVE storage tree to the STORAGE_PATH. Deploy settings to the STORAGE_PATH."""
@@ -344,41 +420,60 @@ class ConfigurationManager:
 
 	def ensure_folders(self):
 		"""Ensures that necessary directories exist.  Does not consider files."""
-		if not os.path.exists(self.ROOT_PATH):
-			raise ValueError(f"ROOT_PATH {self.ROOT_PATH} does not exist.")
-		if not os.path.exists(self.NVE_PATH):
-			raise ValueError(f"NVE_PATH {self.NVE_PATH} does not exist.")
-		directories = [
-			self.STORAGE_PATH,
-			self.storage_plugins,
-			self.storage_ds,
-			self.storage_settings,
-		]
-		for directory in directories:
-			if not os.path.exists(directory):
-				try:
-					os.makedirs(directory)
-					logger.debug(f"EnsureFolders Created: {directory}")
-				except Exception as e:
-					logger.error(f"EnsureFolders {directory}: {e}")
-			else:
-				logger.debug(f"EnsureFolders exists: {directory}")
+		with self._lock:
+			if not os.path.exists(self.ROOT_PATH):
+				raise ValueError(f"ROOT_PATH {self.ROOT_PATH} does not exist.")
+			if not os.path.exists(self.NVE_PATH):
+				raise ValueError(f"NVE_PATH {self.NVE_PATH} does not exist.")
+			directories = [
+				self.STORAGE_PATH,
+				self.storage_plugins,
+				self.storage_ds,
+				self.storage_settings,
+			]
+			for directory in directories:
+				if not os.path.exists(directory):
+					try:
+						os.makedirs(directory)
+						logger.debug(f"EnsureFolders Created: {directory}")
+					except Exception as e:
+						logger.error(f"EnsureFolders {directory}: {e}")
+				else:
+					logger.debug(f"EnsureFolders exists: {directory}")
+
+	def obtain(self, moniker: str, loader: LoaderFunc, saver: SaverFunc) -> tuple[bool, ConfigurationObject]:
+		"""Obtain a ConfigurationObject for the given moniker, loader, and saver."""
+		if moniker == None:
+			raise ValueError("moniker cannot be None")
+		if loader == None:
+			raise ValueError("loader cannot be None")
+		if saver == None:
+			raise ValueError("saver cannot be None")
+		with self._lock:
+			ox = self._objectMap.get(moniker, None)
+			if ox is not None:
+				return (False, ox)
+			obj = ConfigurationObject(moniker, loader, saver)
+			self._objectMap[moniker] = obj
+			return (True, obj)
 
 	def plugin_manager(self, plugin_id):
 		"""Returns a PluginConfigurationManager for the given plugin_id."""
 		if plugin_id == None:
 			raise ValueError("plugin_id cannot be None")
-		manager = PluginConfigurationManager(self.storage_plugins, plugin_id)
-		manager.ensure_folders()
-		return manager
+		with self._lock:
+			manager = PluginConfigurationManager(self.storage_plugins, plugin_id)
+			manager.ensure_folders()
+			return manager
 
 	def datasource_manager(self, datasource_id):
 		"""Returns a DatasourceConfigurationManager for the given datasource_id."""
 		if datasource_id == None:
 			raise ValueError("datasource_id cannot be None")
-		manager = DatasourceConfigurationManager(self.storage_ds, datasource_id)
-		manager.ensure_folders()
-		return manager
+		with self._lock:
+			manager = DatasourceConfigurationManager(self.storage_ds, datasource_id)
+			manager.ensure_folders()
+			return manager
 
 	def schedule_manager(self):
 		"""Create a ScheduleManager bound to the schedule storage folder."""
@@ -387,7 +482,7 @@ class ConfigurationManager:
 
 	def settings_manager(self):
 		"""Create a SettingsConfigurationManager bound to settings storage folder."""
-		manager = SettingsConfigurationManager(self.storage_settings)
+		manager = SettingsConfigurationManager(self.storage_settings, self)
 		return manager
 
 	def static_manager(self):
@@ -395,7 +490,7 @@ class ConfigurationManager:
 		manager = StaticConfigurationManager(self.static_path)
 		return manager
 
-	def _collect_info(self, folder: str, info_file_name: str):
+	def _collect_info(self, folder: str, info_file_name: str) -> list:
 		# Iterate over all XXX folders
 		item_list = []
 		path = os.path.join(self.ROOT_PATH, folder)
@@ -412,13 +507,13 @@ class ConfigurationManager:
 					item_list.append({ "info":item_info, "path":item_path })
 		return item_list
 
-	def enum_plugins(self):
+	def enum_plugins(self) -> list:
 		"""Reads the plugin-info.json config JSON from each plugin folder. Excludes the base plugin."""
 		# Iterate over all plugin folders
 		plugins_list = self._collect_info("plugins", "plugin-info.json")
 		return plugins_list
 
-	def enum_datasources(self):
+	def enum_datasources(self) -> list:
 		"""Reads the datasource-info.json config JSON from each datasource folder. Excludes the base datasource."""
 		# Iterate over all plugin folders
 		datasources_list = self._collect_info("datasources", "datasource-info.json")
@@ -454,7 +549,7 @@ class ConfigurationManager:
 			return plugin_class(info_id, info_name)
 		return None
 
-	def load_plugins(self, infos):
+	def load_plugins(self, infos) -> dict:
 		"""Take the result of enum_plugins() and instantiate the plugin objects."""
 		plugin_map = {}
 		for info in infos:
@@ -479,7 +574,7 @@ class ConfigurationManager:
 			return ds_class(info_id, info_name)
 		return None
 
-	def load_datasources(self, infos):
+	def load_datasources(self, infos) -> dict:
 		"""Take the result of enum_datasources() and instantiate the datasource objects."""
 		datasource_map = {}
 		for info in infos:
@@ -491,7 +586,7 @@ class ConfigurationManager:
 				datasource_map[info_id] = datasource
 		return datasource_map
 
-	def load_blueprints(self, infos):
+	def load_blueprints(self, infos) -> dict:
 		"""Take the result of enum_X() and resolve the blueprints."""
 		blueprint_map = {}
 		for info in infos:

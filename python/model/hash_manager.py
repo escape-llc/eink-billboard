@@ -2,13 +2,45 @@ import json
 import hashlib
 import threading
 
+HASH_KEY = "_rev"
+
+def create_hash(data:dict):
+	"""
+	Computes a SHA256 hash of a JSON-serializable object and returns it.
+
+	This function first removes any existing HASH_KEY key to ensure the hash is
+	always based purely on the object's content.
+	Args:
+		data (dict): The dictionary to process.
+	Returns:
+		str: The computed SHA256 hash in hexadecimal format.
+	"""
+	for_hash = data.copy()
+
+	# Remove the existing hash key if it is present.
+	# The `pop` method with a default value of `None` prevents a KeyError.
+	for_hash.pop(HASH_KEY, None)
+
+	# Serialize the cleaned data into a canonical string.
+	# `sort_keys=True` ensures consistent key order.
+	# `separators=(',', ':')` removes whitespace for a compact string.
+	canonical_string = json.dumps(
+			for_hash,
+			sort_keys=True,
+			separators=(',', ':')
+	)
+
+	byte_string = canonical_string.encode('utf-8')
+	object_hash = hashlib.sha256(byte_string).hexdigest()
+
+	return object_hash
+
 class HashEntry:
 	def __init__(self, id:str, path:str, hash:str):
 		self.id = id
 		self.path = path
 		self.hash = hash
 
-HASH_KEY = "_rev"
 class HashManager:
 	def __init__(self, root_path: str = "."):
 		self.root_path = root_path
@@ -33,7 +65,7 @@ class HashManager:
 		"""
 		with self.lock:
 			old_hash = self.hashdict.get(id, None)
-			new_hash = self.create_hash(document)
+			new_hash = create_hash(document)
 			if old_hash is not None and old_hash == new_hash:
 				return False, old_hash
 			self.hashdict[id] = HashEntry(id, path, new_hash)
@@ -60,12 +92,12 @@ class HashManager:
 			current_hash = self.hashdict.get(id, None)
 			if current_hash is None:
 				# document was evicted or never hashed, so we hash it now
-				current_hash = HashEntry(id, path, self.create_hash(document))
+				current_hash = HashEntry(id, path, create_hash(document))
 				self.hashdict[id] = current_hash
 				pass
 			if current_hash.hash != doc_hash:
 				return False,None
-			new_hash = self.create_hash(document)
+			new_hash = create_hash(document)
 			commit(document)
 			current_hash.hash = new_hash
 			return True,new_hash
@@ -93,34 +125,3 @@ class HashManager:
 			if old_hash.hash == doc_hash:
 				return True, old_hash.hash
 			return False, old_hash.hash
-	def create_hash(self, data:dict):
-		"""
-		Computes a SHA256 hash of a JSON-serializable object and returns it.
-
-		This function first removes any existing HASH_KEY key to ensure the hash is
-		always based purely on the object's content.
-		Args:
-			data (dict): The dictionary to process.
-		Returns:
-			str: The computed SHA256 hash in hexadecimal format.
-		"""
-		for_hash = data.copy()
-
-		# Remove the existing hash key if it is present.
-		# The `pop` method with a default value of `None` prevents a KeyError.
-		for_hash.pop(HASH_KEY, None)
-
-		# Serialize the cleaned data into a canonical string.
-		# `sort_keys=True` ensures consistent key order.
-		# `separators=(',', ':')` removes whitespace for a compact string.
-		canonical_string = json.dumps(
-				for_hash,
-				sort_keys=True,
-				separators=(',', ':')
-		)
-
-		byte_string = canonical_string.encode('utf-8')
-		object_hash = hashlib.sha256(byte_string).hexdigest()
-
-		return object_hash
-

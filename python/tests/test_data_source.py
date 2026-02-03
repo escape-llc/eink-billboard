@@ -3,6 +3,9 @@ from datetime import datetime
 import unittest
 import logging
 
+from python.datasources.countdown.countdown import Countdown
+from python.datasources.year_progress.year_progress import YearProgress
+
 from ..datasources.clock.clock import Clock
 from ..datasources.openai_image.openai_image import OpenAI
 from ..datasources.comic.comic_feed import ComicFeed
@@ -140,6 +143,20 @@ class TestDataSources(unittest.TestCase):
 			"secondaryColor": "#ffffff"
 		}
 		self.run_datasource2(ds, params, (800, 480), 1)
+	def test_countdown(self):
+		ds = Countdown("countdown", "countdown")
+		params = {
+			"targetDate": "2027-01-01",
+			"title": "New Year Countdown"
+		}
+		self.run_datasource2(ds, params, (800, 480), 1)
+	def test_year_progress(self):
+		ds = YearProgress("year-progress", "year-progress")
+		params = {
+			"title": "New Year Countdown"
+		}
+		self.run_datasource2(ds, params, (800, 480), 1)
+
 	@unittest.skip("OpenAI Image tests cost money!")
 	def test_openai(self):
 		ds = OpenAI("openai-image", "openai-image")

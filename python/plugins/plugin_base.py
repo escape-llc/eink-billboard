@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 import datetime
 import os
 from typing import Protocol, runtime_checkable
@@ -6,9 +5,8 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from ..datasources.data_source import DataSource, DataSourceExecutionContext, DataSourceManager
 from ..model.service_container import IServiceProvider, ServiceContainer, ServiceContainer
-from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, PluginConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
+from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.schedule import PlaylistBase, SchedulableBase, TimerTaskTask
-from ..task.active_plugin import ActivePlugin
 from ..task.message_router import MessageRouter
 from ..task.messages import BasicMessage
 from ..utils.image_utils import render_html_arglist
@@ -62,27 +60,6 @@ class BasicExecutionContext:
 		self.dimensions = dimensions
 		self.router = router
 
-class PluginExecutionContext(BasicExecutionContext):
-	def __init__(self, sb: SchedulableBase, stm: StaticConfigurationManager, scm: SettingsConfigurationManager, dsm: DataSourceManager, pcm: PluginConfigurationManager, ap:ActivePlugin, dimensions, schedule_ts: datetime, router:MessageRouter):
-		super().__init__(stm, scm, dsm, dimensions, router)
-		if sb is None:
-			raise ValueError("sb is None")
-		if pcm is None:
-			raise ValueError("pcm is None")
-		if ap is None:
-			raise ValueError("ap is None")
-		if schedule_ts is None:
-			raise ValueError("schedule_ts is None")
-		self.sb = sb
-		self.pcm = pcm
-		self.schedule_ts = schedule_ts
-		self._ap = ap
-
-	def future(self, token:str, cx:callable):
-		self._ap.future(token,cx)
-	def alarm_clock(self, wake_up_ts:datetime):
-		self._ap.alarm_clock(wake_up_ts)
-
 class RenderSession:
 	def __init__(self, stm: StaticConfigurationManager, render_dir:str, html_file:str, css_file:str=None):
 		if stm is None:
@@ -135,23 +112,3 @@ class PluginProtocol(Protocol):
 		...
 	def stop(self, context: BasicExecutionContext2, track: TrackType) -> None:
 		...
-
-class PluginBase(ABC):
-	def __init__(self, id, name):
-		self.id = id
-		self.name = name
-	@abstractmethod
-	def timeslot_start(self, pec: PluginExecutionContext):
-		pass
-	@abstractmethod
-	def timeslot_end(self, pec: PluginExecutionContext):
-		pass
-	@abstractmethod
-	def schedule(self, pec: PluginExecutionContext):
-		pass
-	@abstractmethod
-	def receive(self, pec: PluginExecutionContext, msg: BasicMessage):
-		pass
-	@abstractmethod
-	def reconfigure(self, pec: PluginExecutionContext, config):
-		pass

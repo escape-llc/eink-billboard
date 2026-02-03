@@ -11,7 +11,7 @@ from ..datasources.data_source import DataSourceManager
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..model.schedule import MasterSchedule, Playlist, PlaylistBase
 from ..model.service_container import ServiceContainer
-from ..plugins.plugin_base import BasicExecutionContext2, PluginBase, PluginProtocol
+from ..plugins.plugin_base import BasicExecutionContext2, PluginProtocol
 from ..task.timer import IProvideTimer, TimerService
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 
@@ -54,10 +54,10 @@ class PlaylistLayer(DispatcherTask):
 		plugin = self.cm.create_plugin(pinfo)
 		if plugin is not None:
 #						self.logger.debug(f"selecting plugin '{timeslot.plugin_name}' with args {timeslot.content}")
-			if isinstance(plugin, PluginBase):
+			if isinstance(plugin, PluginProtocol):
 				return { "plugin": plugin, "track": track }
 			else:
-				errormsg = f"Plugin '{track.plugin_name}' is not a valid PluginBase instance."
+				errormsg = f"Plugin '{track.plugin_name}' is not a valid PluginProtocol instance."
 				self.logger.error(errormsg)
 				return { "plugin": plugin, "track": track, "error": errormsg }
 		else:
