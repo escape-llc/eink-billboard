@@ -5,9 +5,9 @@ from typing import Protocol, runtime_checkable
 @runtime_checkable
 class TimeOfDay(Protocol):
 	"""
-	This exists primarily so we can scale down elapsed time during tests.
-	For example, one second of "real" time may scale to one hour of "internal" time.
-	Likewise, any computed timedelta objects must be scaled the same way.
+	This exists primarily so we can scale (down) elapsed time during tests.
+	For example, one second of "real" time may scale to one hour of "model" time.
+	Likewise, any computed timedelta objects must be scaled inversely.
 	For example, setting a timer for one hour will trigger after one second of "real" time.
 	The system MUST NOT directly reference "datetime.datetime.now()" or variants.
 	"""
