@@ -199,7 +199,7 @@ def render_schedule():
 	hm = get_hash_manager()
 	stm = cm.settings_manager()
 	system_cob = stm.load_settings("system")
-	(_, system) = system_cob.get()
+	_, system = system_cob.get()
 	tz = pytz.timezone(system.get("timezoneName", "US/Eastern"))
 	sm = cm.schedule_manager()
 	schedule_info = sm.load(hm)
@@ -208,7 +208,7 @@ def render_schedule():
 	if master_schedule is None:
 		return jsonify({"success": False, "error": "Master Schedule not found"}), 404
 	schedules = schedule_info.get("schedules", [])
-	if schedules is []:
+	if not schedules:
 		return jsonify({"success": False, "error": "Schedule List not found"}), 404
 
 	start_ts = datetime.now(tz) if start_at is None else datetime.fromisoformat(start_at)

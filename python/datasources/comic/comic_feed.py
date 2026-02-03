@@ -31,7 +31,7 @@ class ComicFeed(DataSource, MediaList, MediaRender):
 		scm = context.provider.required(SettingsConfigurationManager)
 		stm = context.provider.required(StaticConfigurationManager)
 		display_cob = scm.load_settings("display")
-		(_, display_settings) = display_cob.get()
+		_, display_settings = display_cob.get()
 		dimensions = context.dimensions
 		is_caption = params.get("titleCaption") == "true"
 		caption_font_size = params.get("fontSize", 16)

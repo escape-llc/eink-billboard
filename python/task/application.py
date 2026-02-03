@@ -57,9 +57,9 @@ class Application(DispatcherTask):
 		if ipt:
 			plcontainer.add_service(IProvideTimer, ipt)
 			tlcontainer.add_service(IProvideTimer, ipt)
-		configs = ConfigureEvent("playlist-layer", ConfigureOptions(cm=self.cm.duplicate(), isp=plcontainer), self, msg.timestamp)
+		configs = ConfigureEvent("playlist-layer", ConfigureOptions(cm=self.cm, isp=plcontainer), self, msg.timestamp)
 		self.playlist_layer.accept(configs)
-		configt = ConfigureEvent("timer-layer", ConfigureOptions(cm=self.cm.duplicate(), isp=tlcontainer), self, msg.timestamp)
+		configt = ConfigureEvent("timer-layer", ConfigureOptions(cm=self.cm, isp=tlcontainer), self, msg.timestamp)
 		self.timer_layer.accept(configt)
 	def _configure_notify(self, msg: ConfigureNotify):
 		# STEP 4 playback started if layer configured successfully
@@ -125,7 +125,7 @@ class Application(DispatcherTask):
 		ipt = self.root_container.get_service(IProvideTimer)
 		if ipt:
 			dpcontainer.add_service(IProvideTimer, ipt)
-		configd = ConfigureEvent("display", ConfigureOptions(cm=self.cm.duplicate(), isp=dpcontainer), self, timestamp_ts)
+		configd = ConfigureEvent("display", ConfigureOptions(cm=self.cm, isp=dpcontainer), self, timestamp_ts)
 		self.display.accept(configd)
 		# start tasks
 		self.display.start()

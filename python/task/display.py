@@ -60,7 +60,7 @@ class Display(DispatcherTask):
 			self.cm = msg.content.cm
 			settings = self.cm.settings_manager()
 			display_cob = settings.load_settings("display")
-			(_, self.display_settings) = display_cob.get()
+			_, self.display_settings = display_cob.get()
 			display_type = self.display_settings.get("display_type", None)
 			if display_type == "mock":
 				self.display = MockDisplay("mock")

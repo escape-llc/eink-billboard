@@ -30,7 +30,7 @@ class YearProgress(DataSource, MediaItem, MediaRender):
 		stm = context.provider.required(StaticConfigurationManager)
 		def render_countdown():
 			display_cob = scm.load_settings("display")
-			(_, display_config) = display_cob.get()
+			_, display_config = display_cob.get()
 			return self.generate_image(context.schedule_ts, stm, context.dimensions, params, display_config)
 		future = self._es.submit(render_countdown)
 		return future
