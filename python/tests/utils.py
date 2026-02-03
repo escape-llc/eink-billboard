@@ -25,6 +25,17 @@ class RecordingTask(DispatcherTask):
 		self.logger.debug(f"{self.name}: {msg}")
 		self.msgs.append(msg)
 
+class ConstantTimeOfDay(TimeOfDay):
+	def __init__(self, now_value):
+		if now_value is None:
+			raise ValueError("now_value cannot be None")
+		super().__init__()
+		self._now = now_value
+	def current_time(self) -> datetime.datetime:
+		return self._now
+	def current_time_utc(self) -> datetime.datetime:
+		return self._now.astimezone(datetime.timezone.utc)
+
 class ScaledTimeOfDay(TimeOfDay):
 	def __init__(self, start_time:datetime, scale:float):
 		super().__init__()

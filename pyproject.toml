@@ -33,6 +33,14 @@ dev = [
 
 [tool.coverage.run]
 omit = [
-    "*/tests/images/*",
-    "*/tests/input/*",
+    "*.html",
+    "*.css",
+    "*/tests/*",
+]
+
+[tool.coverage.report]
+omit = [
+    "*.html",
+    "*.css",
+    "*/tests/*",
 ]
