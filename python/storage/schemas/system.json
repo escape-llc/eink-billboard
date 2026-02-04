@@ -36,12 +36,19 @@
 				"label": "Time Format",
 				"lookup": "timeFormat",
 				"required": true
+			},
+			{
+				"name":"location",
+				"type": "location",
+				"label": "Location",
+				"required": false
 			}
 		]
 	},
 	"default": {
 		"timezoneName": "US/Eastern",
 		"locale": "en-US",
-		"timeFormat": "24h"
+		"timeFormat": "24h",
+		"location": null
 	}
 }
