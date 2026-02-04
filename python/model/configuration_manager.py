@@ -1,3 +1,4 @@
+import hashlib
 import importlib
 import os
 import json
@@ -5,15 +6,47 @@ import logging
 import shutil
 import threading
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Protocol, Type
 from PIL import ImageFont
 
 from ..datasources.data_source import DataSource
 from ..utils.file_utils import path_to_file_url
-from .hash_manager import create_hash
 from .schedule_manager import ScheduleManager
 
 logger = logging.getLogger(__name__)
+
+HASH_KEY = "_rev"
+
+def create_hash(data:dict) -> str:
+	"""
+	Computes a SHA256 hash of a JSON-serializable object and returns it.
+
+	This function first removes any existing HASH_KEY key to ensure the hash is
+	always based purely on the object's content.
+	Args:
+		data (dict): The dictionary to process.
+	Returns:
+		str: The computed SHA256 hash in hexadecimal format.
+	"""
+	for_hash = data.copy()
+
+	# Remove the existing hash key if it is present.
+	# The `pop` method with a default value of `None` prevents a KeyError.
+	for_hash.pop(HASH_KEY, None)
+
+	# Serialize the cleaned data into a canonical string.
+	# `sort_keys=True` ensures consistent key order.
+	# `separators=(',', ':')` removes whitespace for a compact string.
+	canonical_string = json.dumps(
+			for_hash,
+			sort_keys=True,
+			separators=(',', ':')
+	)
+
+	byte_string = canonical_string.encode('utf-8')
+	object_hash = hashlib.sha256(byte_string).hexdigest()
+
+	return object_hash
 
 def _internal_load(file_path: str) -> dict|None:
 	if os.path.isfile(file_path):
@@ -40,12 +73,13 @@ def _internal_save(file_path: str, data: dict) -> None:
 
 type LoadFunc = Callable[[str], dict|None]
 type SaveFunc = Callable[[str, dict], None]
-type GetResult = tuple[str|None,dict|None]
+type HashFunc = Callable[[dict], str]
+type GetResult = tuple[str|None, dict|None]
 type SaveResult = tuple[bool, str|None]
 
 class ConfigurationObject:
-	"""A small configuration holder that lazily loads content and persists
-	changes via the provided loader/saver. Methods are protected by a
+	"""Configuration holder that lazily loads content and persists
+	changes via the provided callables. Methods are protected by a
 	per-instance reentrant lock to make operations thread-safe.
 	"""
 	def __init__(self, moniker: str, loader: LoadFunc, saver: SaveFunc):
@@ -92,8 +126,26 @@ class ConfigurationObject:
 			self._content = None
 			self._hash = None
 
+class FileConfiguration(ConfigurationObject):
+	def __init__(self, moniker):
+		super().__init__(moniker, _internal_load, _internal_save)
+
+class FileDeletableConfiguration(FileConfiguration):
+	def __init__(self, moniker):
+		super().__init__(moniker)
+	def delete(self) -> None:
+		with self._lock:
+			if os.path.isfile(self.moniker):
+				try:
+					os.remove(self.moniker)
+					logger.debug(f"Deleted file: {self.moniker}")
+				except Exception as e:
+					logger.error(f"Error deleting file '{self.moniker}': {e}")
+			self._content = None
+			self._hash = None
+
 class ConfigurationObjectFactory(Protocol):
-	def obtain(self, moniker: str, loader: LoadFunc, saver: SaveFunc) -> tuple[bool, ConfigurationObject]:
+	def obtain(self, moniker: str, ctor: Type[FileConfiguration]) -> tuple[bool, ConfigurationObject]:
 		...
 
 class DatasourceConfigurationManager:
@@ -113,17 +165,11 @@ class DatasourceConfigurationManager:
 		self.datasource_id = datasource_id
 		self.ROOT_PATH = os.path.join(root_path, self.datasource_id)
 		self._cof = cof
-	def ensure_folders(self):
-		try:
-			os.makedirs(self.ROOT_PATH, exist_ok=True)
-			logger.debug(f"Created: {self.ROOT_PATH}")
-		except Exception as e:
-			logger.error(f"Error: {self.ROOT_PATH}: {e}")
-	def load_settings(self):
-		"""Loads the state for a given datasource from its JSON file."""
-		plugin_state_file = os.path.join(self.ROOT_PATH, "settings.json")
-		state = _internal_load(plugin_state_file)
-		return state
+	def load_settings(self) -> ConfigurationObject:
+		"""Loads the settings for a given datasource from its JSON file."""
+		plugin_settings_file = os.path.join(self.ROOT_PATH, "settings.json")
+		cob = self._cof.obtain(plugin_settings_file,FileConfiguration)
+		return cob[1]
 
 class PluginConfigurationManager:
 	"""
@@ -143,21 +189,15 @@ class PluginConfigurationManager:
 		self.ROOT_PATH = os.path.join(root_path, self.plugin_id)
 		self._cof = cof
 #		logger.debug(f"ROOT_PATH: {self.ROOT_PATH}")
-	def ensure_folders(self):
-		try:
-			os.makedirs(self.ROOT_PATH, exist_ok=True)
-			logger.debug(f"Created: {self.ROOT_PATH}")
-		except Exception as e:
-			logger.error(f"Error: {self.ROOT_PATH}: {e}")
-	def load_state(self):
+	def load_state(self) -> ConfigurationObject:
 		"""Loads the state for a given plugin from its JSON file."""
 		plugin_state_file = os.path.join(self.ROOT_PATH, "state.json")
-		state = _internal_load(plugin_state_file)
-		return state
+		cob = self._cof.obtain(plugin_state_file, FileDeletableConfiguration)
+		return cob[1]
 	def save_state(self, state):
 		"""Saves the state for a given plugin to its JSON file."""
 		if not os.path.exists(self.ROOT_PATH):
-			raise ValueError(f"Directory {self.ROOT_PATH} does not exist. Call ensure_folders() first.")
+			raise ValueError(f"Directory {self.ROOT_PATH} does not exist.")
 		plugin_state_file = os.path.join(self.ROOT_PATH, "state.json")
 		_internal_save(plugin_state_file, state)
 	def delete_state(self):
@@ -170,22 +210,22 @@ class PluginConfigurationManager:
 			os.remove(plugin_state_file)
 		except Exception as e:
 			logger.error(f"Error deleting file '{plugin_state_file}': {e}")
-	def load_settings(self):
-		"""Loads the state for a given plugin from its JSON file."""
-		plugin_state_file = os.path.join(self.ROOT_PATH, "settings.json")
-		state = _internal_load(plugin_state_file)
-		return state
+	def load_settings(self) -> ConfigurationObject:
+		"""Loads the settings for a given plugin from its JSON file."""
+		plugin_settings_file = self.settings_path()
+		cob = self._cof.obtain(plugin_settings_file, FileConfiguration)
+		return cob[1]
 	def settings_path(self):
 		"""Returns the path to the settings.json file for this plugin."""
 		return os.path.join(self.ROOT_PATH, "settings.json")
-	def save_settings(self, state):
-		"""Saves the state for a given plugin to its JSON file."""
+	def save_settings(self, settings: dict):
+		"""Saves the settings for a given plugin to its JSON file."""
 		if not os.path.exists(self.ROOT_PATH):
-			raise ValueError(f"Directory {self.ROOT_PATH} does not exist. Call ensure_folders() first.")
-		if state is None:
-			raise ValueError("state must not be None")
-		plugin_state_file = os.path.join(self.ROOT_PATH, "settings.json")
-		_internal_save(plugin_state_file, state)
+			raise ValueError(f"Directory {self.ROOT_PATH} does not exist.")
+		if settings is None:
+			raise ValueError("settings must not be None")
+		plugin_settings_file = self.settings_path()
+		_internal_save(plugin_settings_file, settings)
 
 class SettingsConfigurationManager:
 	"""
@@ -204,13 +244,9 @@ class SettingsConfigurationManager:
 #		logger.debug(f"ROOT_PATH: {self.ROOT_PATH}")
 
 	def load_settings(self, settings: str) -> ConfigurationObject:
-		"""Loads the state for a given settings from its JSON file."""
+		"""Loads the settings for a given settings from its JSON file."""
 		settings_file = self.settings_path(settings)
-		cob = self._cof.obtain(
-			settings_file,
-			loader=_internal_load,
-			saver=_internal_save
-		)
+		cob = self._cof.obtain(settings_file, FileConfiguration)
 		return cob[1]
 
 	def settings_path(self, settings: str):
@@ -330,6 +366,12 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		self.storage_schemas = os.path.join(self.STORAGE_PATH, "schemas")
 		# Load environment variables from a .env file if present
 		# load_dotenv()
+	def __enter__(self):
+		self._lock.acquire()
+		return self
+	def __exit__(self, exc_type, exc_val, exc_tb):
+		self._lock.release()
+		return False
 
 	def hard_reset(self):
 		"""Deletes all storage folders and recreates them."""
@@ -388,7 +430,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			info = pinfo["info"]
 			plugin_id = info.get("id")
 			pcm = self.plugin_manager(plugin_id)
-			pcm.ensure_folders()
+			self._ensure_folders(self.storage_plugins, plugin_id)
 			psettings = info.get("settings", None)
 			if psettings == None:
 				continue
@@ -403,7 +445,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			info = pinfo["info"]
 			item_id = info.get("id")
 			dsm = self.datasource_manager(item_id)
-			dsm.ensure_folders()
+			self._ensure_folders(self.storage_ds, item_id)
 			psettings = info.get("settings", None)
 			if psettings == None:
 				continue
@@ -435,6 +477,15 @@ class ConfigurationManager(ConfigurationObjectFactory):
 				else:
 					logger.debug(f"EnsureFolders exists: {directory}")
 
+	def _ensure_folders(self, path: str, id: str) -> None:
+		with self._lock:
+			try:
+				final_path = os.path.join(path, id)
+				os.makedirs(final_path, exist_ok=True)
+				logger.debug(f"Created: {final_path}")
+			except Exception as e:
+				logger.error(f"Error: {final_path}: {e}")
+
 	def find(self, moniker: str) -> ConfigurationObject|None:
 		"""Find a ConfigurationObject for the given moniker, or None if not found."""
 		if moniker == None:
@@ -443,29 +494,42 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			ox = self._objectMap.get(moniker, None)
 			return ox
 
-	def obtain(self, moniker: str, loader: LoadFunc, saver: SaveFunc) -> tuple[bool, ConfigurationObject]:
-		"""Obtain a ConfigurationObject for the given moniker, loader, and saver."""
+	def obtain(self, moniker: str, ctor: Type[FileConfiguration]) -> tuple[bool, ConfigurationObject]:
+		"""Obtain a ConfigurationObject for the given moniker, and ctor."""
 		if moniker == None:
 			raise ValueError("moniker cannot be None")
-		if loader == None:
-			raise ValueError("loader cannot be None")
-		if saver == None:
-			raise ValueError("saver cannot be None")
+		if ctor == None:
+			raise ValueError("ctor cannot be None")
 		with self._lock:
 			ox = self._objectMap.get(moniker, None)
 			if ox is not None:
 				return (False, ox)
-			obj = ConfigurationObject(moniker, loader, saver)
+			obj = ctor(moniker)
 			self._objectMap[moniker] = obj
 			return (True, obj)
 
+	def evict(self, moniker: str) -> None:
+		"""Evicts the ConfigurationObject for the given moniker from the cache."""
+		if moniker == None:
+			return
+		with self._lock:
+			ox = self._objectMap.get(moniker, None)
+			if ox is not None:
+				ox.evict()
+
+	def schema_path(self, schema_name: str) -> str:
+		"""Returns the path to the JSON schema file for the given schema_name."""
+		if schema_name == None:
+			raise ValueError("schema_name cannot be None")
+		schema_file = os.path.join(self.storage_schemas, f"{schema_name}.json")
+		return schema_file
 	def plugin_manager(self, plugin_id) -> PluginConfigurationManager:
 		"""Returns a PluginConfigurationManager for the given plugin_id."""
 		if plugin_id == None:
 			raise ValueError("plugin_id cannot be None")
 		with self._lock:
+			self._ensure_folders(self.storage_plugins, plugin_id)
 			manager = PluginConfigurationManager(self.storage_plugins, plugin_id, self)
-			manager.ensure_folders()
 			return manager
 
 	def datasource_manager(self, datasource_id) -> DatasourceConfigurationManager:
@@ -473,8 +537,8 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		if datasource_id == None:
 			raise ValueError("datasource_id cannot be None")
 		with self._lock:
+			self._ensure_folders(self.storage_ds, datasource_id)
 			manager = DatasourceConfigurationManager(self.storage_ds, datasource_id, self)
-			manager.ensure_folders()
 			return manager
 
 	def schedule_manager(self) -> ScheduleManager:

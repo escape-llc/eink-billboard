@@ -6,7 +6,7 @@
 import os, logging.config
 
 from python.model.configuration_watcher import ConfigurationWatcher
-from python.model.hash_manager_eviction_sink import HashManagerEvictionSink
+from python.model.configuration_manager_eviction_sink import ConfigurationManagerEvictionSink
 from python.model.service_container import ServiceContainer
 from python.model.time_of_day import SystemTimeOfDay, TimeOfDay
 
@@ -17,7 +17,6 @@ from .blueprints.api import api_bp
 from .task.telemetry_sink import TelemetrySink
 from .task.application import Application, StartEvent
 from .task.messages import QuitMessage, StartOptions
-from .model.hash_manager import HashManager, HASH_KEY
 
 logging.config.fileConfig(os.path.join(os.path.dirname(__file__), 'config', 'logging.conf'))
 
@@ -109,8 +108,7 @@ if __name__ == '__main__':
 		cm = ConfigurationManager(storage_path=STORAGE)
 		# TODO get system settings timezone and use it in SystemTimeOfDay
 		time_base = SystemTimeOfDay()
-		hash_manager = HashManager(cm.STORAGE_PATH)
-		watcher_sink = HashManagerEvictionSink(hash_manager)
+		watcher_sink = ConfigurationManagerEvictionSink(cm)
 		config_watcher = ConfigurationWatcher(time_base, watcher_sink, cm.ROOT_PATH)
 		# register plugin blueprints
 		blueprint_map = cm.load_blueprints(cm.enum_plugins())
@@ -129,8 +127,8 @@ if __name__ == '__main__':
 			logger.info("No storage folder detected, force_reset")
 		options = StartOptions(storagePath=STORAGE,hardReset=force_reset)
 		root = ServiceContainer()
+		root.add_service(ConfigurationManager, cm)
 		root.add_service(TimeOfDay, time_base)
-		root.add_service(HashManager, hash_manager)
 		root.add_service(TelemetrySink, sink)
 		root.add_service(Application, xapp)
 		xapp.accept(StartEvent(options, root, time_base.current_time()))
@@ -139,11 +137,10 @@ if __name__ == '__main__':
 			logger.warning(f"Application start timed out")
 		else:
 			logger.info("Application is started")
-		app.config['HASH_MANAGER'] = hash_manager
+		app.config['CONFIG_MANAGER'] = cm
 		app.config['APPLICATION'] = xapp
 		app.config['TELEMETRY'] = sink
-		app.config['ROOT_PATH'] = cm.ROOT_PATH
-		app.config['STORAGE_PATH'] = cm.STORAGE_PATH
+		app.config['ROOT_CONTAINER'] = root
 
 		msg = sink.receive()
 		while msg is not None:

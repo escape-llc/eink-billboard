@@ -2,35 +2,26 @@ import json
 from datetime import datetime
 import uuid
 
-from ..model.hash_manager import HashManager
 from .schedule import MasterSchedule, MasterScheduleItem, Playlist, PlaylistSchedule, PlaylistScheduleData, TimedSchedule, PluginSchedule, PluginScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks
 
 class ScheduleLoader:
 	@staticmethod
-	def loadFile(path: str, name: str, hm: HashManager = None) -> dict:
+	def loadFile(path: str, name: str) -> dict:
 		with open(path, 'r', encoding='utf-8') as f:
 			data = json.load(f)
 		schema = data.get("_schema", None)
 		if schema is None:
 			raise ValueError(f"Schedule file '{path}' is missing _schema field.")
 		if schema == "urn:inky:storage:schedule:timed:1":
-			if hm is not None:
-				hm.hash_document(data['id'], path, data)
 			info = ScheduleLoader.parseTimed(data)
 			return { "info": info, "name": name, "path": path, "type": schema }
 		elif schema == "urn:inky:storage:schedule:master:1":
-			if hm is not None:
-				hm.hash_document(data['id'], path, data)
 			info = ScheduleLoader.parseMaster(data)
 			return { "info": info, "name": name, "path": path, "type": schema }
 		elif schema == "urn:inky:storage:schedule:playlist:1":
-			if hm is not None:
-				hm.hash_document(data['id'], path, data)
 			info = ScheduleLoader.parsePlaylist(data)
 			return { "info": info, "name": name, "path": path, "type": schema }
 		elif schema == "urn:inky:storage:schedule:tasks:1":
-			if hm is not None:
-				hm.hash_document(data['id'], path, data)
 			info = ScheduleLoader.parseTimerTasks(data)
 			return { "info": info, "name": name, "path": path, "type": schema }
 		else:

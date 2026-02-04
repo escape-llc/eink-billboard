@@ -72,15 +72,22 @@ class TestConfigurationManager(unittest.TestCase):
 			cm.ensure_folders()
 			pcm = cm.plugin_manager('debug')
 			self.assertIsNotNone(pcm)
-			pcm.ensure_folders()
-			state = pcm.load_state()
+			state_cob = pcm.load_state()
+			# brand new state should be None
+			hash, state = state_cob.get()
 			self.assertIsNone(state)
+			self.assertIsNone(hash)
 
+			# save a new state
 			test_state = {'key': 'value'}
-			pcm.save_state(test_state)
+			ok, new_hash = state_cob.save(hash, test_state)
+			self.assertTrue(ok, 'Save should succeed')
+			self.assertIsNotNone(new_hash, 'New hash should not be None')
 
-			loaded_state = pcm.load_state()
+			# load back the saved state
+			loaded_hash, loaded_state = state_cob.get()
 			self.assertIsNotNone(loaded_state)
+			self.assertEqual(loaded_hash, new_hash, 'Loaded hash should match new hash')
 			self.assertEqual(loaded_state, test_state, 'Loaded state should match saved state')
 
 class TestConfigurationObject(unittest.TestCase):

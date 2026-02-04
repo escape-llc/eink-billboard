@@ -3,7 +3,6 @@ import json
 import logging
 from typing import List
 
-from .hash_manager import HashManager
 from .schedule import MasterSchedule, Playlist, TimedSchedule
 from .schedule_loader import ScheduleLoader
 
@@ -20,10 +19,9 @@ class ScheduleManager:
 		self.ROOT_PATH = root_path
 		logger.debug(f"ROOT_PATH: {self.ROOT_PATH}")
 
-	def load(self, hm: HashManager = None):
+	def load(self):
 		""" Load all schedules from the root path. 
 		Args:
-			hm (HashManager, optional): Hash manager for validating hashes. Defaults to None.
 		Returns:
 			dict: A dictionary containing the master schedule and a list of schedules.
 			keys: "master", "schedules", "playlists", "tasks"
@@ -35,7 +33,7 @@ class ScheduleManager:
 		for schedule in os.listdir(self.ROOT_PATH):
 			logger.debug(f"Found file: {schedule}")
 			schedule_path = os.path.join(self.ROOT_PATH, schedule)
-			info = ScheduleLoader.loadFile(schedule_path, schedule, hm)
+			info = ScheduleLoader.loadFile(schedule_path, schedule)
 			item_list.append(info)
 		master_schedule = next((item for item in item_list if item.get("type") == "urn:inky:storage:schedule:master:1"), None)
 		schedule_list = [item for item in item_list if item.get("type") == "urn:inky:storage:schedule:timed:1"]

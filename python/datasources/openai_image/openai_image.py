@@ -23,7 +23,8 @@ class OpenAI(DataSource, MediaList, MediaRender):
 		def locate_image_url():
 			dscm = dsec.provider.required(DatasourceConfigurationManager)
 			scm = dsec.provider.required(SettingsConfigurationManager)
-			ds_settings = dscm.load_settings()
+			ds_cob = dscm.load_settings()
+			_, ds_settings = ds_cob.get()
 			if not ds_settings:
 				raise RuntimeError("Open AI Image datasource not configured.")
 			api_key = ds_settings.get("apiKey", None)
