@@ -96,10 +96,11 @@ class Application(DispatcherTask):
 		if options is not None:
 			self.logger.info(f"'{self.name}' basePath: {options.basePath}, storagePath: {options.storagePath}")
 		self.root_container = root
-		self.cm = ConfigurationManager(
-			source_path=options.basePath if options is not None else None,
-			storage_path=options.storagePath if options is not None else None
-			)
+		#self.cm = ConfigurationManager(
+		#	source_path=options.basePath if options is not None else None,
+		#	storage_path=options.storagePath if options is not None else None
+		#	)
+		self.cm = root.required(ConfigurationManager)
 		if options is not None and options.hardReset:
 			self.logger.info(f"'{self.name}' hard reset configuration.")
 			self.cm.hard_reset()
@@ -134,13 +135,13 @@ class Application(DispatcherTask):
 	def _handleStop(self, timestamp: datetime):
 		if self.timer_layer.is_alive():
 			self.timer_layer.accept(QuitMessage(timestamp))
-			self.timer_layer.join()
-			self.logger.info("TimerLayer stopped");
 		if self.playlist_layer.is_alive():
 			self.playlist_layer.accept(QuitMessage(timestamp))
-			self.playlist_layer.join()
-			self.logger.info("PlaylistLayer stopped");
+		self.playlist_layer.join()
+		self.logger.info("PlaylistLayer stopped");
+		self.timer_layer.join()
+		self.logger.info("TimerLayer stopped");
 		if self.display.is_alive():
 			self.display.accept(QuitMessage(timestamp))
-			self.display.join()
-			self.logger.info("Display stopped");
+		self.display.join()
+		self.logger.info("Display stopped");

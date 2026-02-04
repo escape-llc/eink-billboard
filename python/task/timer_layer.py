@@ -15,7 +15,7 @@ from ..task.messages import BasicMessage, ConfigureEvent, FutureCompleted, Messa
 from ..task.playlist_layer import NextTrack, StartPlayback
 from ..task.future_source import FutureSource, SubmitFuture
 from ..task.message_router import MessageRouter
-from ..task.timer import IProvideTimer, TimerService
+from ..task.timer import CreateTimerResult, IProvideTimer, TimerService
 
 class TimerExpired(BasicMessage):
 	def __init__(self, timestamp: datetime):
@@ -39,6 +39,7 @@ class TimerLayer(DispatcherTask):
 		self.active_context: BasicExecutionContext2 = None
 		self.future_source: SubmitFuture = None
 		self.time_of_day: TimeOfDay = None
+		self.timer_state: CreateTimerResult = None
 		self.state = 'uninitialized'
 		self.logger = logging.getLogger(__name__)
 	def _evaluate_plugin(self, track:TimerTaskItem):
@@ -394,6 +395,9 @@ class TimerLayer(DispatcherTask):
 					self.active_context = None
 					self.playlist_state = None
 					self.state = 'stopped'
+			if self.timer_state is not None:
+				self.timer_state[1]()
+				self.timer_state = None
 			if self.timer is not None:
 				self.timer.shutdown()
 				self.timer = None

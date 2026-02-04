@@ -1,15 +1,15 @@
+import logging
 from datetime import datetime, timedelta
 
-from python.task.future_source import CancelToken, SubmitFuture
-from ...task.playlist_layer import NextTrack
-from ...task.timer import IProvideTimer
+from ..plugin_base import BasicExecutionContext2, PluginProtocol, TrackType
 from ...datasources.data_source import DataSourceExecutionContext, DataSourceManager, MediaList
+from ...model.schedule import PlaylistSchedule, PluginSchedule
 from ...task.display import DisplayImage
 from ...task.message_router import MessageRouter
-from ...model.schedule import PlaylistBase, PlaylistSchedule, PluginSchedule, SchedulableBase
+from ...task.future_source import CancelToken, SubmitFuture, SubmitResult
+from ...task.playlist_layer import NextTrack
+from ...task.timer import IProvideTimer
 from ...task.messages import BasicMessage, FutureCompleted, MessageSink, PluginReceive
-from ..plugin_base import BasicExecutionContext2, PluginProtocol, TrackType
-import logging
 
 class SlideShowTimerExpired(PluginReceive):
 	def __init__(self, remaining_state: list, timestamp: datetime):
@@ -22,7 +22,7 @@ class SlideShow(PluginProtocol):
 	def __init__(self, id, name):
 		self._id = id
 		self._name = name
-		self.submit_result = None
+		self.submit_result: SubmitResult = None
 		self.timer_info = None
 		self.logger = logging.getLogger(__name__)
 	@property

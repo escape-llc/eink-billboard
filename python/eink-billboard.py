@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # run from root folder
-# python -m python.eink-billboard --dev --cors "http://localhost:5173" --host localhost --storage ../.storage
+# python -m python.eink-billboard --dev --cors "http://localhost:5173" --host localhost --storage ./.storage
 
 import os, logging.config
 
@@ -96,7 +96,7 @@ if args.cors:
 app.secret_key = str(random.randint(100000,999999))
 app.config['MAX_FORM_PARTS'] = 10_000
 
-if __name__ == '__main__':
+def run_application():
 	# display default inkypi image on startup
 #	if device_config.get_config("startup") is True:
 #		logger.info("Startup flag is set, displaying startup image")
@@ -175,3 +175,6 @@ if __name__ == '__main__':
 			logger.error(f"Exception during shutdown: {ee}", exc_info=True)
 		finally:
 			logger.info("eInk Billboard application shut down complete")
+
+if __name__ == '__main__':
+	run_application()
