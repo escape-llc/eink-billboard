@@ -88,6 +88,30 @@ def update_settings_display():
 		error = { "message": "File not found.", "id": "display-settings" }
 		return jsonify(error), 404
 
+@api_bp.route('/settings/theme', methods=['GET'])
+def settings_theme():
+	logger.info("GET /settings/theme")
+	cm = get_cm()
+	try:
+		settings_cob = cm.settings_manager().open("theme")
+		return send_cob_with_rev("theme-settings", settings_cob)
+	except FileNotFoundError as e:
+		logger.error(f"/settings/theme: {str(e)}")
+		error = { "message": "File not found.", "id": "theme-settings" }
+		return jsonify(error), 404
+
+@api_bp.route('/settings/theme', methods=['PUT'])
+def update_settings_theme():
+	logger.info("PUT /settings/theme")
+	cm = get_cm()
+	try:
+		settings_cob = cm.settings_manager().open("theme")
+		return save_cob_with_rev("theme-settings", request.get_json(), settings_cob)
+	except FileNotFoundError as e:
+		logger.error(f"/settings/theme: {str(e)}")
+		error = { "message": "File not found.", "id": "theme-settings" }
+		return jsonify(error), 404
+
 @api_bp.route('/schemas/system', methods=['GET'])
 def schemas_system():
 	logger.info("GET /schemas/system")
@@ -110,6 +134,18 @@ def schemas_display():
 	except FileNotFoundError as e:
 		logger.error(f"/schemas/display: {path}: {str(e)}")
 		error = { "message": "File not found.", "id": "display-schema" }
+		return jsonify(error), 404
+
+@api_bp.route('/schemas/theme', methods=['GET'])
+def schemas_theme():
+	logger.info("GET /schemas/theme")
+	cm = get_cm()
+	path = cm.schema_path("theme")
+	try:
+		return send_file(path, mimetype="application/json")
+	except FileNotFoundError as e:
+		logger.error(f"/schemas/theme: {path}: {str(e)}")
+		error = { "message": "File not found.", "id": "theme-schema" }
 		return jsonify(error), 404
 
 @api_bp.route('/schemas/plugin/<plugin>', methods=['GET'])
