@@ -30,7 +30,7 @@ class ComicFeed(DataSource, MediaList, MediaRender):
 	def _generate_image(self, context: DataSourceExecutionContext, params, item) -> Image.Image:
 		scm = context.provider.required(SettingsConfigurationManager)
 		stm = context.provider.required(StaticConfigurationManager)
-		display_cob = scm.load_settings("display")
+		display_cob = scm.open("display")
 		_, display_settings = display_cob.get()
 		dimensions = context.dimensions
 		is_caption = params.get("titleCaption") == "true"

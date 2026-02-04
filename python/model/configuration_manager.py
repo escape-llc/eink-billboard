@@ -6,7 +6,7 @@ import logging
 import shutil
 import threading
 from pathlib import Path
-from typing import Any, Callable, Protocol, Type
+from typing import Any, Callable, Protocol
 from PIL import ImageFont
 
 from ..datasources.data_source import DataSource
@@ -16,6 +16,7 @@ from .schedule_manager import ScheduleManager
 logger = logging.getLogger(__name__)
 
 HASH_KEY = "_rev"
+ID_KEY = "_id"
 
 def create_hash(data:dict) -> str:
 	"""
@@ -145,7 +146,7 @@ class FileDeletableConfiguration(FileConfiguration):
 			self._hash = None
 
 class ConfigurationObjectFactory(Protocol):
-	def obtain(self, moniker: str, ctor: Type[FileConfiguration]) -> tuple[bool, ConfigurationObject]:
+	def obtain(self, moniker: str, ctor: type[FileConfiguration]) -> tuple[bool, ConfigurationObject]:
 		...
 
 class DatasourceConfigurationManager:
@@ -165,10 +166,13 @@ class DatasourceConfigurationManager:
 		self.datasource_id = datasource_id
 		self.ROOT_PATH = os.path.join(root_path, self.datasource_id)
 		self._cof = cof
-	def load_settings(self) -> ConfigurationObject:
+	def settings_path(self):
+		"""Returns the path to the settings.json file for this plugin."""
+		return os.path.join(self.ROOT_PATH, "settings.json")
+	def open(self) -> ConfigurationObject:
 		"""Loads the settings for a given datasource from its JSON file."""
-		plugin_settings_file = os.path.join(self.ROOT_PATH, "settings.json")
-		cob = self._cof.obtain(plugin_settings_file,FileConfiguration)
+		plugin_settings_file = self.settings_path()
+		cob = self._cof.obtain(plugin_settings_file, FileConfiguration)
 		return cob[1]
 
 class PluginConfigurationManager:
@@ -189,7 +193,7 @@ class PluginConfigurationManager:
 		self.ROOT_PATH = os.path.join(root_path, self.plugin_id)
 		self._cof = cof
 #		logger.debug(f"ROOT_PATH: {self.ROOT_PATH}")
-	def load_state(self) -> ConfigurationObject:
+	def open_state(self) -> ConfigurationObject:
 		"""Loads the state for a given plugin from its JSON file."""
 		plugin_state_file = os.path.join(self.ROOT_PATH, "state.json")
 		cob = self._cof.obtain(plugin_state_file, FileDeletableConfiguration)
@@ -210,7 +214,7 @@ class PluginConfigurationManager:
 			os.remove(plugin_state_file)
 		except Exception as e:
 			logger.error(f"Error deleting file '{plugin_state_file}': {e}")
-	def load_settings(self) -> ConfigurationObject:
+	def open(self) -> ConfigurationObject:
 		"""Loads the settings for a given plugin from its JSON file."""
 		plugin_settings_file = self.settings_path()
 		cob = self._cof.obtain(plugin_settings_file, FileConfiguration)
@@ -218,14 +222,6 @@ class PluginConfigurationManager:
 	def settings_path(self):
 		"""Returns the path to the settings.json file for this plugin."""
 		return os.path.join(self.ROOT_PATH, "settings.json")
-	def save_settings(self, settings: dict):
-		"""Saves the settings for a given plugin to its JSON file."""
-		if not os.path.exists(self.ROOT_PATH):
-			raise ValueError(f"Directory {self.ROOT_PATH} does not exist.")
-		if settings is None:
-			raise ValueError("settings must not be None")
-		plugin_settings_file = self.settings_path()
-		_internal_save(plugin_settings_file, settings)
 
 class SettingsConfigurationManager:
 	"""
@@ -242,13 +238,11 @@ class SettingsConfigurationManager:
 		self.ROOT_PATH = root_path
 		self._cof = cof
 #		logger.debug(f"ROOT_PATH: {self.ROOT_PATH}")
-
-	def load_settings(self, settings: str) -> ConfigurationObject:
+	def open(self, settings: str) -> ConfigurationObject:
 		"""Loads the settings for a given settings from its JSON file."""
 		settings_file = self.settings_path(settings)
 		cob = self._cof.obtain(settings_file, FileConfiguration)
 		return cob[1]
-
 	def settings_path(self, settings: str):
 		"""Returns the path to the JSON file for this settings."""
 		return os.path.join(self.ROOT_PATH, f"{settings}-settings.json")
@@ -317,7 +311,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 	Manage the paths used for configuration and working storage.
 	Act as a factory for other "sub" managers.
 	"""
-	def __init__(self, source_path=None, storage_path=None, nve_path=None):
+	def __init__(self, source_path:str = None, storage_path:str = None, nve_path:str = None):
 		self._lock = threading.RLock()
 		self._objectMap: dict[str, ConfigurationObject] = {}
 		# Source path is the python directory
@@ -437,7 +431,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			settings = psettings.get("default", None)
 			if settings == None:
 				continue
-			pcm.save_settings(settings)
+			self._save_settings(pcm.settings_path(), settings)
 
 	def _reset_datasources(self):
 		dss = self.enum_datasources()
@@ -452,7 +446,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			settings = psettings.get("default", None)
 			if settings == None:
 				continue
-			dsm.save_settings(settings)
+			self._save_settings(dsm.settings_path(), settings)
 
 	def ensure_folders(self):
 		"""Ensures that necessary directories exist.  Does not consider files."""
@@ -486,6 +480,10 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			except Exception as e:
 				logger.error(f"Error: {final_path}: {e}")
 
+	def _save_settings(self, settings_file: str, settings: dict) -> None:
+		with self._lock:
+			_internal_save(settings_file, settings)
+
 	def find(self, moniker: str) -> ConfigurationObject|None:
 		"""Find a ConfigurationObject for the given moniker, or None if not found."""
 		if moniker == None:
@@ -494,7 +492,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			ox = self._objectMap.get(moniker, None)
 			return ox
 
-	def obtain(self, moniker: str, ctor: Type[FileConfiguration]) -> tuple[bool, ConfigurationObject]:
+	def obtain(self, moniker: str, ctor: type[FileConfiguration]) -> tuple[bool, ConfigurationObject]:
 		"""Obtain a ConfigurationObject for the given moniker, and ctor."""
 		if moniker == None:
 			raise ValueError("moniker cannot be None")
@@ -523,7 +521,8 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			raise ValueError("schema_name cannot be None")
 		schema_file = os.path.join(self.storage_schemas, f"{schema_name}.json")
 		return schema_file
-	def plugin_manager(self, plugin_id) -> PluginConfigurationManager:
+
+	def plugin_manager(self, plugin_id: str) -> PluginConfigurationManager:
 		"""Returns a PluginConfigurationManager for the given plugin_id."""
 		if plugin_id == None:
 			raise ValueError("plugin_id cannot be None")
@@ -532,7 +531,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			manager = PluginConfigurationManager(self.storage_plugins, plugin_id, self)
 			return manager
 
-	def datasource_manager(self, datasource_id) -> DatasourceConfigurationManager:
+	def datasource_manager(self, datasource_id: str) -> DatasourceConfigurationManager:
 		"""Returns a DatasourceConfigurationManager for the given datasource_id."""
 		if datasource_id == None:
 			raise ValueError("datasource_id cannot be None")
@@ -585,7 +584,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		datasources_list = self._collect_info("datasources", "datasource-info.json")
 		return datasources_list
 
-	def _resolve(self, info_path:str, info) -> Any|None:
+	def _resolve(self, info_path:str, info: dict) -> Any|None:
 		info_id = info.get("id")
 		info_file = info.get("file")
 		info_module = info.get("module")
@@ -602,7 +601,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			logger.error(f"Failed to import module '{info_module}': {e}")
 			return None
 
-	def create_plugin(self, info) -> Any|None:
+	def create_plugin(self, info: dict) -> Any|None:
 		info_info = info["info"]
 		info_path = info["path"]
 		info_id = info_info.get("id")
@@ -615,7 +614,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			return plugin_class(info_id, info_name)
 		return None
 
-	def load_plugins(self, infos) -> dict:
+	def load_plugins(self, infos: list[dict]) -> dict:
 		"""Take the result of enum_plugins() and instantiate the plugin objects."""
 		plugin_map = {}
 		for info in infos:
@@ -627,7 +626,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			pass
 		return plugin_map
 	
-	def create_datasource(self, info) -> DataSource|None:
+	def create_datasource(self, info: dict) -> DataSource|None:
 		info_info = info["info"]
 		info_path = info["path"]
 		info_id = info_info.get("id")
@@ -640,7 +639,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			return ds_class(info_id, info_name)
 		return None
 
-	def load_datasources(self, infos) -> dict:
+	def load_datasources(self, infos: list[dict]) -> dict:
 		"""Take the result of enum_datasources() and instantiate the datasource objects."""
 		datasource_map = {}
 		for info in infos:
@@ -652,7 +651,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 				datasource_map[info_id] = datasource
 		return datasource_map
 
-	def load_blueprints(self, infos) -> dict:
+	def load_blueprints(self, infos: list[dict]) -> dict:
 		"""Take the result of enum_X() and resolve the blueprints."""
 		blueprint_map = {}
 		for info in infos:

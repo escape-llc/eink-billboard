@@ -23,7 +23,7 @@ class OpenAI(DataSource, MediaList, MediaRender):
 		def locate_image_url():
 			dscm = dsec.provider.required(DatasourceConfigurationManager)
 			scm = dsec.provider.required(SettingsConfigurationManager)
-			ds_cob = dscm.load_settings()
+			ds_cob = dscm.open()
 			_, ds_settings = ds_cob.get()
 			if not ds_settings:
 				raise RuntimeError("Open AI Image datasource not configured.")
@@ -36,7 +36,7 @@ class OpenAI(DataSource, MediaList, MediaRender):
 				raise RuntimeError(f"Invalid Image Model provided: {image_model}")
 			image_quality = params.get('quality', "medium" if image_model == "gpt-image-1" else "standard")
 			randomize_prompt = params.get('randomizePrompt') == True
-			display_cob = scm.load_settings("display")
+			display_cob = scm.open("display")
 			_, display_settings = display_cob.get()
 			orientation = display_settings.get("orientation", "landscape")
 			return [{ "api_key": api_key, "text_prompt": text_prompt, "image_model": image_model, "image_quality": image_quality, "randomize_prompt": randomize_prompt, "orientation": orientation }]

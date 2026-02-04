@@ -6,7 +6,7 @@ import pytz
 import logging
 
 from ..model.schedule import TimedSchedule
-from ..model.configuration_manager import ConfigurationManager, ConfigurationObject, HASH_KEY
+from ..model.configuration_manager import ConfigurationManager, ConfigurationObject, HASH_KEY, ID_KEY
 
 logger = logging.getLogger(__name__)
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -19,6 +19,7 @@ def get_cm() -> ConfigurationManager:
 def send_cob_with_rev(id: str, cob: ConfigurationObject) -> Response:
 	hash, document = cob.get()
 	document[HASH_KEY] = hash
+	document[ID_KEY] = id
 	return jsonify(document)
 
 @api_bp.route('/settings/system', methods=['GET'])
@@ -26,7 +27,7 @@ def settings_system():
 	logger.info("GET /settings/system")
 	cm = get_cm()
 	try:
-		settings_cob = cm.settings_manager().load_settings("system")
+		settings_cob = cm.settings_manager().open("system")
 		return send_cob_with_rev("system-settings", settings_cob)
 	except FileNotFoundError as e:
 		logger.error(f"/settings/system: {str(e)}")
@@ -34,11 +35,16 @@ def settings_system():
 		return jsonify(error), 404
 
 def save_cob_with_rev(id:str, document:dict, cob: ConfigurationObject) -> Response:
+	xid = document.get(ID_KEY, None)
 	rev = document.get(HASH_KEY, None)
 	if rev is None:
-		error = { "id": id, "success": False, "message": "Missing _rev", "rev": None }
+		error = { "id": id, "success": False, "message": f"Missing {HASH_KEY}", "rev": None }
+		return jsonify(error), 400
+	if xid is None or xid != id:
+		error = { "id": id, "success": False, "message": "ID mismatch", "rev": rev }
 		return jsonify(error), 400
 	document.pop(HASH_KEY, None)
+	document.pop(ID_KEY, None)
 	committed, new_hash = cob.save(rev, document)
 	if not committed:
 		error = { "id": id, "success": False, "message": "Revision mismatch", "rev": rev }
@@ -51,7 +57,7 @@ def update_settings_system():
 	logger.info("PUT /settings/system")
 	cm = get_cm()
 	try:
-		settings_cob = cm.settings_manager().load_settings("system")
+		settings_cob = cm.settings_manager().open("system")
 		return save_cob_with_rev("system-settings", request.get_json(), settings_cob)
 	except FileNotFoundError as e:
 		logger.error(f"/settings/system: {str(e)}")
@@ -63,7 +69,7 @@ def settings_display():
 	logger.info("GET /settings/display")
 	cm = get_cm()
 	try:
-		settings_cob = cm.settings_manager().load_settings("display")
+		settings_cob = cm.settings_manager().open("display")
 		return send_cob_with_rev("display-settings", settings_cob)
 	except FileNotFoundError as e:
 		logger.error(f"/settings/display: {str(e)}")
@@ -75,7 +81,7 @@ def update_settings_display():
 	logger.info("PUT /settings/display")
 	cm = get_cm()
 	try:
-		settings_cob = cm.settings_manager().load_settings("display")
+		settings_cob = cm.settings_manager().open("display")
 		return save_cob_with_rev("display-settings", request.get_json(), settings_cob)
 	except FileNotFoundError as e:
 		logger.error(f"/settings/display: {str(e)}")
@@ -123,7 +129,7 @@ def plugin_settings(plugin:str):
 	logger.info(f"GET /plugins/{plugin}/settings")
 	cm = get_cm()
 	try:
-		plugin_cob = cm.plugin_manager(plugin).load_settings()
+		plugin_cob = cm.plugin_manager(plugin).open()
 		return send_cob_with_rev(f"plugin-{plugin}-settings", plugin_cob)
 	except FileNotFoundError as e:
 		logger.error(f"/plugins/{plugin}/settings: {str(e)}")
@@ -135,7 +141,7 @@ def save_plugin_settings(plugin:str):
 	logger.info(f"PUT /plugins/{plugin}/settings")
 	cm = get_cm()
 	try:
-		plugin_cob = cm.plugin_manager(plugin).load_settings()
+		plugin_cob = cm.plugin_manager(plugin).open()
 		return save_cob_with_rev(f"plugin-{plugin}-settings", request.get_json(), plugin_cob)
 	except FileNotFoundError as e:
 		logger.error(f"/plugins/{plugin}/settings: {str(e)}")
@@ -176,7 +182,7 @@ def render_schedule():
 	days = request.args.get("days", 7, type=int)
 	cm = get_cm()
 	scm = cm.settings_manager()
-	system_cob = scm.load_settings("system")
+	system_cob = scm.open("system")
 	_, system = system_cob.get()
 	tz = pytz.timezone(system.get("timezoneName", "US/Eastern"))
 	sm = cm.schedule_manager()

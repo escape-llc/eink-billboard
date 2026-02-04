@@ -72,7 +72,7 @@ class TestConfigurationManager(unittest.TestCase):
 			cm.ensure_folders()
 			pcm = cm.plugin_manager('debug')
 			self.assertIsNotNone(pcm)
-			state_cob = pcm.load_state()
+			state_cob = pcm.open_state()
 			# brand new state should be None
 			hash, state = state_cob.get()
 			self.assertIsNone(state)

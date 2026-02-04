@@ -29,7 +29,7 @@ class Countdown(DataSource, MediaItem, MediaRender):
 		scm = context.provider.required(SettingsConfigurationManager)
 		stm = context.provider.required(StaticConfigurationManager)
 		def render_countdown():
-			display_cob = scm.load_settings("display")
+			display_cob = scm.open("display")
 			_, display_config = display_cob.get()
 			return self.generate_image(context.schedule_ts, stm, context.dimensions, params, display_config)
 		future = self._es.submit(render_countdown)
