@@ -37,7 +37,7 @@ from waitress import serve
 logger = logging.getLogger(__name__)
 
 # Parse command line arguments
-APPNAME = "EInk Billboard"
+APPNAME: str = "EInk Billboard"
 parser = argparse.ArgumentParser(description=f"{APPNAME} Server")
 parser.add_argument('--dev', action='store_true', help='Run in development mode')
 parser.add_argument('--host', help='Change listening interface')
@@ -58,19 +58,19 @@ else:
 	logger.info(f"Starting {APPNAME} in PRODUCTION mode on port 80")
 
 # listening interface
-HOST = "0.0.0.0"
+HOST: str = "0.0.0.0"
 if args.host:
 	HOST = args.host
 	logger.info(f"HOST {HOST}")
 
 # app bundle path
-PATH = "../app/dist"
+PATH: str = "../app/dist"
 if args.app:
 	PATH = args.app
 	logger.info(f"PATH {PATH}")
 
 # storage root path
-STORAGE = None
+STORAGE: str|None = None
 if args.storage:
 	STORAGE = os.path.abspath(args.storage)
 	logger.info(f"STORAGE {STORAGE}")
@@ -104,27 +104,32 @@ def run_application():
 #		display_manager.display_image(img)
 #		device_config.update_value("startup", False, write=True)
 
+	cm = ConfigurationManager(storage_path=STORAGE)
+	# TODO get system settings timezone and use it in SystemTimeOfDay
+	time_base = SystemTimeOfDay()
+	watcher_sink = ConfigurationManagerEvictionSink(cm)
+	config_watcher = ConfigurationWatcher(time_base, watcher_sink, cm.STORAGE_PATH)
+	# register plugin blueprints
+	blueprint_map = cm.load_blueprints(cm.enum_plugins())
+	for bp_name, bp in blueprint_map.items():
+		app.register_blueprint(bp)
+		logger.info(f"Registered blueprint: {bp_name}")
+	# Register Blueprints
+	app.register_blueprint(root_bp)
+	app.register_blueprint(api_bp)
+	# start the application layer
+	sink = TelemetrySink()
+	xapp: Application = Application(APPNAME, sink)
 	try:
-		cm = ConfigurationManager(storage_path=STORAGE)
-		# TODO get system settings timezone and use it in SystemTimeOfDay
-		time_base = SystemTimeOfDay()
-		watcher_sink = ConfigurationManagerEvictionSink(cm)
-		config_watcher = ConfigurationWatcher(time_base, watcher_sink, cm.ROOT_PATH)
-		# register plugin blueprints
-		blueprint_map = cm.load_blueprints(cm.enum_plugins())
-		for bp_name, bp in blueprint_map.items():
-			app.register_blueprint(bp)
-			logger.info(f"Registered blueprint: {bp_name}")
-		# Register Blueprints
-		app.register_blueprint(root_bp)
-		app.register_blueprint(api_bp)
-		# start the application layer
-		sink = TelemetrySink()
-		xapp = Application(APPNAME, sink)
 		xapp.start()
-		force_reset = not os.path.exists(STORAGE)
-		if force_reset:
-			logger.info("No storage folder detected, force_reset")
+		force_reset: bool = False
+		if STORAGE is not None:
+			force_reset = not os.path.exists(STORAGE)
+			if force_reset:
+				logger.info("No storage folder detected, force_reset")
+		else:
+			logger.info("No storage folder specified, force_reset check bypassed")
+		# TODO pull force_reset logic into host application (this code)
 		options = StartOptions(storagePath=STORAGE,hardReset=force_reset)
 		root = ServiceContainer()
 		root.add_service(ConfigurationManager, cm)

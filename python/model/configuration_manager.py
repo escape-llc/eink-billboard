@@ -6,7 +6,7 @@ import logging
 import shutil
 import threading
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Protocol, cast
 from PIL import ImageFont
 
 from ..datasources.data_source import DataSource
@@ -311,7 +311,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 	Manage the paths used for configuration and working storage.
 	Act as a factory for other "sub" managers.
 	"""
-	def __init__(self, source_path:str = None, storage_path:str = None, nve_path:str = None):
+	def __init__(self, source_path:str|None = None, storage_path:str|None = None, nve_path:str|None = None):
 		self._lock = threading.RLock()
 		self._objectMap: dict[str, ConfigurationObject] = {}
 		# Source path is the python directory
@@ -478,7 +478,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 				os.makedirs(final_path, exist_ok=True)
 				logger.debug(f"Created: {final_path}")
 			except Exception as e:
-				logger.error(f"Error: {final_path}: {e}")
+				logger.error(f"Error: {path}: {e}")
 
 	def _save_settings(self, settings_file: str, settings: dict) -> None:
 		with self._lock:
@@ -506,8 +506,9 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			self._objectMap[moniker] = obj
 			return (True, obj)
 
-	def evict(self, moniker: str) -> None:
+	def watch(self, type: str, moniker: str) -> None:
 		"""Evicts the ConfigurationObject for the given moniker from the cache."""
+		logger.debug(f"ConfigurationManager.watch: type={type} moniker={moniker}")
 		if moniker == None:
 			return
 		with self._lock:
@@ -586,9 +587,9 @@ class ConfigurationManager(ConfigurationObjectFactory):
 
 	def _resolve(self, info_path:str, info: dict) -> Any|None:
 		info_id = info.get("id")
-		info_file = info.get("file")
-		info_module = info.get("module")
-		info_class = info.get("class")
+		info_file = cast(str, info.get("file"))
+		info_module = cast(str, info.get("module"))
+		info_class = cast(str, info.get("class"))
 		module_path = os.path.join(info_path, info_file)
 		if not os.path.exists(module_path):
 			logger.error(f"No module path '{module_path}' for '{info_id}', skipping.")
@@ -603,9 +604,9 @@ class ConfigurationManager(ConfigurationObjectFactory):
 
 	def create_plugin(self, info: dict) -> Any|None:
 		info_info = info["info"]
-		info_path = info["path"]
+		info_path = cast(str, info["path"])
 		info_id = info_info.get("id")
-		info_name = info_info.get("name")
+		info_name = cast(str, info_info.get("name"))
 		if info_info.get("disabled", False):
 			logger.info(f"Plugin '{info_name}' (ID: {info_id}) is disabled; skipping load.")
 			return None

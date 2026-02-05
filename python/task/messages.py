@@ -1,4 +1,4 @@
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 from typing import Generic, TypeVar
 from datetime import datetime
 
@@ -33,7 +33,7 @@ class MessageWithContent(BasicMessage, Generic[T]):
 
 class StartOptions:
 	"""Options for starting the application."""
-	def __init__(self, basePath: str = None, storagePath: str = None, hardReset: bool = False):
+	def __init__(self, basePath: str|None = None, storagePath: str|None = None, hardReset: bool = False):
 		self.basePath = basePath
 		self.storagePath = storagePath
 		self.hardReset = hardReset
@@ -91,7 +91,7 @@ class PluginReceive(BasicMessage):
 		super().__init__(timestamp)
 
 class Telemetry(BasicMessage):
-	def __init__(self, name: str, values: dict[str,any], timestamp: datetime):
+	def __init__(self, name: str, values: dict[str,Any], timestamp: datetime):
 		super().__init__(timestamp)
 		self._name = name
 		self._values = values
@@ -99,7 +99,7 @@ class Telemetry(BasicMessage):
 	def name(self) -> str:
 		return self._name
 	@property
-	def values(self) -> dict[str,any]:
+	def values(self) -> dict[str,Any]:
 		return self._values
 
 class ConfigurationWatcherEvent(BasicMessage):
