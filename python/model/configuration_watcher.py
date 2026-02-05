@@ -1,8 +1,11 @@
+import logging
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 from .time_of_day import TimeOfDay
 from ..task.messages import ConfigurationWatcherEvent, MessageSink
+
+logger = logging.getLogger(__name__)
 
 class MessageSinkHandler(FileSystemEventHandler):
 	def __init__(self, tod: TimeOfDay, ms: MessageSink):
@@ -15,22 +18,22 @@ class MessageSinkHandler(FileSystemEventHandler):
 		self._tod = tod
 	def on_created(self, event):
 		if not event.is_directory:
-			print(f"File created: {event.src_path}")
+			logger.info(f"File created: {event.src_path}")
 			self._sink.accept(ConfigurationWatcherEvent("created", event.src_path, self._tod.current_time()))
 
 	def on_modified(self, event):
 		if not event.is_directory:
-			print(f"File modified: {event.src_path}")
+			logger.info(f"File modified: {event.src_path}")
 			self._sink.accept(ConfigurationWatcherEvent("modified", event.src_path, self._tod.current_time()))
 
 	def on_deleted(self, event):
 		if not event.is_directory:
-			print(f"File deleted: {event.src_path}")
+			logger.info(f"File deleted: {event.src_path}")
 			self._sink.accept(ConfigurationWatcherEvent("deleted", event.src_path, self._tod.current_time()))
 
 	def on_moved(self, event):
 		if not event.is_directory:
-			print(f"File moved from {event.src_path} to {event.dest_path}")
+			logger.info(f"File moved from {event.src_path} to {event.dest_path}")
 			self._sink.accept(ConfigurationWatcherEvent("moved", event.src_path, self._tod.current_time()))
 
 class ConfigurationWatcher:

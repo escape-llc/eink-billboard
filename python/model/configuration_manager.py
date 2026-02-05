@@ -508,12 +508,13 @@ class ConfigurationManager(ConfigurationObjectFactory):
 
 	def watch(self, type: str, moniker: str) -> None:
 		"""Evicts the ConfigurationObject for the given moniker from the cache."""
-		logger.debug(f"ConfigurationManager.watch: type={type} moniker={moniker}")
+		logger.info(f"ConfigurationManager.watch: type={type} moniker={moniker}")
 		if moniker == None:
 			return
 		with self._lock:
 			ox = self._objectMap.get(moniker, None)
 			if ox is not None:
+				logger.info(f"ConfigurationManager.watch: evicting moniker={moniker}")
 				ox.evict()
 
 	def schema_path(self, schema_name: str) -> str:

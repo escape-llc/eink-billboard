@@ -6,6 +6,6 @@ class ConfigurationManagerEvictionSink(MessageSink):
 		if cm is None:
 			raise ValueError("ConfigurationManager cannot be None")
 		self._cm = cm
-	def accept(self, message: BasicMessage):
-		if isinstance(message, ConfigurationWatcherEvent):
-			self._cm.watch(message.type, message.path)
+	def accept(self, msg: BasicMessage):
+		if isinstance(msg, ConfigurationWatcherEvent):
+			self._cm.watch(msg.type, msg.path)
