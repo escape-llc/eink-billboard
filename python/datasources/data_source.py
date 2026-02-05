@@ -1,6 +1,6 @@
 from concurrent.futures import Executor, ThreadPoolExecutor, Future
 from datetime import datetime
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 from PIL import Image
 
 from ..model.service_container import IServiceProvider
@@ -49,7 +49,7 @@ class DataSourceExecutionContext:
 @runtime_checkable
 class MediaRender(Protocol):
 	"""Ability to render media from the source's state (element for a MediaList)."""
-	def render(self, dsec: DataSourceExecutionContext, params:dict[str,any], state:any) -> Future[Image.Image | None]:
+	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[Image.Image | None]:
 		"""
 		Ability to render an image from the params and state.
 
@@ -68,12 +68,12 @@ class MediaRender(Protocol):
 @runtime_checkable
 class MediaItem(Protocol):
 	"""Ability to return a single media item."""
-	def open(self, dsec: DataSourceExecutionContext, params:dict[str,any]) -> Future[any]:
+	def open(self, dsec: DataSourceExecutionContext, params:dict[str,Any]) -> Future[Any]:
 		...
 @runtime_checkable
 class MediaList(Protocol):
 	"""Ability to return a list of media items."""
-	def open(self, dsec: DataSourceExecutionContext, params:dict[str,any]) -> Future[list]:
+	def open(self, dsec: DataSourceExecutionContext, params:dict[str,Any]) -> Future[list]:
 		...
 
 @runtime_checkable

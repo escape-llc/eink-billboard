@@ -13,5 +13,5 @@ class DisplayBase(ABC):
 	def shutdown(self):
 		pass
 	@abstractmethod
-	def render(self, img: Image, title: str = None):
+	def render(self, img: Image.Image, title: str|None = None):
 		pass

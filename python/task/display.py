@@ -1,5 +1,6 @@
 from datetime import datetime
 import logging
+from typing import cast
 from PIL import Image
 
 from ..utils.image_utils import apply_image_enhancement, change_orientation, resize_image
@@ -13,7 +14,7 @@ from ..task.messages import BasicMessage, ConfigureEvent, QuitMessage
 from .message_router import MessageRouter
 
 class DisplayImage(BasicMessage):
-	def __init__(self, title:str, img: Image, timestamp: datetime):
+	def __init__(self, title:str, img: Image.Image, timestamp: datetime):
 		super().__init__(timestamp)
 		self.title = title
 		self.img = img
@@ -39,8 +40,8 @@ class Display(DispatcherTask):
 		if router is None:
 			raise ValueError("router is None")
 		self.router = router
-		self.cm:ConfigurationManager = None
-		self.display:DisplayBase = None
+		self.cm:ConfigurationManager|None = None
+		self.display:DisplayBase|None = None
 		self.resolution = [800,480]
 		self.displayImageCount = 0
 		self.logger = logging.getLogger(__name__)
@@ -50,7 +51,7 @@ class Display(DispatcherTask):
 			if self.display is not None:
 				self.display.shutdown()
 		except Exception as e:
-			self.logger(f"shutdown.unhandled {str(e)}")
+			self.logger.error(f"shutdown.unhandled {str(e)}")
 		finally:
 			self.display = None
 			super().quitMsg(msg)
@@ -61,7 +62,7 @@ class Display(DispatcherTask):
 			settings = self.cm.settings_manager()
 			display_cob = settings.open("display")
 			_, self.display_settings = display_cob.get()
-			display_type = self.display_settings.get("display_type", None)
+			display_type = cast(str, self.display_settings.get("display_type", None))
 			if display_type == "mock":
 				self.display = MockDisplay("mock")
 			elif display_type == "tk":

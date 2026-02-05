@@ -2,11 +2,11 @@ import logging
 from datetime import datetime, timedelta
 
 from ..plugin_base import BasicExecutionContext2, PluginProtocol, TrackType
-from ...datasources.data_source import DataSourceExecutionContext, DataSourceManager, MediaList
+from ...datasources.data_source import DataSourceExecutionContext, DataSourceManager, MediaList, MediaRender
 from ...model.schedule import PlaylistSchedule, PluginSchedule
 from ...task.display import DisplayImage
 from ...task.message_router import MessageRouter
-from ...task.future_source import CancelToken, SubmitFuture, SubmitResult
+from ...task.protocols import CancelToken, SubmitFuture, SubmitResult
 from ...task.playlist_layer import NextTrack
 from ...task.timer import IProvideTimer
 from ...task.messages import BasicMessage, FutureCompleted, MessageSink, PluginReceive
@@ -22,7 +22,7 @@ class SlideShow(PluginProtocol):
 	def __init__(self, id, name):
 		self._id = id
 		self._name = name
-		self.submit_result: SubmitResult = None
+		self.submit_result: SubmitResult|None = None
 		self.timer_info = None
 		self.logger = logging.getLogger(__name__)
 	@property
@@ -54,9 +54,10 @@ class SlideShow(PluginProtocol):
 				raise RuntimeError(f"{dataSourceName}: No media items found for slide show")
 			if is_cancelled():
 				return True
-			self._render_image(track.title, dsec, dataSource, settings, state, router, timer, timer_sink)
+			if isinstance(dataSource, MediaRender):
+				self._render_image(track.title, dsec, dataSource, settings, state, router, timer, timer_sink)
 		return None
-	def _continuation_start(self, cancelled:bool, result, exception, msg_ts) -> BasicMessage:
+	def _continuation_start(self, cancelled:bool, result, exception, msg_ts) -> BasicMessage|None:
 		if cancelled:
 			return None
 		return FutureCompleted(self._name, "start", result, exception, msg_ts)
@@ -82,21 +83,23 @@ class SlideShow(PluginProtocol):
 				local_sink.accept(NextTrack(msg.timestamp))
 				return None
 			dsec = context.create_datasource_context(dataSource)
-			self._render_image(track.title, dsec, dataSource, settings, state, router, timer, local_sink)
+			if isinstance(dataSource, MediaRender):
+				self._render_image(track.title, dsec, dataSource, settings, state, router, timer, local_sink)
 		return None
-	def _continuation_next(self, cancelled:bool, result, exception, msg_ts: datetime) -> BasicMessage:
+	def _continuation_next(self, cancelled:bool, result, exception, msg_ts: datetime) -> BasicMessage|None:
 		if cancelled:
 			return None
 		return FutureCompleted(self._name, "next", result, exception, msg_ts)
-	def _render_image(self, title: str, context: DataSourceExecutionContext, dataSource: MediaList, settings: dict, state: list, router: MessageRouter, timer: IProvideTimer, timer_sink: MessageSink):
+	def _render_image(self, title: str, context: DataSourceExecutionContext, dataSource: MediaRender, settings: dict, state: list, router: MessageRouter, timer: IProvideTimer, timer_sink: MessageSink):
 		item = state[0]
 		future2 = dataSource.render(context, settings, item)
 		ftimeout = settings.get("timeoutSeconds", 10)
 		image = future2.result(timeout=ftimeout)
 		state.pop(0)
-		router.send("display", DisplayImage(title, image, context.schedule_ts))
-		slideMinutes = settings.get("slideMinutes", 15)
-		self.timer_info = timer.create_timer(timedelta(minutes=slideMinutes), timer_sink, SlideShowTimerExpired(state, context.schedule_ts))
+		if image is not None:
+			router.send("display", DisplayImage(title, image, context.schedule_ts))
+			slideMinutes = settings.get("slideMinutes", 15)
+			self.timer_info = timer.create_timer(timedelta(minutes=slideMinutes), timer_sink, SlideShowTimerExpired(state, context.schedule_ts))
 	def start(self, context: BasicExecutionContext2, track: TrackType) -> None:
 		self.logger.info(f"{self.id} start '{track.title}'")
 		if isinstance(track, PlaylistSchedule):

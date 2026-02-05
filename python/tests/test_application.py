@@ -5,6 +5,7 @@ import logging
 
 from .utils import ScaledTimeOfDay, ScaledTimerService, storage_path, MessageTriggerSink
 from ..model.service_container import ServiceContainer
+from ..model.configuration_manager import ConfigurationManager
 from ..model.time_of_day import TimeOfDay
 from ..task.timer import IProvideTimer
 from ..task.application import Application
@@ -25,9 +26,11 @@ class TestApplication(unittest.TestCase):
 		time_base = ScaledTimeOfDay(datetime.now().astimezone(), 60)
 		timer = ScaledTimerService(60, ThreadPoolExecutor(thread_name_prefix="ApplicationSimulation", max_workers=5))
 		options = StartOptions(basePath=None, storagePath=storage, hardReset=False)
+		cm = ConfigurationManager(None, storage, None)
 		root = ServiceContainer()
 		root.add_service(TimeOfDay, time_base)
 		root.add_service(IProvideTimer, timer)
+		root.add_service(ConfigurationManager, cm)
 		app.accept(StartEvent(options, root, time_base.current_time()))
 		# Wait for the started event to be set
 		started = app.app_started.wait(timeout=1)

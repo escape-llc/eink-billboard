@@ -1,11 +1,12 @@
 from datetime import timedelta
 import logging
+from typing import Any
 
-from ...datasources.data_source import DataSourceExecutionContext, DataSourceManager, MediaItem
+from ...datasources.data_source import DataSourceExecutionContext, DataSourceManager, MediaItem, MediaRender
 from ...model.schedule import TimerTaskItem
 from ...plugins.slide_show.slide_show import SlideShowTimerExpired
 from ...task.display import DisplayImage
-from ...task.future_source import CancelToken, SubmitFuture
+from ...task.protocols import CancelToken, SubmitFuture
 from ...task.message_router import MessageRouter
 from ...task.messages import BasicMessage, FutureCompleted, MessageSink
 from ...task.playlist_layer import NextTrack
@@ -48,21 +49,23 @@ class Interstitial(PluginProtocol):
 				raise RuntimeError(f"{dataSourceName}: No media items found for slide show")
 			if is_cancelled():
 				return True
-			self._render_image(track.title, dsec, dataSource, settings, state, router, timer, timer_sink)
+			if isinstance(dataSource, MediaRender):
+				self._render_image(track.title, dsec, dataSource, settings, state, router, timer, timer_sink)
 		return None
-	def _continuation_start(self, cancelled:bool, result, exception, msg_ts) -> BasicMessage:
+	def _continuation_start(self, cancelled:bool, result, exception, msg_ts) -> BasicMessage|None:
 		if cancelled:
 			return None
 		return FutureCompleted(self._name, "start", result, exception, msg_ts)
-	def _render_image(self, title: str, context: DataSourceExecutionContext, dataSource: MediaItem, settings: dict, state: any, router: MessageRouter, timer: IProvideTimer, timer_sink: MessageSink):
+	def _render_image(self, title: str, context: DataSourceExecutionContext, dataSource: MediaRender, settings: dict, state: Any, router: MessageRouter, timer: IProvideTimer, timer_sink: MessageSink):
 		item = state
 		future2 = dataSource.render(context, settings, item)
 		ftimeout = settings.get("timeoutSeconds", 10)
 		image = future2.result(timeout=ftimeout)
-		# TODO send an interstitial display message
-		router.send("display", DisplayImage(title, image, context.schedule_ts))
-		slideMinutes = settings.get("slideMinutes", 15)
-		self.timer_info = timer.create_timer(timedelta(minutes=slideMinutes), timer_sink, SlideShowTimerExpired(state, context.schedule_ts))
+		if image is not None:
+			# TODO send an interstitial display message
+			router.send("display", DisplayImage(title, image, context.schedule_ts))
+			slideMinutes = settings.get("slideMinutes", 15)
+			self.timer_info = timer.create_timer(timedelta(minutes=slideMinutes), timer_sink, SlideShowTimerExpired(state, context.schedule_ts))
 	def start(self, context: BasicExecutionContext2, track: TrackType) -> None:
 		self.logger.info(f"{self.id} start '{track.title}'")
 		if isinstance(track, TimerTaskItem):
