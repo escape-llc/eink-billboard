@@ -1,4 +1,4 @@
-from concurrent.futures import Executor, Future
+from concurrent.futures import Executor, Future, ThreadPoolExecutor
 import datetime
 import os
 from pathlib import Path
@@ -37,7 +37,7 @@ class ConstantTimeOfDay(TimeOfDay):
 		return self._now.astimezone(datetime.timezone.utc)
 
 class ScaledTimeOfDay(TimeOfDay):
-	def __init__(self, start_time:datetime, scale:float):
+	def __init__(self, start_time:datetime.datetime, scale:float):
 		super().__init__()
 		if start_time.tzinfo is None:
 			raise ValueError("start_time must be timezone-aware (have tzinfo)")
@@ -61,13 +61,13 @@ class ScaledTimeOfDay(TimeOfDay):
 	pass
 
 class ScaledTimerService(IProvideTimer):
-	def __init__(self, scale: float, es: Executor = None):
+	def __init__(self, scale: float, es: Executor| None = None):
 		if scale <= 0:
 			raise ValueError("scale must be greater than zero")
 		self._es = es if es is not None else ThreadPoolExecutor(max_workers=4)
 		self._scale = scale
 		self.logger = logging.getLogger(__name__)
-	def create_timer(self, deltatime: datetime.timedelta, sink: MessageSink|None, completed: BasicMessage) -> tuple[Future[BasicMessage|None], callable]:
+	def create_timer(self, deltatime: datetime.timedelta, sink: MessageSink|None, completed: BasicMessage) -> tuple[Future[BasicMessage|None], Callable]:
 		"""
 		Creates a timer that waits for deltatime and then sends the completed message to the sink.
 		Returns a tuple of (future, cancel_function). The future completes with the completed message when the timer expires, or None if cancelled.

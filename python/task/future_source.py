@@ -2,22 +2,11 @@
 from concurrent.futures import Executor, Future
 import logging
 import threading
-from typing import Any, Callable, Protocol, runtime_checkable
 
-from .messages import BasicMessage, MessageSink
+from .protocols import FutureContinuation, FutureFunction, FutureResult, IRequireShutdown, SubmitFuture, SubmitResult
+from .messages import MessageSink
 
-type FutureResult = tuple[Any|None, Exception|None]
-type FutureContinuation = Callable[[bool, Any|None, Exception|None], BasicMessage|None]
-type CancelToken = Callable[[], bool]
-type FutureFunction = Callable[[CancelToken], Any]
-type SubmitResult = Callable[[], bool]
-
-@runtime_checkable
-class SubmitFuture(Protocol):
-	def submit_future(self, future: FutureFunction, continuation: FutureContinuation) -> SubmitResult:
-		...
-
-class FutureSource(SubmitFuture):
+class FutureSource(SubmitFuture, IRequireShutdown):
 	def __init__(self, owner: str, completion_port:MessageSink, executor:Executor) -> None:
 		if owner is None:
 			raise ValueError("FutureSource: owner is None")
@@ -27,13 +16,14 @@ class FutureSource(SubmitFuture):
 			raise ValueError(f"{owner}: executor is None")
 		self._port = completion_port
 		self._executor:Executor = executor
+		self._shutdown_called = False
 		self._owner = owner
 		self.logger = logging.getLogger(__name__)
 	def shutdown(self) -> None:
-		if self._executor is not None:
+		if self._shutdown_called == False:
 			self.logger.debug(f"{self._owner}: Shutting down FutureSource executor.")
+			self._shutdown_called = True
 			self._executor.shutdown(cancel_futures=True)
-			self._executor = None
 	def submit_future(self, future: FutureFunction, continuation: FutureContinuation) -> SubmitResult:
 		if future is None:
 			raise ValueError(f"{self._owner}: future is None")

@@ -2,6 +2,9 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import logging
+from typing import cast
+
+from python.task.protocols import IRequireShutdown
 
 from ..datasources.data_source import DataSourceManager
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
@@ -27,22 +30,30 @@ class TimerLayer(DispatcherTask):
 		if router is None:
 			raise ValueError("router is None")
 		self.router = router
-		self.cm:ConfigurationManager = None
+		self.cm:ConfigurationManager|None = None
 		self.tasks: list[TimerTasks] = []
-		self.master_schedule:MasterSchedule = None
+		self.master_schedule:MasterSchedule|None = None
 		self.plugin_info = None
-		self.datasources: DataSourceManager = None
-		self.timer: IProvideTimer = None
-		self.dimensions = [800,480]
+		self.datasources: DataSourceManager|None = None
+		self.timer: IProvideTimer|None = None
+		self.dimensions:tuple[int,int] = (800,480)
 		self.playlist_state = None
-		self.active_plugin: PluginProtocol = None
-		self.active_context: BasicExecutionContext2 = None
-		self.future_source: SubmitFuture = None
-		self.time_of_day: TimeOfDay = None
-		self.timer_state: CreateTimerResult = None
+		self.active_plugin: PluginProtocol|None = None
+		self.active_context: BasicExecutionContext2|None = None
+		self.future_source: SubmitFuture|None = None
+		self.time_of_day: TimeOfDay|None = None
+		self.timer_state: CreateTimerResult|None = None
 		self.state = 'uninitialized'
 		self.logger = logging.getLogger(__name__)
 	def _evaluate_plugin(self, track:TimerTaskItem):
+		if self.cm is None:
+			errormsg = "Configuration manager is not set."
+			self.logger.error(errormsg)
+			return { "plugin": None, "track": track, "error": errormsg }
+		if self.plugin_info is None:
+			errormsg = "Plugin info is not loaded."
+			self.logger.error(errormsg)
+			return { "plugin": None, "track": track, "error": errormsg }
 		piname = track.task.plugin_name
 		pinfo = next((px for px in self.plugin_info if px["info"]["id"] == piname), None)
 		if pinfo is None:
@@ -63,6 +74,8 @@ class TimerLayer(DispatcherTask):
 			self.logger.error(errormsg)
 			return { "plugin": None, "track": track, "error": errormsg }
 	def _create_context(self):
+		if self.cm is None or self.datasources is None or self.router is None or self.timer is None or self.future_source is None or self.time_of_day is None:
+			raise ValueError("Cannot create context, one or more required components are None.")
 		root = ServiceContainer()
 		scm = self.cm.settings_manager()
 		stm = self.cm.static_manager()
@@ -115,7 +128,7 @@ class TimerLayer(DispatcherTask):
 			self._error_with_telemetry(f"ConfigureEvent failed: {e}", msg.timestamp)
 	def _display_settings(self, msg: DisplaySettings):
 		self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
-		self.dimensions = [msg.width, msg.height]
+		self.dimensions = (msg.width, msg.height)
 	def _future_completed(self, msg: FutureCompleted):
 		if self.state != 'playing':
 			self.logger.error(f"Cannot handle FutureCompleted message, state is '{self.state}'")
@@ -132,12 +145,12 @@ class TimerLayer(DispatcherTask):
 		if self.active_plugin.name != msg.plugin_name:
 			self.logger.error(f"Received FutureCompleted message for plugin '{msg.plugin_name}', but active plugin is '{self.active_plugin.name}'")
 			return
+		current_track:PlaylistBase = cast(PlaylistBase, self.playlist_state.get('current_track'))
 		try:
-			current_track:PlaylistBase = self.playlist_state.get('current_track')
 			self.active_plugin.receive(self.active_context, current_track, msg)
 		except Exception as e:
 			self.state = "error"
-			emsg = f"Error invoke receive FutureCompleted with plugin '{current_track.plugin_name}' track '{current_track.title}': {e}"
+			emsg = f"Error invoke receive FutureCompleted with plugin '{self.active_plugin.name}' track '{current_track.title}': {e}"
 			self._error_with_telemetry(emsg, msg.timestamp)
 	def _start_playback(self, msg: StartPlayback):
 		self.logger.info(f"'{self.name}' StartPlayback {self.state}")
@@ -146,6 +159,9 @@ class TimerLayer(DispatcherTask):
 			return
 		if len(self.tasks) == 0:
 			self.logger.error(f"No tasks available to run.")
+			return
+		if self.timer is None:
+			self.logger.error(f"Timer service is not available.")
 			return
 		# Start playback logic here
 		# use the playlist metaphor so it works like playlist layer
@@ -157,7 +173,9 @@ class TimerLayer(DispatcherTask):
 		initial_playlist:Playlist|None = self._startup_playlist(enabled_task_items)
 		if initial_playlist is None:
 			self.logger.info(f"No startup tasks found, proceeding to scheduled tasks.")
-			(target_timestamp, initial_playlist) = self._next_scheduled_playlist(msg.timestamp, enabled_task_items)
+			tpx = self._next_scheduled_playlist(msg.timestamp, enabled_task_items)
+			if tpx is not None:
+				target_timestamp, initial_playlist = tpx
 		if initial_playlist is None:
 			self.logger.info(f"No startup or scheduled playlist.")
 			return
@@ -165,12 +183,12 @@ class TimerLayer(DispatcherTask):
 		# TimerExpired: start playback of playlist from (5)
 		# NextTrack: advance to next task in that playlist
 		self.logger.info(f"{self.name}: starting playback: '{initial_playlist.name}'")
-		current_track:PlaylistBase = initial_playlist.items[0] if len(initial_playlist.items) > 0 else None
+		current_track:PlaylistBase|None = initial_playlist.items[0] if len(initial_playlist.items) > 0 else None
 		if current_track is None:
 			self.logger.error(f"Cannot start playback, playlist '{initial_playlist.name}' has no items.")
 			return
-		plugin_eval = self._evaluate_plugin(current_track)
-		active_plugin:PluginProtocol = plugin_eval.get("plugin", None)
+		plugin_eval = self._evaluate_plugin(cast(TimerTaskItem, current_track))
+		active_plugin:PluginProtocol = cast(PluginProtocol, plugin_eval.get("plugin", None))
 		if active_plugin is None:
 			emsg = f"Cannot start playback, plugin '{current_track.task.plugin_name}' for task '{current_track.task.title}' is not available."
 			self._error_with_telemetry(emsg, msg.timestamp)
@@ -223,6 +241,15 @@ class TimerLayer(DispatcherTask):
 		startup_playlist = Playlist("startup", "Startup Tasks", items=startup_task_items)
 		return startup_playlist
 	def _invoke_plugin_start(self, current_track:PlaylistBase, msg_ts:datetime):
+		if self.active_plugin is None:
+			self.logger.error(f"No active plugin to invoke.")
+			return
+		if self.active_context is None:
+			self.logger.error(f"No active context to invoke.")
+			return
+		if self.playlist_state is None:
+			self.logger.error(f"No active playlist state to invoke.")
+			return
 		try:
 			self.active_plugin.start(self.active_context, current_track)
 			self.logger.info(f"'{self.name}' Plugin started.")
@@ -236,7 +263,7 @@ class TimerLayer(DispatcherTask):
 			}, msg_ts))
 		except Exception as e:
 			self.state = 'error'
-			emsg = f"Error starting playback with plugin '{current_track.task.plugin_name}' for track '{current_track.task.title}': {e}"
+			emsg = f"Error starting playback with plugin '{self.active_plugin.name}' for track '{current_track.task.title}': {e}"
 			self._error_with_telemetry(emsg, msg_ts)
 		pass
 	def _invoke_plugin_stop(self, msg_ts:datetime):
@@ -249,12 +276,12 @@ class TimerLayer(DispatcherTask):
 		if self.active_context is None:
 			self.logger.error(f"No active context to invoke.")
 			return
+		current_track:PlaylistBase = cast(PlaylistBase, self.playlist_state.get('current_track'))
 		try:
-			current_track:PlaylistBase = self.playlist_state.get('current_track')
 			self.active_plugin.stop(self.active_context, current_track)
 		except Exception as e:
 			self.state = "error"
-			emsg = f"Error invoke stop with plugin '{current_track.task.plugin_name}' track '{current_track.title}': {e}"
+			emsg = f"Error invoke stop with plugin '{self.active_plugin.name}' track '{current_track.title}': {e}"
 			self._error_with_telemetry(emsg, msg_ts)
 	def _plugin_receive(self, msg: PluginReceive):
 		if self.state != 'playing':
@@ -269,12 +296,12 @@ class TimerLayer(DispatcherTask):
 		if self.active_context is None:
 			self.logger.error(f"No active context to handle PluginReceive message.")
 			return
+		current_track:PlaylistBase = cast(PlaylistBase, self.playlist_state.get('current_track'))
 		try:
-			current_track:PlaylistBase = self.playlist_state.get('current_track')
 			self.active_plugin.receive(self.active_context, current_track, msg)
 		except Exception as e:
 			self.state = "error"
-			emsg = f"Error invoke receive PluginReceive with plugin '{current_track.plugin_name}' track '{current_track.title}': {e}"
+			emsg = f"Error invoke receive PluginReceive with plugin '{self.active_plugin.name}' track '{current_track.title}': {e}"
 			self._error_with_telemetry(emsg, msg.timestamp)
 	def _next_scheduled_playlist(self, now: datetime, enabled_task_items: list[TimerTaskItem]) -> tuple[datetime,Playlist]|None:
 		# Build list of (item, next_datetime) for each enabled task that has a next scheduled time
@@ -301,6 +328,9 @@ class TimerLayer(DispatcherTask):
 		return (earliest_ts, plist)
 	def _next_track(self, msg: NextTrack):
 		self.logger.info(f"'{self.name}' NextTrack {msg}")
+		if self.timer is None:
+			self.logger.error(f"Timer service is not available.")
+			return
 		if self.active_plugin is not None:
 			self.logger.info(f"{self.name}: Stopping current plugin '{self.active_plugin.name}'")
 			self._invoke_plugin_stop(msg.timestamp)
@@ -310,14 +340,14 @@ class TimerLayer(DispatcherTask):
 		if self.playlist_state is None:
 			self.logger.error(f"No active playlist state to move to next track.")
 			return
-		current_track_index = self.playlist_state.get('current_track_index')
-		current_playlist:Playlist = self.playlist_state.get('current_playlist', None)
+		current_track_index = cast(int, self.playlist_state.get('current_track_index'))
+		current_playlist:Playlist = cast(Playlist, self.playlist_state.get('current_playlist', None))
 		if current_track_index + 1 < len(current_playlist.items):
 			# Move to next track in the same playlist
 			next_track_index = current_track_index + 1
 			next_track:PlaylistBase = current_playlist.items[next_track_index]
-			plugin_eval = self._evaluate_plugin(next_track)
-			active_plugin:PluginProtocol = plugin_eval.get("plugin", None)
+			plugin_eval = self._evaluate_plugin(cast(TimerTaskItem, next_track))
+			active_plugin:PluginProtocol = cast(PluginProtocol, plugin_eval.get("plugin", None))
 			if active_plugin is None:
 				self.logger.error(f"Cannot start next track, plugin '{next_track.plugin_name}' for track '{next_track.title}' is not available.")
 				return
@@ -329,8 +359,12 @@ class TimerLayer(DispatcherTask):
 		else:
 			self.logger.info(f"End of playlist '{current_playlist.name}' reached.")
 			enabled_task_items = self._get_enabled_tasks()
-			(target_timestamp, next_playlist) = self._next_scheduled_playlist(msg.timestamp, enabled_task_items)
-			if next_playlist is None:
+			target_timestamp:datetime|None = None
+			next_playlist:Playlist|None = None
+			tpx = self._next_scheduled_playlist(msg.timestamp, enabled_task_items)
+			if tpx is not None:
+				target_timestamp, next_playlist = tpx
+			if next_playlist is None or target_timestamp is None:
 				self.logger.info(f"No scheduled playlist found for next track after end of playlist.")
 				self.state = 'stopped'
 				self.playlist_state = None
@@ -344,8 +378,8 @@ class TimerLayer(DispatcherTask):
 				return
 			next_track_index = 0
 			next_track:PlaylistBase = next_playlist.items[next_track_index]
-			plugin_eval = self._evaluate_plugin(next_track)
-			active_plugin:PluginProtocol = plugin_eval.get("plugin", None)
+			plugin_eval = self._evaluate_plugin(cast(TimerTaskItem, next_track))
+			active_plugin:PluginProtocol = cast(PluginProtocol, plugin_eval.get("plugin", None))
 			if active_plugin is None:
 				self.logger.error(f"Cannot start next track, plugin '{next_track.plugin_name}' for track '{next_track.title}' is not available.")
 				return
@@ -357,7 +391,7 @@ class TimerLayer(DispatcherTask):
 			self.playlist_state['schedule_ts'] = target_timestamp
 			if self.timer_state is not None:
 				self.logger.warning(f"Cancelling existing timer before setting new timer.")
-				self.timer.cancel_timer(self.timer_state)
+				self.timer_state[1]()
 				self.timer_state = None
 			self.timer_state = self.timer.create_timer(target_timestamp - msg.timestamp, self, TimerExpired(target_timestamp))
 			self.state = 'waiting'
@@ -371,12 +405,12 @@ class TimerLayer(DispatcherTask):
 			self.logger.error(f"No active playlist state on timer expired.")
 			return
 		# start the playlist
-		current_playlist:Playlist = self.playlist_state.get('current_playlist', None)
+		current_playlist:Playlist = cast(Playlist, self.playlist_state.get('current_playlist', None))
 		if current_playlist is None:
 			self.logger.error(f"No active playlist on timer expired.")
 			return
 		iidx = self.playlist_state.get('current_track_index', 0)
-		current_track:PlaylistBase = current_playlist.items[iidx] if len(current_playlist.items) > iidx else None
+		current_track:PlaylistBase|None = current_playlist.items[iidx] if len(current_playlist.items) > iidx else None
 		if current_track is None:
 			self.logger.error(f"Cannot start playback, playlist '{current_playlist.name}' has no items.")
 			return
@@ -389,7 +423,7 @@ class TimerLayer(DispatcherTask):
 				try:
 					self._invoke_plugin_stop(msg.timestamp)
 				except Exception as e:
-					self.logger.error(f"Error stopping active plugin during quit: {e}", exc_info=True)
+					self.logger.error(f"'{self.name}' Error stopping active plugin during quit: {e}", exc_info=True)
 				finally:
 					self.active_plugin = None
 					self.active_context = None
@@ -398,17 +432,21 @@ class TimerLayer(DispatcherTask):
 			if self.timer_state is not None:
 				self.timer_state[1]()
 				self.timer_state = None
+			# TODO need to track whether WE CREATED this thing, or got it from outside
 			if self.timer is not None:
-				self.timer.shutdown()
+				if isinstance(self.timer, IRequireShutdown):
+					self.timer.shutdown()
 				self.timer = None
 			if self.datasources is not None:
 				self.datasources.shutdown()
 				self.datasources = None
+			# TODO need to track whether WE CREATED this thing, or got it from outside
 			if self.future_source is not None:
-				self.future_source.shutdown()
+				if isinstance(self.future_source, IRequireShutdown):
+					self.future_source.shutdown()
 				self.future_source = None
 		except Exception as e:
-			self.logger.error(f"quit.unexpected: {e}", exc_info=True)
+			self.logger.error(f"'{self.name}' quit.unexpected: {e}", exc_info=True)
 		finally:
 			super().quitMsg(msg)
 		pass

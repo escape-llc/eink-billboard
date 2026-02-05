@@ -44,7 +44,7 @@ class BasicExecutionContext2:
 		return dsec
 
 class RenderSession:
-	def __init__(self, stm: StaticConfigurationManager, render_dir:str, html_file:str, css_file:str=None):
+	def __init__(self, stm: StaticConfigurationManager, render_dir:str, html_file:str, css_file:str|None = None):
 		if stm is None:
 			raise ValueError("stm is None")
 		if render_dir is None:
