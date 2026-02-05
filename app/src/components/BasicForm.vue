@@ -42,6 +42,13 @@
 								:showClear="field.required === false"
 								:placeholder="field.label" fluid />
 						</template>
+						<template v-else-if="field.type === 'location'">
+							<InputGroupAddon style="flex-grow:1">
+								<FormField style="width:100%;height:300px" :name="field.name" v-slot="$field" :validateOnValueUpdate="true">
+									<LeafletPicker :name="field.name" :modelValue="$field.value" @change="$field.onChange" />
+								</FormField>
+							</InputGroupAddon>
+						</template>
 						<template v-else>
 							<InputText style="flex-grow:1" :name="field.name" size="small" type="text"
 								:placeholder="field.label" fluid />
@@ -57,8 +64,10 @@
 <script setup lang="ts">
 import { InputGroup, ToggleSwitch, InputGroupAddon, Column, DataTable, Splitter, PickList, SplitterPanel, InputText, InputNumber, Listbox, Button, Message, Toolbar, Select } from 'primevue';
 import Form from "@primevue/forms/form"
-import { ref, defineExpose, toRaw, nextTick, watch } from "vue"
+import FormField from "@primevue/forms/formfield"
+import { ref, toRaw, nextTick, watch } from "vue"
 import z from "zod"
+import LeafletPicker from './LeafletPicker.vue';
 
 const form = ref()
 let currentResolver: z.ZodTypeAny|undefined = undefined;
@@ -71,7 +80,7 @@ export type FieldGroupDef = {
 export type FieldDef = {
 	name: string
 	label: string
-	type: "string" | "boolean" | "number" | "int"
+	type: "string" | "boolean" | "number" | "int" | "location"
 	required: boolean
 	lookup?: string
 	min?: number
@@ -261,6 +270,16 @@ function createResolver(form: FormDef): z.ZodTypeAny {
 					resv[px.name] = r4
 				}
 				break
+			case "location":
+				let r6 = z.object({ latitude: z.number(), longitude: z.number() })
+				if(px.required === true) {
+					let r7 = r6.nonoptional()
+					resv[px.name] = r7
+				}
+				else {
+					resv[px.name] = r6
+				}
+				break;
 			default:
 				console.warn("no validation for type, using 'string'", px)
 				let r3 = z.string()
@@ -296,8 +315,10 @@ const resolver = ({ values }) => {
 	};
 }
 const handleSubmit = (data:any) => {
-	console.log("handleSubmit", data)
-	emits('submit', data);
+	console.log("handleSubmit", data);
+	const result = currentResolver?.safeParse(data.values);
+	console.log("handleSubmit.validate", result);
+	emits('submit', { result, data });
 }
 const submit = () => {
 	form.value?.submit();

@@ -66,6 +66,7 @@ const selectedPlugin = ref(undefined)
 const submitDisabled = ref(true)
 const API_URL = import.meta.env.VITE_API_URL
 let _rev:string|undefined = undefined
+let _id:string|undefined = undefined
 onMounted(() => {
 	const listUrl = `${API_URL}/api/plugins/list`
 	const px0 = fetch(listUrl).then(rx => rx.json())
@@ -86,6 +87,7 @@ watch(selectedPlugin, (nv,ov) => {
 		px0.then(json => {
 			console.log("plugin settings", json)
 			_rev = json._rev
+			_id = json._id
 			nextTick().then(_ => {
 				initialValues.value = json
 				bf.value?.reset()
@@ -99,10 +101,14 @@ const handleValidate = (e: ValidateEventData) => {
 }
 const submitForm = (data:any) => {
 	console.log("submitForm", data)
-	if(data.valid) {
-		const post = structuredClone(data.values)
+	if(data.data.valid) {
+		// result.data has only the validated fields
+		const post = structuredClone(data.result.data)
 		if(_rev) {
 			post._rev = _rev
+		}
+		if(_id) {
+			post._id = _id
 		}
 		const settingsUrl = `${API_URL}/api/plugins/${selectedPlugin.value.id}/settings`
 		fetch(settingsUrl, {

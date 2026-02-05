@@ -28,6 +28,7 @@ const initialValues = ref()
 const submitDisabled = ref(true)
 const API_URL = import.meta.env.VITE_API_URL
 let _rev:string|undefined = undefined
+let _id:string|undefined = undefined
 const settingsUrl = `${API_URL}/api/settings/system`
 onMounted(() => {
 	const schemaUrl = `${API_URL}/api/schemas/system`
@@ -38,6 +39,7 @@ onMounted(() => {
 		console.log("schema,settings", pxs[0], pxs[1])
 		form.value = pxs[0]
 		_rev = pxs[1]._rev
+		_id = pxs[1]._id
 		nextTick().then(_ => {
 			initialValues.value = pxs[1]
 		})
@@ -52,10 +54,14 @@ const handleValidate = (e: ValidateEventData) => {
 }
 const submitForm = (data:any) => {
 	console.log("submitForm", data)
-	if(data.valid) {
-		const post = structuredClone(data.values)
+	if(data.data.valid) {
+		// result.data has only the validated fields
+		const post = structuredClone(data.result.data)
 		if(_rev) {
 			post._rev = _rev
+		}
+		if(_id) {
+			post._id = _id
 		}
 		fetch(settingsUrl, {
 			method: "PUT",
