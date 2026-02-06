@@ -27,25 +27,18 @@ const items = ref([
 			to: "/schedule",
 		},
 		{
-			label:"System",
+			label:"Playlist",
+			icon: "pi pi-play",
+			class: "p-0 m-0",
+//			disabled: () => appStore.currentStateAppConfig !== "initialized",
+			to: "/playlist",
+		},
+		{
+			label:"Settings",
 			icon: "pi pi-globe",
 			class: "p-0 m-0",
 //			disabled: () => appStore.currentStateAppConfig !== "initialized",
-			to: "/system",
-		},
-		{
-			label:"Display",
-			icon: "pi pi-desktop",
-			class: "p-0 m-0",
-			to: "/display",
-//			disabled: () => appStore.currentStateAppConfig !== "initialized",
-		},
-		{
-			label:"Plugins",
-			class: "p-0 m-0",
-			icon: "pi pi-list",
-			to: "/plugin",
-//			disabled: () => appStore.currentStateProject !== "openproject" || openMode.value !== "open"
+			to: "/settings",
 		},
 	]
 )

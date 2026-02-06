@@ -34,21 +34,19 @@
 			:use-global-leaflet="false"
 		>
 			<l-tile-layer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" layer-type="base" name="OpenStreetMap"></l-tile-layer>
-			<l-marker :lat-lng="markerPosition" draggable @dragend="onMarkerDrag" />
+			<l-marker v-if="markerPosition" :lat-lng="markerPosition" draggable @dragend="onMarkerDrag" />
 		</l-map>
 	</div>
 </template>
 <script setup lang="ts">
 import "leaflet/dist/leaflet.css";
-import { ref, watch, nextTick, inject } from 'vue';
+import { ref, watch, nextTick } from 'vue';
 import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
 import { OpenStreetMapProvider } from 'leaflet-geosearch';
 import Button from 'primevue/button';
 import InputGroup from 'primevue/inputgroup';
 import InputGroupAddon from 'primevue/inputgroupaddon';
 import AutoComplete from 'primevue/autocomplete';
-
-const formField = inject('pcFormField', null);
 
 type LatLng = { latitude: number; longitude: number; };
 interface Props {
@@ -84,6 +82,12 @@ watch(() => props.modelValue, (newLocation) => {
 		const newCoords: Coords = [newLocation.latitude, newLocation.longitude];
 		center.value = newCoords;
 		markerPosition.value = newCoords;
+		if(leafletMap.value && center.value && zoom.value) {
+			leafletMap.value.setView(center.value, zoom.value);
+		}
+		if (leafletMap.value && markerPosition.value) {
+			leafletMap.value.flyTo(markerPosition.value, zoom.value);
+		}
 	}
 }, { immediate: true });
 
@@ -105,19 +109,16 @@ const onSelectLocation = (event: any) => {
 
 const onMapReady = (mapInstance: any) => {
 	leafletMap.value = mapInstance; // Store the map instance for programmatic moves
-
-
-	mapInstance.setView(center.value, zoom.value);
-	if (leafletMap.value && markerPosition.value) {
-		leafletMap.value.flyTo(markerPosition.value, zoom.value);
+	if(mapInstance) {
+		const center = markerPosition.value || [45, 80]
+		mapInstance.setView(center, zoom.value);
+		if (markerPosition.value) {
+			mapInstance.flyTo(markerPosition.value, zoom.value);
+		}
 	}
-	mapInstance.on('geosearch/showlocation', (result: any) => {
-	const { y: lat, x: lng } = result.location;
-		updateLocation(lat, lng, true); // Move map to search result
-	});
-	nextTick(() => {
-		setTimeout(() => mapInstance.invalidateSize(), 100);
-	});
+//	nextTick(() => {
+//		setTimeout(() => mapInstance.invalidateSize(), 100);
+//	});
 };
 
 const updateLocation = (lat: number, lng: number, shouldMoveMap: boolean = false) => {
@@ -129,9 +130,6 @@ const updateLocation = (lat: number, lng: number, shouldMoveMap: boolean = false
 	const mv = { latitude: lat, longitude: lng }
   emit('update:modelValue', mv);
   emit('change', { value: mv });
-	nextTick(() => {
-		formField?.onFieldChange(mv);
-	});
 };
 
 const onMapClick = (event: any) => {

@@ -62,7 +62,7 @@
 	</div>
 </template>
 <script setup lang="ts">
-import { InputGroup, ToggleSwitch, InputGroupAddon, Column, DataTable, Splitter, PickList, SplitterPanel, InputText, InputNumber, Listbox, Button, Message, Toolbar, Select } from 'primevue';
+import { InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Message, Select } from 'primevue';
 import Form from "@primevue/forms/form"
 import FormField from "@primevue/forms/formfield"
 import { ref, toRaw, nextTick, watch } from "vue"
@@ -159,7 +159,7 @@ function startLookups(form: FormDef): void {
 	form.schema.properties.forEach(px => {
 		const target = localProperties.value.find(lp => lp.name === px.name)
 		if(target && target.lookup && target.listType === "url") {
-			lookupUrl(form, px.lookup, target)
+			lookupUrl(form, target.lookup, target)
 		}
 	})
 }
@@ -168,11 +168,11 @@ function formProperties(form: FormDef) {
 		const retv:any[] = []
 		form.schema.properties.forEach(px => {
 			const fx:any = { ...px }
-			if(isLookupItems(form, px.lookup, "items")) {
+			if("lookup" in px && px.lookup && isLookupItems(form, px.lookup, "items")) {
 				fx.list = lookupItems(form, px.lookup)
 				fx.listType = "items"
 			}
-			else if(isLookupItems(form, px.lookup, "url")) {
+			else if("lookup" in px && px.lookup && isLookupItems(form, px.lookup, "url")) {
 				fx.list = []
 				fx.listType = "url"
 			}

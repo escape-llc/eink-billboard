@@ -13,11 +13,14 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 plugin_bp = Blueprint('plugin', __name__, url_prefix='/plugin')
 api_bp.register_blueprint(plugin_bp)
 
-def get_cm() -> ConfigurationManager:
+def get_cm() -> ConfigurationManager|None:
 	return current_app.config.get('CONFIG_MANAGER', None)
 
 def send_cob_with_rev(id: str, cob: ConfigurationObject) -> Response:
 	hash, document = cob.get()
+	if document is None:
+		error = { "id": id, "success": False, "message": f"{id}: not found", "rev": None }
+		return jsonify(error), 404
 	document[HASH_KEY] = hash
 	document[ID_KEY] = id
 	return jsonify(document)
