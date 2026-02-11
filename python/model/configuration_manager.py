@@ -118,10 +118,10 @@ class ConfigurationObject:
 				return (False, None)
 			# Persist new state and force reload on next get()
 			self._saver(self.moniker, content)
-			hash = create_hash(content)
+			nhash = create_hash(content)
 			self._content = None
 			self._hash = None
-			return (True, hash)
+			return (True, nhash)
 	def evict(self) -> None:
 		with self._lock:
 			self._content = None

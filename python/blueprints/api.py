@@ -1,9 +1,8 @@
 from datetime import datetime, date, timedelta
-import os
-import json
 from flask import Blueprint, Response, jsonify, render_template, current_app, send_from_directory, send_file, request
 import pytz
 import logging
+from typing import cast
 
 from ..model.schedule import TimedSchedule
 from ..model.configuration_manager import ConfigurationManager, ConfigurationObject, HASH_KEY, ID_KEY
@@ -16,7 +15,7 @@ api_bp.register_blueprint(plugin_bp)
 def get_cm() -> ConfigurationManager|None:
 	return current_app.config.get('CONFIG_MANAGER', None)
 
-def send_cob_with_rev(id: str, cob: ConfigurationObject) -> Response:
+def send_cob_with_rev(id: str, cob: ConfigurationObject) -> Response | tuple[Response, int]:
 	hash, document = cob.get()
 	if document is None:
 		error = { "id": id, "success": False, "message": f"{id}: not found", "rev": None }
@@ -30,25 +29,29 @@ def settings_system():
 	logger.info("GET /settings/system")
 	cm = get_cm()
 	if cm is None:
-		error = { "message": "Configuration Manager not available.", "id": "system-settings" }
+		error = { "message": "Configuration Manager not available.", "id": "system-settings", "success": False }
 		return jsonify(error), 500
 	try:
 		settings_cob = cm.settings_manager().open("system")
 		return send_cob_with_rev("system-settings", settings_cob)
 	except FileNotFoundError as e:
 		logger.error(f"/settings/system: {str(e)}")
-		error = { "message": "File not found.", "id": "system-settings" }
+		error = { "message": "File not found.", "id": "system-settings", "success": False }
 		return jsonify(error), 404
+	except Exception as e:
+		logger.error(f"/settings/system: {str(e)}")
+		error = { "message": str(e), "id": "system-settings", "success": False }
+		return jsonify(error), 500
 
 def save_cob_with_rev(id:str, document:dict, cob: ConfigurationObject) -> Response | tuple[Response, int]:
 	xid = document.get(ID_KEY, None)
-	rev = document.get(HASH_KEY, None)
-	if rev is None:
-		error = { "id": id, "success": False, "message": f"Missing {HASH_KEY}", "rev": None }
-		return jsonify(error), 400
+	rev = cast(str, document.get(HASH_KEY, None))
 	if xid is None or xid != id:
 		error = { "id": id, "success": False, "message": "ID mismatch", "rev": rev }
 		return jsonify(error), 400
+#	if rev is None:
+#		error = { "id": id, "success": False, "message": f"Missing {HASH_KEY}", "rev": None }
+#		return jsonify(error), 400
 	document.pop(HASH_KEY, None)
 	document.pop(ID_KEY, None)
 	committed, new_hash = cob.save(rev, document)
@@ -63,131 +66,163 @@ def update_settings_system():
 	logger.info("PUT /settings/system")
 	cm = get_cm()
 	if cm is None:
-		error = { "message": "Configuration Manager not available.", "id": "system-settings" }
+		error = { "message": "Configuration Manager not available.", "id": "system-settings", "success": False }
 		return jsonify(error), 500
 	try:
 		settings_cob = cm.settings_manager().open("system")
 		return save_cob_with_rev("system-settings", request.get_json(), settings_cob)
 	except FileNotFoundError as e:
 		logger.error(f"/settings/system: {str(e)}")
-		error = { "message": "File not found.", "id": "system-settings" }
+		error = { "message": "File not found.", "id": "system-settings", "success": False }
 		return jsonify(error), 404
+	except Exception as e:
+		logger.error(f"/settings/system: {str(e)}")
+		error = { "message": str(e), "id": "system-settings", "success": False }
+		return jsonify(error), 500
 
 @api_bp.route('/settings/display', methods=['GET'])
 def settings_display():
 	logger.info("GET /settings/display")
 	cm = get_cm()
 	if cm is None:
-		error = { "message": "Configuration Manager not available.", "id": "display-settings" }
+		error = { "message": "Configuration Manager not available.", "id": "display-settings", "success": False }
 		return jsonify(error), 500
 	try:
 		settings_cob = cm.settings_manager().open("display")
 		return send_cob_with_rev("display-settings", settings_cob)
 	except FileNotFoundError as e:
 		logger.error(f"/settings/display: {str(e)}")
-		error = { "message": "File not found.", "id": "display-settings" }
+		error = { "message": "File not found.", "id": "display-settings", "success": False }
 		return jsonify(error), 404
+	except Exception as e:
+		logger.error(f"/settings/display: {str(e)}")
+		error = { "message": str(e), "id": "display-settings", "success": False }
+		return jsonify(error), 500
 
 @api_bp.route('/settings/display', methods=['PUT'])
 def update_settings_display():
 	logger.info("PUT /settings/display")
 	cm = get_cm()
 	if cm is None:
-		error = { "message": "Configuration Manager not available.", "id": "display-settings" }
+		error = { "message": "Configuration Manager not available.", "id": "display-settings", "success": False }
 		return jsonify(error), 500
 	try:
 		settings_cob = cm.settings_manager().open("display")
 		return save_cob_with_rev("display-settings", request.get_json(), settings_cob)
 	except FileNotFoundError as e:
 		logger.error(f"/settings/display: {str(e)}")
-		error = { "message": "File not found.", "id": "display-settings" }
+		error = { "message": "File not found.", "id": "display-settings", "success": False }
 		return jsonify(error), 404
+	except Exception as e:
+		logger.error(f"/settings/display: {str(e)}")
+		error = { "message": str(e), "id": "display-settings", "success": False }
+		return jsonify(error), 500
 
 @api_bp.route('/settings/theme', methods=['GET'])
 def settings_theme():
 	logger.info("GET /settings/theme")
 	cm = get_cm()
 	if cm is None:
-		error = { "message": "Configuration Manager not available.", "id": "theme-settings" }
+		error = { "message": "Configuration Manager not available.", "id": "theme-settings", "success": False }
 		return jsonify(error), 500
 	try:
 		settings_cob = cm.settings_manager().open("theme")
 		return send_cob_with_rev("theme-settings", settings_cob)
 	except FileNotFoundError as e:
 		logger.error(f"/settings/theme: {str(e)}")
-		error = { "message": "File not found.", "id": "theme-settings" }
+		error = { "message": "File not found.", "id": "theme-settings", "success": False }
 		return jsonify(error), 404
+	except Exception as e:
+		logger.error(f"/settings/theme: {str(e)}")
+		error = { "message": str(e), "id": "theme-settings", "success": False }
+		return jsonify(error), 500
 
 @api_bp.route('/settings/theme', methods=['PUT'])
 def update_settings_theme():
 	logger.info("PUT /settings/theme")
 	cm = get_cm()
 	if cm is None:
-		error = { "message": "Configuration Manager not available.", "id": "theme-settings" }
+		error = { "message": "Configuration Manager not available.", "id": "theme-settings", "success": False }
 		return jsonify(error), 500
 	try:
 		settings_cob = cm.settings_manager().open("theme")
 		return save_cob_with_rev("theme-settings", request.get_json(), settings_cob)
 	except FileNotFoundError as e:
 		logger.error(f"/settings/theme: {str(e)}")
-		error = { "message": "File not found.", "id": "theme-settings" }
+		error = { "message": "File not found.", "id": "theme-settings", "success": False }
 		return jsonify(error), 404
+	except Exception as e:
+		logger.error(f"/settings/theme: {str(e)}")
+		error = { "message": str(e), "id": "theme-settings", "success": False }
+		return jsonify(error), 500
 
 @api_bp.route('/schemas/system', methods=['GET'])
 def schemas_system():
 	logger.info("GET /schemas/system")
 	cm = get_cm()
 	if cm is None:
-		error = { "message": "Configuration Manager not available.", "id": "system-schema" }
+		error = { "message": "Configuration Manager not available.", "id": "system-schema", "success": False }
 		return jsonify(error), 500
 	path = cm.schema_path("system")
 	try:
 		return send_file(path, mimetype="application/json")
 	except FileNotFoundError as e:
 		logger.error(f"/schemas/system: {path}: {str(e)}")
-		error = { "message": "File not found.", "id": "system-schema" }
+		error = { "message": "File not found.", "id": "system-schema", "success": False }
 		return jsonify(error), 404
+	except Exception as e:
+		logger.error(f"/schemas/system: {path}: {str(e)}")
+		error = { "message": str(e), "id": "system-schema", "success": False }
+		return jsonify(error), 500
 
 @api_bp.route('/schemas/display', methods=['GET'])
 def schemas_display():
 	logger.info("GET /schemas/display")
 	cm = get_cm()
 	if cm is None:
-		error = { "message": "Configuration Manager not available.", "id": "display-schema" }
+		error = { "message": "Configuration Manager not available.", "id": "display-schema", "success": False }
 		return jsonify(error), 500
 	path = cm.schema_path("display")
 	try:
 		return send_file(path, mimetype="application/json")
 	except FileNotFoundError as e:
 		logger.error(f"/schemas/display: {path}: {str(e)}")
-		error = { "message": "File not found.", "id": "display-schema" }
+		error = { "message": "File not found.", "id": "display-schema", "success": False }
 		return jsonify(error), 404
+	except Exception as e:
+		logger.error(f"/schemas/display: {path}: {str(e)}")
+		error = { "message": str(e), "id": "display-schema", "success": False }
+		return jsonify(error), 500
 
 @api_bp.route('/schemas/theme', methods=['GET'])
 def schemas_theme():
 	logger.info("GET /schemas/theme")
 	cm = get_cm()
 	if cm is None:
-		error = { "message": "Configuration Manager not available.", "id": "theme-schema" }
+		error = { "message": "Configuration Manager not available.", "id": "theme-schema", "success": False }
 		return jsonify(error), 500
 	path = cm.schema_path("theme")
 	try:
 		return send_file(path, mimetype="application/json")
 	except FileNotFoundError as e:
 		logger.error(f"/schemas/theme: {path}: {str(e)}")
-		error = { "message": "File not found.", "id": "theme-schema" }
+		error = { "message": "File not found.", "id": "theme-schema", "success": False }
 		return jsonify(error), 404
+	except Exception as e:
+		logger.error(f"/schemas/theme: {path}: {str(e)}")
+		error = { "message": str(e), "id": "theme-schema", "success": False }
+		return jsonify(error), 500
 
 @api_bp.route('/schemas/plugin/<plugin>', methods=['GET'])
 def plugin_schema(plugin:str):
-	logger.info(f"GET /schemas/plugin{plugin}")
+	logger.info(f"GET /schemas/plugin/{plugin}")
 	return "Ho-lee cow!"
 
 @api_bp.route('/plugins/list', methods=['GET'])
 def plugins_list():
 	cm = get_cm()
 	if cm is None:
-		error = { "message": "Configuration Manager not available.", "id": "plugins-list" }
+		error = { "message": "Configuration Manager not available.", "id": "plugins-list", "success": False }
 		return jsonify(error), 500
 	plugins = cm.enum_plugins()
 	plist = list(map(lambda x: x.get("info"), plugins))
@@ -198,36 +233,44 @@ def plugin_settings(plugin:str):
 	logger.info(f"GET /plugins/{plugin}/settings")
 	cm = get_cm()
 	if cm is None:
-		error = { "message": "Configuration Manager not available.", "id": f"plugin-{plugin}-settings" }
+		error = { "message": "Configuration Manager not available.", "id": f"plugin-{plugin}-settings", "success": False }
 		return jsonify(error), 500
 	try:
 		plugin_cob = cm.plugin_manager(plugin).open()
 		return send_cob_with_rev(f"plugin-{plugin}-settings", plugin_cob)
 	except FileNotFoundError as e:
 		logger.error(f"/plugins/{plugin}/settings: {str(e)}")
-		error = { "message": "File not found.", "id": plugin }
+		error = { "message": "File not found.", "id": plugin, "success": False }
 		return jsonify(error), 404
+	except Exception as e:
+		logger.error(f"/plugins/{plugin}/settings: {str(e)}")
+		error = { "message": str(e), "id": plugin, "success": False }
+		return jsonify(error), 500
 
 @api_bp.route('/plugins/<plugin>/settings', methods=['PUT'])
 def save_plugin_settings(plugin:str):
 	logger.info(f"PUT /plugins/{plugin}/settings")
 	cm = get_cm()
 	if cm is None:
-		error = { "message": "Configuration Manager not available.", "id": f"plugin-{plugin}-settings" }
+		error = { "message": "Configuration Manager not available.", "id": f"plugin-{plugin}-settings", "success": False }
 		return jsonify(error), 500
 	try:
 		plugin_cob = cm.plugin_manager(plugin).open()
 		return save_cob_with_rev(f"plugin-{plugin}-settings", request.get_json(), plugin_cob)
 	except FileNotFoundError as e:
 		logger.error(f"/plugins/{plugin}/settings: {str(e)}")
-		error = { "message": "File not found.", "id": plugin }
+		error = { "message": "File not found.", "id": plugin, "success": False }
 		return jsonify(error), 404
+	except Exception as e:
+		logger.error(f"/plugins/{plugin}/settings: {str(e)}")
+		error = { "message": str(e), "id": plugin, "success": False }
+		return jsonify(error), 500
 
 @api_bp.route('/datasources/list', methods=['GET'])
 def datasources_list():
 	cm = get_cm()
 	if cm is None:
-		error = { "message": "Configuration Manager not available.", "id": "datasources-list" }
+		error = { "message": "Configuration Manager not available.", "id": "datasources-list", "success": False }
 		return jsonify(error), 500
 	dss = cm.enum_datasources()
 	plist = list(map(lambda x: x.get("info"), dss))
@@ -238,15 +281,38 @@ def datasource_settings(plugin:str):
 	logger.info(f"GET /datasources/{plugin}/settings")
 	cm = get_cm()
 	if cm is None:
-		error = { "message": "Configuration Manager not available.", "id": f"datasource-{plugin}-settings" }
+		error = { "message": "Configuration Manager not available.", "id": f"datasource-{plugin}-settings", "success": False }
 		return jsonify(error), 500
 	try:
 		plugin_cob = cm.datasource_manager(plugin).open()
 		return send_cob_with_rev(f"datasource-{plugin}-settings", plugin_cob)
 	except FileNotFoundError as e:
 		logger.error(f"/datasources/{plugin}/settings: {str(e)}")
-		error = { "message": "File not found.", "id": plugin }
+		error = { "message": "File not found.", "id": plugin, "success": False }
 		return jsonify(error), 404
+	except Exception as e:
+		logger.error(f"/datasources/{plugin}/settings: {str(e)}")
+		error = { "message": str(e), "id": plugin, "success": False }
+		return jsonify(error), 500
+
+@api_bp.route('/datasources/<plugin>/settings', methods=['PUT'])
+def save_datasource_settings(plugin:str):
+	logger.info(f"PUT /datasources/{plugin}/settings")
+	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": f"datasource-{plugin}-settings", "success": False }
+		return jsonify(error), 500
+	try:
+		plugin_cob = cm.datasource_manager(plugin).open()
+		return save_cob_with_rev(f"datasource-{plugin}-settings", request.get_json(), plugin_cob)
+	except FileNotFoundError as e:
+		logger.error(f"/datasources/{plugin}/settings: {str(e)}")
+		error = { "message": "File not found.", "id": plugin, "success": False }
+		return jsonify(error), 404
+	except Exception as e:
+		logger.error(f"/datasources/{plugin}/settings: {str(e)}")
+		error = { "message": str(e), "id": plugin, "success": False }
+		return jsonify(error), 500
 
 @api_bp.route('/lookups/timezone', methods=['GET'])
 def list_timezones():
