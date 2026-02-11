@@ -64,7 +64,6 @@
 					:settings="settingsPlugin"
 					:schema="schemaPlugin"
 					class="form"
-					@load-settings="handlePluginSettings"
 					@validate="handleValidate"
 					@submit="submitForm"
 					>
@@ -110,7 +109,6 @@
 					:settings="settingsDatasource"
 					:schema="schemaDatasource"
 					class="form"
-					@load-settings="handleDatasourceSettings"
 					@validate="handleValidate"
 					@submit="submitForm"
 					>
@@ -195,9 +193,9 @@ const settingsPluginUrl = computed(() => {
 	return selectedPlugin.value ? `${API_URL}api/plugins/${selectedPlugin.value.id}/settings` : ""
 })
 
-const selectedDatasource = ref(undefined)
-const schemaDatasource = ref(undefined)
-const settingsDatasource = ref(undefined)
+const selectedDatasource = ref<any>(undefined)
+const schemaDatasource = ref<any>(undefined)
+const settingsDatasource = ref<any>(undefined)
 const settingsDatasourceUrl = computed(() => {
 	return selectedDatasource.value ? `${API_URL}api/datasources/${selectedDatasource.value.id}/settings` : ""
 })
@@ -210,12 +208,33 @@ const listDatasourcesUrl = `${API_URL}api/datasources/list`
 
 function downloadToRef(url:string, vref: Ref<any>, errv: any = undefined) {
 	fetch(url).then(rx => rx.json()).then(data => {
-		console.log("download.fetch", data)
+		console.log("downloadToRef", data)
 		vref.value = data
 	})
 	.catch(ex => {
-		console.error("download.fetch.unhandled", ex)
+		console.error("downloadToRef.unhandled", ex)
 		vref.value = errv
+	})
+}
+function fetchSettings(url:string, vref: Ref<any>, schema:any) {
+	fetch(url)
+	.then(rx => ({ status: rx.status, json: rx.json() }))
+	.then(data => {
+		console.log("fetchSettings", data)
+		if(data.status === 200) {
+			data.json.then(dx => {
+				vref.value = dx
+			})
+		}
+		else {
+			const defv = toRaw(schema.settings.default)
+			console.log("default", defv)
+			vref.value = structuredClone(defv)
+		}
+	})
+	.catch(ex => {
+		console.error("fetchSettings.unhandled", ex)
+		toast.add({severity:'error', summary: 'Error', detail: `Failed to load settings: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
 }
 onMounted(() => {
@@ -227,6 +246,7 @@ onMounted(() => {
 	})
 	.catch(ex => {
 		console.error("fetch.pl.unhandled", ex)
+		toast.add({severity:'error', summary: 'Error', detail: `Failed to load plugins list: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
 	const px4 = px1.then(json2 => {
 		console.log("datasources", json2)
@@ -234,11 +254,13 @@ onMounted(() => {
 	})
 	.catch(ex => {
 		console.error("fetch.ds.unhandled", ex)
+		toast.add({severity:'error', summary: 'Error', detail: `Failed to load data sources list: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
 	Promise.all([px3, px4]).then(_ => {
 		downloadToRef(schemaThemeUrl, schemaTheme)
 		downloadToRef(schemaDisplayUrl, schemaDisplay)
 		downloadToRef(schemaSystemUrl, schemaSystem)
+		// TODO account for these not being persisted
 		downloadToRef(settingsSystemUrl, settingsSystem)
 		downloadToRef(settingsDisplayUrl, settingsDisplay)
 		downloadToRef(settingsThemeUrl, settingsTheme)
@@ -248,55 +270,28 @@ onMounted(() => {
 watch(selectedPlugin, (nv,ov) => {
 	console.log("selectedPlugin", nv, ov)
 	if(nv) {
-		schemaPlugin.value = nv.settings
-		fetch(settingsPluginUrl.value).then(rx => rx.json()).then(data => {
-			console.log("plugin settings", data)
-			settingsPlugin.value = data
-		})
-		.catch(ex => {
-			console.error("fetch.plugin.settings.unhandled", ex)
-		})
+		if(nv.settings.schema.properties.length > 0) {
+			schemaPlugin.value = nv.settings
+			fetchSettings(settingsPluginUrl.value, settingsPlugin, nv)
+		}
+		else {
+			schemaPlugin.value = undefined
+			settingsPlugin.value = undefined
+		}
 	}
 })
-const handlePluginSettings = (data:any) => {
-	console.log("plugin settings", data)
-	if(!data) return;
-	if(data.success === false) {
-		toast.add({severity:'error', summary: 'Error', detail: `Failed to load plugin settings: ${data.message || 'Unknown error'}`, life: 5000});
-	}
-}
 watch(selectedDatasource, (nv,ov) => {
 	console.log("selectedDatasource", nv, ov)
 	if(nv) {
 		schemaDatasource.value = nv.settings
 		if(nv.settings.schema.properties.length > 0) {
-			fetch(settingsDatasourceUrl.value)
-			.then(rx => ({status: rx.status, json: rx.json()}))
-			.then(data => {
-				console.log("datasource settings", data)
-				if(data.status === 200) {
-					data.json.then(dx => {
-						settingsDatasource.value = dx
-					})
-				}
-				else {
-					console.log("default", nv.settings.default)
-					settingsDatasource.value = structuredClone(toRaw(nv.settings.default))
-				}
-			})
-			.catch(ex => {
-				console.error("fetch.datasource.settings.unhandled", ex)
-			})
+			fetchSettings(settingsDatasourceUrl.value, settingsDatasource, nv)
+		}
+		else {
+			settingsDatasource.value = undefined
 		}
 	}
 })
-const handleDatasourceSettings = (data:any) => {
-	console.log("datasource settings", data)
-	if(!data) return;
-	if(data.success === false) {
-		toast.add({severity:'error', summary: 'Error', detail: `Failed to load datasource settings: ${data.message || 'Unknown error'}`, life: 5000});
-	}
-}
 const handleThemeSettings = (data:any) => {
 	if(!data) return;
 	if("hue" in data) {
@@ -309,7 +304,6 @@ const handleThemeSettings = (data:any) => {
 		previewLightness.value = data.lightness
 	}
 }
-
 const handleValidate = (e: ValidateEventData) => {
 	console.log("validate", e)
 }
@@ -337,7 +331,6 @@ const handleThemeValidate = (e: ValidateEventData) => {
 		}
 	}
 }
-
 </script>
 <style scoped>
 .plugin-label {
