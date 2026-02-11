@@ -3,6 +3,9 @@
 		<Form ref="form" v-slot="$form" class="flex flex-column gap-1 w-full sm:w-56" :initialValues="localValues" :resolver
 			:validateOnValueUpdate="true" :validateOnBlur="true" @submit="handleSubmit">
 			<slot name="header"></slot>
+			<!--
+			<div>{{  JSON.stringify(localProperties)  }}</div>
+			-->
 			<template v-if="localProperties.length === 0">
 				<slot name="empty"></slot>
 			</template>
@@ -124,6 +127,16 @@ export interface EmitsType {
 	(e: 'validate', data: ValidateEventData): void
 	(e: 'submit', data: any): void
 }
+
+z.config({
+	customError: (issue)=> {
+		if (issue.code === "invalid_type" && (issue.input === null || issue.input === undefined)) {
+			return "Required";
+		}
+		return undefined;
+	}
+});
+
 const props = withDefaults(defineProps<PropsType>(), { fieldNameWidth: "10rem", baseUrl: "" })
 const emits = defineEmits<EmitsType>()
 const localProperties = ref<any[]>([])
