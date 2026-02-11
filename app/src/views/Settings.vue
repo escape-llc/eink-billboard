@@ -5,6 +5,7 @@
 			<Tab value="1">Display</Tab>
 			<Tab value="2">Theme</Tab>
 			<Tab value="3">Plugins</Tab>
+			<Tab value="4">Data Sources</Tab>
 		</TabList>
 		<TabPanels>
 			<TabPanel value="0">
@@ -12,7 +13,8 @@
 					:title="`System Settings`"
 					:baseUrl="API_URL"
 					:settingsUrl="settingsSystemUrl"
-					:schemaUrl="schemaSystemUrl"
+					:settings="settingsSystem"
+					:schema="schemaSystem"
 					class="form"
 					@validate="handleValidate"
 					@submit="submitForm"
@@ -23,7 +25,8 @@
 					:title="`Display Settings`"
 					:baseUrl="API_URL"
 					:settingsUrl="settingsDisplayUrl"
-					:schemaUrl="schemaDisplayUrl"
+					:settings="settingsDisplay"
+					:schema="schemaDisplay"
 					class="form"
 					@validate="handleValidate"
 					@submit="submitForm"
@@ -34,7 +37,8 @@
 					title="Theme Settings"
 					:baseUrl="API_URL"
 					:settingsUrl="settingsThemeUrl"
-					:schemaUrl="schemaThemeUrl"
+					:settings="settingsTheme"
+					:schema="schemaTheme"
 					class="form"
 					@load-settings="handleThemeSettings"
 					@validate="handleThemeValidate"
@@ -57,6 +61,7 @@
 					:title="`Plugin Settings`"
 					:baseUrl="API_URL"
 					:settingsUrl="settingsPluginUrl"
+					:settings="settingsPlugin"
 					:schema="schemaPlugin"
 					class="form"
 					@load-settings="handlePluginSettings"
@@ -97,6 +102,52 @@
 					</template>
 				</SettingsForm>
 			</TabPanel>
+			<TabPanel value="4">
+				<SettingsForm
+					:title="`Data Source Settings`"
+					:baseUrl="API_URL"
+					:settingsUrl="settingsDatasourceUrl"
+					:settings="settingsDatasource"
+					:schema="schemaDatasource"
+					class="form"
+					@load-settings="handleDatasourceSettings"
+					@validate="handleValidate"
+					@submit="submitForm"
+					>
+					<template #tb-center>
+						<Select :options="dataSources" v-model="selectedDatasource" style="width:20rem">
+							<template #value="slotProps">
+								<div v-if="slotProps.value">{{ slotProps.value.id }} ({{ slotProps.value.version }})</div>
+							</template>
+							<template #option="slotProps">
+								<div class="flex flex-column">
+									<div>{{ slotProps.option.id }} ({{ slotProps.option.version }})</div>
+									<div style="max-width:17rem">{{ slotProps.option.description }}</div>
+								</div>
+							</template>
+						</Select>
+					</template>
+					<template #header-end>
+						<div v-if="selectedDatasource" class="m-3" style="display:grid;width:100%;place-items:center;grid-template-columns: repeat(5,1fr);grid-template-rows:repeat(2,fr)">
+							<div class="plugin-label" style="grid-row:1;grid-column:1">id</div>
+							<div style="grid-row:2;grid-column:1">{{ selectedDatasource.id }}</div>
+							<div class="plugin-label" style="grid-row:1;grid-column:2">version</div>
+							<div style="grid-row:2;grid-column:2">{{ selectedDatasource.version }}</div>
+							<div class="plugin-label" style="grid-row:1;grid-column:3">enabled</div>
+							<div style="grid-row:2;grid-column:3"><i class="pi" :class="selectedDatasource.disabled ? 'pi-times' : 'pi-check'"></i></div>
+							<div class="plugin-label" style="grid-row:1;grid-column:4">description</div>
+							<div style="grid-row:2;grid-column:4">{{ selectedDatasource.description }}</div>
+							<div class="plugin-label" style="grid-row:1;grid-column:5">features</div>
+							<div v-if="selectedDatasource.features" class="flex flex-row" style="grid-row:2;grid-column:5">
+								<template v-for="feature in selectedDatasource.features">
+									<Tag class="mr-1 ml-1" :value="feature">{{ feature }}</Tag>
+								</template>
+							</div>
+							<div v-else>-</div>
+						</div>
+					</template>
+				</SettingsForm>
+			</TabPanel>
 		 </TabPanels>
 		</Tabs>
 </template>
@@ -112,57 +163,142 @@ import Tag from 'primevue/tag';
 
 import type { ValidateEventData } from "../components/BasicForm.vue"
 import SettingsForm from "../components/SettingsForm.vue"
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, provide, ref, toRaw, watch, type Ref } from 'vue';
 import { useToast } from 'primevue';
 
 const toast = useToast();
 
 const API_URL = import.meta.env.VITE_API_URL
-const settingsSystemUrl = `${API_URL}/api/settings/system`
-const schemaSystemUrl = `${API_URL}/api/schemas/system`
-const settingsThemeUrl = `${API_URL}/api/settings/theme`
-const schemaThemeUrl = `${API_URL}/api/schemas/theme`
-const settingsDisplayUrl = `${API_URL}/api/settings/display`
-const schemaDisplayUrl = `${API_URL}/api/schemas/display`
+const settingsSystemUrl = `${API_URL}api/settings/system`
+const schemaSystemUrl = `${API_URL}api/schemas/system`
+const schemaSystem = ref<any>(undefined)
+const settingsSystem = ref<any>(undefined)
+const settingsThemeUrl = `${API_URL}api/settings/theme`
+const schemaThemeUrl = `${API_URL}api/schemas/theme`
+const schemaTheme = ref<any>(undefined)
+const settingsTheme = ref<any>(undefined)
+const settingsDisplayUrl = `${API_URL}api/settings/display`
+const schemaDisplayUrl = `${API_URL}api/schemas/display`
+const schemaDisplay = ref<any>(undefined)
+const settingsDisplay = ref<any>(undefined)
 
 const previewHue = ref(0)
 const previewSaturation = ref(100)
 const previewLightness = ref(50)
 
 const plugins = ref([])
-const selectedPlugin = ref(undefined)
-const schemaPlugin = ref(undefined)
+const dataSources = ref([])
+const selectedPlugin = ref<any>(undefined)
+const schemaPlugin = ref<any>(undefined)
+const settingsPlugin = ref<any>(undefined)
 const settingsPluginUrl = computed(() => {
-	return selectedPlugin.value ? `${API_URL}/api/plugins/${selectedPlugin.value.id}/settings` : ""
+	return selectedPlugin.value ? `${API_URL}api/plugins/${selectedPlugin.value.id}/settings` : ""
 })
 
+const selectedDatasource = ref(undefined)
+const schemaDatasource = ref(undefined)
+const settingsDatasource = ref(undefined)
+const settingsDatasourceUrl = computed(() => {
+	return selectedDatasource.value ? `${API_URL}api/datasources/${selectedDatasource.value.id}/settings` : ""
+})
+
+provide("settingsPluginsList", plugins)
+provide("settingsDataSourcesList", dataSources)
+
+const listPluginsUrl = `${API_URL}api/plugins/list`
+const listDatasourcesUrl = `${API_URL}api/datasources/list`
+
+function downloadToRef(url:string, vref: Ref<any>, errv: any = undefined) {
+	fetch(url).then(rx => rx.json()).then(data => {
+		console.log("download.fetch", data)
+		vref.value = data
+	})
+	.catch(ex => {
+		console.error("download.fetch.unhandled", ex)
+		vref.value = errv
+	})
+}
 onMounted(() => {
-	const listUrl = `${API_URL}/api/plugins/list`
-	const px0 = fetch(listUrl).then(rx => rx.json())
-	px0.then(json => {
+	const px0 = fetch(listPluginsUrl).then(rx => rx.json())
+	const px1 = fetch(listDatasourcesUrl).then(rx => rx.json())
+	const px3 = px0.then(json => {
 		console.log("plugins", json)
 		plugins.value = json
 	})
 	.catch(ex => {
-		console.error("fetch.unhandled", ex)
+		console.error("fetch.pl.unhandled", ex)
+	})
+	const px4 = px1.then(json2 => {
+		console.log("datasources", json2)
+		dataSources.value = json2
+	})
+	.catch(ex => {
+		console.error("fetch.ds.unhandled", ex)
+	})
+	Promise.all([px3, px4]).then(_ => {
+		downloadToRef(schemaThemeUrl, schemaTheme)
+		downloadToRef(schemaDisplayUrl, schemaDisplay)
+		downloadToRef(schemaSystemUrl, schemaSystem)
+		downloadToRef(settingsSystemUrl, settingsSystem)
+		downloadToRef(settingsDisplayUrl, settingsDisplay)
+		downloadToRef(settingsThemeUrl, settingsTheme)
 	})
 })
 
 watch(selectedPlugin, (nv,ov) => {
 	console.log("selectedPlugin", nv, ov)
 	if(nv) {
-//		form.value = nv.settings
 		schemaPlugin.value = nv.settings
+		fetch(settingsPluginUrl.value).then(rx => rx.json()).then(data => {
+			console.log("plugin settings", data)
+			settingsPlugin.value = data
+		})
+		.catch(ex => {
+			console.error("fetch.plugin.settings.unhandled", ex)
+		})
 	}
 })
-
 const handlePluginSettings = (data:any) => {
 	console.log("plugin settings", data)
+	if(!data) return;
 	if(data.success === false) {
 		toast.add({severity:'error', summary: 'Error', detail: `Failed to load plugin settings: ${data.message || 'Unknown error'}`, life: 5000});
 	}
 }
+watch(selectedDatasource, (nv,ov) => {
+	console.log("selectedDatasource", nv, ov)
+	if(nv) {
+		schemaDatasource.value = nv.settings
+		if(nv.settings.schema.properties.length > 0) {
+			fetch(settingsDatasourceUrl.value)
+			.then(rx => ({status: rx.status, json: rx.json()}))
+			.then(data => {
+				console.log("datasource settings", data)
+				if(data.status === 200) {
+					data.json.then(dx => {
+						settingsDatasource.value = dx
+					})
+				}
+				else {
+					console.log("default", nv.settings.default)
+					settingsDatasource.value = structuredClone(toRaw(nv.settings.default))
+				}
+			})
+			.catch(ex => {
+				console.error("fetch.datasource.settings.unhandled", ex)
+			})
+		}
+	}
+})
+const handleDatasourceSettings = (data:any) => {
+	console.log("datasource settings", data)
+	if(!data) return;
+	if(data.success === false) {
+		toast.add({severity:'error', summary: 'Error', detail: `Failed to load datasource settings: ${data.message || 'Unknown error'}`, life: 5000});
+	}
+}
 const handleThemeSettings = (data:any) => {
+	if(!data) return;
 	if("hue" in data) {
 		previewHue.value = data.hue
 	}
@@ -179,6 +315,12 @@ const handleValidate = (e: ValidateEventData) => {
 }
 const submitForm = (data:any) => {
 	console.log("submitForm", data)
+	if(data.error) {
+		toast.add({severity:'error', summary: 'Error', detail: `Failed to save settings: ${data.error.message || 'Unknown error'}`, life: 5000});
+	}
+	else {
+		toast.add({severity:'success', summary: 'Success', detail: `Settings saved successfully`, life: 3000});
+	}
 }
 const handleThemeValidate = (e: ValidateEventData) => {
 	console.log("theme.validate", e)
@@ -198,6 +340,10 @@ const handleThemeValidate = (e: ValidateEventData) => {
 
 </script>
 <style scoped>
+.plugin-label {
+	font-weight: bold;
+	font-size: 120%;
+}
 .form {
 	width: 50%;
 	margin: auto;

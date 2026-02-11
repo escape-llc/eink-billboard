@@ -65,7 +65,7 @@
 import { InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Message, Select } from 'primevue';
 import Form from "@primevue/forms/form"
 import FormField from "@primevue/forms/formfield"
-import { ref, toRaw, nextTick, watch } from "vue"
+import { ref, toRaw, nextTick, watch, inject, computed } from "vue"
 import z from "zod"
 import LeafletPicker from './LeafletPicker.vue';
 
@@ -128,6 +128,10 @@ const props = withDefaults(defineProps<PropsType>(), { fieldNameWidth: "10rem", 
 const emits = defineEmits<EmitsType>()
 const localProperties = ref<any[]>([])
 const localValues = ref<any>({})
+const injplugins = inject("settingsPluginsList", ref([]))
+const injdataSources = inject("settingsDataSourcesList", ref([]))
+const plugins = computed(() => injplugins.value)
+const dataSources = computed(() => injdataSources.value)
 watch(() => props.form, (nv,ov) => {
 	console.log("watch.form", nv, ov);
 	if(nv) {

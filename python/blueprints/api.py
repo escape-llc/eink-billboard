@@ -29,6 +29,9 @@ def send_cob_with_rev(id: str, cob: ConfigurationObject) -> Response:
 def settings_system():
 	logger.info("GET /settings/system")
 	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": "system-settings" }
+		return jsonify(error), 500
 	try:
 		settings_cob = cm.settings_manager().open("system")
 		return send_cob_with_rev("system-settings", settings_cob)
@@ -37,7 +40,7 @@ def settings_system():
 		error = { "message": "File not found.", "id": "system-settings" }
 		return jsonify(error), 404
 
-def save_cob_with_rev(id:str, document:dict, cob: ConfigurationObject) -> Response:
+def save_cob_with_rev(id:str, document:dict, cob: ConfigurationObject) -> Response | tuple[Response, int]:
 	xid = document.get(ID_KEY, None)
 	rev = document.get(HASH_KEY, None)
 	if rev is None:
@@ -59,6 +62,9 @@ def save_cob_with_rev(id:str, document:dict, cob: ConfigurationObject) -> Respon
 def update_settings_system():
 	logger.info("PUT /settings/system")
 	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": "system-settings" }
+		return jsonify(error), 500
 	try:
 		settings_cob = cm.settings_manager().open("system")
 		return save_cob_with_rev("system-settings", request.get_json(), settings_cob)
@@ -71,6 +77,9 @@ def update_settings_system():
 def settings_display():
 	logger.info("GET /settings/display")
 	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": "display-settings" }
+		return jsonify(error), 500
 	try:
 		settings_cob = cm.settings_manager().open("display")
 		return send_cob_with_rev("display-settings", settings_cob)
@@ -83,6 +92,9 @@ def settings_display():
 def update_settings_display():
 	logger.info("PUT /settings/display")
 	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": "display-settings" }
+		return jsonify(error), 500
 	try:
 		settings_cob = cm.settings_manager().open("display")
 		return save_cob_with_rev("display-settings", request.get_json(), settings_cob)
@@ -95,6 +107,9 @@ def update_settings_display():
 def settings_theme():
 	logger.info("GET /settings/theme")
 	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": "theme-settings" }
+		return jsonify(error), 500
 	try:
 		settings_cob = cm.settings_manager().open("theme")
 		return send_cob_with_rev("theme-settings", settings_cob)
@@ -107,6 +122,9 @@ def settings_theme():
 def update_settings_theme():
 	logger.info("PUT /settings/theme")
 	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": "theme-settings" }
+		return jsonify(error), 500
 	try:
 		settings_cob = cm.settings_manager().open("theme")
 		return save_cob_with_rev("theme-settings", request.get_json(), settings_cob)
@@ -119,6 +137,9 @@ def update_settings_theme():
 def schemas_system():
 	logger.info("GET /schemas/system")
 	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": "system-schema" }
+		return jsonify(error), 500
 	path = cm.schema_path("system")
 	try:
 		return send_file(path, mimetype="application/json")
@@ -131,6 +152,9 @@ def schemas_system():
 def schemas_display():
 	logger.info("GET /schemas/display")
 	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": "display-schema" }
+		return jsonify(error), 500
 	path = cm.schema_path("display")
 	try:
 		return send_file(path, mimetype="application/json")
@@ -143,6 +167,9 @@ def schemas_display():
 def schemas_theme():
 	logger.info("GET /schemas/theme")
 	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": "theme-schema" }
+		return jsonify(error), 500
 	path = cm.schema_path("theme")
 	try:
 		return send_file(path, mimetype="application/json")
@@ -159,6 +186,9 @@ def plugin_schema(plugin:str):
 @api_bp.route('/plugins/list', methods=['GET'])
 def plugins_list():
 	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": "plugins-list" }
+		return jsonify(error), 500
 	plugins = cm.enum_plugins()
 	plist = list(map(lambda x: x.get("info"), plugins))
 	return jsonify(plist)
@@ -167,6 +197,9 @@ def plugins_list():
 def plugin_settings(plugin:str):
 	logger.info(f"GET /plugins/{plugin}/settings")
 	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": f"plugin-{plugin}-settings" }
+		return jsonify(error), 500
 	try:
 		plugin_cob = cm.plugin_manager(plugin).open()
 		return send_cob_with_rev(f"plugin-{plugin}-settings", plugin_cob)
@@ -179,11 +212,39 @@ def plugin_settings(plugin:str):
 def save_plugin_settings(plugin:str):
 	logger.info(f"PUT /plugins/{plugin}/settings")
 	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": f"plugin-{plugin}-settings" }
+		return jsonify(error), 500
 	try:
 		plugin_cob = cm.plugin_manager(plugin).open()
 		return save_cob_with_rev(f"plugin-{plugin}-settings", request.get_json(), plugin_cob)
 	except FileNotFoundError as e:
 		logger.error(f"/plugins/{plugin}/settings: {str(e)}")
+		error = { "message": "File not found.", "id": plugin }
+		return jsonify(error), 404
+
+@api_bp.route('/datasources/list', methods=['GET'])
+def datasources_list():
+	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": "datasources-list" }
+		return jsonify(error), 500
+	dss = cm.enum_datasources()
+	plist = list(map(lambda x: x.get("info"), dss))
+	return jsonify(plist)
+
+@api_bp.route('/datasources/<plugin>/settings', methods=['GET'])
+def datasource_settings(plugin:str):
+	logger.info(f"GET /datasources/{plugin}/settings")
+	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": f"datasource-{plugin}-settings" }
+		return jsonify(error), 500
+	try:
+		plugin_cob = cm.datasource_manager(plugin).open()
+		return send_cob_with_rev(f"datasource-{plugin}-settings", plugin_cob)
+	except FileNotFoundError as e:
+		logger.error(f"/datasources/{plugin}/settings: {str(e)}")
 		error = { "message": "File not found.", "id": plugin }
 		return jsonify(error), 404
 
@@ -220,6 +281,9 @@ def render_schedule():
 	start_at = request.args.get("start", None)
 	days = request.args.get("days", 7, type=int)
 	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": "schedule-render" }
+		return jsonify(error), 500
 	scm = cm.settings_manager()
 	system_cob = scm.open("system")
 	_, system = system_cob.get()

@@ -10,16 +10,10 @@ const router = createRouter({
 			component: WelcomeView
 		},
 		{
-			path: '/system',
-			name: 'system',
+			path: '/settings',
+			name: 'settings',
 			// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-			component: () => import('../views/SystemSettings.vue')
-		},
-		{
-			path: '/display',
-			name: 'display',
-			// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-			component: () => import('../views/DisplaySettings.vue')
+			component: () => import('../views/Settings.vue')
 		},
 		{
 			path: '/plugin',
@@ -32,6 +26,12 @@ const router = createRouter({
 			name: 'schedule',
 			// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 			component: () => import('../views/Scheduler.vue')
+		},
+		{
+			path: '/playlist',
+			name: 'playlist',
+			// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+			component: () => import('../views/PlaylistEditor.vue')
 		},
 		/*
 		{

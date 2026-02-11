@@ -32,8 +32,8 @@ export interface PropsType {
 	title?: string
 	baseUrl: string
 	settingsUrl: string
-	schemaUrl?: string
-	schema?: any
+	settings?: any
+	schema: any
 }
 export type SubmitEventData = {
 	result: unknown|null
@@ -57,44 +57,40 @@ let _rev:string|undefined = undefined
 let _id:string|undefined = undefined
 let _schema:string|undefined = undefined
 
-watch(() => props.settingsUrl, (nv) => {
+watch(() => props.settings, (nv) => {
+	console.log("settings", nv)
 	if(nv) {
-		fetch(nv).then(rx => rx.json()).then(data => {
-			console.log("settings", data)
-			_rev = data._rev
-			_id = data._id
-			_schema = data._schema
-			nextTick().then(_ => {
-				initialValues.value = data
-				emits("load-settings", data)
-			})
+		_rev = nv._rev
+		_id = nv._id
+		_schema = nv._schema
+		nextTick().then(_ => {
+			initialValues.value = nv
+			emits("load-settings", nv)
 		})
 	}
-}, { immediate: true })
-watch(() => props.schemaUrl, (nv) => {
-	if(nv) {
-		fetch(nv).then(rx => rx.json()).then(data => {
-			console.log("schema.fetch", data)
-			form.value = data
-			emits("load-schema", data)
-		})
-		.catch(ex => {
-			console.error("schema.fetch.unhandled", ex)
-			emits("load-schema", ex)
-		})
+	else {
+		_rev = undefined
+		_id = undefined
+		_schema = undefined
+		initialValues.value = undefined
+		emits("load-settings", undefined)
 	}
 }, { immediate: true })
 watch(() => props.schema, (nv) => {
+	console.log("schema", nv)
 	if(nv) {
-		console.log("schema", nv)
 		try {
-		form.value = nv
-		emits("load-schema", nv)
+			form.value = nv
+			emits("load-schema", nv)
 		}
 		catch(ex) {
 			console.error("schema.unhandled", ex)
 			emits("load-schema", ex)
 		}
+	}
+	else {
+		form.value = undefined
+		emits("load-schema", undefined)
 	}
 }, { immediate: true })
 const handleValidate = (ved: ValidateEventData) => {
