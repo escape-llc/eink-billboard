@@ -1,7 +1,7 @@
 <template>
 	<BasicForm ref="bf" :form :initialValues :baseUrl="baseUrl" @validate="handleValidate" @submit="submitForm">
 		<template #empty>
-			<p v-if="initialValues" style="margin:auto">No Settings defined.</p>
+			<p style="margin:auto">No Settings defined.</p>
 		</template>
 		<template #header>
 			<Toolbar style="width:100%" class="p-1 mt-2">
