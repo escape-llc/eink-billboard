@@ -22,6 +22,7 @@
 			]
 		},
 		"default": {
+			"_id": "datasource-openai-image-settings",
 			"apiKey": null
 		}
 	},
