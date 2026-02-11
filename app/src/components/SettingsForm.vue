@@ -130,7 +130,7 @@ const submitForm = (data:any) => {
 			if(jv.success) {
 				_rev = jv.rev
 			}
-			emits("submit", {result: jv, invalid: null, error: null})
+			emits("submit", { result: jv, invalid: null, error: null })
 		})
 		.catch(ex => {
 			console.error("submitForm.unhandled", ex)
