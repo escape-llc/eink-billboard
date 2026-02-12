@@ -25,7 +25,8 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from "vue"
 import BasicForm from "./BasicForm.vue"
-import type { FormDef, ValidateEventData } from "./BasicForm.vue"
+import type { ValidateEventData } from "./BasicForm.vue"
+import type { FormDef } from "./FormDefs"
 import { InputGroup, Button, Toolbar } from 'primevue';
 
 export interface PropsType {

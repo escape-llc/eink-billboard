@@ -18,13 +18,18 @@
 	"instanceSettings": {
 		"schema": {
 			"lookups": {
+				"dataSource": {
+					"schema": "data-sources",
+					"features": ["media-image", "media-list"]
+				}
 			},
 			"properties": [
 				{
 					"name": "dataSource",
-					"type": "string",
+					"type": "schema",
 					"required": true,
 					"default": null,
+					"lookup": "dataSource",
 					"label": "Data Source",
 					"description": "Gallery single or list source."
 				},
@@ -34,7 +39,7 @@
 					"required": true,
 					"default": 4,
 					"min": 0,
-					"label": "Slideshow Max Images",
+					"label": "Max Images",
 					"description": "Maximum number of images in the slideshow. Zero for unlimited."
 				},
 				{
@@ -43,7 +48,7 @@
 					"required": true,
 					"default": 15,
 					"min": 1,
-					"label": "Slide Minutes",
+					"label": "Duration Minutes",
 					"description": "Minutes per image."
 				}
 			]

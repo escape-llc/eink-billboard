@@ -10,9 +10,9 @@
 	"features": ["internet", "media-image"],
 	"blueprint": {
 		"id": "newspaper-bp",
-		"class": "bp_newspaper",
+		"class": "newspaper_bp",
 		"file": "api.py",
-		"module": "python.plugins.newspaper.api"
+		"module": "python.datasources.newspaper.api"
 	},
 	"settings": {
 		"schema": {
@@ -25,7 +25,7 @@
 		"schema": {
 			"lookups": {
 				"newspaperSlug": {
-					"url": "/api/plugin/newspaper/lookups/newspaperSlug"
+					"url": "/api/datasource/newspaper/lookups/newspaperSlug"
 				}
 			},
 			"properties": [

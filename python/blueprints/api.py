@@ -10,7 +10,9 @@ from ..model.configuration_manager import ConfigurationManager, ConfigurationObj
 logger = logging.getLogger(__name__)
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 plugin_bp = Blueprint('plugin', __name__, url_prefix='/plugin')
+datasource_bp = Blueprint('datasource', __name__, url_prefix='/datasource')
 api_bp.register_blueprint(plugin_bp)
+api_bp.register_blueprint(datasource_bp)
 
 def get_cm() -> ConfigurationManager|None:
 	return current_app.config.get('CONFIG_MANAGER', None)

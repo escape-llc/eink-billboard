@@ -1,9 +1,9 @@
 from flask import Blueprint, jsonify
-from ...blueprints.api import plugin_bp
+from ...blueprints.api import datasource_bp
 from .constants import NEWSPAPERS
 
 newspaper_bp = Blueprint('newspaper', __name__, url_prefix='/newspaper')
-plugin_bp.register_blueprint(newspaper_bp)
+datasource_bp.register_blueprint(newspaper_bp)
 
 @newspaper_bp.route('/lookups/newspaperSlug', methods=['GET'])
 def plugin_newspaper_slugs():

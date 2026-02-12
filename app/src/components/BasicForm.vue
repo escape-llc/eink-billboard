@@ -9,7 +9,7 @@
 			<template v-if="localProperties.length === 0">
 				<slot name="empty"></slot>
 			</template>
-			<template v-for="field in localProperties" :key="field.name">
+			<template v-else v-for="field in localProperties" :key="field.name">
 				<!--
 				<div>{{  JSON.stringify(field)  }}</div>
 				-->
@@ -19,45 +19,8 @@
 					</slot>
 				</template>
 				<template v-else>
-					<InputGroup>
-						<InputGroupAddon>
-							<label :style="{'width': props.fieldNameWidth, 'max-width': props.fieldNameWidth }" style="flex-shrink:0;flex-grow:1" :for="field.name">{{ field.label }}</label>
-						</InputGroupAddon>
-						<template v-if="field.type === 'boolean'">
-							<InputGroupAddon style="flex-grow:1">
-								<ToggleSwitch :name="field.name" size="small" fluid />
-							</InputGroupAddon>
-						</template>
-						<template v-else-if="'enum' in field">
-							<Select size="small" :name="field.name" :options="field.enum"
-								:showClear="field.required === false"
-								:placeholder="field.label" fluid />
-						</template>
-						<template v-else-if="'lookup' in field">
-							<Select size="small" :name="field.name" :options="field.list"
-								optionLabel="name" optionValue="value" :showClear="field.required === false"
-								:placeholder="field.label" fluid />
-						</template>
-						<template v-else-if="field.type === 'number'">
-							<InputNumber style="flex-grow:1" :name="field.name" size="small"
-								:min="field.min" :max="field.max" :step="field.step" :showButtons="true"
-								:minFractionDigits="field.minFractionDigits || 0" :maxFractionDigits="field.maxFractionDigits || 0"
-								:showClear="field.required === false"
-								:placeholder="field.label" fluid />
-						</template>
-						<template v-else-if="field.type === 'location'">
-							<InputGroupAddon style="flex-grow:1">
-								<FormField style="width:100%;height:300px" :name="field.name" v-slot="$field" :validateOnValueUpdate="true">
-									<LeafletPicker :name="field.name" :modelValue="$field.value" @change="$field.onChange" />
-								</FormField>
-							</InputGroupAddon>
-						</template>
-						<template v-else>
-							<InputText style="flex-grow:1" :name="field.name" size="small" type="text"
-								:placeholder="field.label" fluid />
-						</template>
-					</InputGroup>
-					<Message v-if="$form[field.name]?.invalid" severity="error" size="small" variant="simple">{{ $form[field.name].error?.message }}</Message>
+					<BasicFormField :field="field" :formContext="$form" :fieldNameWidth="fieldNameWidth" @form-field-event="handleFormFieldEvent">
+					</BasicFormField>
 				</template>
 			</template>
 			<slot name="footer"></slot>
@@ -65,59 +28,21 @@
 	</div>
 </template>
 <script setup lang="ts">
-import { InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Message, Select } from 'primevue';
+//import { InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Message, Select } from 'primevue';
 import Form from "@primevue/forms/form"
-import FormField from "@primevue/forms/formfield"
 import { ref, toRaw, nextTick, watch, inject, computed } from "vue"
 import z from "zod"
-import LeafletPicker from './LeafletPicker.vue';
+import BasicFormField from './BasicFormField.vue'
+import type { LookupValue, FormDef, SchemaType, PropertiesDef } from "./FormDefs"
 
 const form = ref()
 let currentResolver: z.ZodTypeAny|undefined = undefined;
 
-export type FieldGroupDef = {
-	name: string
-	label: string
-	type: "header"
-}
-export type FieldDef = {
-	name: string
-	label: string
-	type: "string" | "boolean" | "number" | "int" | "location"
-	required: boolean
-	lookup?: string
-	min?: number
-	max?: number
-	step?: number
-	minFractionDigits?:number
-	maxFractionDigits?:number
-}
-export type LookupUrl = {
-	url: string
-}
-export type LookupValue = {
-	name: string;
-	value: unknown;
-}
-export type LookupItems = {
-	items: LookupValue[]
-}
-export type LookupDef = LookupItems | LookupUrl
-
-export type FormDef = {
-	schema: SchemaType
-	default: Record<string,any>
-}
-export type PropertiesDef = FieldDef | FieldGroupDef
-export type SchemaType = {
-	lookups: Record<string,LookupDef>
-	properties: PropertiesDef[]
-}
 export interface PropsType {
 	form?: FormDef
 	initialValues?: any
 	fieldNameWidth?: string
-	baseUrl?: string
+	baseUrl: string
 }
 export interface ValidateEventData {
 	result: z.ZodSafeParseResult<any>
@@ -137,20 +62,20 @@ z.config({
 	}
 });
 
-const props = withDefaults(defineProps<PropsType>(), { fieldNameWidth: "10rem", baseUrl: "" })
+const props = withDefaults(defineProps<PropsType>(), { fieldNameWidth: "10rem" })
 const emits = defineEmits<EmitsType>()
 const localProperties = ref<any[]>([])
 const localValues = ref<any>({})
 const injplugins = inject("settingsPluginsList", ref([]))
 const injdataSources = inject("settingsDataSourcesList", ref([]))
-const plugins = computed(() => injplugins.value)
-const dataSources = computed(() => injdataSources.value)
+const plugins = computed<any[]>(() => injplugins.value)
+const dataSources = computed<any[]>(() => injdataSources.value)
 watch(() => props.form, (nv,ov) => {
 	console.log("watch.form", nv, ov);
 	if(nv) {
-		localProperties.value = formProperties(nv)
-		currentResolver = createResolver(nv)
-		startLookups(nv)
+		localProperties.value = formProperties(nv.schema)
+		currentResolver = createResolver(nv.schema, localProperties.value)
+		startLookups2(nv.schema, localProperties.value)
 	}
 	else {
 		localProperties.value = []
@@ -172,26 +97,47 @@ watch(() => props.initialValues, (nv,ov) => {
 	});
 }, { immediate:true }
 )
-function startLookups(form: FormDef): void {
-	form.schema.properties.forEach(px => {
+function startLookups(schema: SchemaType): void {
+	schema.properties.forEach(px => {
 		const target = localProperties.value.find(lp => lp.name === px.name)
 		if(target && target.lookup && target.listType === "url") {
-			lookupUrl(form, target.lookup, target)
+			lookupUrl(schema, target.lookup, target)
 		}
 	})
 }
-function formProperties(form: FormDef) {
-	if(form.schema.properties) {
+function startLookups2(schema: SchemaType, values: any[]): void {
+	values.forEach(px => {
+		if(px.lookup && px.listType === "url") {
+			lookupUrl(schema, px.lookup, px)
+		}
+	})
+}
+function schemaFilterFeatures(features: string[], check: string[]|undefined): boolean {
+	if(!features || features.length === 0) return false;
+	if(!check || check.length === 0) return true;
+	return check.some(c => features.includes(c))
+}
+function formProperties(schema: SchemaType) {
+	if(schema.properties) {
 		const retv:any[] = []
-		form.schema.properties.forEach(px => {
+		schema.properties.forEach(px => {
 			const fx:any = { ...px }
-			if("lookup" in px && px.lookup && isLookupItems(form, px.lookup, "items")) {
-				fx.list = lookupItems(form, px.lookup)
-				fx.listType = "items"
-			}
-			else if("lookup" in px && px.lookup && isLookupItems(form, px.lookup, "url")) {
-				fx.list = []
-				fx.listType = "url"
+			if("lookup" in px && px.lookup) {
+				if(isLookupItems(schema, px.lookup, "items")) {
+					fx.list = lookupItems(schema, px.lookup)
+					fx.listType = "items"
+				}
+				else if(isLookupItems(schema, px.lookup, "url")) {
+					fx.list = []
+					fx.listType = "url"
+				}
+				else if(isLookupItems(schema, px.lookup, "schema")) {
+					fx.list = lookupSchema(schema, px.lookup)
+					fx.listType = "schema"
+				}
+				else {
+					console.warn("Unknown lookup type", px.lookup)
+				}
 			}
 			retv.push(fx)
 		})
@@ -199,9 +145,9 @@ function formProperties(form: FormDef) {
 	}
 	return []
 }
-function isLookupItems(form: FormDef, lookup:string, prop:string): boolean {
-	if(form.schema.lookups) {
-		const lookups = form.schema.lookups
+function isLookupItems(schema: SchemaType, lookup:string, prop:string): boolean {
+	if(schema.lookups) {
+		const lookups = schema.lookups
 		if(lookup in lookups) {
 			const lku = lookups[lookup]
 			if(lku && prop in lku) {
@@ -211,9 +157,9 @@ function isLookupItems(form: FormDef, lookup:string, prop:string): boolean {
 	}
 	return false
 }
-function lookupItems(form: FormDef, lookup:string): LookupValue[] {
-	if(form.schema.lookups) {
-		const lookups = form.schema.lookups
+function lookupItems(schema: SchemaType, lookup:string): LookupValue[] {
+	if(schema.lookups) {
+		const lookups = schema.lookups
 		if(lookup in lookups) {
 			const lku = lookups[lookup]
 			if(lku && "items" in lku) {
@@ -225,10 +171,30 @@ function lookupItems(form: FormDef, lookup:string): LookupValue[] {
 	}
 	return []
 }
-function lookupUrl(form: FormDef, lookup: string, target: any): void {
+function lookupSchema(schema: SchemaType, lookup:string): LookupValue[] {
+ if(schema.lookups) {
+		const lookups = schema.lookups
+		if(lookup in lookups) {
+			const lku = lookups[lookup]
+			if(lku && "schema" in lku) {
+				if(lku.schema === "plugins") {
+					return plugins.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings) }))
+				}
+				else if(lku.schema === "data-sources") {
+					return dataSources.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings) }))
+				}
+				else {
+					console.warn("Unknown lookup schema", lku.schema)
+				}
+			}
+		}
+	}
+	return [];
+}
+function lookupUrl(schema: SchemaType, lookup: string, target: any): void {
 	if(!target) return;
-	if(form.schema.lookups) {
-		const lookups = form.schema.lookups
+	if(schema.lookups) {
+		const lookups = schema.lookups
 		if(lookup in lookups) {
 			const lku = lookups[lookup]
 			if(lku && "url" in lku) {
@@ -253,58 +219,80 @@ function lookupUrl(form: FormDef, lookup: string, target: any): void {
 		}
 	}
 }
-function createResolver(form: FormDef): z.ZodTypeAny {
+function schemaFor(px: PropertiesDef): z.ZodTypeAny|undefined {
+	if(!px) return undefined;
+	switch(px.type) {
+		case "header":
+			return undefined
+		case "string":
+			let r1 = z.string()
+			if(px.required === true) {
+				r1 = r1.min(1, { error:"Required" })
+			}
+			return r1
+		case "boolean":
+			let r2 = z.boolean()
+			return r2
+		case "number":
+			let r4 = z.number()
+			if(px.min) {
+				r4 = r4.min(px.min, { error:`Minimum ${px.min}` })
+			}
+			if(px.max) {
+				r4 = r4.max(px.max, { error:`Maximum ${px.max}` })
+			}
+			// for number this must go on the end
+			if(px.required === true) {
+				let r5 = r4.nonoptional()
+				return r5
+			}
+			else {
+				return r4
+			}
+		case "location":
+			let r6 = z.object({ latitude: z.number(), longitude: z.number() })
+			if(px.required === true) {
+				let r7 = r6.nonoptional()
+				return r7
+			}
+			else {
+				return r6
+			}
+		case "schema":
+			let r8 = z.string()
+			if(px.required === true) {
+				r8 = r8.min(1, { error:"Required" })
+			}
+			return r8
+		default:
+			console.warn("no validation for type, using 'string'", px)
+			let r3 = z.string()
+			if(px.required === true) {
+				r3 = r3.min(1, { error:"Required" })
+			}
+			return r3
+	}
+}
+function createResolver(schema: SchemaType, values: any[]): z.ZodTypeAny {
 	const resv: Record<string, z.ZodTypeAny> = {}
-	form.schema.properties.forEach(px => {
-		switch(px.type) {
-			case "header":
-				break
-			case "string":
-				let r1 = z.string()
-				if(px.required === true) {
-					r1 = r1.min(1, { error:"Required" })
+	schema.properties.forEach(px => {
+		const sx = schemaFor(px)
+		if(sx) {
+			resv[px.name] = sx
+		}
+		if(px.type === "schema" && "lookup" in px && px.lookup) {
+			const target = values.find(vx => vx.name === px.lookup)
+			if(target) {
+				console.log("IDFK just yet", target)
+				if(target.children) {
+					target.children.forEach(chx => {
+						const sx = schemaFor(chx)
+						if(sx) {
+							resv[chx.name] = sx
+						}
+					});
 				}
-				resv[px.name] = r1
-				break
-			case "boolean":
-				let r2 = z.boolean()
-				resv[px.name] = r2
-				break
-			case "number":
-				let r4 = z.number()
-				if(px.min) {
-					r4 = r4.min(px.min, { error:`Minimum ${px.min}` })
-				}
-				if(px.max) {
-					r4 = r4.max(px.max, { error:`Maximum ${px.max}` })
-				}
-				// for number this must go on the end
-				if(px.required === true) {
-					let r5 = r4.nonoptional()
-					resv[px.name] = r5
-				}
-				else {
-					resv[px.name] = r4
-				}
-				break
-			case "location":
-				let r6 = z.object({ latitude: z.number(), longitude: z.number() })
-				if(px.required === true) {
-					let r7 = r6.nonoptional()
-					resv[px.name] = r7
-				}
-				else {
-					resv[px.name] = r6
-				}
-				break;
-			default:
-				console.warn("no validation for type, using 'string'", px)
-				let r3 = z.string()
-				if(px.required === true) {
-					r3 = r3.min(1, { error:"Required" })
-				}
-				resv[px.name] = r3
-				break;
+			}
 		}
 	})
 	return z.object(resv)
@@ -342,6 +330,20 @@ const submit = () => {
 }
 const reset = () => {
 	form.value?.reset();
+}
+const handleFormFieldEvent = (data:any) => {
+	console.log("handleFormFieldEvent", data)
+	if(data.type === "schema-change") {
+		const field = localProperties.value.find((f:any) => f.name === data.field.name)
+		if(field) {
+			field.children = formProperties(data.selected.schema.schema)
+			currentResolver = createResolver(props.form.schema, localProperties.value)
+			startLookups2(data.selected.schema.schema, field.children)
+			nextTick().then(_ => {
+				form.value?.validate();
+			})
+		}
+	}
 }
 defineExpose({ submit, reset })
 </script>

@@ -110,10 +110,15 @@ def run_application():
 	watcher_sink = ConfigurationManagerEvictionSink(cm)
 	config_watcher = ConfigurationWatcher(time_base, watcher_sink, cm.STORAGE_PATH)
 	# register plugin blueprints
-	blueprint_map = cm.load_blueprints(cm.enum_plugins())
-	for bp_name, bp in blueprint_map.items():
+	p_blueprint_map = cm.load_blueprints(cm.enum_plugins())
+	for bp_name, bp in p_blueprint_map.items():
 		app.register_blueprint(bp)
-		logger.info(f"Registered blueprint: {bp_name}")
+		logger.info(f"Registered pi blueprint: {bp_name}")
+	# register datasource blueprints
+	d_blueprint_map = cm.load_blueprints(cm.enum_datasources())
+	for bp_name, bp in d_blueprint_map.items():
+		app.register_blueprint(bp)
+		logger.info(f"Registered ds blueprint: {bp_name}")
 	# Register Blueprints
 	app.register_blueprint(root_bp)
 	app.register_blueprint(api_bp)
