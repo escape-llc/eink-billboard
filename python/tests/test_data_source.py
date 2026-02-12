@@ -1,7 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import unittest
-import logging
 
 from python.datasources.countdown.countdown import Countdown
 from python.datasources.year_progress.year_progress import YearProgress
@@ -13,14 +12,9 @@ from ..datasources.data_source import DataSourceExecutionContext, DataSourceMana
 from ..datasources.wpotd.wpotd import Wpotd
 from ..datasources.image_folder.image_folder import ImageFolder
 from ..datasources.newspaper.newspaper import Newspaper
-from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
+from ..model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
 from .utils import create_configuration_manager, save_image, test_output_path_for
-
-logging.basicConfig(
-	level=logging.DEBUG,  # Or DEBUG for more detail
-	format='%(asctime)s %(levelname)s %(name)s: %(message)s'
-)
 
 class TestDataSources(unittest.TestCase):
 	def create_data_source_context(self, dsid:str, schedule_ts: datetime = datetime.now()) -> DataSourceExecutionContext:

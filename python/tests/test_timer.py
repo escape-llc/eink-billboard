@@ -1,17 +1,10 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 import unittest
-import time
-import logging
 
 from ..task.messages import BasicMessage, MessageSink
 from ..task.timer_tick import TickMessage
 from ..task.timer import Timer, TimerService
-
-logging.basicConfig(
-	level=logging.DEBUG,  # Or DEBUG for more detail
-	format='%(asctime)s %(levelname)s %(name)s: %(message)s'
-)
 
 class TestTimer(Timer):
 	def __init__(self, tick, delta):

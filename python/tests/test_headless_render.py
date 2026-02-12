@@ -6,11 +6,8 @@ import logging
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pathvalidate import sanitize_filename
 
-from ..model.configuration_manager import StaticConfigurationManager
-from ..plugins.plugin_base import RenderSession
 from ..utils.image_utils import render_html_arglist
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 class TestHeadlessRender(unittest.TestCase):

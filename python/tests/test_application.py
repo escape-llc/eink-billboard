@@ -1,7 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import unittest
-import logging
 
 from .utils import ScaledTimeOfDay, ScaledTimerService, storage_path, MessageTriggerSink
 from ..model.service_container import ServiceContainer
@@ -10,11 +9,6 @@ from ..model.time_of_day import TimeOfDay
 from ..task.timer import IProvideTimer
 from ..task.application import Application
 from ..task.messages import QuitMessage, StartEvent, StartOptions, StopEvent, Telemetry
-
-logging.basicConfig(
-	level=logging.DEBUG,  # Or DEBUG for more detail
-	format='%(asctime)s %(levelname)s %(name)s: %(message)s'
-)
 
 class TestApplication(unittest.TestCase):
 	def test_start_configure_stop(self):

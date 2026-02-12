@@ -24,11 +24,6 @@ from ..task.future_source import FutureSource, SubmitFuture
 from ..task.message_router import MessageRouter, Route
 from ..task.messages import BasicMessage, MessageSink, QuitMessage
 
-logging.basicConfig(
-	level=logging.DEBUG,  # Or DEBUG for more detail
-	format='%(asctime)s %(levelname)s %(name)s: %(message)s'
-)
-
 class DebugMessageSink(MessageSink):
 	def __init__(self):
 		self.msg_queue = queue.Queue()
