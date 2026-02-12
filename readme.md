@@ -171,3 +171,67 @@ Display Task uses a dynamically determined "driver" that matches the hardware us
 	* saves to local file system
 * Tkinter
 	* displays a window via `Tk`
+
+# Storage Architecture
+
+The application uses a specific "storage root" folder it keeps everything in.
+
+* Storage Root
+	* A folder outside all the source code, used to keep the volatile state of the application.
+		* Global Settings
+		* Per-datasource Settings/State
+		* Per-plugin Settings/State
+		* Schedules
+		* Schemas
+* Source Root
+	* Used to locate "internal" source files that get served via API
+* NVE (Non-volatile Environment) Root
+	* Used to initialize storage from "factory default" during a force-reset or manual staging
+	* There is a default version in the source code
+	* You may stage any number of NVE to use for "factory reset"
+
+A Storage Root is required for the following:
+
+* Main Application
+* Unit Tests
+
+By default it is named `.storage` and is by default ignored in `.gitignore`. As a consequence, there is no canonical example of these files (in repository), beyond what is in the NVE (which is in the source code by default).
+
+# DEV Mode
+
+## Storage Folder
+
+You must set up a separate `.storage` folder for the application to store its state.  See above for details.
+
+## Run
+
+Use the following recipe to get started with development:
+
+* New Terminal 1
+* `python -m python.eink-billboard --dev --cors "http://localhost:5173" --host localhost --storage ./.storage`
+* New Terminal 2
+* `cd app && npm run dev`
+
+## Debug
+
+To debug the processes:
+
+* Python - start the `eink-billboard.py` in the Debugger
+	* Requires config in `launch.json` that includes the command arguments listed above
+* Javascript - use your web browser Dev Tools or VS Code
+
+The following JSON may be used to set up the launch configuration for Python debugging.
+
+------
+		{
+			"name": "Python: MAIN",
+			"type": "debugpy",
+			"request": "launch",
+			"module": "python.eink-billboard",
+			"args":["--dev", "--cors", "http://localhost:5173", "--host", "localhost", "--storage", ".\/.storage"],
+			"env": {
+				"PYTHONPATH": "${workspaceFolder}"
+			},
+			"console": "integratedTerminal"
+		}
+------
