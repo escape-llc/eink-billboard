@@ -55,11 +55,6 @@
 							<h3 class="mb-0">{{ slotProps.label }}</h3>
 						</template>
 					</BasicForm>
-
-					<div class="editor-actions">
-						<Button label="Apply" icon="pi pi-check" class="p-button-success" :disabled="submitDisabled" @click="applyChanges" />
-						<Button label="Cancel" icon="pi pi-times" class="p-button-secondary" @click="cancelEdit" />
-					</div>
 				</div>
 
 				<div v-else class="empty-state">
@@ -126,8 +121,8 @@ const handleValidate = (e: ValidateEventData) => {
 }
 const submitForm = (data:any) => {
 	console.log("submitForm", data)
-	if(data.valid) {
-		const post = structuredClone(data.values)
+	if(data.result.success) {
+		const post = structuredClone(data.result.data)
 		if(_rev) {
 			post._rev = _rev
 		}
