@@ -5,7 +5,7 @@ import logging
 from typing import cast
 
 from ..model.schedule import TimedSchedule
-from ..model.configuration_manager import ConfigurationManager, ConfigurationObject, HASH_KEY, ID_KEY
+from ..model.configuration_manager import ConfigurationManager, ConfigurationObject, HASH_KEY, ID_KEY, create_hash
 
 logger = logging.getLogger(__name__)
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -337,6 +337,62 @@ def get_locales():
 		{"value": "de-DE", "name": "Deutsch"}
 	]
 	return jsonify(locales)
+
+@api_bp.route('/schedule/playlist/list', methods=['GET'])
+def schedule_playlist_list():
+	logger.info("GET /schedule/playlist/list")
+	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": "schedule-playlist-list", "success": False }
+		return jsonify(error), 500
+	try:
+		sm = cm.schedule_manager()
+		schedule_info = sm.load()
+		sm.validate(schedule_info)
+		playlists = schedule_info.get("playlists", [])
+		if not playlists:
+			return jsonify({"success": False, "error": "Playlists not found"}), 404
+		playlist_resp = []
+		for schedule in playlists:
+			info = schedule.get("info", None)
+			if info is not None:
+				dx = info.to_dict()
+				hash = create_hash(dx)
+				dx[HASH_KEY] = hash
+				playlist_resp.append(dx)
+		return jsonify({ "success": True, "playlists": playlist_resp })
+	except Exception as e:
+		logger.error(f"/schedule/playlist/list: {str(e)}")
+		error = { "message": str(e), "id": "schedule-playlist-list", "success": False }
+		return jsonify(error), 500
+
+@api_bp.route('/schedule/timer/list', methods=['GET'])
+def schedule_timed_list():
+	logger.info("GET /schedule/timer/list")
+	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": "schedule-timer-list", "success": False }
+		return jsonify(error), 500
+	try:
+		sm = cm.schedule_manager()
+		schedule_info = sm.load()
+		sm.validate(schedule_info)
+		playlists = schedule_info.get("tasks", [])
+		if not playlists:
+			return jsonify({"success": False, "error": "Timer Tasks not found"}), 404
+		playlist_resp = []
+		for schedule in playlists:
+			info = schedule.get("info", None)
+			if info is not None:
+				dx = info.to_dict()
+				hash = create_hash(dx)
+				dx[HASH_KEY] = hash
+				playlist_resp.append(dx)
+		return jsonify({ "success": True, "timed": playlist_resp })
+	except Exception as e:
+		logger.error(f"/schedule/timer/list: {str(e)}")
+		error = { "message": str(e), "id": "schedule-timer-list", "success": False }
+		return jsonify(error), 500
 
 @api_bp.route('/schedule/render', methods=['GET'])
 def render_schedule():
