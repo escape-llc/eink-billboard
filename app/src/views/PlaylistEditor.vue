@@ -5,7 +5,7 @@
 				<div style="font-size:150%">Playlists</div>
 			</template>
 			<template #end>
-				<div>{{ playlistName }}</div>
+				<div class="mr-3 text-xl">{{ playlistName }}</div>
 				<Button title="Add Track" icon="pi pi-plus" size="small" @click="addTrack" />
 			</template>
 		</Toolbar>
@@ -15,12 +15,14 @@
 				<ul>
 					<li v-for="(t, idx) in tracks" :key="t.id" :class="{ selected: selectedIndex === idx }">
 						<div class="track-row" @click="selectTrack(idx)">
-							<div class="color-swatch" :style="{ 'background-color': pluginColor(t.plugin_name) }"></div>
 							<div class="track-meta">
-								<div class="title">{{ pluginName(t.plugin_name) || 'Unknown Plugin' }}</div>
+								<div class="title">{{  t.title  }}</div>
+								<div>{{ pluginName(t.plugin_name) || 'Unknown Plugin' }}</div>
 							</div>
 							<div class="actions">
+								<!--
 								<Button icon="pi pi-pencil" size="small" class="p-button-text" @click.stop="editTrack(idx)" />
+								-->
 								<Button icon="pi pi-trash" size="small" severity="danger" class="p-button-text"
 									@click.stop="removeTrack(idx)" />
 							</div>
@@ -45,15 +47,23 @@
 									</InputGroup>
 								</template>
 							</Toolbar>
+						</template>
+						<template #group-header="slotProps">
+							<h3 class="mb-0">{{ slotProps.label }}</h3>
+						</template>
+						<template #before-fields>
+							<InputGroup>
+								<InputGroupAddon>
+									<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" style="flex-shrink:0;flex-grow:1">Title</label>
+								</InputGroupAddon>
+								<InputText style="flex-grow:1" size="small" v-model="editModel.title" />
+							</InputGroup>
 							<InputGroup>
 								<InputGroupAddon>
 									<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" style="flex-shrink:0;flex-grow:1">Plugin</label>
 								</InputGroupAddon>
 								<Select :options="pluginOptions" optionLabel="name" optionValue="id" v-model="editModel.plugin_name" />
 							</InputGroup>
-						</template>
-						<template #group-header="slotProps">
-							<h3 class="mb-0">{{ slotProps.label }}</h3>
 						</template>
 					</BasicForm>
 				</div>
@@ -68,7 +78,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, provide } from 'vue'
-import { InputGroup, InputGroupAddon, Toolbar, Button, Dialog, Select, InputNumber } from 'primevue'
+import { InputGroup, InputGroupAddon, Toolbar, Button, Dialog, Select, InputText } from 'primevue'
 import BasicForm, { type ValidateEventData } from '../components/BasicForm.vue'
 import type { PlaylistItem, PlaylistSchedule } from '../components/ScheduleDefs'
 const API_URL = import.meta.env.VITE_API_URL
@@ -100,7 +110,7 @@ const selectedIndex = ref<number | null>(null)
 const playlistName = ref<string>()
 
 // editing model separate from the track until Apply
-const editModel = reactive<PlaylistItem>({} as any) // start with empty model, populate on track select
+const editModel = reactive<Record<string,any>>({} as any) // start with empty model, populate on track select
 
 const selectedTrack = computed(() => (selectedIndex.value !== null ? tracks.value[selectedIndex.value] : null))
 const selectedPlugin = computed(() => pluginList.value.find(p => p.id === editModel.plugin_name) || null)
@@ -149,29 +159,17 @@ const submitForm = (data:any) => {
 	}
 }
 const handleReset = () => {
+	cancelEdit()
 	bf.value?.reset()
 }
 const handleSubmit = () => {
 	bf.value?.submit()
 }
 
-// color wheel assignment
-function assignColors(plugs: PluginDef[]) {
-	const leng = plugs.length || 1
-	for (let ix = 0; ix < plugs.length; ix++) {
-		const hue = Math.round((ix * 360) / leng)
-		plugs[ix].color = `hsl(${hue} 70% 60%)`
-	}
-}
-
 // helpers
 function pluginName(id?: string) {
 	const p = pluginList.value.find(x => x.id === id)
 	return p ? p.name : null
-}
-function pluginColor(id?: string) {
-	const p = pluginList.value.find(x => x.id === id)
-	return p ? p.color : '#ddd'
 }
 
 // track operations
@@ -254,7 +252,6 @@ function initProviders() {
 		console.log("plugins", json)
 		plugins.value = structuredClone(json)
 		pluginList.value = structuredClone(json)
-		assignColors(pluginList.value)
 	})
 	.catch(ex => {
 		console.error("fetch.pl.unhandled", ex)
@@ -384,7 +381,10 @@ onMounted(() => {
 	display: flex;
 	gap: 0.25rem;
 }
-
+.selected {
+	background: #eef7ff;
+	border: 1px solid #cce4ff;
+}
 .track-editor {
 	flex: 1;
 	border: 1px solid #eee;
