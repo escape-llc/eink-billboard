@@ -61,6 +61,14 @@ z.config({
 		return undefined;
 	}
 });
+const nullableAndEmptyStringSchema = z.preprocess(
+  (val) => (val === "" ? null : val),
+  z.string().nullable()
+);
+const nulableAndEmptyDateSchema = z.preprocess(
+  (arg) => (arg === "" ? null : arg), // Convert "" to null
+  z.iso.date().nullable()    // Then allow null or a valid ISO date
+);
 
 const props = withDefaults(defineProps<PropsType>(), { fieldNameWidth: "10rem" })
 const emits = defineEmits<EmitsType>()
@@ -73,9 +81,7 @@ const dataSources = computed<any[]>(() => injdataSources.value)
 watch(() => props.form, (nv,ov) => {
 	console.log("watch.form", nv, ov);
 	if(nv) {
-		localProperties.value = formProperties(nv.schema)
-		currentResolver = createResolver(nv.schema, localProperties.value)
-		startLookups2(nv.schema, localProperties.value)
+		ensureInitializeForm(nv.schema, localValues.value)
 	}
 	else {
 		localProperties.value = []
@@ -87,6 +93,7 @@ watch(() => props.initialValues, (nv,ov) => {
 	console.log("watch.initialValues", nv, ov);
 	if(nv) {
 		localValues.value = structuredClone(toRaw(nv))
+		ensureInitializeForm(props.form?.schema as SchemaType, localValues.value)
 	}
 	else {
 		localValues.value = {}
@@ -97,18 +104,22 @@ watch(() => props.initialValues, (nv,ov) => {
 	});
 }, { immediate:true }
 )
-function startLookups(schema: SchemaType): void {
-	schema.properties.forEach(px => {
-		const target = localProperties.value.find(lp => lp.name === px.name)
-		if(target && target.lookup && target.listType === "url") {
-			lookupUrl(schema, target.lookup, target)
-		}
-	})
+function ensureInitializeForm(schema: SchemaType, values: any): void {
+	console.log("ensureInitializeForm", schema, values);
+	if(values && Object.keys(values).length === 0) return;
+	if(!schema) return;
+	console.log("ensureInitializeForm.fire");
+	localProperties.value = formProperties(schema)
+	currentResolver = createResolver(schema, localProperties.value)
+	startLookups(schema, localProperties.value)
 }
-function startLookups2(schema: SchemaType, values: any[]): void {
+function startLookups(schema: SchemaType, values: any[]): void {
 	values.forEach(px => {
 		if(px.lookup && px.listType === "url") {
-			lookupUrl(schema, px.lookup, px)
+			lookupUrl(px)
+		}
+		if(px.children) {
+			startLookups(schema, px.children)
 		}
 	})
 }
@@ -117,7 +128,7 @@ function schemaFilterFeatures(features: string[], check: string[]|undefined): bo
 	if(!check || check.length === 0) return true;
 	return check.some(c => features.includes(c))
 }
-function formProperties(schema: SchemaType) {
+function formProperties(schema: SchemaType) :any[] {
 	if(schema.properties) {
 		const retv:any[] = []
 		schema.properties.forEach(px => {
@@ -130,6 +141,7 @@ function formProperties(schema: SchemaType) {
 				else if(isLookupItems(schema, px.lookup, "url")) {
 					fx.list = []
 					fx.listType = "url"
+					fx.lookupUrl = toRaw(schema.lookups ? schema.lookups[px.lookup].url : null)
 				}
 				else if(isLookupItems(schema, px.lookup, "schema")) {
 					fx.list = lookupSchema(schema, px.lookup)
@@ -137,6 +149,16 @@ function formProperties(schema: SchemaType) {
 				}
 				else {
 					console.warn("Unknown lookup type", px.lookup)
+				}
+			}
+			if(px.type === "schema" && "list" in fx && fx.listType === "schema") {
+				const svalue = localValues.value[px.name]
+				console.log("formProperties.schema", px.name, svalue, fx.list)
+				if(svalue) {
+					const target = fx.list.find(vx => vx.value === svalue)
+					if(target) {
+						fx.children = formProperties(target.schema.schema as SchemaType)
+					}
 				}
 			}
 			retv.push(fx)
@@ -191,33 +213,25 @@ function lookupSchema(schema: SchemaType, lookup:string): LookupValue[] {
 	}
 	return [];
 }
-function lookupUrl(schema: SchemaType, lookup: string, target: any): void {
+function lookupUrl(target: any): void {
 	if(!target) return;
-	if(schema.lookups) {
-		const lookups = schema.lookups
-		if(lookup in lookups) {
-			const lku = lookups[lookup]
-			if(lku && "url" in lku) {
-				const url = toRaw(lku.url)
-				const finalUrl = `${props.baseUrl}${url}`
-				console.log("lookupUrl", url, props.baseUrl, target)
-				fetch(finalUrl).then(rx => rx.json()).then(json => {
-					console.log("lookupUrl", json, target)
-					nextTick().then(_ => {
-						target.list = json
-					})
-					// TODO add an entry corresponding to current value if missing
-				})
-				.catch(ex => {
-					console.error("lookupUrl", ex)
-					nextTick().then(_ => {
-						target.list = [{name:ex.message,value:ex.message}]
-					})
-					// TODO add an entry corresponding to current value if missing
-				})
-			}
-		}
-	}
+	if(!target.lookupUrl) return;
+	const finalUrl = `${props.baseUrl}${target.lookupUrl}`
+	console.log("lookupUrl.start", finalUrl)
+	fetch(finalUrl).then(rx => rx.json()).then(json => {
+		console.log("lookupUrl", json, target)
+		nextTick().then(_ => {
+			target.list = json
+		})
+		// TODO add an entry corresponding to current value if missing
+	})
+	.catch(ex => {
+		console.error("lookupUrl", ex)
+		nextTick().then(_ => {
+			target.list = [{name:ex.message,value:ex.message}]
+		})
+		// TODO add an entry corresponding to current value if missing
+	})
 }
 function schemaFor(px: PropertiesDef): z.ZodTypeAny|undefined {
 	if(!px) return undefined;
@@ -225,11 +239,12 @@ function schemaFor(px: PropertiesDef): z.ZodTypeAny|undefined {
 		case "header":
 			return undefined
 		case "string":
-			let r1 = z.string()
 			if(px.required === true) {
-				r1 = r1.min(1, { error:"Required" })
+				return z.string().min(1, { error:"Required" })
 			}
-			return r1
+			else {
+				return nullableAndEmptyStringSchema
+			}
 		case "boolean":
 			let r2 = z.boolean()
 			return r2
@@ -259,11 +274,26 @@ function schemaFor(px: PropertiesDef): z.ZodTypeAny|undefined {
 				return r6
 			}
 		case "schema":
+			// TODO enforce value is in the schema list
 			let r8 = z.string()
 			if(px.required === true) {
 				r8 = r8.min(1, { error:"Required" })
 			}
 			return r8
+		case "date":
+			if(px.required === true) {
+				const strictlyRequired = z.preprocess((val) => {
+					// Fix missing seconds for HTML inputs
+					if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(val)) {
+						return `${val}:00`;
+					}
+					return val;
+				}, z.iso.date());
+				return strictlyRequired
+			}
+			else {
+				return nulableAndEmptyDateSchema
+			}
 		default:
 			console.warn("no validation for type, using 'string'", px)
 			let r3 = z.string()
@@ -275,26 +305,25 @@ function schemaFor(px: PropertiesDef): z.ZodTypeAny|undefined {
 }
 function createResolver(schema: SchemaType, values: any[]): z.ZodTypeAny {
 	const resv: Record<string, z.ZodTypeAny> = {}
-	schema.properties.forEach(px => {
-		const sx = schemaFor(px)
-		if(sx) {
-			resv[px.name] = sx
-		}
-		if(px.type === "schema" && "lookup" in px && px.lookup) {
-			const target = values.find(vx => vx.name === px.lookup)
-			if(target) {
-				console.log("IDFK just yet", target)
-				if(target.children) {
-					target.children.forEach(chx => {
-						const sx = schemaFor(chx)
-						if(sx) {
-							resv[chx.name] = sx
-						}
-					});
+	function recursiveBit(props: PropertiesDef[]): void {
+		props.forEach(px => {
+			const sx = schemaFor(px)
+			console.log("schemaFor", px.name, sx)
+			if(sx) {
+				resv[px.name] = sx
+			}
+			if(px.type === "schema" && "lookup" in px && px.lookup) {
+				const target = values.find(vx => vx.name === px.lookup)
+				if(target) {
+					console.log("recursive.schema", px.lookup, target.children)
+					if(target.children) {
+						recursiveBit(target.children)
+					}
 				}
 			}
-		}
-	})
+		})
+	}
+	recursiveBit(schema.properties)
 	return z.object(resv)
 }
 const resolver = ({ values }) => {
@@ -338,7 +367,7 @@ const handleFormFieldEvent = (data:any) => {
 		if(field) {
 			field.children = formProperties(data.selected.schema.schema)
 			currentResolver = createResolver(props.form.schema, localProperties.value)
-			startLookups2(data.selected.schema.schema, field.children)
+			startLookups(data.selected.schema.schema, field.children)
 			nextTick().then(_ => {
 				form.value?.validate();
 			})
