@@ -6,7 +6,7 @@
 	"file": "openai_image.py",
 	"module": "python.datasources.openai_image.openai_image",
 	"description": "OpenAI Gen-AI images.",
-	"features": ["internet", "api-key", "paid-service", "media-image"],
+	"features": ["internet", "api-key", "paid-service", "layer-background", "media-image"],
 	"disabled": false,
 	"settings": {
 		"schema": {

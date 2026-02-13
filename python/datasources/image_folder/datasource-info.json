@@ -7,7 +7,7 @@
 	"module": "python.datasources.image_folder.image_folder",
 	"description": "Image folder data source.",
 	"disabled": false,
-	"features": ["filesystem", "media-list"],
+	"features": ["filesystem", "layer-background", "media-list"],
 	"settings": {
 		"schema": {
 			"properties": [

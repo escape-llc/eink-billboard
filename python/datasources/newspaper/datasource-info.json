@@ -7,7 +7,7 @@
 	"module": "python.datasources.newspaper.newspaper",
 	"description": "A Newspaper PotD downloader.",
 	"disabled": false,
-	"features": ["internet", "media-image"],
+	"features": ["internet", "layer-foreground", "media-image"],
 	"blueprint": {
 		"id": "newspaper-bp",
 		"class": "newspaper_bp",

@@ -7,7 +7,7 @@
 	"module": "python.datasources.wpotd.wpotd",
 	"description": "A Wikipedia PotD downloader.",
 	"disabled": false,
-	"features": ["internet", "media-image"],
+	"features": ["internet", "layer-background", "media-image"],
 	"settings": {
 		"schema": {
 			"properties": [

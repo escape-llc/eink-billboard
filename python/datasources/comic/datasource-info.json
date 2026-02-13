@@ -7,7 +7,7 @@
 	"module": "python.datasources.comic.comic_feed",
 	"description": "A comic downloader.",
 	"disabled": false,
-	"features": ["internet", "media-list"],
+	"features": ["internet", "layer-foreground", "media-list"],
 	"settings": {
 		"schema": {
 			"properties": [
