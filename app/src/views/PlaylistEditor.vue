@@ -5,7 +5,8 @@
 				<div style="font-size:150%">Playlists</div>
 			</template>
 			<template #end>
-				<Button title="Add Track" icon="pi pi-plus" class="p-button-sm" @click="addTrack" />
+				<div>{{ playlistName }}</div>
+				<Button title="Add Track" icon="pi pi-plus" size="small" @click="addTrack" />
 			</template>
 		</Toolbar>
 
@@ -19,8 +20,8 @@
 								<div class="title">{{ pluginName(t.plugin_name) || 'Unknown Plugin' }}</div>
 							</div>
 							<div class="actions">
-								<Button icon="pi pi-pencil" class="p-button-text p-button-sm" @click.stop="editTrack(idx)" />
-								<Button icon="pi pi-trash" class="p-button-text p-button-sm p-button-danger"
+								<Button icon="pi pi-pencil" size="small" class="p-button-text" @click.stop="editTrack(idx)" />
+								<Button icon="pi pi-trash" size="small" severity="danger" class="p-button-text"
 									@click.stop="removeTrack(idx)" />
 							</div>
 						</div>
@@ -30,12 +31,12 @@
 
 			<div class="track-editor">
 				<div v-if="selectedTrack" class="editor-card">
-					<BasicForm ref="bf" v-if="selectedPlugin" :baseUrl="API_URL" :form="selectedPlugin.instanceSettings" :initialValues="editModel.properties"
+					<BasicForm ref="bf" v-if="selectedPlugin" :baseUrl="API_URL" :form="selectedPlugin.instanceSettings" :initialValues="editModel.content"
 						@validate="handleValidate" @submit="submitForm">
 						<template #header>
 							<Toolbar style="width:100%" class="p-1 mt-2">
 								<template #start>
-									<div style="font-weight: bold;font-size:150%">Item Settings</div>
+									<div style="font-weight: bold;font-size:150%">Track Settings</div>
 								</template>
 								<template #end>
 									<InputGroup>
@@ -69,6 +70,7 @@
 import { ref, reactive, computed, onMounted, provide } from 'vue'
 import { InputGroup, InputGroupAddon, Toolbar, Button, Dialog, Select, InputNumber } from 'primevue'
 import BasicForm, { type ValidateEventData } from '../components/BasicForm.vue'
+import type { PlaylistItem, PlaylistSchedule } from '../components/ScheduleDefs'
 const API_URL = import.meta.env.VITE_API_URL
 const bf = ref<InstanceType<typeof BasicForm>>()
 const submitDisabled = ref(true)
@@ -90,24 +92,15 @@ type PluginDef = {
 	instanceSettings: any // form def consumed by BasicForm
 	properties: PluginProperty[]
 }
-type Track = {
-	id: string
-	type: string
-	plugin_name: string
-	properties: Record<string, any>
-}
 
 let _rev:string|undefined = undefined
 const pluginList = ref<PluginDef[]>([])
-const tracks = ref<Track[]>([])
+const tracks = ref<PlaylistItem[]>([])
 const selectedIndex = ref<number | null>(null)
+const playlistName = ref<string>()
 
 // editing model separate from the track until Apply
-const editModel = reactive<{ id?: string; plugin_name?: string; properties: Record<string, any> }>({
-	id: undefined,
-	plugin_name: undefined,
-	properties: {}
-})
+const editModel = reactive<PlaylistItem>({} as any) // start with empty model, populate on track select
 
 const selectedTrack = computed(() => (selectedIndex.value !== null ? tracks.value[selectedIndex.value] : null))
 const selectedPlugin = computed(() => pluginList.value.find(p => p.id === editModel.plugin_name) || null)
@@ -184,10 +177,10 @@ function pluginColor(id?: string) {
 // track operations
 function addTrack() {
 	const defaultPlugin = pluginList.value[0]?.id ?? 'plugin_0'
-	const t: Track = { id: uid('trk'), plugin_name: defaultPlugin, type:"PlaylistSchedule", properties: {} }
+	const t: PlaylistItem = { id: uid('trk'), plugin_name: defaultPlugin, type:"PlaylistSchedule", title: "Untitled", content: {} }
 	// populate default properties
 	const p = pluginList.value.find(x => x.id === defaultPlugin)
-	if (p) t.properties = defaultPropertiesFromPlugin(p)
+	if (p) t.content = defaultPropertiesFromPlugin(p)
 	tracks.value.push(t)
 	selectTrack(tracks.value.length - 1)
 }
@@ -204,10 +197,14 @@ function removeTrack(idx: number) {
 
 function selectTrack(idx: number) {
 	selectedIndex.value = idx
-	const t = tracks.value[idx]
-	editModel.id = t.id
-	editModel.plugin_name = t.plugin_name
-	editModel.properties = JSON.parse(JSON.stringify(t.properties || {})) // clone
+	const trk = tracks.value[idx]
+	if(trk) {
+		editModel.id = trk.id
+		editModel.plugin_name = trk.plugin_name
+		editModel.type = trk.type
+		editModel.title = trk.title
+		editModel.content = JSON.parse(JSON.stringify(trk.content || {})) // clone
+	}
 }
 
 function editTrack(idx: number) {
@@ -219,7 +216,7 @@ function applyChanges() {
 	const t = tracks.value[selectedIndex.value]
 	t.plugin_name = editModel.plugin_name!
 	t.type = "PluginSchedule"
-	t.properties = JSON.parse(JSON.stringify(editModel.properties))
+	t.content = JSON.parse(JSON.stringify(editModel.content || {}))
 	// update id if changed (rare)
 	t.id = editModel.id ?? t.id
 }
@@ -229,12 +226,14 @@ function cancelEdit() {
 	else {
 		editModel.id = undefined
 		editModel.plugin_name = undefined
-		editModel.properties = {}
+		//editModel.type = "PluginSchedule"
+		editModel.title = undefined
+		editModel.content = {}
 	}
 }
 
 function onFormChange(newValues: any) {
-	editModel.properties = newValues
+	editModel.content = newValues
 }
 
 function defaultPropertiesFromPlugin(p: PluginDef) {
@@ -253,10 +252,14 @@ function initProviders() {
 	const px1 = fetch(listDatasourcesUrl).then(rx => rx.json())
 	const px3 = px0.then(json => {
 		console.log("plugins", json)
-		plugins.value = json
+		plugins.value = structuredClone(json)
+		pluginList.value = structuredClone(json)
+		assignColors(pluginList.value)
 	})
 	.catch(ex => {
 		console.error("fetch.pl.unhandled", ex)
+		plugins.value = []
+		pluginList.value = []
 //		toast.add({severity:'error', summary: 'Error', detail: `Failed to load plugins list: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
 	const px4 = px1.then(json2 => {
@@ -265,45 +268,47 @@ function initProviders() {
 	})
 	.catch(ex => {
 		console.error("fetch.ds.unhandled", ex)
+		dataSources.value = []
 //		toast.add({severity:'error', summary: 'Error', detail: `Failed to load data sources list: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
 	return Promise.all([px3, px4])
 }
-// bootstrap a sample plugin list if none provided
+const playlistListUrl = `${API_URL}api/schedule/playlist/list`
+let allPlaylists: PlaylistSchedule[] = []
+function loadSchedules() {
+	fetch(playlistListUrl).then(rx => rx.json()).then(json => {
+		console.log("playlists", json)
+		// ensure it doesnt get reactive
+		allPlaylists = structuredClone(json.playlists)
+		if(allPlaylists.length > 0) {
+			const tx = allPlaylists[0]
+			if(tx) {
+				playlistName.value = tx.name
+				tracks.value = structuredClone(tx.items)
+			}
+			else {
+				playlistName.value = undefined
+				tracks.value = []
+			}
+		}
+		else {
+			playlistName.value = undefined
+			tracks.value = []
+		}
+	}).catch(err => {
+		console.error('Error fetching playlists:', err)
+		playlistName.value = undefined
+		tracks.value = []
+	})
+}
 onMounted(() => {
 	initProviders()
-	// create 6 sample plugins with 3 made-up properties each
-	const samples: PluginDef[] = Array.from({ length: 6 }).map((_, i) => {
-		const id = `plugin_${i + 1}`
-		const name = `Plugin ${String.fromCharCode(65 + i)}`
-		const properties: PluginProperty[] = [
-			{ name: 'level', type: 'number', label: 'Level' },
-			{ name: 'mode', type: 'string', label: 'Mode' },
-			{ name: 'enabled', type: 'boolean', label: 'Enabled' },
-		]
-		// build a minimal instanceSettings form definition compatible with BasicForm
-		const instanceSettings = {
-			fields: properties.map(p => ({ name: p.name, type: p.type, label: p.label }))
-		}
-		return { id, name, properties, instanceSettings } as PluginDef
+	.then(_ => {
+		loadSchedules()
 	})
-	const listUrl = `${API_URL}api/plugins/list`
-	fetch(listUrl).then(rx => rx.json()).then(json => {
-		pluginList.value = json
-		assignColors(pluginList.value)
-		// sample tracks
-		tracks.value = pluginList.value.map((p, idx) => ({
-			id: uid(`trk${idx}`),
-			type:"PlaylistSchedule",
-			plugin_name: p.id,
-			properties: []
-		}))
-	}).catch(err => {
-		console.error('Error fetching plugins:', err)
-		pluginList.value = samples
-		assignColors(pluginList.value)
+	.catch(ex => {
+		console.error("initProviders.unhandled", ex)
 	})
-
 })
 </script>
 <style scoped>
