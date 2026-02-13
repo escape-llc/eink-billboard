@@ -7,7 +7,7 @@
 	"module": "python.plugins.interstitial.interstitial",
 	"description": "Interrupts the current display with an image.",
 	"disabled": false,
-	"features": ["media-image"],
+	"features": ["layer-priority", "layer-overlay", "media-image"],
 	"settings": {
 		"schema": {
 			"properties": [
@@ -18,13 +18,18 @@
 	"instanceSettings": {
 		"schema": {
 			"lookups": {
+				"dataSource": {
+					"schema": "data-sources",
+					"features": ["media-image"]
+				}
 			},
 			"properties": [
 				{
 					"name": "dataSource",
-					"type": "string",
+					"type": "schema",
 					"required": true,
 					"default": null,
+					"lookup": "dataSource",
 					"label": "Data Source",
 					"description": "Single image source."
 				}

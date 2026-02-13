@@ -6,6 +6,7 @@
 	"file": "debug_plugin.py",
 	"module": "python.plugins.debug.debug_plugin",
 	"description": "A plugin that provides debugging capabilities.",
+	"features": ["debug"],
 	"disabled": false,
 	"settings": {
 		"schema": {

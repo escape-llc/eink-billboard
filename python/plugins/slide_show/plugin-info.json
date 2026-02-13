@@ -7,7 +7,7 @@
 	"module": "python.plugins.slide_show.slide_show",
 	"description": "Media Gallery Slide Show.",
 	"disabled": false,
-	"features": ["media-image", "media-list"],
+	"features": ["layer-background", "layer-foreground", "media-image", "media-list"],
 	"settings": {
 		"schema": {
 			"properties": [
