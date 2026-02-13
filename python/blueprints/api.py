@@ -377,18 +377,18 @@ def schedule_timed_list():
 		sm = cm.schedule_manager()
 		schedule_info = sm.load()
 		sm.validate(schedule_info)
-		playlists = schedule_info.get("tasks", [])
-		if not playlists:
+		tasks = schedule_info.get("tasks", [])
+		if not tasks:
 			return jsonify({"success": False, "error": "Timer Tasks not found"}), 404
-		playlist_resp = []
-		for schedule in playlists:
+		task_resp = []
+		for schedule in tasks:
 			info = schedule.get("info", None)
 			if info is not None:
 				dx = info.to_dict()
 				hash = create_hash(dx)
 				dx[HASH_KEY] = hash
-				playlist_resp.append(dx)
-		return jsonify({ "success": True, "timed": playlist_resp })
+				task_resp.append(dx)
+		return jsonify({ "success": True, "timed": task_resp })
 	except Exception as e:
 		logger.error(f"/schedule/timer/list: {str(e)}")
 		error = { "message": str(e), "id": "schedule-timer-list", "success": False }
