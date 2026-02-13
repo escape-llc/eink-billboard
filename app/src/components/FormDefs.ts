@@ -6,7 +6,7 @@ export type FieldGroupDef = {
 export type FieldDef = {
 	name: string
 	label: string
-	type: "string" | "boolean" | "number" | "int" | "location" | "schema"
+	type: "string" | "boolean" | "number" | "int" | "location" | "schema" | "date"
 	required: boolean
 	lookup?: string
 	min?: number
