@@ -9,19 +9,23 @@
 			<template v-if="localProperties.length === 0">
 				<slot name="empty"></slot>
 			</template>
-			<template v-else v-for="field in localProperties" :key="field.name">
-				<!--
-				<div>{{  JSON.stringify(field)  }}</div>
-				-->
-				<template v-if="field.type === 'header'">
-					<slot name="group-header" v-bind="field">
-						<div>{{ field.label }}</div>
-					</slot>
+			<template v-else>
+				<slot name="before-fields"></slot>
+				<template v-for="field in localProperties" :key="field.name">
+					<!--
+					<div>{{  JSON.stringify(field)  }}</div>
+					-->
+					<template v-if="field.type === 'header'">
+						<slot name="group-header" v-bind="field">
+							<div>{{ field.label }}</div>
+						</slot>
+					</template>
+					<template v-else>
+						<BasicFormField :field="field" :formContext="$form" :fieldNameWidth="fieldNameWidth" @form-field-event="handleFormFieldEvent">
+						</BasicFormField>
+					</template>
 				</template>
-				<template v-else>
-					<BasicFormField :field="field" :formContext="$form" :fieldNameWidth="fieldNameWidth" @form-field-event="handleFormFieldEvent">
-					</BasicFormField>
-				</template>
+				<slot name="after-fields"></slot>
 			</template>
 			<slot name="footer"></slot>
 		</Form>
@@ -217,9 +221,9 @@ function lookupUrl(target: any): void {
 	if(!target) return;
 	if(!target.lookupUrl) return;
 	const finalUrl = `${props.baseUrl}${target.lookupUrl}`
-	console.log("lookupUrl.start", finalUrl)
+	//console.log("lookupUrl.start", finalUrl)
 	fetch(finalUrl).then(rx => rx.json()).then(json => {
-		console.log("lookupUrl", json, target)
+		//console.log("lookupUrl", json, target)
 		nextTick().then(_ => {
 			target.list = json
 		})
@@ -308,14 +312,14 @@ function createResolver(schema: SchemaType, values: any[]): z.ZodTypeAny {
 	function recursiveBit(props: PropertiesDef[]): void {
 		props.forEach(px => {
 			const sx = schemaFor(px)
-			console.log("schemaFor", px.name, sx)
+			//console.log("schemaFor", px.name, sx)
 			if(sx) {
 				resv[px.name] = sx
 			}
 			if(px.type === "schema" && "lookup" in px && px.lookup) {
 				const target = values.find(vx => vx.name === px.lookup)
 				if(target) {
-					console.log("recursive.schema", px.lookup, target.children)
+					//console.log("recursive.schema", px.lookup, target.children)
 					if(target.children) {
 						recursiveBit(target.children)
 					}
