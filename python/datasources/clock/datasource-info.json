@@ -7,7 +7,7 @@
 	"module": "python.datasources.clock.clock",
 	"description": "A clock with various faces.",
 	"disabled": false,
-	"features": ["layer-priority", "layer-foreground","media-image"],
+	"features": ["layer-priority", "layer-foreground", "media-image"],
 	"settings": {
 		"schema": {
 			"properties": [
