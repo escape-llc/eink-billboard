@@ -30,7 +30,7 @@
 			},
 			"properties": [
 				{
-					"name": "newspaperSlug",
+					"name": "slug",
 					"type": "string",
 					"required": true,
 					"default": "ny_nyt",
@@ -41,7 +41,7 @@
 			]
 		},
 		"default": {
-			"newspaperSlug": "ny_nyt"
+			"slug": "ny_nyt"
 		}
 	}
 }

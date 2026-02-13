@@ -24,7 +24,7 @@
 					"name": "comic",
 					"type": "string",
 					"required": true,
-					"lookup": "comic",
+					"lookup": null,
 					"default": "XKCD",
 					"label": "Comic Source",
 					"description": "Where to download comics.",

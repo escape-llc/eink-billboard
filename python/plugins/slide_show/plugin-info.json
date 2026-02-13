@@ -39,8 +39,8 @@
 					"required": true,
 					"default": 4,
 					"min": 0,
-					"label": "Max Images",
-					"description": "Maximum number of images in the slideshow. Zero for unlimited."
+					"label": "Max Slides",
+					"description": "Maximum number of images in the slideshow. Zero for 'unlimited'."
 				},
 				{
 					"name": "slideMinutes",
@@ -48,7 +48,7 @@
 					"required": true,
 					"default": 15,
 					"min": 1,
-					"label": "Duration Minutes",
+					"label": "Slide Duration Minutes",
 					"description": "Minutes per image."
 				}
 			]

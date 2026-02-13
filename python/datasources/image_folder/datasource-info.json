@@ -25,7 +25,7 @@
 					"type": "string",
 					"required": true,
 					"default": null,
-					"title": "Folder Path",
+					"label": "Folder Path",
 					"description": "Select the folder with images to display."
 				}
 			]
