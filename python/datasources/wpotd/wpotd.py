@@ -16,6 +16,7 @@ Flow:
 6. Optionally resize the image to fit the device dimensions. (_shrink_to_fit))
 """
 from concurrent.futures import Future
+from typing import Any
 from PIL import Image, UnidentifiedImageError
 from datetime import date, timedelta
 import datetime
@@ -32,7 +33,7 @@ class Wpotd(DataSource, MediaList, MediaRender):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
-	def open(self, dsec: DataSourceExecutionContext, params: dict[str, any]) -> Future[list]:
+	def open(self, dsec: DataSourceExecutionContext, params: dict[str, Any]) -> Future[list]:
 		if self._es is None:
 			raise RuntimeError("Executor not set for DataSource")
 		def locate_image_url():
@@ -43,7 +44,7 @@ class Wpotd(DataSource, MediaList, MediaRender):
 			return [picurl]
 		future = self._es.submit(locate_image_url)
 		return future
-	def render(self, dsec: DataSourceExecutionContext, params:dict[str,any], state:any) -> Future[Image.Image | None]:
+	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[Image.Image | None]:
 		if self._es is None:
 			raise RuntimeError("Executor not set for DataSource")
 		def load_next():
@@ -60,16 +61,16 @@ class Wpotd(DataSource, MediaList, MediaRender):
 			return image
 		future = self._es.submit(load_next)
 		return future
-	def _determine_date(self, settings: dict[str, any], schedule_ts) -> date:
+	def _determine_date(self, settings: dict[str, Any], schedule_ts) -> date:
 		if settings.get("randomizeDate") == True:
-			start = datetime(2015, 1, 1)
+			start = datetime.datetime(2015, 1, 1).astimezone(schedule_ts.tzinfo)
 			delta_days = (schedule_ts - start).days
 			return (start + timedelta(days=randint(0, delta_days))).date()
 		elif settings.get("customDate"):
-			return datetime.strptime(settings["customDate"], "%Y-%m-%d").date()
+			return datetime.datetime.strptime(settings["customDate"], "%Y-%m-%d").date()
 		else:
 			return schedule_ts.date()
-	def _fetch_potd(self, cur_date: date) -> dict[str, any]:
+	def _fetch_potd(self, cur_date: date) -> dict[str, Any]:
 		title = f"Template:POTD/{cur_date.isoformat()}"
 		params = {
 			"action": "query",
@@ -106,7 +107,7 @@ class Wpotd(DataSource, MediaList, MediaRender):
 		except (KeyError, IndexError, StopIteration) as e:
 			self.logger.error(f"'{self.name}' Failed to retrieve image URL for {filename}: {e}")
 			raise RuntimeError(f"'{self.name}' Failed to retrieve image URL.")
-	def _make_request(self, params: dict[str, any]) -> dict[str, any]:
+	def _make_request(self, params: dict[str, Any]) -> dict[str, Any]:
 		try:
 			response = requests.get(self.API_URL, params=params, headers=self.HEADERS, timeout=10)
 			response.raise_for_status()
@@ -138,7 +139,7 @@ class Wpotd(DataSource, MediaList, MediaRender):
 				else:
 					new_width, new_height = orig_width, orig_height
 			# Resize using high-quality resampling
-			image = image.resize((new_width, new_height), Image.LANCZOS)
+			image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
 			# Create a new image with white background and paste the resized image in the center
 			new_image = Image.new("RGB", (max_width, max_height), (255, 255, 255))
 			new_image.paste(image, ((max_width - new_width) // 2, (max_height - new_height) // 2))
