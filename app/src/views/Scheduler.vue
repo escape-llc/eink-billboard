@@ -30,31 +30,31 @@
 				<div>{{ event.event.title }}</div>
 			</div>
 		</template>
-		</AlCalendar>
-		<Dialog v-model:visible="dialogOpen" model header="Edit Item" style="width:50%">
-			<BasicForm :form="form" :initialValues :baseUrl="API_URL" class="form">
-				<template #header>
-					<Toolbar style="width:100%" class="p-1 mt-2">
-						<template #start>
-							<div style="font-weight: bold;font-size:150%">Item Settings</div>
-						</template>
-						<template #end>
-							<InputGroup>
-								<Button size="small" icon="pi pi-check" severity="success" />
-								<Button size="small" icon="pi pi-times" severity="danger" />
-							</InputGroup>
-						</template>
-					</Toolbar>
-				</template>
-				<template #group-header="slotProps">
-					<h3 class="mb-0">{{ slotProps.label }}</h3>
-				</template>
-			</BasicForm>
-			<div class="flex gap-2 pt-2" style="justify-self:flex-end">
-					<Button type="button" label="Cancel" severity="secondary" @click="dialogOpen = false"></Button>
-					<Button type="button" label="Save" @click="dialogOpen = false"></Button>
-			</div>
-		</Dialog>
+	</AlCalendar>
+	<Dialog v-model:visible="dialogOpen" model header="Edit Item" style="width:50%">
+		<BasicForm :form="form" :initialValues :baseUrl="API_URL" class="form">
+			<template #header>
+				<Toolbar style="width:100%" class="p-1 mt-2">
+					<template #start>
+						<div style="font-weight: bold;font-size:150%">Item Settings</div>
+					</template>
+					<template #end>
+						<InputGroup>
+							<Button size="small" icon="pi pi-check" severity="success" />
+							<Button size="small" icon="pi pi-times" severity="danger" />
+						</InputGroup>
+					</template>
+				</Toolbar>
+			</template>
+			<template #group-header="slotProps">
+				<h3 class="mb-0">{{ slotProps.label }}</h3>
+			</template>
+		</BasicForm>
+		<div class="flex gap-2 pt-2" style="justify-self:flex-end">
+				<Button type="button" label="Cancel" severity="secondary" @click="dialogOpen = false"></Button>
+				<Button type="button" label="Save" @click="dialogOpen = false"></Button>
+		</div>
+	</Dialog>
 	</div>
 </template>
 <script setup lang="ts">
@@ -64,7 +64,7 @@ import type { DateRange, TimeRange, EventInfo } from "../components/AlCalendar.v
 import { MS_PER_DAY } from "../components/DateUtils"
 import { ref, onMounted, nextTick } from "vue"
 import BasicForm from "../components/BasicForm.vue"
-import type {FormDef} from "../components/BasicForm.vue"
+import type {FormDef} from "../components/FormDefs"
 
 const form = ref<FormDef>()
 const initialValues = ref()
@@ -104,7 +104,7 @@ const API_URL = import.meta.env.VITE_API_URL
 let pluginList:any = undefined
 
 onMounted(() => {
-	const renderUrl = `${API_URL}api/schedule/render`
+	const renderUrl = `${API_URL}api/schedule/tasks/render`
 	const listUrl = `${API_URL}api/plugins/list`
 	const pxs = [
 	fetch(renderUrl).then(rx => rx.json()),
@@ -115,25 +115,25 @@ onMounted(() => {
 		const json = rxs[0]
 		pluginList = rxs[1]
 		if(json.success) {
-			json.start_ts = new Date(Date.parse(json.start_ts))
-			json.end_ts = new Date(Date.parse(json.end_ts))
+			json.start_ts = new Date(json.start_ts)
+			json.end_ts = new Date(json.end_ts)
 			const events:EventInfo[] = []
 			json.render.forEach(rx => {
-				rx.start = new Date(Date.parse(rx.start))
-				rx.end = new Date(Date.parse(rx.end))
+				rx.start = new Date(rx.scheduled_time)
+				rx.end = new Date(rx.start.getTime() + 30*60*1000)
 //				console.log("item", rx)
-				const ref = derefSchedule(json.schedules, rx.schedule, rx.id)
+				const sref = derefSchedule(json.schedules, rx.schedule, rx.id)
 //				console.log("ref", ref)
 				const ei = {
 					start: rx.start,
 					title: "my event",
-					duration: 60,
+					duration: 15,
 					data: undefined
 				} satisfies EventInfo
-				if(ref) {
-					ei.title = `${ref.title} (${ref.plugin_name})`
-					ei.duration = ref.duration_minutes
-					ei.data = ref
+				if(sref) {
+					ei.title = `${sref.task.title} (${sref.task.plugin_name})`
+					ei.duration = sref.task.content.durationMinutes
+					ei.data = sref
 				}
 				events.push(ei)
 			})
