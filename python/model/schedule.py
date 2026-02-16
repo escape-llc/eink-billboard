@@ -246,7 +246,7 @@ class TimedSchedule:
 		}
 		return retv
 
-def generate_trigger_time(now: datetime, time: dict[str,Any]) -> Generator[datetime, None, None]:
+def generate_trigger_time(now: datetime, time: dict[str,Any], include_now: bool = False) -> Generator[datetime, None, None]:
 	time_type = time.get("type", None)
 	if time_type is None:
 		raise ValueError("Time Trigger must contain 'type' field")
@@ -256,7 +256,9 @@ def generate_trigger_time(now: datetime, time: dict[str,Any]) -> Generator[datet
 			for hour in range(now.hour, 24):
 				for minute in minutes:
 					next_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-					if next_time <= now:
+					if next_time < now:
+						continue
+					elif next_time == now and not include_now:
 						continue
 					yield next_time
 		case "hourofday":
@@ -265,19 +267,25 @@ def generate_trigger_time(now: datetime, time: dict[str,Any]) -> Generator[datet
 			for hour in hours:
 				for minute in minutes:
 					next_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-					if next_time <= now:
+					if next_time < now:
+						continue
+					elif next_time == now and not include_now:
 						continue
 					yield next_time
 		case "specific":
 			hour = time.get("hour", 0)
 			minute = time.get("minute", 0)
 			next_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-			if next_time > now:
+			if next_time < now:
+				pass
+			elif next_time == now and include_now:
+				yield next_time
+			elif next_time > now:
 				yield next_time
 		case None:
 			pass
 	pass
-def generate_schedule(now: datetime, trigger: dict[str,Any]) -> Generator[datetime, None, None]:
+def generate_schedule(now: datetime, trigger: dict[str,Any], include_now: bool = False) -> Generator[datetime, None, None]:
 	day = trigger.get("day", None)
 	time = trigger.get("time", None)
 	if day is None or time is None:
@@ -289,16 +297,16 @@ def generate_schedule(now: datetime, trigger: dict[str,Any]) -> Generator[dateti
 		case "dayofweek":
 			days = day.get("days", [])
 			if now.weekday() in days:
-				yield from generate_trigger_time(now, time)
+				yield from generate_trigger_time(now, time, include_now=include_now)
 		case "dayofmonth":
 			days = day.get("days", [])
 			if now.day in days:
-				yield from generate_trigger_time(now, time)
+				yield from generate_trigger_time(now, time, include_now=include_now)
 		case "dayandmonth":
-			day = day.get("day", None)
+			dday = day.get("day", None)
 			month = day.get("month", None)
-			if now.day == day and now.month == month:
-				yield from generate_trigger_time(now, time)
+			if now.day == dday and now.month == month:
+				yield from generate_trigger_time(now, time, include_now=include_now)
 		case None:
 			pass
 	pass
