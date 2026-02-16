@@ -4,7 +4,7 @@ import pytz
 import logging
 from typing import cast
 
-from ..model.schedule import TimedSchedule
+from ..model.schedule import TimedSchedule, TimerTasks, generate_schedule
 from ..model.configuration_manager import ConfigurationManager, ConfigurationObject, HASH_KEY, ID_KEY, create_hash
 
 logger = logging.getLogger(__name__)
@@ -454,3 +454,87 @@ def render_schedule():
 		"render": render_list
 	}
 	return jsonify(retv)
+
+@api_bp.route('/schedule/tasks/render', methods=['GET'])
+def render_tasks_schedule():
+	"""
+	Returns a list of all timer tasks that are currently active.
+	"""
+	logger.info("GET /schedule/tasks/render")
+	start_at = request.args.get("start", None)
+	days = request.args.get("days", 7, type=int)
+	cm = get_cm()
+	if cm is None:
+		error = { "message": "Configuration Manager not available.", "id": "schedule-tasks-render" }
+		return jsonify(error), 500
+	scm = cm.settings_manager()
+	system_cob = scm.open("system")
+	_, system = system_cob.get()
+	if system is None:
+		return jsonify({"success": False, "error": "System Settings not found"}), 404
+	tz = pytz.timezone(system.get("timezoneName", "US/Eastern"))
+	sm = cm.schedule_manager()
+	schedule_info = sm.load()
+	sm.validate(schedule_info)
+	schedule_info_tasks = schedule_info.get("tasks", [])
+	if not schedule_info_tasks:
+		return jsonify({"success": False, "error": "Timer Tasks not found"}), 404
+	try:
+		start_ts = datetime.now(tz) if start_at is None else datetime.fromisoformat(start_at)
+		start_ts = start_ts.replace(hour=0, minute=0, second=0, microsecond=0)
+		end_ts = start_ts + timedelta(days=days)
+		# must back up to get midnight to come out
+		schedule_map = {}
+		render_list = []
+		notrender_list = []
+		for schedule in schedule_info_tasks:
+			tasks = schedule.get("info", None)
+			if tasks is not None and isinstance(tasks, TimerTasks):
+				did = False
+				for item in tasks.items:
+					idid = False
+					schedule_ts = start_ts
+					while schedule_ts < end_ts:
+						# loop the generator over the date range
+						trigger = generate_schedule(schedule_ts, item.trigger, include_now=True)
+						try:
+							trigger_ts = next(trigger)
+							while trigger_ts < end_ts:
+								render_list.append({
+									"schedule": tasks.id,
+									"id":item.id,
+									#"trigger": item.trigger,
+									"scheduled_time": trigger_ts.isoformat()
+								})
+								did = True
+								idid = True
+								trigger_ts = next(trigger)
+						except StopIteration:
+							pass
+						schedule_ts = schedule_ts + timedelta(days=1)
+					if not idid:
+						notrender_list.append({
+							"schedule": tasks.id,
+							"id":item.id,
+							#"trigger": item.trigger
+						})
+					pass
+				if did:
+					dx = tasks.to_dict()
+					hash = create_hash(dx)
+					dx[HASH_KEY] = hash
+					schedule_map.setdefault(tasks.id, dx)
+		retv = {
+			"success": True,
+			"start_ts": start_ts.isoformat(),
+			"end_ts": end_ts.isoformat(),
+			"days": days,
+			"schedules": schedule_map,
+			"render": render_list,
+			"not_render": notrender_list
+		}
+		return jsonify(retv)
+	except Exception as e:
+		logger.error(f"/schedule/tasks/render: {str(e)}")
+		error = { "message": str(e), "id": "schedule-tasks-render", "success": False }
+		return jsonify(error), 500
