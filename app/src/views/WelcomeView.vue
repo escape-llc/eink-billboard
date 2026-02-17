@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import xxx from '../assets/logo.svg'
 import yyy from '../assets/btn_donateCC_LG.gif'
 import Versions from '../components/Versions.vue'

@@ -6,24 +6,18 @@ import Lara from '@primevue/themes/lara';
 
 const DEBUG = false;
 // tracks current state of media query
-let inDarkMode = undefined;
+let inDarkMode: boolean|undefined = undefined;
 // CSS style used on HTML element to select Dark Mode
 const DARK_MODE_CSS = "app-dark-mode";
 // Dark Mode CSS selector
 const DARK_MODE_SELECTOR = `.${DARK_MODE_CSS}`;
+type ThemeListEntry = { name: String, value: any };
 // theme master list
-const ThemeList = [
+const ThemeList: ThemeListEntry[] = [
 	{name: "Material", value: Material },
 	{name: "Aura", value: Aura },
 	{name: "Nora", value: Nora },
 	{name: "Lara", value: Lara },
-];
-const BuiltInSurfaces = [
-	"slate",
-	"gray",
-	"zinc",
-	"neutral",
-	"stone",
 ];
 const CustomSurfaces = [
 	{
@@ -48,7 +42,7 @@ const STORAGE_KEY = "theme-" + __APP_PACKAGE__;
 const MODE_AUTO = "auto";
 const MODE_LIGHT = "light";
 const MODE_DARK = "dark";
-const DEFAULT_NAME = DefaultTheme.name;
+const DEFAULT_NAME = DefaultTheme?.name;
 const DEFAULT_MODE = MODE_AUTO;
 const DEFAULT_PRIMARY = "blue";
 const DEFAULT_SURFACE = "slate";
@@ -64,7 +58,7 @@ const DefaultThemeStorage = {
  * Apply the theme mode.
  * @param {String} mode the mode light|dark|auto
  */
-const applyMode = mode => {
+const applyMode = (mode: string) => {
 	DEBUG && console.log("applyMode", mode, inDarkMode);
 	switch(mode) {
 		case MODE_LIGHT:
@@ -90,7 +84,7 @@ const applyMode = mode => {
  * @param {String} color theme color token.
  * @returns new instance.
  */
-function surfaceFor(color) {
+function surfaceFor(color: string) {
 	const custom = CustomSurfaces.find(cx => cx.value === color);
 	if(custom) return custom.palette;
 	return {
@@ -113,7 +107,7 @@ function surfaceFor(color) {
  * @param {String} color theme color token.
  * @returns new instance.
  */
-function primaryFor(color) {
+function primaryFor(color: string) {
 	return {
 		50: `{${color}.50}`,
 		100: `{${color}.100}`,
@@ -133,7 +127,7 @@ function primaryFor(color) {
  * @param {PresetConfig} preset 
  * @returns new instance.
  */
-function componentsFor(preset) {
+function componentsFor(preset: any) {
 	return {
 		panel: {
 			colorScheme: {
@@ -152,7 +146,7 @@ function componentsFor(preset) {
  * @param {PresetConfig} preset 
  * @returns new preset.
  */
-function presetFor(preset) {
+function presetFor(preset: any) {
 	const surface = surfaceFor(preset.surface ?? DEFAULT_SURFACE);
 	const components = componentsFor(preset);
 	return {
@@ -175,7 +169,7 @@ function presetFor(preset) {
  * @param {String|undefined} key storage key or UNDEFINED for default key.
  * @returns !NULL: found in local storage; NULL: not found.
  */
-const getTheme = key => {
+const getTheme = (key?: string) => {
 	const skey = key ?? STORAGE_KEY;
 	const json = localStorage.getItem(skey);
 	if(!json) return null;
@@ -192,7 +186,7 @@ const getTheme = key => {
  * @param {String|undefined} surface the surface token.
  * @returns new PresetConfig
  */
-const saveTheme = (key, name, mode, primary, surface) => {
+const saveTheme = (key?: string, name?: string, mode?: string, primary?: string, surface?: string) => {
 	const obj = {
 		name: name ?? DEFAULT_NAME,
 		mode: mode ?? DEFAULT_MODE,
@@ -209,7 +203,7 @@ const saveTheme = (key, name, mode, primary, surface) => {
  * @param {PresetConfig} config the settings.
  * @returns ThemePreset
  */
-const presetForTheme = config => {
+const presetForTheme = (config: any) => {
 	const target = ThemeList.find(tl => tl.name == config.name) ?? DefaultTheme;
 	const presets = presetFor(config);
 	const output = definePreset(target.value, presets);
@@ -221,11 +215,11 @@ const presetForTheme = config => {
  * @param {{key:String}} options additional options.
  * @returns {{DefaultPreset: any, DARK_MODE_SELECTOR: String}} theme info.
  */
-const useThemes = options => {
+const useThemes = (options:any) => {
 	// Get PresetConfig from local storage or copy of defaults
 	const activeTheme = getTheme(options?.key) ?? structuredClone(DefaultThemeStorage);
 	const prefersDarkTheme = window.matchMedia('(prefers-color-scheme: dark)');
-	function _handleDarkTheme(evt) {
+	function _handleDarkTheme(evt: any) {
 		inDarkMode = evt.matches;
 		const activeTheme = getTheme(options?.key) ?? DefaultThemeStorage;
 		DEBUG && console.log("prefersDarkTheme.change", evt, activeTheme);

@@ -12,7 +12,7 @@ import ConfirmationService from 'primevue/confirmationservice'
 import router from './router'
 import { useThemes } from './components/ThemeTools'
 
-const { DARK_MODE_SELECTOR, DefaultPreset } = useThemes();
+const { DARK_MODE_SELECTOR, DefaultPreset } = useThemes(undefined);
 
 const pinia = createPinia();
 const app = createApp(App)
