@@ -16,12 +16,6 @@ const router = createRouter({
 			component: () => import('../views/Settings.vue')
 		},
 		{
-			path: '/plugin',
-			name: 'plugin',
-			// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-			component: () => import('../views/PluginSettings.vue')
-		},
-		{
 			path: '/schedule',
 			name: 'schedule',
 			// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
@@ -33,14 +27,6 @@ const router = createRouter({
 			// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 			component: () => import('../views/PlaylistEditor.vue')
 		},
-		/*
-		{
-			path: '/setup',
-			name: 'setup',
-			// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-			component: () => import('../views/SetupView.vue')
-		},
-		*/
 	]
 })
 export default router
