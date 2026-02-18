@@ -7,11 +7,11 @@ class DisplayBase(ABC):
 	def __init__(self, name: str):
 		self.name = name
 	@abstractmethod
-	def initialize(self, cm: ConfigurationManager):
-		pass
+	def initialize(self, cm: ConfigurationManager) -> tuple[int, int]:
+		...
 	@abstractmethod
-	def shutdown(self):
-		pass
+	def shutdown(self) -> None:
+		...
 	@abstractmethod
-	def render(self, img: Image.Image, title: str|None = None):
-		pass
+	def render(self, img: Image.Image, id: int, title: str|None = None) -> None:
+		...

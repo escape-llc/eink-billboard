@@ -32,12 +32,14 @@ class TkinterWindow(DisplayBase):
 		settings = cm.settings_manager()
 		display_cob = settings.open("display")
 		_, self.display_settings = display_cob.get()
+		if self.display_settings is None:
+			raise ValueError("display settings not found in configuration")
 		resolution = self.display_settings.get("mock.resolution", [800,480])
 		self.root = tk.Tk()
 		self.root.title("Image Display")
 		self.frame = tk.Frame(self.root, width=resolution[0], height=resolution[1])
 		self.frame.pack(padx=8, pady=8)
-		self.image_label = tk.Label(self.frame, image=None, text="e-Ink Billboard Display", compound=tk.TOP)
+		self.image_label = tk.Label(self.frame, text="e-Ink Billboard Display", compound=tk.TOP)
 		self.image_label.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 		#self.root.geometry(f"{resolution[0]}x{resolution[1]}")
 		self.tkthread = TkThread(self.root)
@@ -49,8 +51,8 @@ class TkinterWindow(DisplayBase):
 		if self.tkthread:
 			self.tkthread.join(timeout=5)
 
-	def render(self, img: Image, title: str = None):
-		self.logger.info(f"'{self.name}' render")
+	def render(self, img: Image.Image, id:int, title: str|None = None):
+		self.logger.info(f"'{self.name}' render id={id} title='{title}' img={img.width}x{img.height}")
 		if self.display_settings is None:
 			self.logger.error("No display_settings loaded")
 			return
