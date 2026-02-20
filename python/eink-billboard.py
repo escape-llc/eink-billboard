@@ -4,6 +4,7 @@
 # python -m python.eink-billboard --dev --cors "http://localhost:5173" --host localhost --storage ./.storage
 
 import os, logging.config
+import yaml
 
 from python.model.configuration_watcher import ConfigurationWatcher
 from python.model.configuration_manager_eviction_sink import ConfigurationManagerEvictionSink
@@ -18,7 +19,10 @@ from .task.telemetry_sink import TelemetrySink
 from .task.application import Application, StartEvent
 from .task.messages import QuitMessage, StartOptions
 
-logging.config.fileConfig(os.path.join(os.path.dirname(__file__), 'config', 'logging.conf'))
+logfile = os.path.join(os.path.dirname(__file__), 'config', 'logging.yaml')
+with open(logfile, 'r') as f:
+	config = yaml.safe_load(f.read())
+	logging.config.dictConfig(config)
 
 # suppress warning from inky library https://github.com/pimoroni/inky/issues/205
 import warnings

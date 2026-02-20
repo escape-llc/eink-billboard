@@ -1,0 +1,49 @@
+version: 1
+disable_existing_loggers: False
+
+formatters:
+  consoleFormatter:
+    format: "%(asctime)s.%(msecs)03d %(levelname)-10s - %(name)-8s: %(message)s"
+    datefmt: "%H:%M:%S"
+  fileFormatter:
+    format: "%(asctime)s.%(msecs)03d %(levelname)-10s - %(name)-8s: %(message)s"
+    datefmt: "%H:%M:%S"
+
+handlers:
+  consoleHandler:
+    class: logging.StreamHandler
+    level: DEBUG
+    formatter: consoleFormatter
+    stream: ext://sys.stdout
+
+loggers:
+  python.display.mock_display:
+    level: ERROR
+    handlers: [consoleHandler]
+    propagate: False
+  python.model.configuration_manager:
+    level: ERROR
+    handlers: [consoleHandler]
+    propagate: False
+  python.model.schedule_manager:
+    level: ERROR
+    handlers: [consoleHandler]
+    propagate: False
+  PIL:
+    level: WARNING    # Only show Warnings and Errors
+    handlers: [consoleHandler]
+    propagate: False
+  urllib3:
+    level: WARNING    # Only show Warnings and Errors
+    handlers: [consoleHandler]
+    propagate: False
+  standard:
+    level: INFO
+    # 'qualname' in INI becomes the key here; 
+    # if you want this logger to use the console, add it to 'handlers'
+    handlers: [consoleHandler]
+    propagate: True
+
+root:
+  level: DEBUG
+  handlers: [consoleHandler]
