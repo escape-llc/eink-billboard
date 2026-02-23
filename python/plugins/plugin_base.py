@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 import os
 from typing import Protocol, runtime_checkable
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -12,7 +12,7 @@ from ..utils.image_utils import render_html_arglist
 from ..utils.file_utils import path_to_file_url
 
 class BasicExecutionContext2:
-	def __init__(self, isp: IServiceProvider, dimensions: tuple[int, int], schedule_ts: datetime.datetime):
+	def __init__(self, isp: IServiceProvider, dimensions: tuple[int, int], schedule_ts: datetime):
 		if isp is None:
 			raise ValueError("isp is None")
 		if dimensions is None:
@@ -29,7 +29,7 @@ class BasicExecutionContext2:
 	def dimensions(self) -> tuple[int, int]:
 		return self._dimensions
 	@property
-	def schedule_ts(self) -> datetime.datetime:
+	def schedule_ts(self) -> datetime:
 		return self._schedule_ts
 	def create_datasource_context(self, ds:DataSource):
 		cm = self._isp.required(ConfigurationManager)

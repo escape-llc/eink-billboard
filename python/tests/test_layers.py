@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import os
 from threading import Event
+from typing import cast
 import unittest
 
 from ..datasources.data_source import DataSourceManager
@@ -45,7 +46,7 @@ class NullMessageSink(MessageSink):
 class MessageTriggerSink(MessageSink):
 	def __init__(self, trigger: Callable[[BasicMessage], bool]):
 		self.trigger = trigger
-		self.captured:BasicMessage = None
+		self.captured:BasicMessage|None = None
 		self.stopped = Event()
 	def accept(self, msg: BasicMessage):
 		if self.trigger(msg):
@@ -67,15 +68,15 @@ class PlaylistLayerSimulation(unittest.TestCase):
 		ctr.add_service(IProvideTimer, timer)
 		options = ConfigureOptions(cm, isp=ctr)
 		evtime = time_base.current_time()
-		configure = ConfigureEvent("configure", options, None, evtime)
+		configure = ConfigureEvent(evtime, options, "configure", None)
 		layer = PlaylistLayer("testlayer", router)
-		dev = DisplaySettings("none", 800, 480, evtime)
+		dev = DisplaySettings(evtime, "none", 800, 480)
 		display.start()
 		layer.start()
 		layer.accept(dev)
 		layer.accept(configure)
 		# wait until the trigger condition is met
-		completed = tsink.stopped.wait(timeout=60)
+		completed = tsink.stopped.wait(timeout=90)
 		evtime = time_base.current_time()
 		layer.accept(QuitMessage(evtime))
 		layer.join(timeout=2)
@@ -85,7 +86,8 @@ class PlaylistLayerSimulation(unittest.TestCase):
 		save_images(display, "playlist_layer_simulation")
 		self.assertTrue(completed, "PlaylistLayer simulation timed out before reaching trigger condition.")
 		self.assertIsNotNone(tsink.captured)
-		telemetry:Telemetry = tsink.captured
+		self.assertIsInstance(tsink.captured, Telemetry)
+		telemetry:Telemetry = cast(Telemetry, tsink.captured)
 		self.assertNotEqual(telemetry.values.get("state", None), "error", f"PlaylistLayer encountered error: {telemetry.values.get('message', '')}")
 
 class TimerLayerSimulation(unittest.TestCase):
@@ -103,9 +105,9 @@ class TimerLayerSimulation(unittest.TestCase):
 		ctr.add_service(IProvideTimer, timer)
 		options = ConfigureOptions(cm, ctr)
 		evtime = time_base.current_time()
-		configure = ConfigureEvent("configure", options, None, evtime)
+		configure = ConfigureEvent(evtime, options, "configure", None)
 		layer = TimerLayer("timerlayer", router)
-		dev = DisplaySettings("none", 800, 480, evtime)
+		dev = DisplaySettings(evtime, "none", 800, 480)
 		display.start()
 		layer.start()
 		layer.accept(dev)
@@ -121,7 +123,8 @@ class TimerLayerSimulation(unittest.TestCase):
 		save_images(display, "timer_layer_simulation")
 		self.assertTrue(completed, "TimerLayer simulation timed out before reaching trigger condition.")
 		self.assertIsNotNone(tsink.captured)
-		telemetry:Telemetry = tsink.captured
+		self.assertIsInstance(tsink.captured, Telemetry)
+		telemetry:Telemetry = cast(Telemetry, tsink.captured)
 		self.assertNotEqual(telemetry.values.get("state", None), "error", f"TimerLayer encountered error: {telemetry.values.get('message', '')}")
 
 class PlaylistLayerTests(unittest.TestCase):

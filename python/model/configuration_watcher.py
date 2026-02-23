@@ -19,22 +19,22 @@ class MessageSinkHandler(FileSystemEventHandler):
 	def on_created(self, event):
 		if not event.is_directory:
 			logger.info(f"File created: {event.src_path}")
-			self._sink.accept(ConfigurationWatcherEvent("created", event.src_path, self._tod.current_time()))
+			self._sink.accept(ConfigurationWatcherEvent(self._tod.current_time(), "created", event.src_path))
 
 	def on_modified(self, event):
 		if not event.is_directory:
 			logger.info(f"File modified: {event.src_path}")
-			self._sink.accept(ConfigurationWatcherEvent("modified", event.src_path, self._tod.current_time()))
+			self._sink.accept(ConfigurationWatcherEvent(self._tod.current_time(), "modified", event.src_path))
 
 	def on_deleted(self, event):
 		if not event.is_directory:
 			logger.info(f"File deleted: {event.src_path}")
-			self._sink.accept(ConfigurationWatcherEvent("deleted", event.src_path, self._tod.current_time()))
+			self._sink.accept(ConfigurationWatcherEvent(self._tod.current_time(), "deleted", event.src_path))
 
 	def on_moved(self, event):
 		if not event.is_directory:
 			logger.info(f"File moved from {event.src_path} to {event.dest_path}")
-			self._sink.accept(ConfigurationWatcherEvent("moved", event.src_path, self._tod.current_time()))
+			self._sink.accept(ConfigurationWatcherEvent(self._tod.current_time(), "moved", event.src_path))
 
 class ConfigurationWatcher:
 	"""

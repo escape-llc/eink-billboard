@@ -1,10 +1,9 @@
 
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from datetime import datetime
 import logging
 from typing import cast
-
-from python.task.protocols import IRequireShutdown
 
 from ..datasources.data_source import DataSourceManager
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
@@ -15,14 +14,15 @@ from ..plugins.plugin_base import BasicExecutionContext2, PluginProtocol
 from ..task.basic_task import DispatcherTask
 from ..task.display import DisplaySettings
 from ..task.messages import BasicMessage, ConfigureEvent, FutureCompleted, MessageSink, PluginReceive, QuitMessage, Telemetry
+from ..task.protocols import IRequireShutdown
 from ..task.playlist_layer import NextTrack, StartPlayback
 from ..task.future_source import FutureSource, SubmitFuture
 from ..task.message_router import MessageRouter
 from ..task.timer import CreateTimerResult, IProvideTimer, TimerService
 
+@dataclass(frozen=True, slots=True)
 class TimerExpired(BasicMessage):
-	def __init__(self, timestamp: datetime):
-		super().__init__(timestamp)
+	pass
 
 class TimerLayer(DispatcherTask):
 	def __init__(self, name, router: MessageRouter):
@@ -210,14 +210,14 @@ class TimerLayer(DispatcherTask):
 			self._invoke_plugin_start(current_track, msg.timestamp)
 	def _error_with_telemetry(self, emsg:str, msg_ts:datetime):
 		self.logger.error(emsg, exc_info=True)
-		self.router.send("telemetry", Telemetry("timer_layer", {
+		self.router.send("telemetry", Telemetry(msg_ts, "timer_layer", {
 			"state": "error",
 			"message": emsg,
 			'current_playlist': None,
 			'current_track_index': None,
 			'current_track': None,
 			'schedule_ts': None
-		}, msg_ts))
+		}))
 	def _get_enabled_tasks(self):
 		task_items: list[TimerTaskItem] = []
 		for sched in self.tasks:
@@ -254,13 +254,13 @@ class TimerLayer(DispatcherTask):
 			self.active_plugin.start(self.active_context, current_track)
 			self.logger.info(f"'{self.name}' Plugin started.")
 			self.state = 'playing'
-			self.router.send("telemetry", Telemetry("timer_layer", {
+			self.router.send("telemetry", Telemetry(msg_ts, "timer_layer", {
 				"state": self.state,
 				"current_playlist": self.playlist_state["current_playlist"],
 				"current_track": self.playlist_state["current_track"],
 				"current_track_index": self.playlist_state["current_track_index"],
 				"schedule_ts": self.playlist_state["schedule_ts"]
-			}, msg_ts))
+			}))
 		except Exception as e:
 			self.state = 'error'
 			emsg = f"Error starting playback with plugin '{self.active_plugin.name}' for track '{current_track.task.title}': {e}"
@@ -368,13 +368,13 @@ class TimerLayer(DispatcherTask):
 				self.logger.info(f"No scheduled playlist found for next track after end of playlist.")
 				self.state = 'stopped'
 				self.playlist_state = None
-				self.router.send("telemetry", Telemetry("timer_layer", {
+				self.router.send("telemetry", Telemetry(msg.timestamp, "timer_layer", {
 					"state": self.state,
 					"current_playlist": None,
 					"current_track": None,
 					"current_track_index": None,
 					"schedule_ts": None
-				}, msg.timestamp))
+				}))
 				return
 			next_track_index = 0
 			next_track:PlaylistBase = next_playlist.items[next_track_index]

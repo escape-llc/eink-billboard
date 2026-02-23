@@ -8,14 +8,14 @@ class RecordContentTask(DispatcherTask):
 		super().__init__()
 		self.msgs = []
 
-	def _execute_message(self, msg: BasicMessage):
+	def _execute_message(self, msg: MessageWithContent):
 		self.msgs.append(msg.content)
 
 class TestDispatcherTask(unittest.TestCase):
 	def test_message_with_content(self):
 		task = RecordContentTask()
 		task.start()
-		task.accept(MessageWithContent("Hello", datetime.now()))
+		task.accept(MessageWithContent(datetime.now(), "Hello"))
 		task.accept(QuitMessage(datetime.now()))
 		task.join()
 		self.assertFalse(task.is_alive())

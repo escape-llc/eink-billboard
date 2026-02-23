@@ -13,19 +13,19 @@ from ..task.timer import IProvideTimer
 from ..task.timer_layer import TimerLayer
 
 class Application(DispatcherTask):
-	def __init__(self, name = None, sink: MessageSink = None):
+	def __init__(self, name = None, sink: MessageSink|None = None):
 		super().__init__(name)
 		self.sink = sink
 		# app_started: StartEvent was processed successfully
 		self.app_started = threading.Event()
 		# app_stopped: StartEvent failed OR StopEvent processed OR QuitMessage w/o StopEvent processed
 		self.app_stopped = threading.Event()
-		self.cm:ConfigurationManager = None
-		self.router:MessageRouter = None
-		self.display:Display = None
-		self.playlist_layer:PlaylistLayer = None
-		self.timer_layer:TimerLayer = None
-		self.root_container: IServiceProvider = None
+		self.cm:ConfigurationManager|None = None
+		self.router:MessageRouter|None = None
+		self.display:Display|None = None
+		self.playlist_layer:PlaylistLayer|None = None
+		self.timer_layer:TimerLayer|None = None
+		self.root_container: IServiceProvider|None = None
 
 	def _start_event(self, msg: StartEvent):
 		try:
@@ -57,9 +57,9 @@ class Application(DispatcherTask):
 		if ipt:
 			plcontainer.add_service(IProvideTimer, ipt)
 			tlcontainer.add_service(IProvideTimer, ipt)
-		configs = ConfigureEvent("playlist-layer", ConfigureOptions(cm=self.cm, isp=plcontainer), self, msg.timestamp)
+		configs = ConfigureEvent(msg.timestamp, ConfigureOptions(cm=self.cm, isp=plcontainer), "playlist-layer", self)
 		self.playlist_layer.accept(configs)
-		configt = ConfigureEvent("timer-layer", ConfigureOptions(cm=self.cm, isp=tlcontainer), self, msg.timestamp)
+		configt = ConfigureEvent(msg.timestamp, ConfigureOptions(cm=self.cm, isp=tlcontainer), "timer-layer", self)
 		self.timer_layer.accept(configt)
 	def _configure_notify(self, msg: ConfigureNotify):
 		# STEP 4 playback started if layer configured successfully
@@ -126,7 +126,7 @@ class Application(DispatcherTask):
 		ipt = self.root_container.get_service(IProvideTimer)
 		if ipt:
 			dpcontainer.add_service(IProvideTimer, ipt)
-		configd = ConfigureEvent("display", ConfigureOptions(cm=self.cm, isp=dpcontainer), self, timestamp_ts)
+		configd = ConfigureEvent(timestamp_ts, ConfigureOptions(cm=self.cm, isp=dpcontainer), "display", self)
 		self.display.accept(configd)
 		# start tasks
 		self.display.start()

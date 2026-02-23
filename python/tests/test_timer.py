@@ -22,22 +22,24 @@ class ExceptionTimer(Timer):
 
 class TestTimerTick(unittest.TestCase):
 	def test_timer_expires(self):
-		initial_tick = TickMessage(datetime.now(), 0)
+		tick_ts = datetime.now()
+		initial_tick = TickMessage(datetime.now(), tick_ts, 0)
 		timer = TestTimer(initial_tick, timedelta(seconds=2))
 		self.assertFalse(timer.was_triggered())
-		next_tick = TickMessage(initial_tick.tick_ts + timedelta(seconds=1), 1)
+		next_tick = TickMessage(tick_ts, initial_tick.tick_ts + timedelta(seconds=1), 1)
 		self.assertFalse(timer.trigger(next_tick))
-		next_tick = TickMessage(initial_tick.tick_ts + timedelta(seconds=2), 2)
+		next_tick = TickMessage(tick_ts, initial_tick.tick_ts + timedelta(seconds=2), 2)
 		self.assertTrue(timer.trigger(next_tick))
 		self.assertTrue(timer.was_triggered())
 		self.assertTrue(timer.expired)
 	def test_timer_throws(self):
-		initial_tick = TickMessage(datetime.now(), 0)
+		tick_ts = datetime.now()
+		initial_tick = TickMessage(datetime.now(), tick_ts, 0)
 		timer = ExceptionTimer(initial_tick, timedelta(seconds=2))
 		self.assertFalse(timer.was_triggered())
-		next_tick = TickMessage(initial_tick.tick_ts + timedelta(seconds=1), 1)
+		next_tick = TickMessage(tick_ts, initial_tick.tick_ts + timedelta(seconds=1), 1)
 		self.assertFalse(timer.trigger(next_tick))
-		next_tick = TickMessage(initial_tick.tick_ts + timedelta(seconds=2), 2)
+		next_tick = TickMessage(tick_ts, initial_tick.tick_ts + timedelta(seconds=2), 2)
 		try:
 			timer.trigger(next_tick)
 		except Exception:
@@ -48,9 +50,9 @@ class TestSink(MessageSink):
 	def __init__(self):
 		self.received = False
 		self.message = None
-	def accept(self, message: BasicMessage):
+	def accept(self, msg: BasicMessage):
 		self.received = True
-		self.message = message
+		self.message = msg
 
 SLEEP_INTERVAL = 0.1
 class TestTimerService(unittest.TestCase):

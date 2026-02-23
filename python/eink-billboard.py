@@ -6,11 +6,10 @@
 import os, logging.config
 import yaml
 
-from python.model.configuration_watcher import ConfigurationWatcher
-from python.model.configuration_manager_eviction_sink import ConfigurationManagerEvictionSink
-from python.model.service_container import ServiceContainer
-from python.model.time_of_day import SystemTimeOfDay, TimeOfDay
-
+from .model.configuration_watcher import ConfigurationWatcher
+from .model.configuration_manager_eviction_sink import ConfigurationManagerEvictionSink
+from .model.service_container import ServiceContainer
+from .model.time_of_day import SystemTimeOfDay, TimeOfDay
 from .model.configuration_manager import ConfigurationManager
 
 from .blueprints.root import root_bp
@@ -83,7 +82,7 @@ logging.getLogger('waitress.queue').setLevel(logging.ERROR)
 app = Flask(__name__, static_folder=f"{PATH}/static", template_folder=f"{PATH}", static_url_path="/static")
 if args.cors:
 	from flask_cors import CORS
-	CORSDM = args.cors
+	CORSDM: str|None = args.cors
 	logger.info(f"CORS {CORSDM}")
 	cors_options = {r"/api/*": {"origins": CORSDM}}
 	if CORSDM is None:
@@ -151,9 +150,6 @@ def run_application():
 			logger.warning(f"Application start timed out")
 		else:
 			logger.info("Application is started")
-		app.config['CONFIG_MANAGER'] = cm
-		app.config['APPLICATION'] = xapp
-		app.config['TELEMETRY'] = sink
 		app.config['ROOT_CONTAINER'] = root
 
 		msg = sink.receive()

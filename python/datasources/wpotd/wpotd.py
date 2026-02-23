@@ -19,7 +19,7 @@ from concurrent.futures import Future
 from typing import Any
 from PIL import Image, UnidentifiedImageError
 from datetime import date, timedelta
-import datetime
+from datetime import datetime
 import logging
 from random import randint
 import requests
@@ -63,11 +63,11 @@ class Wpotd(DataSource, MediaList, MediaRender):
 		return future
 	def _determine_date(self, settings: dict[str, Any], schedule_ts) -> date:
 		if settings.get("randomizeDate") == True:
-			start = datetime.datetime(2015, 1, 1).astimezone(schedule_ts.tzinfo)
+			start = datetime(2015, 1, 1).astimezone(schedule_ts.tzinfo)
 			delta_days = (schedule_ts - start).days
 			return (start + timedelta(days=randint(0, delta_days))).date()
 		elif settings.get("customDate"):
-			return datetime.datetime.strptime(settings["customDate"], "%Y-%m-%d").date()
+			return datetime.strptime(settings["customDate"], "%Y-%m-%d").date()
 		else:
 			return schedule_ts.date()
 	def _fetch_potd(self, cur_date: date) -> dict[str, Any]:

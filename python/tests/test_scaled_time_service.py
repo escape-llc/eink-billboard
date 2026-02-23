@@ -1,6 +1,6 @@
-import datetime
 import unittest
 import time
+from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor
 
 from .utils import ScaledTimeOfDay, ScaledTimerService, FakePort
@@ -9,35 +9,35 @@ from ..task.messages import BasicMessage
 class TestScaledTimeOfDay(unittest.TestCase):
 	def test_current_time_scaling(self):
 		# Use current time as the reference; start 5 seconds in the past
-		now = datetime.datetime.now(datetime.timezone.utc)
-		start = now - datetime.timedelta(seconds=5)
+		now = datetime.now(timezone.utc)
+		start = now - timedelta(seconds=5)
 		scale = 3.0
 		svc = ScaledTimeOfDay(start, scale)
 		got = svc.current_time()
-		expected_interval = (datetime.datetime.now(start.tzinfo) - start).total_seconds() * scale
-		expected = start + datetime.timedelta(seconds=expected_interval)
+		expected_interval = (datetime.now(timezone.utc) - start).total_seconds() * scale
+		expected = start + timedelta(seconds=expected_interval)
 		# allow a small delta because wall-clock moved between calls
 		self.assertAlmostEqual((got - expected).total_seconds(), 0.0, delta=0.25)
 
 	def test_current_time_utc_scaling(self):
-		now_utc = datetime.datetime.now(datetime.timezone.utc)
-		start = now_utc - datetime.timedelta(seconds=7)
+		now_utc = datetime.now(timezone.utc)
+		start = now_utc - timedelta(seconds=7)
 		scale = 1.5
 		svc = ScaledTimeOfDay(start, scale)
 		got = svc.current_time_utc()
-		expected_interval = (datetime.datetime.now(datetime.timezone.utc) - start).total_seconds() * scale
-		expected = start + datetime.timedelta(seconds=expected_interval)
+		expected_interval = (datetime.now(timezone.utc) - start).total_seconds() * scale
+		expected = start + timedelta(seconds=expected_interval)
 		self.assertAlmostEqual((got - expected).total_seconds(), 0.0, delta=0.25)
 
 	def test_zero_scale_returns_start(self):
-		now = datetime.datetime.now(datetime.timezone.utc)
-		start = now - datetime.timedelta(seconds=10)
+		now = datetime.now(timezone.utc)
+		start = now - timedelta(seconds=10)
 		with self.assertRaises(ValueError):
 			ScaledTimeOfDay(start, 0.0)
 
 	def test_scale_60_sleep_one_second(self):
 		# start / now are timezone-aware UTC
-		start = datetime.datetime.now(datetime.timezone.utc)
+		start = datetime.now(timezone.utc)
 		svc = ScaledTimeOfDay(start, 60.0)
 		time.sleep(1.0)
 		got = svc.current_time()
@@ -51,9 +51,9 @@ class TestScaledTimerService(unittest.TestCase):
 		with ThreadPoolExecutor(max_workers=2) as ex:
 			svc = ScaledTimerService(scale=60.0, es=ex)
 			sink = FakePort()
-			msg = BasicMessage(datetime.datetime.now(datetime.timezone.utc))
+			msg = BasicMessage(datetime.now(timezone.utc))
 			start = time.perf_counter()
-			future, cancel = svc.create_timer(datetime.timedelta(seconds=60), sink, msg)
+			future, cancel = svc.create_timer(timedelta(seconds=60), sink, msg)
 
 			# Future should complete in ~1s of real elapsed time (60 scaled by 60)
 			res = future.result(timeout=3.0)
@@ -70,8 +70,8 @@ class TestScaledTimerService(unittest.TestCase):
 		with ThreadPoolExecutor(max_workers=2) as ex:
 			svc = ScaledTimerService(scale=60.0, es=ex)
 			sink = FakePort()
-			msg = BasicMessage(datetime.datetime.now(datetime.timezone.utc))
-			future, cancel = svc.create_timer(datetime.timedelta(seconds=60), sink, msg)
+			msg = BasicMessage(datetime.now(timezone.utc))
+			future, cancel = svc.create_timer(timedelta(seconds=60), sink, msg)
 
 			# Cancel immediately
 			cancel()
@@ -82,7 +82,6 @@ class TestScaledTimerService(unittest.TestCase):
 			self.assertFalse(sink.wait_for_message(timeout=0.5))
 
 			svc.shutdown()
-
 
 if __name__ == "__main__":
     unittest.main()

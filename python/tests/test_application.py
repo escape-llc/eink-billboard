@@ -25,7 +25,7 @@ class TestApplication(unittest.TestCase):
 		root.add_service(TimeOfDay, time_base)
 		root.add_service(IProvideTimer, timer)
 		root.add_service(ConfigurationManager, cm)
-		app.accept(StartEvent(options, root, time_base.current_time()))
+		app.accept(StartEvent(time_base.current_time(), options, root))
 		# Wait for the started event to be set
 		started = app.app_started.wait(timeout=1)
 		self.assertTrue(started, "Application did not start as expected.")

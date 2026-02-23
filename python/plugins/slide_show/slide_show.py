@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import logging
 from datetime import datetime, timedelta
 
@@ -11,12 +12,9 @@ from ...task.playlist_layer import NextTrack
 from ...task.timer import IProvideTimer
 from ...task.messages import BasicMessage, FutureCompleted, MessageSink, PluginReceive
 
+@dataclass(frozen=True, slots=True)
 class SlideShowTimerExpired(PluginReceive):
-	def __init__(self, remaining_state: list, timestamp: datetime):
-		super().__init__(timestamp)
-		self.remaining_state = remaining_state
-	def __repr__(self) -> str:
-		return f"SlideShowTimerExpired(remaining_items={len(self.remaining_state)})"
+	remaining_state: list
 
 class SlideShow(PluginProtocol):
 	def __init__(self, id, name):
@@ -60,7 +58,7 @@ class SlideShow(PluginProtocol):
 	def _continuation_start(self, cancelled:bool, result, exception, msg_ts) -> BasicMessage|None:
 		if cancelled:
 			return None
-		return FutureCompleted(self._name, "start", result, exception, msg_ts)
+		return FutureCompleted(msg_ts, self._name, "start", result, exception)
 	def _source_next(self, is_cancelled:CancelToken, context: BasicExecutionContext2, track:PlaylistSchedule, msg: SlideShowTimerExpired) -> None:
 		settings = track.content.data
 		# assert required services are available
@@ -89,7 +87,7 @@ class SlideShow(PluginProtocol):
 	def _continuation_next(self, cancelled:bool, result, exception, msg_ts: datetime) -> BasicMessage|None:
 		if cancelled:
 			return None
-		return FutureCompleted(self._name, "next", result, exception, msg_ts)
+		return FutureCompleted(msg_ts, self._name, "next", result, exception)
 	def _render_image(self, title: str, context: DataSourceExecutionContext, dataSource: MediaRender, settings: dict, state: list, router: MessageRouter, timer: IProvideTimer, timer_sink: MessageSink):
 		item = state[0]
 		future2 = dataSource.render(context, settings, item)
@@ -97,9 +95,9 @@ class SlideShow(PluginProtocol):
 		image = future2.result(timeout=ftimeout)
 		state.pop(0)
 		if image is not None:
-			router.send("display", DisplayImage(title, image, context.schedule_ts))
+			router.send("display", DisplayImage(context.schedule_ts, title, image))
 			slideMinutes = settings.get("slideMinutes", 15)
-			self.timer_info = timer.create_timer(timedelta(minutes=slideMinutes), timer_sink, SlideShowTimerExpired(state, context.schedule_ts))
+			self.timer_info = timer.create_timer(timedelta(minutes=slideMinutes), timer_sink, SlideShowTimerExpired(context.schedule_ts, state))
 	def start(self, context: BasicExecutionContext2, track: TrackType) -> None:
 		self.logger.info(f"{self.id} start '{track.title}'")
 		if isinstance(track, PlaylistSchedule):

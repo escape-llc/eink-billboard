@@ -1,18 +1,37 @@
-from typing import Any, Protocol, runtime_checkable
-from typing import Generic, TypeVar
+from typing import Any, Protocol, Union, get_args, get_origin, get_type_hints, runtime_checkable
+from dataclasses import dataclass, fields
 from datetime import datetime
 
 from ..model.configuration_manager import ConfigurationManager
 from ..model.service_container import IServiceProvider
 
-T = TypeVar('T')
-
+@dataclass(frozen=True, slots=True)
 class BasicMessage:
 	"""Base class for all messages."""
-	def __init__(self, timestamp: datetime):
-		if timestamp is None:
-			raise ValueError("timestamp cannot be None")
-		self.timestamp = timestamp
+	timestamp: datetime
+	def __post_init__(self):
+		# 1. Directly access the class's raw annotations to avoid get_type_hints failure
+		ann = self.__class__.__annotations__
+		for field_name, expected_type in ann.items():
+			val = getattr(self, field_name)
+			# 2. Universal None Guard: Check for "Optional" by string or type
+			type_str = str(expected_type)
+			is_optional = "None" in type_str or "Optional" in type_str
+			if val is None:
+				if not is_optional:
+					raise ValueError(f"Field '{field_name}' cannot be None")
+				continue
+			# 3. Structural Validation (The Fix for 'datetime' vs 'datetime')
+			# Instead of isinstance, we check if the object has the core attributes of the type
+			if "datetime" in type_str.lower():
+				# Duck-typing: If it has 'year' and 'strftime', it's a datetime object
+				if not (hasattr(val, "year") and hasattr(val, "strftime")):
+					raise TypeError(f"Field '{field_name}' must be a datetime object")
+			
+			elif "int" in type_str.lower():
+				if not isinstance(val, int):
+					raise TypeError(f"Field '{field_name}' must be an int")
+
 
 @runtime_checkable
 class MessageSink(Protocol):
@@ -20,90 +39,71 @@ class MessageSink(Protocol):
 	def accept(self, msg: BasicMessage):
 		pass
 
+@dataclass(frozen=True, slots=True)
 class QuitMessage(BasicMessage):
 	"""Message to signal the thread to quit."""
-	def __init__(self, timestamp: datetime):
-		super().__init__(timestamp)
+	pass
 
-class MessageWithContent(BasicMessage, Generic[T]):
+@dataclass(frozen=True, slots=True)
+class MessageWithContent[T](BasicMessage):
 	"""Message to execute a command with content."""
-	def __init__(self, content: T, timestamp: datetime):
-		super().__init__(timestamp)
-		self.content = content
+	content: T
 
+@dataclass(frozen=True, slots=True)
 class StartOptions:
 	"""Options for starting the application."""
-	def __init__(self, basePath: str|None = None, storagePath: str|None = None, hardReset: bool = False):
-		self.basePath = basePath
-		self.storagePath = storagePath
-		self.hardReset = hardReset
+	basePath: str|None = None
+	storagePath: str|None = None
+	hardReset: bool = False
+@dataclass(frozen=True, slots=True)
 class StartEvent(BasicMessage):
 	"""Event to start the application with given options and timer task."""
-	def __init__(self, options: StartOptions, root: IServiceProvider, timestamp: datetime):
-		super().__init__(timestamp)
-		self.options = options
-		self.root = root
+	options: StartOptions
+	root: IServiceProvider
 
+@dataclass(frozen=True, slots=True)
 class StopEvent(BasicMessage):
 	"""Event to stop the application."""
-	def __init__(self, timestamp: datetime):
-		super().__init__(timestamp)
+	pass
 
+@dataclass(frozen=True, slots=True)
 class ConfigureOptions:
 	"""Options for configuring tasks."""
-	def __init__(self, cm: ConfigurationManager, isp: IServiceProvider):
-		if cm is None:
-			raise ValueError("cm cannot be None")
-		if isp is None:
-			raise ValueError("isp cannot be None")
-		self.cm = cm
-		self.isp = isp
+	cm: ConfigurationManager
+	isp: IServiceProvider
+
+@dataclass(frozen=True, slots=True)
 class ConfigureEvent(MessageWithContent[ConfigureOptions]):
 	"""Event to configure tasks with given options."""
-	def __init__(self, token: str, content: ConfigureOptions, notifyTo: MessageSink, timestamp: datetime):
-		super().__init__(content, timestamp)
-		self.token = token
-		self.notifyTo = notifyTo
+	token: str
+	notifyTo: MessageSink|None = None
 	def notify(self, error: bool = False, content = None):
 		if self.notifyTo is not None:
-			self.notifyTo.accept(ConfigureNotify(self.token, error, content, self.timestamp))
+			self.notifyTo.accept(ConfigureNotify(self.timestamp, self.token, error, content))
 
+@dataclass(frozen=True, slots=True)
 class ConfigureNotify(BasicMessage):
-	def __init__(self, token: str, error: bool, content, timestamp: datetime):
-		super().__init__(timestamp)
-		self.token = token
-		self.error = error
-		self.content = content
+	token: str
+	error: bool
+	content: Any|None = None
 
+@dataclass(frozen=True, slots=True)
 class FutureCompleted(BasicMessage):
-	def __init__(self, plugin_name: str, token: str, result, error, timestamp: datetime):
-		super().__init__(timestamp)
-		self.plugin_name = plugin_name
-		self.token = token
-		self.result = result
-		self.error = error
-		self.is_success = error is None
-	def __repr__(self):
-		return f" plugin_name='{self.plugin_name}' token='{self.token}' is_success={self.is_success} error={self.error} result={self.result}"
+	plugin_name: str
+	token: str
+	result: Any|None = None
+	error: Any|None = None
 
+@dataclass(frozen=True, slots=True)
 class PluginReceive(BasicMessage):
-	def __init__(self, timestamp: datetime):
-		super().__init__(timestamp)
+	pass
 
+@dataclass(frozen=True, slots=True)
 class Telemetry(BasicMessage):
-	def __init__(self, name: str, values: dict[str,Any], timestamp: datetime):
-		super().__init__(timestamp)
-		self._name = name
-		self._values = values
-	@property
-	def name(self) -> str:
-		return self._name
-	@property
-	def values(self) -> dict[str,Any]:
-		return self._values
+	name: str
+	values: dict[str,Any]
 
+@dataclass(frozen=True, slots=True)
 class ConfigurationWatcherEvent(BasicMessage):
-	def __init__(self, type: str, path: str, timestamp: datetime):
-		super().__init__(timestamp)
-		self.type = type
-		self.path = path
+	type: str
+	path: str

@@ -7,7 +7,7 @@ import logging
 
 from ..model.time_of_day import TimeOfDay
 from ..datasources.comic.comic_feed import ComicFeed
-from ..datasources.data_source import DataSourceManager
+from ..datasources.data_source import DataSource, DataSourceManager
 from ..datasources.image_folder.image_folder import ImageFolder
 from ..datasources.newspaper.newspaper import Newspaper
 from ..datasources.openai_image.openai_image import OpenAI
@@ -71,7 +71,7 @@ class TestPlugins(unittest.TestCase):
 		root.add_service(MessageRouter, router)
 		root.add_service(IProvideTimer, timer)
 		root.add_service(TimeOfDay, time_of_day)
-		context = BasicExecutionContext2(root, [800,480], datetime.now())
+		context = BasicExecutionContext2(root, (800,480), datetime.now())
 		sink = PluginRecycleMessageSink(plugin, track, context)
 		root.add_service(MessageSink, sink)
 		fsource = FutureSource("plugin_test", sink, ThreadPoolExecutor())
@@ -98,7 +98,7 @@ class TestPlugins(unittest.TestCase):
 			title="10 Item",
 			content=plugin_data
 		)
-		dsmap = {"image-folder": ImageFolder("image-folder", "image-folder")}
+		dsmap:dict[str,DataSource] = {"image-folder": ImageFolder("image-folder", "image-folder")}
 		datasources = DataSourceManager(None, dsmap)
 		display = self.run_slide_show(track, datasources)
 		self.assertEqual(len(display.msgs), 9, "display.msgs failed")
@@ -116,7 +116,7 @@ class TestPlugins(unittest.TestCase):
 			title="10 Item",
 			content=plugin_data
 		)
-		dsmap = {"comic-feed": ComicFeed("comic-feed", "comic-feed")}
+		dsmap:dict[str,DataSource] = {"comic-feed": ComicFeed("comic-feed", "comic-feed")}
 		datasources = DataSourceManager(None, dsmap)
 		display = self.run_slide_show(track, datasources, 20)
 		self.assertEqual(len(display.msgs), 4, "display.msgs failed")
@@ -133,7 +133,7 @@ class TestPlugins(unittest.TestCase):
 			title="10 Item",
 			content=plugin_data
 		)
-		dsmap = {"wpotd": Wpotd("wpotd", "wpotd")}
+		dsmap:dict[str,DataSource] = {"wpotd": Wpotd("wpotd", "wpotd")}
 		datasources = DataSourceManager(None, dsmap)
 		display = self.run_slide_show(track, datasources, 5)
 		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
@@ -151,7 +151,7 @@ class TestPlugins(unittest.TestCase):
 			title="10 Item",
 			content=plugin_data
 		)
-		dsmap = {"newspaper": Newspaper("newspaper", "newspaper")}
+		dsmap:dict[str,DataSource] = {"newspaper": Newspaper("newspaper", "newspaper")}
 		datasources = DataSourceManager(None, dsmap)
 		display = self.run_slide_show(track, datasources, 5)
 		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
@@ -171,7 +171,7 @@ class TestPlugins(unittest.TestCase):
 			title="10 Item",
 			content=plugin_data
 		)
-		dsmap = {"openai-image": OpenAI("openai-image", "openai-image")}
+		dsmap:dict[str,DataSource] = {"openai-image": OpenAI("openai-image", "openai-image")}
 		datasources = DataSourceManager(None, dsmap)
 		display = self.run_slide_show(track, datasources, 61)
 		self.assertEqual(len(display.msgs), 1, "display.msgs failed")

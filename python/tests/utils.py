@@ -1,9 +1,9 @@
 from concurrent.futures import Executor, Future, ThreadPoolExecutor
-import datetime
 import os
 from pathlib import Path
 import threading
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Callable
 from pathvalidate import sanitize_filename
 
@@ -31,13 +31,13 @@ class ConstantTimeOfDay(TimeOfDay):
 			raise ValueError("now_value cannot be None")
 		super().__init__()
 		self._now = now_value
-	def current_time(self) -> datetime.datetime:
+	def current_time(self) -> datetime:
 		return self._now
-	def current_time_utc(self) -> datetime.datetime:
-		return self._now.astimezone(datetime.timezone.utc)
+	def current_time_utc(self) -> datetime:
+		return self._now.astimezone(timezone.utc)
 
 class ScaledTimeOfDay(TimeOfDay):
-	def __init__(self, start_time:datetime.datetime, scale:float):
+	def __init__(self, start_time:datetime, scale:float):
 		super().__init__()
 		if start_time.tzinfo is None:
 			raise ValueError("start_time must be timezone-aware (have tzinfo)")
@@ -45,19 +45,19 @@ class ScaledTimeOfDay(TimeOfDay):
 			raise ValueError("scale must be greater than zero")
 		self._start_time = start_time
 		self._scale = scale
-	def current_time(self) -> datetime.datetime:
+	def current_time(self) -> datetime:
 		# Use current local time matching start_time tzinfo
-		now = datetime.datetime.now(self._start_time.tzinfo)
+		now = datetime.now(self._start_time.tzinfo)
 		interval = now - self._start_time
 		scaled_interval = interval.total_seconds() * self._scale
-		return self._start_time + datetime.timedelta(seconds=scaled_interval)
-	def current_time_utc(self) -> datetime.datetime:
+		return self._start_time + timedelta(seconds=scaled_interval)
+	def current_time_utc(self) -> datetime:
 		# start_time is timezone-aware; convert to UTC then compare to current UTC
-		start_utc = self._start_time.astimezone(datetime.timezone.utc)
-		now_utc = datetime.datetime.now(datetime.timezone.utc)
+		start_utc = self._start_time.astimezone(timezone.utc)
+		now_utc = datetime.now(timezone.utc)
 		interval = now_utc - start_utc
 		scaled_interval = interval.total_seconds() * self._scale
-		return start_utc + datetime.timedelta(seconds=scaled_interval)
+		return start_utc + timedelta(seconds=scaled_interval)
 	pass
 
 class ScaledTimerService(IProvideTimer):
@@ -67,7 +67,7 @@ class ScaledTimerService(IProvideTimer):
 		self._es = es if es is not None else ThreadPoolExecutor(max_workers=4)
 		self._scale = scale
 		self.logger = logging.getLogger(__name__)
-	def create_timer(self, deltatime: datetime.timedelta, sink: MessageSink|None, completed: BasicMessage) -> tuple[Future[BasicMessage|None], Callable]:
+	def create_timer(self, deltatime: timedelta, sink: MessageSink|None, completed: BasicMessage) -> tuple[Future[BasicMessage|None], Callable]:
 		"""
 		Creates a timer that waits for deltatime and then sends the completed message to the sink.
 		Returns a tuple of (future, cancel_function). The future completes with the completed message when the timer expires, or None if cancelled.

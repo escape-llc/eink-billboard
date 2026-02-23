@@ -1,9 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from datetime import datetime
 import logging
 from typing import cast
-
-from python.task.protocols import IRequireShutdown
 
 from .future_source import FutureSource, SubmitFuture
 from .display import DisplaySettings
@@ -14,19 +13,20 @@ from ..datasources.data_source import DataSourceManager
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..model.schedule import MasterSchedule, Playlist, PlaylistBase
 from ..model.service_container import ServiceContainer
+from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..plugins.plugin_base import BasicExecutionContext2, PluginProtocol
 from ..task.timer import IProvideTimer, TimerService
-from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
+from ..task.protocols import IRequireShutdown
 
+@dataclass(frozen=True, slots=True)
 class LayerControlMessage(BasicMessage):
-	def __init__(self, timestamp:datetime):
-		super().__init__(timestamp)
+	pass
+@dataclass(frozen=True, slots=True)
 class StartPlayback(LayerControlMessage):
-	def __init__(self, timestamp:datetime):
-		super().__init__(timestamp)
+	pass
+@dataclass(frozen=True, slots=True)
 class NextTrack(LayerControlMessage):
-	def __init__(self, timestamp:datetime):
-		super().__init__(timestamp)
+	pass
 
 class PlaylistLayer(DispatcherTask):
 	def __init__(self, name, router: MessageRouter):
@@ -122,11 +122,11 @@ class PlaylistLayer(DispatcherTask):
 			self.active_plugin.start(self.active_context, current_track)
 			self.state = 'playing'
 			self.logger.info(f"'{self.name}' Playback started.")
-			self.router.send("telemetry", Telemetry("playlist_layer", {
+			self.router.send("telemetry", Telemetry(msg.timestamp, "playlist_layer", {
 				"state": self.state,
 				"current_playlist_index": self.playlist_state["current_playlist_index"],
 				"current_track_index": self.playlist_state["current_track_index"]
-			}, msg.timestamp))
+			}))
 		except Exception as e:
 			self.logger.error(f"Error starting playback with plugin '{self.active_plugin.name}' for track '{current_track.title}': {e}", exc_info=True)
 			self.state = 'error'
@@ -231,11 +231,11 @@ class PlaylistLayer(DispatcherTask):
 			self.playlist_state['current_track_index'] = next_track_index
 			self.playlist_state['current_track'] = next_track
 			self._plugin_start()
-			self.router.send("telemetry", Telemetry("playlist_layer", {
+			self.router.send("telemetry", Telemetry(msg.timestamp, "playlist_layer", {
 				"state": self.state,
 				"current_playlist_index": self.playlist_state["current_playlist_index"],
 				"current_track_index": self.playlist_state["current_track_index"]
-			}, msg.timestamp))
+			}))
 		else:
 			self.logger.info(f"End of playlist '{current_playlist.name}' reached.")
 			current_playlist_index = cast(int, self.playlist_state.get('current_playlist_index'))
@@ -255,11 +255,11 @@ class PlaylistLayer(DispatcherTask):
 			self.playlist_state['current_track_index'] = next_track_index
 			self.playlist_state['current_track'] = next_track
 			self._plugin_start()
-			self.router.send("telemetry", Telemetry("playlist_layer", {
+			self.router.send("telemetry", Telemetry(msg.timestamp, "playlist_layer", {
 				"state": self.state,
 				"current_playlist_index": self.playlist_state["current_playlist_index"],
 				"current_track_index": self.playlist_state["current_track_index"]
-			}, msg.timestamp))
+			}))
 	def _configure_event(self, msg: ConfigureEvent):
 		self.cm = msg.content.cm
 		try:

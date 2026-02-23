@@ -1,5 +1,5 @@
 
-import datetime
+from datetime import datetime, timezone
 from typing import Protocol, runtime_checkable
 
 @runtime_checkable
@@ -11,14 +11,14 @@ class TimeOfDay(Protocol):
 	For example, setting a timer for one hour will trigger after one second of "real" time.
 	The system MUST NOT directly reference "datetime.datetime.now()" or variants.
 	"""
-	def current_time(self) -> datetime.datetime:
+	def current_time(self) -> datetime:
 		...
-	def current_time_utc(self) -> datetime.datetime:
+	def current_time_utc(self) -> datetime:
 		...
 
 class SystemTimeOfDay(TimeOfDay):
 	# TODO take the zoneinfo from system settings.
-	def current_time(self) -> datetime.datetime:
-		return datetime.datetime.now().astimezone()
-	def current_time_utc(self) -> datetime.datetime:
-		return datetime.datetime.now(datetime.timezone.utc)
+	def current_time(self) -> datetime:
+		return datetime.now().astimezone()
+	def current_time_utc(self) -> datetime:
+		return datetime.now(timezone.utc)

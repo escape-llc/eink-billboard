@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 import unittest
 import time
@@ -7,10 +8,9 @@ from ..task.future_source import FutureSource
 from ..task.messages import BasicMessage
 from .utils import FakePort
 
+@dataclass(frozen=True, slots=True)
 class TestMsg(BasicMessage):
-	def __init__(self, text):
-		super().__init__(datetime.now())
-		self.text = text
+	text: str
 
 class FutureSourceTests(unittest.TestCase):
 	def test_future_success_triggers_continuation(self):
@@ -26,7 +26,7 @@ class FutureSourceTests(unittest.TestCase):
 				self.assertFalse(cancelled)
 				self.assertIsNone(exception)
 				self.assertEqual(result, 42)
-				return TestMsg('ok')
+				return TestMsg(datetime.now(), 'ok')
 
 			cancel = fs.submit_future(future_fn, continuation)
 
@@ -50,7 +50,7 @@ class FutureSourceTests(unittest.TestCase):
 				self.assertIsNone(result)
 				self.assertIsNotNone(exception)
 				self.assertIsInstance(exception, RuntimeError)
-				return TestMsg('err-handled')
+				return TestMsg(datetime.now(), 'err-handled')
 
 			fs.submit_future(future_fn, continuation)
 
@@ -77,7 +77,7 @@ class FutureSourceTests(unittest.TestCase):
 			def continuation(cancelled, result, exception):
 				# we expect cancelled True when cancel request is made
 				self.assertTrue(cancelled)
-				return TestMsg('cancelled')
+				return TestMsg(datetime.now(), 'cancelled')
 
 			cancel = fs.submit_future(future_fn, continuation)
 			# request cancellation shortly after submit

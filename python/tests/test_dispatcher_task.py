@@ -30,7 +30,7 @@ class TestDispatcherTask(unittest.TestCase):
 
 		task = RegisteredDispatcher()
 		task.start()
-		task.accept(MessageWithContent('payload', datetime.now()))
+		task.accept(MessageWithContent(datetime.now(), 'payload'))
 		task.accept(QuitMessage(datetime.now()))
 		task.join()
 
@@ -43,7 +43,7 @@ class TestDispatcherTask(unittest.TestCase):
 		task = RecordingDispatcher()
 		task.start()
 		# Send a MessageWithContext which has no exact-class handler
-		task.accept(MessageWithContent('payload', datetime.now()))
+		task.accept(MessageWithContent(datetime.now(), 'payload'))
 		task.accept(QuitMessage(datetime.now()))
 		task.join()
 
@@ -62,7 +62,7 @@ class TestDispatcherTask(unittest.TestCase):
 
 		task = SubHandlerDispatcher()
 		task.start()
-		task.accept(MessageWithContent('payload2', datetime.now()))
+		task.accept(MessageWithContent(datetime.now(), 'payload2'))
 		task.accept(QuitMessage(datetime.now()))
 		task.join()
 

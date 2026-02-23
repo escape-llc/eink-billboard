@@ -55,7 +55,7 @@ class Interstitial(PluginProtocol):
 	def _continuation_start(self, cancelled:bool, result, exception, msg_ts) -> BasicMessage|None:
 		if cancelled:
 			return None
-		return FutureCompleted(self._name, "start", result, exception, msg_ts)
+		return FutureCompleted(msg_ts, self._name, "start", result, exception)
 	def _render_image(self, title: str, context: DataSourceExecutionContext, dataSource: MediaRender, settings: dict, state: Any, router: MessageRouter, timer: IProvideTimer, timer_sink: MessageSink):
 		item = state
 		future2 = dataSource.render(context, settings, item)
@@ -63,9 +63,9 @@ class Interstitial(PluginProtocol):
 		image = future2.result(timeout=ftimeout)
 		if image is not None:
 			# TODO send an interstitial display message
-			router.send("display", DisplayImage(title, image, context.schedule_ts))
+			router.send("display", DisplayImage(context.schedule_ts, title, image))
 			slideMinutes = settings.get("slideMinutes", 15)
-			self.timer_info = timer.create_timer(timedelta(minutes=slideMinutes), timer_sink, SlideShowTimerExpired(state, context.schedule_ts))
+			self.timer_info = timer.create_timer(timedelta(minutes=slideMinutes), timer_sink, SlideShowTimerExpired(context.schedule_ts, state))
 	def start(self, context: BasicExecutionContext2, track: TrackType) -> None:
 		self.logger.info(f"{self.id} start '{track.title}'")
 		if isinstance(track, TimerTaskItem):

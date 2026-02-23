@@ -1,7 +1,7 @@
 from concurrent.futures import Future
+from typing import Any
 from PIL import Image
-from datetime import timedelta
-import datetime
+from datetime import timedelta, datetime
 import logging
 
 from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaRender
@@ -12,7 +12,7 @@ class Newspaper(DataSource, MediaList, MediaRender):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
-	def open(self, dsec: DataSourceExecutionContext, params: dict[str, any]) -> Future[list]:
+	def open(self, dsec: DataSourceExecutionContext, params: dict[str, Any]) -> Future[list]:
 		if self._es is None:
 			raise RuntimeError("Executor not set for DataSource")
 		def locate_image_url():
@@ -23,7 +23,7 @@ class Newspaper(DataSource, MediaList, MediaRender):
 			return [newspaper_slug]
 		future = self._es.submit(locate_image_url)
 		return future
-	def render(self, context: DataSourceExecutionContext, params:dict[str,any], state:any) -> Future[Image.Image | None]:
+	def render(self, context: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[Image.Image | None]:
 		if self._es is None:
 			raise RuntimeError("Executor not set for DataSource")
 		def load_next():

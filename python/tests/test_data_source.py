@@ -2,9 +2,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import unittest
 
-from python.datasources.countdown.countdown import Countdown
-from python.datasources.year_progress.year_progress import YearProgress
-
+from ..datasources.countdown.countdown import Countdown
+from ..datasources.year_progress.year_progress import YearProgress
 from ..datasources.clock.clock import Clock
 from ..datasources.openai_image.openai_image import OpenAI
 from ..datasources.comic.comic_feed import ComicFeed

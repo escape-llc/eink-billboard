@@ -1,10 +1,11 @@
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
 from flask import Blueprint, Response, jsonify, render_template, current_app, send_from_directory, send_file, request
 import pytz
 import logging
-from typing import cast
+from typing import Generator, cast
 
-from ..model.schedule import TimedSchedule, TimerTasks, generate_schedule
+from ..model.service_container import IServiceProvider
+from ..model.schedule import TimedSchedule, TimerTaskItem, TimerTasks, generate_schedule
 from ..model.configuration_manager import ConfigurationManager, ConfigurationObject, HASH_KEY, ID_KEY, create_hash
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,11 @@ api_bp.register_blueprint(plugin_bp)
 api_bp.register_blueprint(datasource_bp)
 
 def get_cm() -> ConfigurationManager|None:
-	return current_app.config.get('CONFIG_MANAGER', None)
+	isp: IServiceProvider|None = current_app.config.get('ROOT_CONTAINER', None)
+	if isp is not None:
+		cm = isp.get_service(ConfigurationManager)
+		return cm
+	return None
 
 def send_cob_with_rev(id: str, cob: ConfigurationObject) -> Response | tuple[Response, int]:
 	hash, document = cob.get()
@@ -411,6 +416,8 @@ def render_schedule():
 	scm = cm.settings_manager()
 	system_cob = scm.open("system")
 	_, system = system_cob.get()
+	if system is None:
+		return jsonify({"success": False, "error": "System Settings not found"}), 500
 	tz = pytz.timezone(system.get("timezoneName", "US/Eastern"))
 	sm = cm.schedule_manager()
 	schedule_info = sm.load()
@@ -455,6 +462,22 @@ def render_schedule():
 	}
 	return jsonify(retv)
 
+def daily_sequence(start_date: datetime, n_days: int) -> Generator[datetime, None, None]:
+	start_ts = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+	for ix in range(n_days):
+		yield start_ts + timedelta(days=ix)
+
+def render_task_schedule_at(schedule_ts: datetime, item: TimerTaskItem, schedid: str, render_list: list, include_now:bool = True) -> bool:
+	did = False
+	for trigger_ts in generate_schedule(schedule_ts, item.trigger, include_now=include_now):
+		render_list.append({
+			"schedule": schedid,
+			"id": item.id,
+			"scheduled_time": trigger_ts.isoformat()
+		})
+		did = True
+	return did
+
 @api_bp.route('/schedule/tasks/render', methods=['GET'])
 def render_tasks_schedule():
 	"""
@@ -480,50 +503,36 @@ def render_tasks_schedule():
 	if not schedule_info_tasks:
 		return jsonify({"success": False, "error": "Timer Tasks not found"}), 404
 	try:
+		# TODO get timebase from container
 		start_ts = datetime.now(tz) if start_at is None else datetime.fromisoformat(start_at)
 		start_ts = start_ts.replace(hour=0, minute=0, second=0, microsecond=0)
 		end_ts = start_ts + timedelta(days=days)
-		# must back up to get midnight to come out
 		schedule_map = {}
 		render_list = []
 		notrender_list = []
 		for schedule in schedule_info_tasks:
-			tasks = schedule.get("info", None)
-			if tasks is not None and isinstance(tasks, TimerTasks):
+			timer_tasks = schedule.get("info", None)
+			if timer_tasks is not None and isinstance(timer_tasks, TimerTasks):
 				did = False
-				for item in tasks.items:
+				for tti in timer_tasks.items:
+#					schedule_ts = start_ts
 					idid = False
-					schedule_ts = start_ts
-					while schedule_ts < end_ts:
-						# loop the generator over the date range
-						trigger = generate_schedule(schedule_ts, item.trigger, include_now=True)
-						try:
-							trigger_ts = next(trigger)
-							while trigger_ts < end_ts:
-								render_list.append({
-									"schedule": tasks.id,
-									"id":item.id,
-									#"trigger": item.trigger,
-									"scheduled_time": trigger_ts.isoformat()
-								})
-								did = True
-								idid = True
-								trigger_ts = next(trigger)
-						except StopIteration:
-							pass
-						schedule_ts = schedule_ts + timedelta(days=1)
+					for schedule_ts in daily_sequence(start_ts, days):
+#					while schedule_ts < end_ts:
+						tdid = render_task_schedule_at(schedule_ts, tti, timer_tasks.id, render_list)
+						did = did or tdid
+						idid = idid or tdid
+#						schedule_ts = schedule_ts + timedelta(days=1)
 					if not idid:
 						notrender_list.append({
-							"schedule": tasks.id,
-							"id":item.id,
-							#"trigger": item.trigger
+							"schedule": timer_tasks.id,
+							"id": tti.id,
 						})
-					pass
 				if did:
-					dx = tasks.to_dict()
+					dx = timer_tasks.to_dict()
 					hash = create_hash(dx)
 					dx[HASH_KEY] = hash
-					schedule_map.setdefault(tasks.id, dx)
+					schedule_map.setdefault(timer_tasks.id, dx)
 		retv = {
 			"success": True,
 			"start_ts": start_ts.isoformat(),

@@ -3,8 +3,7 @@ import unittest
 import tempfile
 from datetime import datetime
 
-from python.tests.utils import ConstantTimeOfDay
-
+from .utils import ConstantTimeOfDay
 from ..model.configuration_watcher import MessageSinkHandler, ConfigurationWatcher
 
 class _RecordingSink:
