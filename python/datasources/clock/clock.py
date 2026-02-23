@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 import numpy as np
 import math
 from PIL import Image, ImageColor, ImageDraw, ImageFont
@@ -14,7 +15,7 @@ class Clock(DataSource, MediaItem, MediaRender):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
-	def open(self, dsec: DataSourceExecutionContext, params:dict[str,any]) -> Future[any]:
+	def open(self, dsec: DataSourceExecutionContext, params:dict[str,Any]) -> Future[Any]:
 		clock_face = params.get("clockFace", "Gradient Clock")
 		primary_color = ImageColor.getcolor(params.get('primaryColor') or (255,255,255), "RGB")
 		secondary_color = ImageColor.getcolor(params.get('secondaryColor') or (0,0,0), "RGB")
@@ -25,7 +26,7 @@ class Clock(DataSource, MediaItem, MediaRender):
 			"secondary_color": secondary_color,
 		})
 		return fut
-	def render(self, dsec: DataSourceExecutionContext, params:dict[str,any], state:any) -> Future[Image.Image | None]:
+	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[Image.Image | None]:
 		img = None
 		try:
 			#timezone_name = device_config.get_config("timezone") or DEFAULT_TIMEZONE
