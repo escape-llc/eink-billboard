@@ -46,7 +46,7 @@ class MockDisplay(DisplayBase):
 		timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 #		filepath = os.path.join(output_dir, f"display_{timestamp}.png")
 		fn = sanitize_filename(title) if title else "untitled"
-		filepath = os.path.join(output_dir, f"display_{id}_{timestamp}_{fn}.png")
+		filepath = os.path.join(output_dir, f"display_{id:04d}_{timestamp}_{fn}.png")
 		self.logger.info(f"save {filepath}")
 		img.save(filepath, "PNG")
 
