@@ -197,7 +197,7 @@ class TimedSchedule:
 	def __init__(self, id: str, name: str, items: Sequence[SchedulableBase]|None = None, dc: Callable|None = None):
 		self.id = id
 		self.name = name
-		self.items = items if items is not None else []
+		self.items: Sequence[SchedulableBase] = items if items is not None else []
 		self.date_controller = dc if dc is not None else lambda : datetime.now()
 
 	@property
@@ -247,6 +247,16 @@ class TimedSchedule:
 		return retv
 
 def generate_trigger_time(now: datetime, time: dict[str,Any], include_now: bool = False) -> Generator[datetime, None, None]:
+	"""
+	Yield the datetimes that match the given time trigger configuration based on the target time.
+
+	:param now: Target time to evaluate the trigger against
+	:type now: datetime
+	:param time: Day trigger description dict, must contain "type" key with appropriate sub-keys for trigger evaluation
+	:type time: dict[str, Any]
+	:param include_now: Whether to include the current time if it matches the trigger
+	:type include_now: bool
+	"""
 	time_type = time.get("type", None)
 	if time_type is None:
 		raise ValueError("Time Trigger must contain 'type' field")
@@ -286,6 +296,22 @@ def generate_trigger_time(now: datetime, time: dict[str,Any], include_now: bool 
 			pass
 	pass
 def generate_schedule(now: datetime, trigger: dict[str,Any], include_now: bool = False) -> Generator[datetime, None, None]:
+	"""
+	Run through the trigger and generate the next trigger time(s) based on the current time.
+	Generates for the current day only!
+	This generator may yield multiple times if the trigger matches multiple times in the future (e.g. hourly trigger).
+	The "day" key in the trigger determines the type of trigger and how to evaluate it against the current time.
+	If the day trigger matches the current time, then the "time" key is evaluated to generate the next trigger time(s) for that day.
+	
+	:param now: Target time to evaluate the trigger against
+	:type now: datetime
+	:param trigger: Trigger description dict, must contain "day" and "time" keys with appropriate sub-keys for trigger evaluation
+	:type trigger: dict[str, Any]
+	:param include_now: Whether to include the current time if it matches the trigger
+	:type include_now: bool
+	:return: Generator yielding the next trigger times based on the current time and trigger configuration
+	:rtype: Generator[datetime, None, None]
+	"""
 	day = trigger.get("day", None)
 	time = trigger.get("time", None)
 	if day is None or time is None:
@@ -375,7 +401,7 @@ class TimerTasks:
 			raise ValueError("items cannot be None")
 		self.id = id
 		self.name = name
-		self.items = items if items is not None else []
+		self.items: Sequence[TimerTaskItem] = items if items is not None else []
 	def to_dict(self) -> dict[str,Any]:
 		retv = {
 			"id": self.id,
