@@ -4,7 +4,7 @@ import logging
 import os
 from pathlib import Path
 from PIL import Image
-import pytz
+import zoneinfo
 
 from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
 from ...plugins.plugin_base import RenderSession
@@ -45,12 +45,11 @@ class Countdown(DataSource, MediaItem, MediaRender):
 			dimensions = dimensions[::-1]
 		
 		timezone = "US/Eastern" #display_config.get_config("timezone", default="America/New_York")
-		tz = pytz.timezone(timezone)
-#		current_time = datetime.now(tz)
+		tz = zoneinfo.ZoneInfo(timezone)
 		current_time = schedule_ts.astimezone(tz)
 
 		countdown_date = datetime.strptime(countdown_date_str, "%Y-%m-%d")
-		countdown_date = tz.localize(countdown_date)
+		countdown_date = countdown_date.replace(tzinfo=tz)
 
 		day_count = (countdown_date.date() - current_time.date()).days
 		label = "Days Left" if day_count > 0 else "Days Passed"

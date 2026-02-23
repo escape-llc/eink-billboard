@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
+from functools import lru_cache
 from flask import Blueprint, Response, jsonify, render_template, current_app, send_from_directory, send_file, request
-import pytz
+import zoneinfo
 import logging
 from typing import Generator, cast
 
@@ -302,6 +303,34 @@ def datasource_settings(plugin:str):
 		error = { "message": str(e), "id": plugin, "success": False }
 		return jsonify(error), 500
 
+@lru_cache(maxsize=1)
+def get_timezone_options():
+	# 1. Define the major regions we want to show
+	major_regions = {
+			"Africa", "America", "Antarctica", "Asia", "Atlantic", 
+			"Australia", "Europe", "Indian", "Pacific"
+	}
+	options = []
+	now = datetime.now()
+	# 2. Get all zones and sort them alphabetically
+	for tz_name in sorted(zoneinfo.available_timezones()):
+		# Split into Region/City (e.g., "America/New_York")
+		parts = tz_name.split('/')
+		# 3. Filter: Must be in "Region/City" format and in our major_regions list
+		if len(parts) >= 2 and parts[0] in major_regions:
+			tz_obj = zoneinfo.ZoneInfo(tz_name)
+			# Get the UTC offset string (e.g., "-0500" -> "UTC-05:00")
+			offset = now.astimezone(tz_obj).strftime('%z')
+			display_offset = f"UTC{offset[:3]}:{offset[3:]}"
+			# Clean up the name for the label (e.g., "America/New_York" -> "New York")
+			# We join the parts after the region to handle "America/Argentina/Buenos_Aires"
+			city_name = " / ".join(parts[1:]).replace('_', ' ')
+			options.append({
+				"name": f"{parts[0]}: {city_name} ({display_offset})",
+				"value": tz_name
+			})
+	return options
+
 @api_bp.route('/datasources/<plugin>/settings', methods=['PUT'])
 def save_datasource_settings(plugin:str):
 	logger.info(f"PUT /datasources/{plugin}/settings")
@@ -323,11 +352,11 @@ def save_datasource_settings(plugin:str):
 
 @api_bp.route('/lookups/timezone', methods=['GET'])
 def list_timezones():
-	"""Returns a list of all time zones using the pytz library."""
+	"""Returns a list of all time zones using the zoneinfo library."""
 	logger.info("GET /lookups/timezone")
-	timezones = sorted(pytz.all_timezones)
-	lookup = list(map(lambda x: { "name": x, "value": x }, timezones))
-	return jsonify(lookup)
+#	timezones = sorted(zoneinfo.available_timezones())
+#	lookup = list(map(lambda x: { "name": x, "value": x }, timezones))
+	return jsonify(get_timezone_options())
 
 @api_bp.route('/lookups/locale', methods=['GET'])
 def get_locales():
@@ -418,7 +447,7 @@ def render_schedule():
 	_, system = system_cob.get()
 	if system is None:
 		return jsonify({"success": False, "error": "System Settings not found"}), 500
-	tz = pytz.timezone(system.get("timezoneName", "US/Eastern"))
+	tz = zoneinfo.ZoneInfo(system.get("timezoneName", "US/Eastern"))
 	sm = cm.schedule_manager()
 	schedule_info = sm.load()
 	sm.validate(schedule_info)
@@ -495,7 +524,7 @@ def render_tasks_schedule():
 	_, system = system_cob.get()
 	if system is None:
 		return jsonify({"success": False, "error": "System Settings not found"}), 404
-	tz = pytz.timezone(system.get("timezoneName", "US/Eastern"))
+	tz = zoneinfo.ZoneInfo(system.get("timezoneName", "US/Eastern"))
 	sm = cm.schedule_manager()
 	schedule_info = sm.load()
 	sm.validate(schedule_info)

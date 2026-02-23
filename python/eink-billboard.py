@@ -144,7 +144,7 @@ def run_application():
 		root.add_service(TimeOfDay, time_base)
 		root.add_service(TelemetrySink, sink)
 		root.add_service(Application, xapp)
-		xapp.accept(StartEvent(options, root, time_base.current_time()))
+		xapp.accept(StartEvent(time_base.current_time(), options, root))
 		started = xapp.app_started.wait(timeout=5)
 		if not started:
 			logger.warning(f"Application start timed out")

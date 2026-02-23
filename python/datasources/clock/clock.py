@@ -30,7 +30,7 @@ class Clock(DataSource, MediaItem, MediaRender):
 		img = None
 		try:
 			#timezone_name = device_config.get_config("timezone") or DEFAULT_TIMEZONE
-			#tz = pytz.timezone(timezone_name)
+			#tz = zoneinfo.ZoneInfo(timezone_name)
 			#current_time = datetime.now(tz)
 			dimensions = dsec.dimensions
 			clock_face = state.get("clock_face", None)

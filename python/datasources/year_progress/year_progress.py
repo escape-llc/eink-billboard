@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Any
 from PIL import Image
-import pytz
+import zoneinfo
 
 from ...plugins.plugin_base import RenderSession
 from ...utils.file_utils import path_to_file_url
@@ -40,8 +40,7 @@ class YearProgress(DataSource, MediaItem, MediaRender):
 			dimensions = dimensions[::-1]
 
 		timezone = "US/Eastern" #device_config.get("timezone", default="America/New_York")
-		tz = pytz.timezone(timezone)
-#		current_time = datetime.now(tz)
+		tz = zoneinfo.ZoneInfo(timezone)
 		current_time = schedule_ts.astimezone(tz)
 
 		start_of_year = datetime(current_time.year, 1, 1, tzinfo=tz)
