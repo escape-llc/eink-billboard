@@ -45,7 +45,7 @@
 	</div>
 </template>
 <script lang="ts" setup>
-import {ref,computed,watch, defineProps} from "vue"
+import { ref, computed, watch } from "vue"
 import { DateBuilder, MS_PER_DAY } from "./DateUtils"
 
 export type DateRange = {
