@@ -25,7 +25,7 @@ from random import randint
 import requests
 from io import BytesIO
 
-from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaRender
+from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaRender, MediaRenderResult
 
 class Wpotd(DataSource, MediaList, MediaRender):
 	API_URL = "https://en.wikipedia.org/w/api.php"
@@ -41,16 +41,16 @@ class Wpotd(DataSource, MediaList, MediaRender):
 			self.logger.info(f"'{self.name}' datetofetch: {datetofetch}")
 			data = self._fetch_potd(datetofetch)
 			picurl = data["image_src"]
-			return [picurl]
+			return [{"url": picurl, "date": datetofetch}]
 		future = self._es.submit(locate_image_url)
 		return future
-	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[Image.Image | None]:
+	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[MediaRenderResult | None]:
 		if self._es is None:
 			raise RuntimeError("Executor not set for DataSource")
 		def load_next():
 			if state is None:
 				return None
-			image = self._download_image(state)
+			image = self._download_image(state.get("url"))
 			if image is None:
 				self.logger.error(f"'{self.name}' Failed to download image.")
 				raise RuntimeError(f"'{self.name}' Failed to download image.")
@@ -58,7 +58,7 @@ class Wpotd(DataSource, MediaList, MediaRender):
 				max_width, max_height = dsec.dimensions
 				image = self._shrink_to_fit(image, max_width, max_height)
 				self.logger.info(f"'{self.name}' Image resized: {max_width},{max_height}")
-			return image
+			return MediaRenderResult(image=image, title=f"Wikipedia Picture of the Day: {state.get('date', 'Unknown Date')}")
 		future = self._es.submit(load_next)
 		return future
 	def _determine_date(self, settings: dict[str, Any], schedule_ts) -> date:

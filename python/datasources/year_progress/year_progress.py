@@ -10,7 +10,7 @@ import zoneinfo
 from ...plugins.plugin_base import RenderSession
 from ...utils.file_utils import path_to_file_url
 from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
-from ...datasources.data_source import DataSource, DataSourceExecutionContext, MediaItem, MediaRender
+from ...datasources.data_source import DataSource, DataSourceExecutionContext, MediaItem, MediaRender, MediaRenderResult
 
 class YearProgress(DataSource, MediaItem, MediaRender):
 	def __init__(self, id: str, name: str):
@@ -24,7 +24,7 @@ class YearProgress(DataSource, MediaItem, MediaRender):
 			pass
 		future = self._es.submit(open_countdown)
 		return future
-	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[Image.Image | None]:
+	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[MediaRenderResult | None]:
 		if self._es is None:
 			raise RuntimeError("Executor not set for DataSource")
 		scm = dsec.provider.required(SettingsConfigurationManager)
@@ -32,7 +32,8 @@ class YearProgress(DataSource, MediaItem, MediaRender):
 		def render_countdown():
 			display_cob = scm.open("display")
 			_, display_config = display_cob.get()
-			return self.generate_image(dsec.schedule_ts, stm, dsec.dimensions, params, display_config)
+			img = self.generate_image(dsec.schedule_ts, stm, dsec.dimensions, params, display_config)
+			return None if img is None else MediaRenderResult(image=img, title=f"Year Progress: {dsec.schedule_ts.year}")
 		future = self._es.submit(render_countdown)
 		return future
 	def generate_image(self, schedule_ts:datetime, stm: StaticConfigurationManager, dimensions, settings, display_config):

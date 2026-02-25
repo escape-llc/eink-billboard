@@ -1,4 +1,5 @@
 from concurrent.futures import Future
+from typing import Any
 from PIL import Image
 from openai import BadRequestError, OpenAI
 import logging
@@ -8,7 +9,7 @@ import requests
 import openai
 
 from ...model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager
-from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaRender
+from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaRender, MediaRenderResult
 
 DEFAULT_IMAGE_MODEL = "dall-e-3"
 DEFAULT_IMAGE_QUALITY = "standard"
@@ -17,7 +18,7 @@ class OpenAI(DataSource, MediaList, MediaRender):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
-	def open(self, dsec: DataSourceExecutionContext, params: dict[str, any]) -> Future[list]:
+	def open(self, dsec: DataSourceExecutionContext, params: dict[str, Any]) -> Future[list]:
 		if self._es is None:
 			raise RuntimeError("Executor not set for DataSource")
 		def locate_image_url():
@@ -42,14 +43,14 @@ class OpenAI(DataSource, MediaList, MediaRender):
 			return [{ "api_key": api_key, "text_prompt": text_prompt, "image_model": image_model, "image_quality": image_quality, "randomize_prompt": randomize_prompt, "orientation": orientation }]
 		future = self._es.submit(locate_image_url)
 		return future
-	def render(self, context: DataSourceExecutionContext, params:dict[str,any], state:any) -> Future[Image.Image | None]:
+	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[MediaRenderResult | None]:
 		if self._es is None:
 			raise RuntimeError("Executor not set for DataSource")
 		def load_next():
 			if state is None:
 				return None
-			image = self._dispatch_image(context, state.get('api_key'), state.get('image_model'), state.get('image_quality'), state.get('text_prompt'), state.get('randomize_prompt'), state.get('orientation'))
-			return image
+			image = self._dispatch_image(dsec, state.get('api_key'), state.get('image_model'), state.get('image_quality'), state.get('text_prompt'), state.get('randomize_prompt'), state.get('orientation'))
+			return None if image is None else MediaRenderResult(image=image, title=f"OpenAI Image: {state.get('text_prompt', 'Untitled')}")
 		future = self._es.submit(load_next)
 		return future
 	def _dispatch_image(self, context: DataSourceExecutionContext, api_key, image_model, image_quality, text_prompt, randomize_prompt, orientation) -> Image.Image | None:

@@ -60,10 +60,10 @@ class Interstitial(PluginProtocol):
 		item = state
 		future2 = dataSource.render(context, settings, item)
 		ftimeout = settings.get("timeoutSeconds", 10)
-		image = future2.result(timeout=ftimeout)
-		if image is not None:
+		mrr = future2.result(timeout=ftimeout)
+		if mrr is not None:
 			# TODO send an interstitial display message
-			router.send("display", DisplayImage(context.schedule_ts, title, image))
+			router.send("display", DisplayImage(context.schedule_ts, mrr.title if mrr.title is not None else title, mrr.image))
 			slideMinutes = settings.get("slideMinutes", 15)
 			self.timer_info = timer.create_timer(timedelta(minutes=slideMinutes), timer_sink, SlideShowTimerExpired(context.schedule_ts, state))
 	def start(self, context: PluginExecutionContext, track: TrackType) -> None:

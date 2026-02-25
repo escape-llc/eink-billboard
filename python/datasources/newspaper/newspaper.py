@@ -4,7 +4,7 @@ from PIL import Image
 from datetime import timedelta, datetime
 import logging
 
-from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaRender
+from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaRender, MediaRenderResult
 from ...utils.image_utils import get_image
 
 FREEDOM_FORUM_URL = "https://cdn.freedomforum.org/dfp/jpg{}/lg/{}.jpg"
@@ -23,14 +23,14 @@ class Newspaper(DataSource, MediaList, MediaRender):
 			return [newspaper_slug]
 		future = self._es.submit(locate_image_url)
 		return future
-	def render(self, context: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[Image.Image | None]:
+	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[MediaRenderResult | None]:
 		if self._es is None:
 			raise RuntimeError("Executor not set for DataSource")
 		def load_next():
 			if state is None:
 				return None
-			image = self._generate_image(state, context.dimensions, context.schedule_ts)
-			return image
+			image = self._generate_image(state, dsec.dimensions, dsec.schedule_ts)
+			return MediaRenderResult(image=image, title=f"Newspaper {state}")
 		future = self._es.submit(load_next)
 		return future
 	def _generate_image(self, newspaper_slug, dimensions, schedule_ts:datetime):

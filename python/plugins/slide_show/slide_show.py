@@ -92,10 +92,10 @@ class SlideShow(PluginProtocol):
 		item = state[0]
 		future2 = dataSource.render(context, settings, item)
 		ftimeout = settings.get("timeoutSeconds", 10)
-		image = future2.result(timeout=ftimeout)
+		mrr = future2.result(timeout=ftimeout)
 		state.pop(0)
-		if image is not None:
-			router.send("display", DisplayImage(context.schedule_ts, title, image))
+		if mrr is not None:
+			router.send("display", DisplayImage(context.schedule_ts, mrr.title if mrr.title is not None else title, mrr.image))
 			slideMinutes = settings.get("slideMinutes", 15)
 			self.timer_info = timer.create_timer(timedelta(minutes=slideMinutes), timer_sink, SlideShowTimerExpired(context.schedule_ts, state))
 	def start(self, context: PluginExecutionContext, track: TrackType) -> None:

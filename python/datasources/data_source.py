@@ -56,7 +56,7 @@ class MediaRenderResult:
 @runtime_checkable
 class MediaRender(Protocol):
 	"""Ability to render media from the source's state (element for a MediaList)."""
-	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[Image.Image | None]:
+	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[MediaRenderResult | None]:
 		"""
 		Ability to render an image from the params and state.
 

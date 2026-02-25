@@ -1,15 +1,16 @@
 from concurrent.futures import Future
+from typing import Any
 from PIL import Image, ImageDraw, ImageFont
 import requests
 
 from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
 from .comic_parser import get_items
-from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaRender
+from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaRender, MediaRenderResult
 
 class ComicFeed(DataSource, MediaList, MediaRender):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
-	def open(self, dsec: DataSourceExecutionContext, params: dict[str, any]) -> Future[list]:
+	def open(self, dsec: DataSourceExecutionContext, params: dict[str, Any]) -> Future[list]:
 		if self._es is None:
 			raise RuntimeError("Executor not set for DataSource")
 		comic = params.get("comic")
@@ -17,7 +18,7 @@ class ComicFeed(DataSource, MediaList, MediaRender):
 			return get_items(comic)
 		future = self._es.submit(future_feed_download)
 		return future
-	def render(self, context: DataSourceExecutionContext, params:dict[str,any], state:any) -> Future[Image.Image | None]:
+	def render(self, context: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[MediaRenderResult | None]:
 		if self._es is None:
 			raise RuntimeError("Executor not set for DataSource")
 		def future_feed_image():
@@ -27,11 +28,13 @@ class ComicFeed(DataSource, MediaList, MediaRender):
 			return img
 		future = self._es.submit(future_feed_image)
 		return future
-	def _generate_image(self, context: DataSourceExecutionContext, params, item) -> Image.Image:
+	def _generate_image(self, context: DataSourceExecutionContext, params, item) -> MediaRenderResult | None:
 		scm = context.provider.required(SettingsConfigurationManager)
 		stm = context.provider.required(StaticConfigurationManager)
 		display_cob = scm.open("display")
 		_, display_settings = display_cob.get()
+		if display_settings is None:
+			raise ValueError("display settings is None")
 		dimensions = context.dimensions
 		is_caption = params.get("titleCaption") == "true"
 		caption_font_size = params.get("fontSize", 16)
@@ -40,7 +43,7 @@ class ComicFeed(DataSource, MediaList, MediaRender):
 		width, height = dimensions
 		caption_font = stm.get_font("Jost", font_size=int(caption_font_size)) if is_caption else None
 		img = self._compose_image(item, caption_font, width, height)
-		return img
+		return MediaRenderResult(image=img, title=item.get("title", "Comic"))
 	def _compose_image(self, item, caption_font, width, height):
 		response = requests.get(item["image_url"], stream=True)
 		response.raise_for_status()

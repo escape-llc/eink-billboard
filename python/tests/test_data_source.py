@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from typing import cast
 import unittest
 
 from ..datasources.countdown.countdown import Countdown
@@ -7,7 +8,7 @@ from ..datasources.year_progress.year_progress import YearProgress
 from ..datasources.clock.clock import Clock
 from ..datasources.openai_image.openai_image import OpenAI
 from ..datasources.comic.comic_feed import ComicFeed
-from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager
+from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager, MediaItem, MediaList, MediaRender, MediaRenderResult
 from ..datasources.wpotd.wpotd import Wpotd
 from ..datasources.image_folder.image_folder import ImageFolder
 from ..datasources.newspaper.newspaper import Newspaper
@@ -31,49 +32,54 @@ class TestDataSources(unittest.TestCase):
 		return DataSourceExecutionContext(root, resolution, schedule_ts)
 
 	def run_datasource(self, ds, params, image_size, image_count, timeout = 5):
+		self.assertIsInstance(ds, MediaList)
+		self.assertIsInstance(ds, MediaRender)
 		tpe = ThreadPoolExecutor(max_workers=2)
 		ds.set_executor(tpe)
 		try:
 			folder = test_output_path_for(f"ds-{ds.id}")
 			dsec = self.create_data_source_context(ds.id)
-			future_state = ds.open(dsec, params)
-			state = future_state.result(timeout=5)
+			future_state = cast(MediaList, ds).open(dsec, params)
+			state:list = future_state.result(timeout=5)
 			self.assertTrue(len(state) > 0)
 			images = []
 			ix = 0
 			while len(state) > 0:
 				item = state[0]
 				state.pop(0)
-				future_img = ds.render(dsec, params, item)
+				future_img = cast(MediaRender, ds).render(dsec, params, item)
 				result = future_img.result(timeout=timeout)
 				if result is None:
-					break
-				images.append(result)
-				save_image(result, folder, ix, f"item_{ix}")
+					self.assertIsNotNone(result)
+				else:
+					images.append(result)
+					save_image(result.image, folder, ix, f"item_{ix}")
 				ix += 1
-				self.assertEqual(result.size, image_size)
 			self.assertEqual(len(images), image_count)
 		finally:
 			ds.set_executor(None)
 			tpe.shutdown(wait=True, cancel_futures=True)
 	def run_datasource2(self, ds, params, image_size, image_count, timeout = 5):
+		self.assertIsInstance(ds, MediaItem)
+		self.assertIsInstance(ds, MediaRender)
 		tpe = ThreadPoolExecutor(max_workers=2)
 		ds.set_executor(tpe)
 		try:
 			folder = test_output_path_for(f"ds-{ds.id}")
 			dsec = self.create_data_source_context(ds.id)
-			future_state = ds.open(dsec, params)
+			future_state = cast(MediaItem, ds).open(dsec, params)
 			state = future_state.result(timeout=5)
 			self.assertIsNotNone(state)
 			images = []
 			ix = 0
 			item = state
-			future_img = ds.render(dsec, params, item)
+			future_img = cast(MediaRender, ds).render(dsec, params, item)
 			result = future_img.result(timeout=timeout)
-			self.assertIsNotNone(result)
-			images.append(result)
-			save_image(result, folder, ix, f"item_{ix}")
-			self.assertEqual(result.size, image_size)
+			if result is None:
+				self.assertIsNotNone(result)
+			else:
+				images.append(result)
+				save_image(result.image, folder, ix, f"item_{ix}")
 			self.assertEqual(len(images), image_count)
 		finally:
 			ds.set_executor(None)

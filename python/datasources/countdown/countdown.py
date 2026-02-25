@@ -3,19 +3,20 @@ from datetime import datetime
 import logging
 import os
 from pathlib import Path
+from typing import Any
 from PIL import Image
 import zoneinfo
 
 from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
 from ...plugins.plugin_base import RenderSession
 from ...utils.file_utils import path_to_file_url
-from ...datasources.data_source import DataSource, DataSourceExecutionContext, MediaItem, MediaRender
+from ...datasources.data_source import DataSource, DataSourceExecutionContext, MediaItem, MediaRender, MediaRenderResult
 
 class Countdown(DataSource, MediaItem, MediaRender):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
-	def open(self, dsec: DataSourceExecutionContext, params: dict[str, any]) -> Future[any]:
+	def open(self, dsec: DataSourceExecutionContext, params: dict[str, Any]) -> Future[Any]:
 		if self._es is None:
 			raise RuntimeError("Executor not set for DataSource")
 		def open_countdown():
@@ -23,18 +24,18 @@ class Countdown(DataSource, MediaItem, MediaRender):
 			pass
 		future = self._es.submit(open_countdown)
 		return future
-	def render(self, context: DataSourceExecutionContext, params:dict[str,any], state:any) -> Future[Image.Image | None]:
+	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[MediaRenderResult | None]:
 		if self._es is None:
 			raise RuntimeError("Executor not set for DataSource")
-		scm = context.provider.required(SettingsConfigurationManager)
-		stm = context.provider.required(StaticConfigurationManager)
+		scm = dsec.provider.required(SettingsConfigurationManager)
+		stm = dsec.provider.required(StaticConfigurationManager)
 		def render_countdown():
 			display_cob = scm.open("display")
 			_, display_config = display_cob.get()
-			return self.generate_image(context.schedule_ts, stm, context.dimensions, params, display_config)
+			return self.generate_image(dsec.schedule_ts, stm, dsec.dimensions, params, display_config)
 		future = self._es.submit(render_countdown)
 		return future
-	def generate_image(self, schedule_ts:datetime, stm: StaticConfigurationManager, dimensions, settings, display_config):
+	def generate_image(self, schedule_ts:datetime, stm: StaticConfigurationManager, dimensions, settings, display_config) -> MediaRenderResult | None:
 		#title = settings.get('title')
 		countdown_date_str = settings.get('targetDate')
 
@@ -68,4 +69,4 @@ class Countdown(DataSource, MediaItem, MediaRender):
 		css = path_to_file_url(os.path.join(px.resolve(), "countdown.css"))
 		rs = RenderSession(stm, px.resolve(), "countdown.html", css)
 		image = rs.render(dimensions, template_params)
-		return image
+		return None if image is None else MediaRenderResult(image=image, title="Countdown")

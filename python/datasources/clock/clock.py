@@ -6,7 +6,7 @@ from PIL import Image, ImageColor, ImageDraw, ImageFont
 from concurrent.futures import Future
 
 from ...model.configuration_manager import StaticConfigurationManager
-from ..data_source import DataSource, DataSourceExecutionContext, MediaItem, MediaRender
+from ..data_source import DataSource, DataSourceExecutionContext, MediaItem, MediaRender, MediaRenderResult
 
 class Clock(DataSource, MediaItem, MediaRender):
 	"""
@@ -26,12 +26,9 @@ class Clock(DataSource, MediaItem, MediaRender):
 			"secondary_color": secondary_color,
 		})
 		return fut
-	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[Image.Image | None]:
-		img = None
+	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[MediaRenderResult | None]:
+		img: Image.Image|None = None
 		try:
-			#timezone_name = device_config.get_config("timezone") or DEFAULT_TIMEZONE
-			#tz = zoneinfo.ZoneInfo(timezone_name)
-			#current_time = datetime.now(tz)
 			dimensions = dsec.dimensions
 			clock_face = state.get("clock_face", None)
 			primary_color = state.get("primary_color", None)
@@ -51,7 +48,7 @@ class Clock(DataSource, MediaItem, MediaRender):
 		except Exception as e:
 			self.logger.error(f"Failed to draw clock image: {str(e)}")
 		fut = Future()
-		fut.set_result(img)
+		fut.set_result(None if img is None else MediaRenderResult(image=img, title=f"{dsec.schedule_ts.strftime('%H:%M:%S')}"))
 		return fut
 	def draw_conic_clock(self, dimensions, time, primary_color=(219, 50, 70, 255), secondary_color=(0, 0, 0, 255) ):
 		width, height = dimensions
