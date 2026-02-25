@@ -3,19 +3,7 @@ import os
 import tempfile
 
 from .utils import storage_path
-from ..model.schedule import Playlist, SchedulableItem
-
-
-# Concrete SchedulableItem for tests (SchedulableItem is abstract)
-class ConcreteSchedItem(SchedulableItem):
-	def to_dict(self):
-		return {
-			"id": self.id,
-			"title": self.title,
-			"start_minutes": self.start_minutes,
-			"duration_minutes": self.duration_minutes,
-			"content": self.content,
-		}
+from ..model.schedule import Playlist
 from ..model.schedule_manager import ScheduleManager
 
 class TestScheduleManager(unittest.TestCase):

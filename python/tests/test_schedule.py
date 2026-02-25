@@ -1,26 +1,10 @@
 import unittest
 from datetime import datetime, timedelta
-import random
-import string
 
 from ..model.schedule import (
-	PluginSchedule,
-	PluginScheduleData,
-	Playlist,
-	PlaylistSchedule,
-	PlaylistScheduleData,
-	TimerTaskTask,
-	TimerTaskItem,
-	TimerTasks,
 	generate_schedule,
 	generate_trigger_time,
 )
-
-def random_plugin_data():
-	return PluginScheduleData({
-		'value': random.randint(1, 100),
-		'info': ''.join(random.choices(string.ascii_letters, k=8))
-	})
 
 class TestTriggers(unittest.TestCase):
 	def test_generate_trigger_time_hourly(self):

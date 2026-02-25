@@ -1,7 +1,7 @@
 import logging
 
 from ...task.messages import BasicMessage
-from ..plugin_base import BasicExecutionContext2, PluginProtocol, TrackType
+from ..plugin_base import PluginExecutionContext, PluginProtocol, TrackType
 
 
 class DebugPlugin(PluginProtocol):
@@ -16,9 +16,9 @@ class DebugPlugin(PluginProtocol):
 	def name(self) -> str:
 		return self._name
 
-	def start(self, context: BasicExecutionContext2, track: TrackType) -> None:
+	def start(self, context: PluginExecutionContext, track: TrackType) -> None:
 		self.logger.info(f"'{self.name}' start '{track.title}'")
-	def stop(self, context: BasicExecutionContext2, track: TrackType) -> None:
+	def stop(self, context: PluginExecutionContext, track: TrackType) -> None:
 		self.logger.info(f"'{self.name}' stop '{track.title}'")
-	def receive(self, context: BasicExecutionContext2, track: TrackType, msg: BasicMessage) -> None:
+	def receive(self, context: PluginExecutionContext, track: TrackType, msg: BasicMessage) -> None:
 		self.logger.info(f"'{self.name}' '{track.title}' receive: {msg}")

@@ -11,7 +11,7 @@ from ...task.message_router import MessageRouter
 from ...task.messages import BasicMessage, FutureCompleted, MessageSink
 from ...task.playlist_layer import NextTrack
 from ...task.timer import IProvideTimer
-from ..plugin_base import BasicExecutionContext2, TrackType, PluginProtocol
+from ..plugin_base import PluginExecutionContext, TrackType, PluginProtocol
 
 class Interstitial(PluginProtocol):
 	def __init__(self, id, name):
@@ -26,7 +26,7 @@ class Interstitial(PluginProtocol):
 	@property
 	def name(self) -> str:
 		return self._name
-	def _source_start(self, is_cancelled:CancelToken, context: BasicExecutionContext2, track:TimerTaskItem) -> bool|None:
+	def _source_start(self, is_cancelled:CancelToken, context: PluginExecutionContext, track:TimerTaskItem) -> bool|None:
 		settings = track.task.content
 		# assert required services are available
 		dsm = context.provider.required(DataSourceManager)
@@ -66,7 +66,7 @@ class Interstitial(PluginProtocol):
 			router.send("display", DisplayImage(context.schedule_ts, title, image))
 			slideMinutes = settings.get("slideMinutes", 15)
 			self.timer_info = timer.create_timer(timedelta(minutes=slideMinutes), timer_sink, SlideShowTimerExpired(context.schedule_ts, state))
-	def start(self, context: BasicExecutionContext2, track: TrackType) -> None:
+	def start(self, context: PluginExecutionContext, track: TrackType) -> None:
 		self.logger.info(f"{self.id} start '{track.title}'")
 		if isinstance(track, TimerTaskItem):
 			submit = context.provider.required(SubmitFuture)
@@ -74,7 +74,7 @@ class Interstitial(PluginProtocol):
 													 lambda cancelled,result,exception: self._continuation_start(cancelled, result, exception, context.schedule_ts))
 			return
 		raise RuntimeError(f"Unsupported track type: {type(track)}")
-	def stop(self, context: BasicExecutionContext2, track: TrackType) -> None:
+	def stop(self, context: PluginExecutionContext, track: TrackType) -> None:
 		self.logger.info(f"{self.id} stop '{track.title}'")
 		if self.timer_info is not None:
 			self.timer_info[1]()
@@ -82,7 +82,7 @@ class Interstitial(PluginProtocol):
 		if self.submit_result is not None:
 			self.submit_result()
 			self.submit_result = None
-	def receive(self, context: BasicExecutionContext2, track: TrackType, msg: BasicMessage) -> None:
+	def receive(self, context: PluginExecutionContext, track: TrackType, msg: BasicMessage) -> None:
 		self.logger.info(f"{self.id} receive '{track.title}' {msg}")
 		if isinstance(track, TimerTaskItem):
 			if isinstance(msg, FutureCompleted):

@@ -11,10 +11,10 @@ from .message_router import MessageRouter
 from .basic_task import DispatcherTask
 from ..datasources.data_source import DataSourceManager
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
-from ..model.schedule import Playlist, PlaylistBase
+from ..model.schedule import Playlist, ScheduleItemBase
 from ..model.service_container import ServiceContainer
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
-from ..plugins.plugin_base import BasicExecutionContext2, PluginProtocol
+from ..plugins.plugin_base import PluginExecutionContext, PluginProtocol
 from ..task.timer import IProvideTimer, TimerService
 from ..task.protocols import IRequireShutdown
 
@@ -42,12 +42,12 @@ class PlaylistLayer(DispatcherTask):
 		self.dimensions:tuple[int,int] = (800,480)
 		self.playlist_state = None
 		self.active_plugin: PluginProtocol|None = None
-		self.active_context: BasicExecutionContext2|None = None
+		self.active_context: PluginExecutionContext|None = None
 		self.future_source: SubmitFuture|None = None
 		self.time_of_day: TimeOfDay|None = None
 		self.state = 'uninitialized'
 		self.logger = logging.getLogger(__name__)
-	def _evaluate_plugin(self, track:PlaylistBase):
+	def _evaluate_plugin(self, track:ScheduleItemBase):
 		if self.cm is None:
 			errormsg = "ConfigurationManager is not set."
 			self.logger.error(errormsg)
@@ -89,7 +89,7 @@ class PlaylistLayer(DispatcherTask):
 		root.add_service(SubmitFuture, self.future_source)
 		root.add_service(TimeOfDay, self.time_of_day)
 		root.add_service(MessageSink, self)
-		return BasicExecutionContext2(root, self.dimensions, self.time_of_day.current_time())
+		return PluginExecutionContext(root, self.dimensions, self.time_of_day.current_time())
 	def _start_playback(self, msg: StartPlayback):
 		self.logger.info(f"'{self.name}' StartPlayback {self.state}")
 		if self.state != 'loaded':
@@ -100,7 +100,7 @@ class PlaylistLayer(DispatcherTask):
 			return
 		# Start playback logic here
 		current_playlist:Playlist = cast(Playlist, self.playlists[0].get("info"))
-		current_track:PlaylistBase|None = current_playlist.items[0] if len(current_playlist.items) > 0 else None
+		current_track:ScheduleItemBase|None = current_playlist.items[0] if len(current_playlist.items) > 0 else None
 		if current_track is None:
 			self.logger.error(f"Current playlist '{current_playlist.name}' has no tracks.")
 			return
@@ -142,7 +142,7 @@ class PlaylistLayer(DispatcherTask):
 		if self.active_context is None:
 			self.logger.error(f"No active context to handle PluginReceive message.")
 			return
-		current_track:PlaylistBase = cast(PlaylistBase, self.playlist_state.get('current_track'))
+		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
 		try:
 			self.active_plugin.receive(self.active_context, current_track, msg)
 		except Exception as e:
@@ -164,7 +164,7 @@ class PlaylistLayer(DispatcherTask):
 		if self.active_plugin.name != msg.plugin_name:
 			self.logger.error(f"Received FutureCompleted message for plugin '{msg.plugin_name}', but active plugin is '{self.active_plugin.name}'")
 			return
-		current_track:PlaylistBase = cast(PlaylistBase, self.playlist_state.get('current_track'))
+		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
 		try:
 			self.active_plugin.receive(self.active_context, current_track, msg)
 		except Exception as e:
@@ -180,7 +180,7 @@ class PlaylistLayer(DispatcherTask):
 		if self.active_context is None:
 			self.logger.error(f"No active context to handle PluginReceive message.")
 			return
-		current_track:PlaylistBase = cast(PlaylistBase, self.playlist_state.get('current_track'))
+		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
 		try:
 			self.active_plugin.stop(self.active_context, current_track)
 		except Exception as e:
@@ -196,7 +196,7 @@ class PlaylistLayer(DispatcherTask):
 		if self.active_context is None:
 			self.logger.error(f"No active context to handle PluginReceive message.")
 			return
-		current_track:PlaylistBase = cast(PlaylistBase, self.playlist_state.get('current_track'))
+		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
 		try:
 			self.active_plugin.start(self.active_context, current_track)
 		except Exception as e:
@@ -219,7 +219,7 @@ class PlaylistLayer(DispatcherTask):
 		if current_track_index + 1 < len(current_playlist.items):
 			# Move to next track in the same playlist
 			next_track_index = current_track_index + 1
-			next_track:PlaylistBase = current_playlist.items[next_track_index]
+			next_track:ScheduleItemBase = current_playlist.items[next_track_index]
 			plugin_eval = self._evaluate_plugin(next_track)
 			active_plugin:PluginProtocol = cast(PluginProtocol, plugin_eval.get("plugin", None))
 			if active_plugin is None:
@@ -241,7 +241,7 @@ class PlaylistLayer(DispatcherTask):
 			next_playlist_index = (current_playlist_index + 1) % len(self.playlists)
 			next_playlist:Playlist = self.playlists[next_playlist_index]
 			next_track_index = 0
-			next_track:PlaylistBase = next_playlist.items[next_track_index]
+			next_track:ScheduleItemBase = next_playlist.items[next_track_index]
 			plugin_eval = self._evaluate_plugin(next_track)
 			active_plugin:PluginProtocol = cast(PluginProtocol, plugin_eval.get("plugin", None))
 			if active_plugin is None:

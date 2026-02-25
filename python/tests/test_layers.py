@@ -10,7 +10,7 @@ from ..datasources.data_source import DataSourceManager
 from ..model.schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks
 from ..model.service_container import ServiceContainer
 from ..model.time_of_day import TimeOfDay
-from ..plugins.plugin_base import BasicExecutionContext2, PluginProtocol, TrackType
+from ..plugins.plugin_base import PluginExecutionContext, PluginProtocol, TrackType
 from ..task.display import DisplaySettings
 from ..task.timer import IProvideTimer
 from ..task.messages import BasicMessage, ConfigureEvent, ConfigureOptions, MessageSink, QuitMessage, Telemetry
@@ -33,10 +33,10 @@ class TestPlugin(PluginProtocol):
 	@property
 	def name(self) -> str:
 		return self._name
-	def start(self, context: BasicExecutionContext2, track: TrackType):
+	def start(self, context: PluginExecutionContext, track: TrackType):
 		self.started = True
 		self.start_args = (track, context)
-	def receive(self, context: BasicExecutionContext2, track: TrackType, msg: BasicMessage):
+	def receive(self, context: PluginExecutionContext, track: TrackType, msg: BasicMessage):
 		self.received.append(msg)
 	# PlaylistLayer expects plugin to expose a `start(track, context)` method
 

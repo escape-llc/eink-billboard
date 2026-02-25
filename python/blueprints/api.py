@@ -6,7 +6,7 @@ import logging
 from typing import Generator, cast
 
 from ..model.service_container import IServiceProvider
-from ..model.schedule import TimerTaskItem, TimerTasks, generate_schedule
+from ..model.schedule import TimerTaskItem, TimerTasks, daily_sequence, generate_schedule, render_task_schedule_at
 from ..model.configuration_manager import ConfigurationManager, ConfigurationObject, HASH_KEY, ID_KEY, create_hash
 
 logger = logging.getLogger(__name__)
@@ -427,22 +427,6 @@ def schedule_timed_list():
 		logger.error(f"/schedule/timer/list: {str(e)}")
 		error = { "message": str(e), "id": "schedule-timer-list", "success": False }
 		return jsonify(error), 500
-
-def daily_sequence(start_date: datetime, n_days: int) -> Generator[datetime, None, None]:
-	start_ts = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-	for ix in range(n_days):
-		yield start_ts + timedelta(days=ix)
-
-def render_task_schedule_at(schedule_ts: datetime, item: TimerTaskItem, schedid: str, render_list: list, include_now:bool = True) -> bool:
-	did = False
-	for trigger_ts in generate_schedule(schedule_ts, item.trigger, include_now=include_now):
-		render_list.append({
-			"schedule": schedid,
-			"id": item.id,
-			"scheduled_time": trigger_ts.isoformat()
-		})
-		did = True
-	return did
 
 @api_bp.route('/schedule/tasks/render', methods=['GET'])
 def render_tasks_schedule():

@@ -6,12 +6,12 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from ..datasources.data_source import DataSource, DataSourceExecutionContext
 from ..model.service_container import IServiceProvider, ServiceContainer, ServiceContainer
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, StaticConfigurationManager
-from ..model.schedule import PlaylistBase, SchedulableBase, TimerTaskTask
+from ..model.schedule import ScheduleItemBase, TimerTaskTask
 from ..task.messages import BasicMessage
 from ..utils.image_utils import render_html_arglist
 from ..utils.file_utils import path_to_file_url
 
-class BasicExecutionContext2:
+class PluginExecutionContext:
 	def __init__(self, isp: IServiceProvider, dimensions: tuple[int, int], schedule_ts: datetime):
 		if isp is None:
 			raise ValueError("isp is None")
@@ -80,7 +80,7 @@ class RenderSession:
 		return render_html_arglist(rendered_html, [f"--window-size={dimensions[0]},{dimensions[1]}"])
 	pass
 
-type TrackType = SchedulableBase | PlaylistBase | TimerTaskTask
+type TrackType = ScheduleItemBase | TimerTaskTask
 @runtime_checkable
 class PluginProtocol(Protocol):
 	@property
@@ -89,9 +89,9 @@ class PluginProtocol(Protocol):
 	@property
 	def name(self) -> str:
 		...
-	def start(self, context: BasicExecutionContext2, track: TrackType) -> None:
+	def start(self, context: PluginExecutionContext, track: TrackType) -> None:
 		...
-	def receive(self, context: BasicExecutionContext2, track: TrackType, msg: BasicMessage) -> None:
+	def receive(self, context: PluginExecutionContext, track: TrackType, msg: BasicMessage) -> None:
 		...
-	def stop(self, context: BasicExecutionContext2, track: TrackType) -> None:
+	def stop(self, context: PluginExecutionContext, track: TrackType) -> None:
 		...

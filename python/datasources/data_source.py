@@ -1,4 +1,5 @@
 from concurrent.futures import Executor, ThreadPoolExecutor, Future
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
 from PIL import Image
@@ -45,6 +46,12 @@ class DataSourceExecutionContext:
 	@property
 	def schedule_ts(self) -> datetime:
 		return self._schedule_ts
+
+@dataclass(frozen=True,slots=True)
+class MediaRenderResult:
+	"""Result of MediaRender.render()"""
+	image: Image.Image
+	title: str|None
 
 @runtime_checkable
 class MediaRender(Protocol):

@@ -1,70 +1,17 @@
-from abc import abstractmethod, ABC
-from typing import Any, Callable, Generator, Generic, Sequence, TypeVar, List, Protocol, runtime_checkable
+from typing import Any, Generator, Sequence, TypeVar, Protocol, runtime_checkable
 from datetime import datetime, timedelta
 
 T = TypeVar('T')
 
-class SchedulableBase(ABC):
-	def __init__(self, id: str, title: str, start_minutes: int, duration_minutes: int, dc: Callable|None = None):
-		self.id = id
-		self.title = title
-		self.start_minutes = start_minutes
-		self.duration_minutes = duration_minutes
-		self.date_controller = dc if dc is not None else lambda : datetime.now()
-	@property
-	def start(self) -> datetime:
-		if self.date_controller is None:
-			raise ValueError("Date controller is not set")
-		# start at midnight
-		the_date = self.date_controller().replace(hour=0, minute=0, second=0, microsecond=0)
-		return the_date + timedelta(minutes=self.start_minutes)
-	@property
-	def end(self) -> datetime:
-		return self.start + timedelta(minutes=self.duration_minutes)
-	@abstractmethod
-	def to_dict(self) -> dict[str,Any]:
-		retv = {
-			"id": self.id,
-			"title": self.title,
-			"start_minutes": self.start_minutes,
-			"duration_minutes": self.duration_minutes
-		}
-		return retv
-
-class SchedulableItem(SchedulableBase, Generic[T]):
-	def __init__(self, id: str, title: str, start_minutes: int, duration_minutes: int, content: T, dc: Callable|None = None):
-		super().__init__(id, title, start_minutes, duration_minutes, dc)
-		self.content = content
-
-class PluginScheduleData:
-	def __init__(self, data: dict):
-		self.data = data
-
-class PluginSchedule(SchedulableItem[PluginScheduleData]):
-	def __init__(self, plugin_name: str, id: str, title: str, start_minutes: int, duration_minutes: int, content: PluginScheduleData, dc: Callable|None = None):
-		super().__init__(id, title, start_minutes, duration_minutes, content, dc)
-		self.plugin_name = plugin_name
-	def to_dict(self) -> dict[str,Any]:
-		retv = super().to_dict()
-		retv["plugin_name"] = self.plugin_name
-		retv["content"] = self.content.data
-		return retv
-
-class DefaultItem:
-	def __init__(self, plugin_name: str, title: str, content: dict):
-		self.plugin_name = plugin_name
-		self.title = title
-		self.content = content
-
 @runtime_checkable
-class PlaylistBase(Protocol):
+class ScheduleItemBase(Protocol):
 	@property
 	def id(self) -> str: ...
 	@property
 	def title(self) -> str: ...
 	def to_dict(self) -> dict[str,Any]: ...
 
-class PlaylistItem(PlaylistBase, Generic[T]):
+class PlaylistItem[T](ScheduleItemBase):
 	def __init__(self, id: str, title: str, content: T):
 		self._id = id
 		self._title = title
@@ -76,7 +23,7 @@ class PlaylistItem(PlaylistBase, Generic[T]):
 	def title(self) -> str:
 		return self._title
 	def to_dict(self) -> dict[str,Any]:
-		return {"id": self.id, "title": self.title}
+		return { "id": self.id, "title": self.title }
 
 class PlaylistScheduleData:
 	def __init__(self, data: dict):
@@ -93,7 +40,7 @@ class PlaylistSchedule(PlaylistItem[PlaylistScheduleData]):
 		return retv
 
 class Playlist:
-	def __init__(self, id: str, name: str, items: Sequence[PlaylistBase]):
+	def __init__(self, id: str, name: str, items: Sequence[ScheduleItemBase]):
 		if items is None:
 			raise ValueError("items cannot be None")
 		self._id = id
@@ -208,6 +155,10 @@ def generate_schedule(now: datetime, trigger: dict[str,Any], include_now: bool =
 		case None:
 			pass
 	pass
+def daily_sequence(start_date: datetime, n_days: int) -> Generator[datetime, None, None]:
+	start_ts = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+	for ix in range(n_days):
+		yield start_ts + timedelta(days=ix)
 
 class TimerTaskTask:
 	def __init__(self, plugin_name: str, title: str, content: dict):
@@ -228,7 +179,7 @@ class TimerTaskTask:
 		}
 		return retv
 	pass
-class TimerTaskItem(PlaylistBase):
+class TimerTaskItem(ScheduleItemBase):
 	def __init__(self, id: str, name: str, enabled: bool, desc: str, task: TimerTaskTask, trigger: dict):
 		if id is None:
 			raise ValueError("id cannot be None")
@@ -264,7 +215,7 @@ class TimerTaskItem(PlaylistBase):
 		}
 		return retv
 class TimerTasks:
-	def __init__(self, id: str, name: str, items: Sequence[TimerTaskItem]|None = None):
+	def __init__(self, id: str, name: str, items: Sequence[TimerTaskItem]):
 		if id is None:
 			raise ValueError("id cannot be None")
 		if name is None:
@@ -282,3 +233,14 @@ class TimerTasks:
 			"items": [xx.to_dict() for xx in self.items]
 		}
 		return retv
+
+def render_task_schedule_at(schedule_ts: datetime, item: TimerTaskItem, schedid: str, render_list: list, include_now:bool = True) -> bool:
+	did = False
+	for trigger_ts in generate_schedule(schedule_ts, item.trigger, include_now=include_now):
+		render_list.append({
+			"schedule": schedid,
+			"id": item.id,
+			"scheduled_time": trigger_ts.isoformat()
+		})
+		did = True
+	return did

@@ -19,7 +19,7 @@ from ..task.timer import IProvideTimer
 from .utils import RecordingTask, ScaledTimeOfDay, ScaledTimerService, create_configuration_manager, save_images
 from ..model.schedule import PlaylistSchedule, PlaylistScheduleData
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
-from ..plugins.plugin_base import BasicExecutionContext2, PluginProtocol
+from ..plugins.plugin_base import PluginExecutionContext, PluginProtocol
 from ..task.future_source import FutureSource, SubmitFuture
 from ..task.message_router import MessageRouter, Route
 from ..task.messages import BasicMessage, MessageSink, QuitMessage
@@ -31,7 +31,7 @@ class DebugMessageSink(MessageSink):
 		self.msg_queue.put(msg)
 
 class PluginRecycleMessageSink(MessageSink):
-	def __init__(self, plugin: PluginProtocol, track, context: BasicExecutionContext2):
+	def __init__(self, plugin: PluginProtocol, track, context: PluginExecutionContext):
 		self.msg_queue = queue.Queue()
 		self.plugin = plugin
 		self.track = track
@@ -71,7 +71,7 @@ class TestPlugins(unittest.TestCase):
 		root.add_service(MessageRouter, router)
 		root.add_service(IProvideTimer, timer)
 		root.add_service(TimeOfDay, time_of_day)
-		context = BasicExecutionContext2(root, (800,480), datetime.now())
+		context = PluginExecutionContext(root, (800,480), datetime.now())
 		sink = PluginRecycleMessageSink(plugin, track, context)
 		root.add_service(MessageSink, sink)
 		fsource = FutureSource("plugin_test", sink, ThreadPoolExecutor())

@@ -7,10 +7,10 @@ from typing import cast
 
 from ..datasources.data_source import DataSourceManager
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
-from ..model.schedule import PlaylistBase, TimerTaskItem, TimerTasks, generate_schedule, Playlist
+from ..model.schedule import ScheduleItemBase, TimerTaskItem, TimerTasks, generate_schedule, Playlist
 from ..model.service_container import ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
-from ..plugins.plugin_base import BasicExecutionContext2, PluginProtocol
+from ..plugins.plugin_base import PluginExecutionContext, PluginProtocol
 from ..task.basic_task import DispatcherTask
 from ..task.display import DisplaySettings
 from ..task.messages import BasicMessage, ConfigureEvent, FutureCompleted, MessageSink, PluginReceive, QuitMessage, Telemetry
@@ -38,7 +38,7 @@ class TimerLayer(DispatcherTask):
 		self.dimensions:tuple[int,int] = (800,480)
 		self.playlist_state = None
 		self.active_plugin: PluginProtocol|None = None
-		self.active_context: BasicExecutionContext2|None = None
+		self.active_context: PluginExecutionContext|None = None
 		self.future_source: SubmitFuture|None = None
 		self.time_of_day: TimeOfDay|None = None
 		self.timer_state: CreateTimerResult|None = None
@@ -87,7 +87,7 @@ class TimerLayer(DispatcherTask):
 		root.add_service(SubmitFuture, self.future_source)
 		root.add_service(TimeOfDay, self.time_of_day)
 		root.add_service(MessageSink, self)
-		return BasicExecutionContext2(root, self.dimensions, self.time_of_day.current_time())
+		return PluginExecutionContext(root, self.dimensions, self.time_of_day.current_time())
 	def _configure_event(self, msg: ConfigureEvent):
 		self.cm = msg.content.cm
 		try:
@@ -143,7 +143,7 @@ class TimerLayer(DispatcherTask):
 		if self.active_plugin.name != msg.plugin_name:
 			self.logger.error(f"Received FutureCompleted message for plugin '{msg.plugin_name}', but active plugin is '{self.active_plugin.name}'")
 			return
-		current_track:PlaylistBase = cast(PlaylistBase, self.playlist_state.get('current_track'))
+		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
 		try:
 			self.active_plugin.receive(self.active_context, current_track, msg)
 		except Exception as e:
@@ -181,7 +181,7 @@ class TimerLayer(DispatcherTask):
 		# TimerExpired: start playback of playlist from (5)
 		# NextTrack: advance to next task in that playlist
 		self.logger.info(f"{self.name}: starting playback: '{initial_playlist.name}'")
-		current_track:PlaylistBase|None = initial_playlist.items[0] if len(initial_playlist.items) > 0 else None
+		current_track:ScheduleItemBase|None = initial_playlist.items[0] if len(initial_playlist.items) > 0 else None
 		if current_track is None:
 			self.logger.error(f"Cannot start playback, playlist '{initial_playlist.name}' has no items.")
 			return
@@ -238,7 +238,7 @@ class TimerLayer(DispatcherTask):
 			return None
 		startup_playlist = Playlist("startup", "Startup Tasks", items=startup_task_items)
 		return startup_playlist
-	def _invoke_plugin_start(self, current_track:PlaylistBase, msg_ts:datetime):
+	def _invoke_plugin_start(self, current_track:ScheduleItemBase, msg_ts:datetime):
 		if self.active_plugin is None:
 			self.logger.error(f"No active plugin to invoke.")
 			return
@@ -274,7 +274,7 @@ class TimerLayer(DispatcherTask):
 		if self.active_context is None:
 			self.logger.error(f"No active context to invoke.")
 			return
-		current_track:PlaylistBase = cast(PlaylistBase, self.playlist_state.get('current_track'))
+		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
 		try:
 			self.active_plugin.stop(self.active_context, current_track)
 		except Exception as e:
@@ -294,7 +294,7 @@ class TimerLayer(DispatcherTask):
 		if self.active_context is None:
 			self.logger.error(f"No active context to handle PluginReceive message.")
 			return
-		current_track:PlaylistBase = cast(PlaylistBase, self.playlist_state.get('current_track'))
+		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
 		try:
 			self.active_plugin.receive(self.active_context, current_track, msg)
 		except Exception as e:
@@ -343,7 +343,7 @@ class TimerLayer(DispatcherTask):
 		if current_track_index + 1 < len(current_playlist.items):
 			# Move to next track in the same playlist
 			next_track_index = current_track_index + 1
-			next_track:PlaylistBase = current_playlist.items[next_track_index]
+			next_track:ScheduleItemBase = current_playlist.items[next_track_index]
 			plugin_eval = self._evaluate_plugin(cast(TimerTaskItem, next_track))
 			active_plugin:PluginProtocol = cast(PluginProtocol, plugin_eval.get("plugin", None))
 			if active_plugin is None:
@@ -375,7 +375,7 @@ class TimerLayer(DispatcherTask):
 				}))
 				return
 			next_track_index = 0
-			next_track:PlaylistBase = next_playlist.items[next_track_index]
+			next_track:ScheduleItemBase = next_playlist.items[next_track_index]
 			plugin_eval = self._evaluate_plugin(cast(TimerTaskItem, next_track))
 			active_plugin:PluginProtocol = cast(PluginProtocol, plugin_eval.get("plugin", None))
 			if active_plugin is None:
@@ -408,7 +408,7 @@ class TimerLayer(DispatcherTask):
 			self.logger.error(f"No active playlist on timer expired.")
 			return
 		iidx = self.playlist_state.get('current_track_index', 0)
-		current_track:PlaylistBase|None = current_playlist.items[iidx] if len(current_playlist.items) > iidx else None
+		current_track:ScheduleItemBase|None = current_playlist.items[iidx] if len(current_playlist.items) > iidx else None
 		if current_track is None:
 			self.logger.error(f"Cannot start playback, playlist '{current_playlist.name}' has no items.")
 			return

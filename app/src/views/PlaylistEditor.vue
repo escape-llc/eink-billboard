@@ -213,7 +213,7 @@ function applyChanges() {
 	if (selectedIndex.value === null) return
 	const t = tracks.value[selectedIndex.value]
 	t.plugin_name = editModel.plugin_name!
-	t.type = "PluginSchedule"
+	t.type = "PlaylistSchedule"
 	t.content = JSON.parse(JSON.stringify(editModel.content || {}))
 	// update id if changed (rare)
 	t.id = editModel.id ?? t.id
@@ -224,7 +224,7 @@ function cancelEdit() {
 	else {
 		editModel.id = undefined
 		editModel.plugin_name = undefined
-		//editModel.type = "PluginSchedule"
+		//editModel.type = "PlaylistSchedule"
 		editModel.title = undefined
 		editModel.content = {}
 	}
