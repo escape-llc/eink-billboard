@@ -7,7 +7,7 @@ from typing import cast
 
 from ..datasources.data_source import DataSourceManager
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
-from ..model.schedule import MasterSchedule, PlaylistBase, TimerTaskItem, TimerTasks, generate_schedule, Playlist
+from ..model.schedule import PlaylistBase, TimerTaskItem, TimerTasks, generate_schedule, Playlist
 from ..model.service_container import ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..plugins.plugin_base import BasicExecutionContext2, PluginProtocol
@@ -32,7 +32,6 @@ class TimerLayer(DispatcherTask):
 		self.router = router
 		self.cm:ConfigurationManager|None = None
 		self.tasks: list[TimerTasks] = []
-		self.master_schedule:MasterSchedule|None = None
 		self.plugin_info = None
 		self.datasources: DataSourceManager|None = None
 		self.timer: IProvideTimer|None = None
@@ -96,7 +95,6 @@ class TimerLayer(DispatcherTask):
 			sm = self.cm.schedule_manager()
 			schedule_info = sm.load()
 			sm.validate(schedule_info)
-			self.master_schedule = schedule_info.get("master", None)
 			self.tasks = schedule_info.get("tasks", [])
 
 			plugin_info = self.cm.enum_plugins()

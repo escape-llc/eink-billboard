@@ -11,7 +11,7 @@ from .message_router import MessageRouter
 from .basic_task import DispatcherTask
 from ..datasources.data_source import DataSourceManager
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
-from ..model.schedule import MasterSchedule, Playlist, PlaylistBase
+from ..model.schedule import Playlist, PlaylistBase
 from ..model.service_container import ServiceContainer
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..plugins.plugin_base import BasicExecutionContext2, PluginProtocol
@@ -36,7 +36,6 @@ class PlaylistLayer(DispatcherTask):
 		self.router = router
 		self.cm:ConfigurationManager|None = None
 		self.playlists = []
-		self.master_schedule:MasterSchedule|None = None
 		self.plugin_info = None
 		self.datasources: DataSourceManager|None = None
 		self.timer: IProvideTimer|None = None
@@ -267,7 +266,6 @@ class PlaylistLayer(DispatcherTask):
 			sm = self.cm.schedule_manager()
 			schedule_info = sm.load()
 			sm.validate(schedule_info)
-			self.master_schedule = schedule_info.get("master", None)
 			self.playlists = schedule_info.get("playlists", [])
 
 			plugin_info = self.cm.enum_plugins()

@@ -43,23 +43,23 @@ export type TriggerDef = {
 	day: DayTrigger;
 	time: TimeTrigger;
 }
-export type TimedScheduleTask = {
+export type TimerTaskTask = {
 	plugin_name: string;
 	title: string;
 	content: Record<string, any>;
 }
-export type TimedScheduleItem = {
+export type TimerTaskItem = {
 	id: string;
 	name: string;
 	enabled: boolean;
 	description: string;
-	task: TimedScheduleTask;
+	task: TimerTaskTask;
 	trigger: TriggerDef;
 }
-export type TimedSchedule = {
+export type TimerTasks = {
 	_schema: string;
 	id: string;
 	name: string;
-	items: TimedScheduleItem[];
+	items: TimerTaskItem[];
 }
-export type ScheduleDef = PlaylistSchedule | TimedSchedule
+export type ScheduleDef = PlaylistSchedule | TimerTasks

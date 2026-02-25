@@ -231,7 +231,7 @@ class TimerLayerTests(unittest.TestCase):
 			}
 		]
 
-		# Create a playlist with a single TimedSchedule track
+		# Create a playlist with a single track
 		task = TimerTaskTask("p1", "t1", {})
 		trigger = {
 			"day": {

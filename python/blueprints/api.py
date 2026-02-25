@@ -6,7 +6,7 @@ import logging
 from typing import Generator, cast
 
 from ..model.service_container import IServiceProvider
-from ..model.schedule import TimedSchedule, TimerTaskItem, TimerTasks, generate_schedule
+from ..model.schedule import TimerTaskItem, TimerTasks, generate_schedule
 from ..model.configuration_manager import ConfigurationManager, ConfigurationObject, HASH_KEY, ID_KEY, create_hash
 
 logger = logging.getLogger(__name__)
@@ -427,69 +427,6 @@ def schedule_timed_list():
 		logger.error(f"/schedule/timer/list: {str(e)}")
 		error = { "message": str(e), "id": "schedule-timer-list", "success": False }
 		return jsonify(error), 500
-
-@api_bp.route('/schedule/render', methods=['GET'])
-def render_schedule():
-	"""
-	QSP   format  default  description
-	days  int     7        number of days to render
-	start iso8601 today    starting date (time is ignored) SHOULD include TZ
-	"""
-	logger.info("GET /schedule/render")
-	start_at = request.args.get("start", None)
-	days = request.args.get("days", 7, type=int)
-	cm = get_cm()
-	if cm is None:
-		error = { "message": "Configuration Manager not available.", "id": "schedule-render" }
-		return jsonify(error), 500
-	scm = cm.settings_manager()
-	system_cob = scm.open("system")
-	_, system = system_cob.get()
-	if system is None:
-		return jsonify({"success": False, "error": "System Settings not found"}), 500
-	tz = zoneinfo.ZoneInfo(system.get("timezoneName", "US/Eastern"))
-	sm = cm.schedule_manager()
-	schedule_info = sm.load()
-	sm.validate(schedule_info)
-	master_schedule = schedule_info.get("master", None)
-	if master_schedule is None:
-		return jsonify({"success": False, "error": "Master Schedule not found"}), 404
-	schedules = schedule_info.get("schedules", [])
-	if not schedules:
-		return jsonify({"success": False, "error": "Schedule List not found"}), 404
-
-	start_ts = datetime.now(tz) if start_at is None else datetime.fromisoformat(start_at)
-	start_ts = start_ts.replace(hour=0, minute=0, second=0, microsecond=0)
-	end_ts = start_ts + timedelta(days=days)
-	schedule_ts = start_ts
-	schedule_map = {}
-	render_list = []
-	while schedule_ts < end_ts:
-		for schedule in schedules:
-			info = schedule.get("info", None)
-			if info is not None and isinstance(info, TimedSchedule):
-				info.set_date_controller(lambda: schedule_ts)
-		current = master_schedule.evaluate(schedule_ts)
-		if current:
-			schedule = next((sx for sx in schedules if sx.get("name", None) and sx["name"] == current.schedule), None)
-			if schedule and "info" in schedule and isinstance(schedule["info"], TimedSchedule):
-				target:TimedSchedule = schedule["info"]
-				render = [{ "schedule": target.id, "id":xx.id, "start": xx.start.isoformat(), "end": xx.end.isoformat() } for xx in target.items]
-				render_list.extend(render)
-				schedule_map.setdefault(target.id, target.to_dict())
-		else:
-			return jsonify({ "schedule_ts": schedule_ts.isoformat(), "success": False, "error": "Master Schedule evaluate failed"}), 404
-		schedule_ts = schedule_ts + timedelta(days=1)
-		pass
-	retv = {
-		"success": True,
-		"start_ts": start_ts.isoformat(),
-		"end_ts": end_ts.isoformat(),
-		"days": days,
-		"schedules": schedule_map,
-		"render": render_list
-	}
-	return jsonify(retv)
 
 def daily_sequence(start_date: datetime, n_days: int) -> Generator[datetime, None, None]:
 	start_ts = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
