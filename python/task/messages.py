@@ -107,3 +107,8 @@ class Telemetry(BasicMessage):
 class ConfigurationWatcherEvent(BasicMessage):
 	type: str
 	path: str
+
+@dataclass(frozen=True, slots=True)
+class TimerExpired[T](BasicMessage):
+	token: str
+	state: T

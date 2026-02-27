@@ -1,14 +1,13 @@
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import unittest
 
-from .utils import ScaledTimeOfDay, ScaledTimerService, storage_path, MessageTriggerSink
+from .utils import ScaledTimeOfDay, ScaledTimerThreadService, storage_path, MessageTriggerSink
 from ..model.service_container import ServiceContainer
 from ..model.configuration_manager import ConfigurationManager
 from ..model.time_of_day import TimeOfDay
-from ..task.timer import IProvideTimer
 from ..task.application import Application
 from ..task.messages import QuitMessage, StartEvent, StartOptions, StopEvent, Telemetry
+from ..task.protocols import IProvideTimer
 
 class TestApplication(unittest.TestCase):
 	def test_start_configure_stop(self):
@@ -18,7 +17,7 @@ class TestApplication(unittest.TestCase):
 		app.start()
 		storage = storage_path()
 		time_base = ScaledTimeOfDay(datetime.now().astimezone(), 60)
-		timer = ScaledTimerService(60, ThreadPoolExecutor(thread_name_prefix="ApplicationSimulation", max_workers=5))
+		timer = ScaledTimerThreadService(time_base, 60)
 		options = StartOptions(basePath=None, storagePath=storage, hardReset=False)
 		cm = ConfigurationManager(None, storage, None)
 		root = ServiceContainer()

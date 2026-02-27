@@ -27,16 +27,16 @@ class DataSourceExecutionContext:
 	"""
 	Passed to all DataSource methods to provide context about the execution.
 	"""
-	def __init__(self, isp: IServiceProvider, dimensions: tuple[int, int], schedule_ts: datetime):
+	def __init__(self, isp: IServiceProvider, dimensions: tuple[int, int], timestamp: datetime):
 		if isp is None:
 			raise ValueError("isp is None")
 		if dimensions is None:
 			raise ValueError("dimensions is None")
-		if schedule_ts is None:
-			raise ValueError("schedule_ts is None")
+		if timestamp is None:
+			raise ValueError("timestamp is None")
 		self._isp = isp
 		self._dimensions = dimensions
-		self._schedule_ts = schedule_ts
+		self._timestamp = timestamp
 	@property
 	def provider(self) -> IServiceProvider:
 		return self._isp
@@ -44,8 +44,8 @@ class DataSourceExecutionContext:
 	def dimensions(self) -> tuple[int, int]:
 		return self._dimensions
 	@property
-	def schedule_ts(self) -> datetime:
-		return self._schedule_ts
+	def timestamp(self) -> datetime:
+		return self._timestamp
 
 @dataclass(frozen=True,slots=True)
 class MediaRenderResult:

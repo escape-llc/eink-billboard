@@ -4,11 +4,10 @@ from typing import Any
 
 from ...datasources.data_source import DataSourceExecutionContext, DataSourceManager, MediaItem, MediaRender
 from ...model.schedule import TimerTaskItem
-from ...plugins.slide_show.slide_show import SlideShowTimerExpired
 from ...task.display import DisplayImage
 from ...task.protocols import CancelToken, SubmitFuture
 from ...task.message_router import MessageRouter
-from ...task.messages import BasicMessage, FutureCompleted, MessageSink
+from ...task.messages import BasicMessage, FutureCompleted, MessageSink, TimerExpired
 from ...task.playlist_layer import NextTrack
 from ...task.timer import IProvideTimer
 from ..plugin_base import PluginExecutionContext, TrackType, PluginProtocol
@@ -63,15 +62,15 @@ class Interstitial(PluginProtocol):
 		mrr = future2.result(timeout=ftimeout)
 		if mrr is not None:
 			# TODO send an interstitial display message
-			router.send("display", DisplayImage(context.schedule_ts, mrr.title if mrr.title is not None else title, mrr.image))
+			router.send("display", DisplayImage(context.timestamp, mrr.title if mrr.title is not None else title, mrr.image))
 			slideMinutes = settings.get("slideMinutes", 15)
-			self.timer_info = timer.create_timer(timedelta(minutes=slideMinutes), timer_sink, SlideShowTimerExpired(context.schedule_ts, state))
+			self.timer_info = timer.create_timer(timedelta(minutes=slideMinutes), timer_sink, "slideshow", state)
 	def start(self, context: PluginExecutionContext, track: TrackType) -> None:
 		self.logger.info(f"{self.id} start '{track.title}'")
 		if isinstance(track, TimerTaskItem):
 			submit = context.provider.required(SubmitFuture)
 			self.submit_result = submit.submit_future(lambda x: self._source_start(x, context, track),
-													 lambda cancelled,result,exception: self._continuation_start(cancelled, result, exception, context.schedule_ts))
+													 lambda cancelled,result,exception: self._continuation_start(cancelled, result, exception, context.timestamp))
 			return
 		raise RuntimeError(f"Unsupported track type: {type(track)}")
 	def stop(self, context: PluginExecutionContext, track: TrackType) -> None:
@@ -89,7 +88,7 @@ class Interstitial(PluginProtocol):
 				self.logger.info(f"{self.name} FutureCompleted {msg}")
 				self.submit_result = None
 				# TODO may want to end timeslot here and not set/wait for the timer
-			elif isinstance(msg, SlideShowTimerExpired):
+			elif isinstance(msg, TimerExpired):
 				sink = context.provider.required(MessageSink)
 				sink.accept(NextTrack(msg.timestamp))
 			return

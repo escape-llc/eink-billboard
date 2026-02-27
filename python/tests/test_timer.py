@@ -2,9 +2,10 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 import unittest
 
-from ..task.messages import BasicMessage, MessageSink
+from ..model.time_of_day import SystemTimeOfDay
+from ..task.messages import BasicMessage, MessageSink, TimerExpired
 from ..task.timer_tick import TickMessage
-from ..task.timer import Timer, TimerService
+from ..task.timer import Timer, TimerThreadService
 
 class TestTimer(Timer):
 	def __init__(self, tick, delta):
@@ -55,61 +56,59 @@ class TestSink(MessageSink):
 		self.message = msg
 
 SLEEP_INTERVAL = 0.1
-class TestTimerService(unittest.TestCase):
-	def test_timer_service(self):
+class TestTimerThreadService(unittest.TestCase):
+	def test_timer_thread_service(self):
 		sink = TestSink()
-		timer_service = TimerService(ThreadPoolExecutor())
-		execute_message = BasicMessage(datetime.now())
-		(timer_future, cancel) = timer_service.create_timer(timedelta(seconds=SLEEP_INTERVAL), sink, execute_message)
+		timebase = SystemTimeOfDay()
+		timer_service = TimerThreadService(timebase)
+		(timer_future, cancel) = timer_service.create_timer(timedelta(seconds=SLEEP_INTERVAL), sink, "token", "state")
 		self.assertFalse(sink.received)
 		timer_future.result(timeout=2 * SLEEP_INTERVAL)
 		self.assertTrue(sink.received)
 		self.assertTrue(timer_future.done())
-		self.assertIs(timer_future.result(), execute_message)
-		self.assertFalse(timer_future.cancelled())
-		self.assertIs(sink.message, execute_message)
-		timer_service.shutdown()
-	def test_timer_service_no_sink(self):
-		timer_service = TimerService(ThreadPoolExecutor())
-		execute_message = BasicMessage(datetime.now())
-		(timer_future, cancel) = timer_service.create_timer(timedelta(seconds=SLEEP_INTERVAL), None, execute_message)
+		fr = timer_future.result()
+		self.assertIsNotNone(fr)
+		self.assertIsInstance(fr, TimerExpired)
+		if fr is not None:
+			self.assertEqual(fr.token, "token")
+			self.assertEqual(fr.state, "state")
+		self.assertIsNotNone(sink.message)
+		self.assertIsInstance(sink.message, TimerExpired)
+		if sink.message is not None and isinstance(sink.message, TimerExpired):
+			self.assertEqual(sink.message.token, "token")
+			self.assertEqual(sink.message.state, "state")
+	def test_timer_thread_service_no_sink(self):
+		timebase = SystemTimeOfDay()
+		timer_service = TimerThreadService(timebase)
+		(timer_future, cancel) = timer_service.create_timer(timedelta(seconds=SLEEP_INTERVAL), None, "token", "state")
 		timer_future.result(timeout=2 * SLEEP_INTERVAL)
 		self.assertTrue(timer_future.done())
-		self.assertIs(timer_future.result(), execute_message)
-		self.assertFalse(timer_future.cancelled())
-		timer_service.shutdown()
-	def test_timer_cancel(self):
+		fr = timer_future.result()
+		self.assertIsNotNone(fr)
+		self.assertIsInstance(fr, TimerExpired)
+		if fr is not None:
+			self.assertEqual(fr.token, "token")
+			self.assertEqual(fr.state, "state")
+	def test_timer_thread_service_cancel(self):
 		sink = TestSink()
-		timer_service = TimerService(ThreadPoolExecutor())
-		execute_message = BasicMessage(datetime.now())
-		(timer_future, cancel) = timer_service.create_timer(timedelta(seconds=SLEEP_INTERVAL), sink, execute_message)
+		timebase = SystemTimeOfDay()
+		timer_service = TimerThreadService(timebase)
+		(timer_future, cancel) = timer_service.create_timer(timedelta(seconds=2*SLEEP_INTERVAL), sink, "token", "state")
 		self.assertFalse(sink.received)
-		# already running so it won't cancel
-		didit = timer_future.cancel()
-		self.assertFalse(didit)
-		# this sets the event to cancel the timer
 		cancel()
 		timer_future.result(timeout=2 * SLEEP_INTERVAL)
 		self.assertFalse(sink.received)
 		self.assertTrue(timer_future.done())
-		self.assertIs(timer_future.result(), None)
-		self.assertFalse(timer_future.cancelled())
-		self.assertIs(sink.message, None)
-		timer_service.shutdown()
-	def test_timer_cancel_no_sink(self):
-		timer_service = TimerService(ThreadPoolExecutor())
-		execute_message = BasicMessage(datetime.now())
-		(timer_future, cancel) = timer_service.create_timer(timedelta(seconds=SLEEP_INTERVAL), None, execute_message)
-		# already running so it won't cancel
-		didit = timer_future.cancel()
-		self.assertFalse(didit)
-		# this sets the event to cancel the timer
+		self.assertIsNone(timer_future.result())
+		self.assertIsNone(sink.message)
+	def test_timer_thread_service_cancel_no_sink(self):
+		timebase = SystemTimeOfDay()
+		timer_service = TimerThreadService(timebase)
+		(timer_future, cancel) = timer_service.create_timer(timedelta(seconds=2*SLEEP_INTERVAL), None, "token", "state")
 		cancel()
 		timer_future.result(timeout=2 * SLEEP_INTERVAL)
 		self.assertTrue(timer_future.done())
-		self.assertIs(timer_future.result(), None)
-		self.assertFalse(timer_future.cancelled())
-		timer_service.shutdown()
+		self.assertIsNone(timer_future.result())
 
 if __name__ == "__main__":
 	unittest.main()

@@ -36,19 +36,19 @@ class Clock(DataSource, MediaItem, MediaRender):
 			if not clock_face or not primary_color or not secondary_color:
 				raise RuntimeError("Clock parameters not properly initialized.")
 			if clock_face == "Gradient Clock":
-				img = self.draw_conic_clock(dimensions, dsec.schedule_ts, primary_color, secondary_color)
+				img = self.draw_conic_clock(dimensions, dsec.timestamp, primary_color, secondary_color)
 			elif clock_face == "Digital Clock":
 				stm = dsec.provider.required(StaticConfigurationManager)
-				img = self.draw_digital_clock(dimensions, dsec.schedule_ts, stm, primary_color, secondary_color)
+				img = self.draw_digital_clock(dimensions, dsec.timestamp, stm, primary_color, secondary_color)
 			elif clock_face == "Divided Clock":
-				img = self.draw_divided_clock(dimensions, dsec.schedule_ts, primary_color, secondary_color)
+				img = self.draw_divided_clock(dimensions, dsec.timestamp, primary_color, secondary_color)
 			elif clock_face == "Word Clock":
 				stm = dsec.provider.required(StaticConfigurationManager)
-				img = self.draw_word_clock(dimensions, dsec.schedule_ts, stm, primary_color, secondary_color)
+				img = self.draw_word_clock(dimensions, dsec.timestamp, stm, primary_color, secondary_color)
 		except Exception as e:
 			self.logger.error(f"Failed to draw clock image: {str(e)}")
 		fut = Future()
-		fut.set_result(None if img is None else MediaRenderResult(image=img, title=f"{dsec.schedule_ts.strftime('%H:%M:%S')}"))
+		fut.set_result(None if img is None else MediaRenderResult(image=img, title=f"{dsec.timestamp.strftime('%H:%M:%S')}"))
 		return fut
 	def draw_conic_clock(self, dimensions, time, primary_color=(219, 50, 70, 255), secondary_color=(0, 0, 0, 255) ):
 		width, height = dimensions

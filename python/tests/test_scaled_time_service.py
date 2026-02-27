@@ -1,10 +1,8 @@
 import unittest
 import time
 from datetime import datetime, timezone, timedelta
-from concurrent.futures import ThreadPoolExecutor
 
-from .utils import ScaledTimeOfDay, ScaledTimerService, FakePort
-from ..task.messages import BasicMessage
+from .utils import ConstantTimeOfDay, ScaledTimeOfDay, ScaledTimerThreadService, MessageCollectSink, ScaledTimerThreadService
 
 class TestScaledTimeOfDay(unittest.TestCase):
 	def test_current_time_scaling(self):
@@ -45,43 +43,39 @@ class TestScaledTimeOfDay(unittest.TestCase):
 		elapsed = (got - start).total_seconds()
 		self.assertTrue(58.0 <= elapsed <= 62.0, f"elapsed scaled seconds {elapsed} not ~60")
 
-class TestScaledTimerService(unittest.TestCase):
-	def test_scaled_timer_fires_and_returns_message(self):
-		# Use a ThreadPoolExecutor explicitly to avoid relying on a missing name in utils
-		with ThreadPoolExecutor(max_workers=2) as ex:
-			svc = ScaledTimerService(scale=60.0, es=ex)
-			sink = FakePort()
-			msg = BasicMessage(datetime.now(timezone.utc))
-			start = time.perf_counter()
-			future, cancel = svc.create_timer(timedelta(seconds=60), sink, msg)
+class TestScaledTimerThreadService(unittest.TestCase):
+	def test_invalid_scale_raises(self):
+		with self.assertRaises(ValueError):
+			ScaledTimerThreadService(timebase=ConstantTimeOfDay(datetime.now(timezone.utc)), scale=0.0)
+		with self.assertRaises(ValueError):
+			ScaledTimerThreadService(timebase=ConstantTimeOfDay(datetime.now(timezone.utc)), scale=-1.0)
 
-			# Future should complete in ~1s of real elapsed time (60 scaled by 60)
-			res = future.result(timeout=3.0)
-			elapsed = time.perf_counter() - start
-			self.assertIs(res, msg)
-			self.assertTrue(0.9 <= elapsed <= 1.1, f"future resolved in {elapsed} seconds, expected ~1s")
+	def test_scaled_timer_thread_service_fires(self):
+		svc = ScaledTimerThreadService(timebase=ConstantTimeOfDay(datetime.now(timezone.utc)), scale=60.0)
+		sink = MessageCollectSink()
+		start = time.perf_counter()
+		future, cancel = svc.create_timer(timedelta(seconds=60), sink, "token", "state")
 
-			# Confirm sink received the message
-			self.assertTrue(sink.wait_for_message(timeout=0.1))
+		res = future.result(timeout=3.0)
+		elapsed = time.perf_counter() - start
+		self.assertIsNotNone(res)
+		if res is not None:
+			self.assertEqual(res.timestamp, svc.timebase.current_time())
+			self.assertEqual(res.token, "token")
+			self.assertEqual(res.state, "state")
+		self.assertTrue(0.9 <= elapsed <= 1.1, f"future resolved in {elapsed} seconds, expected ~1s")
+		self.assertTrue(sink.wait_for_message(timeout=0.1))
 
-			svc.shutdown()
+	def test_scaled_timer_thread_service_cancel(self):
+		svc = ScaledTimerThreadService(timebase=ConstantTimeOfDay(datetime.now(timezone.utc)), scale=60.0)
+		sink = MessageCollectSink()
+		future, cancel = svc.create_timer(timedelta(seconds=60), sink, "token", "state")
 
-	def test_scaled_timer_can_be_cancelled(self):
-		with ThreadPoolExecutor(max_workers=2) as ex:
-			svc = ScaledTimerService(scale=60.0, es=ex)
-			sink = FakePort()
-			msg = BasicMessage(datetime.now(timezone.utc))
-			future, cancel = svc.create_timer(timedelta(seconds=60), sink, msg)
+		cancel()
 
-			# Cancel immediately
-			cancel()
-
-			# Future should complete with None and sink should not receive a message
-			res = future.result(timeout=3.0)
-			self.assertIsNone(res)
-			self.assertFalse(sink.wait_for_message(timeout=0.5))
-
-			svc.shutdown()
+		res = future.result(timeout=3.0)
+		self.assertIsNone(res)
+		self.assertFalse(sink.wait_for_message(timeout=0.5))
 
 if __name__ == "__main__":
     unittest.main()

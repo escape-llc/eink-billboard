@@ -6,7 +6,7 @@ from typing import cast
 
 from .future_source import FutureSource, SubmitFuture
 from .display import DisplaySettings
-from .messages import BasicMessage, ConfigureEvent, FutureCompleted, MessageSink, PluginReceive, QuitMessage, Telemetry
+from .messages import BasicMessage, ConfigureEvent, FutureCompleted, MessageSink, PluginReceive, QuitMessage, Telemetry, TimerExpired
 from .message_router import MessageRouter
 from .basic_task import DispatcherTask
 from ..datasources.data_source import DataSourceManager
@@ -15,7 +15,7 @@ from ..model.schedule import Playlist, ScheduleItemBase
 from ..model.service_container import ServiceContainer
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..plugins.plugin_base import PluginExecutionContext, PluginProtocol
-from ..task.timer import IProvideTimer, TimerService
+from ..task.timer import IProvideTimer, TimerThreadService
 from ..task.protocols import IRequireShutdown
 
 @dataclass(frozen=True, slots=True)
@@ -44,7 +44,7 @@ class PlaylistLayer(DispatcherTask):
 		self.active_plugin: PluginProtocol|None = None
 		self.active_context: PluginExecutionContext|None = None
 		self.future_source: SubmitFuture|None = None
-		self.time_of_day: TimeOfDay|None = None
+		self.timebase: TimeOfDay|None = None
 		self.state = 'uninitialized'
 		self.logger = logging.getLogger(__name__)
 	def _evaluate_plugin(self, track:ScheduleItemBase):
@@ -75,7 +75,7 @@ class PlaylistLayer(DispatcherTask):
 			self.logger.error(errormsg)
 			return { "plugin": None, "track": track, "error": errormsg }
 	def _create_context(self):
-		if self.cm is None or self.datasources is None or self.router is None or self.timer is None or self.future_source is None or self.time_of_day is None:
+		if self.cm is None or self.datasources is None or self.router is None or self.timer is None or self.future_source is None or self.timebase is None:
 			raise ValueError("Cannot create context, one or more required components are not set.")
 		root = ServiceContainer()
 		scm = self.cm.settings_manager()
@@ -87,9 +87,29 @@ class PlaylistLayer(DispatcherTask):
 		root.add_service(MessageRouter, self.router)
 		root.add_service(IProvideTimer, self.timer)
 		root.add_service(SubmitFuture, self.future_source)
-		root.add_service(TimeOfDay, self.time_of_day)
+		root.add_service(TimeOfDay, self.timebase)
 		root.add_service(MessageSink, self)
-		return PluginExecutionContext(root, self.dimensions, self.time_of_day.current_time())
+		return PluginExecutionContext(root, self.dimensions, self.timebase.current_time())
+	def _plugin_receive_send(self, active_plugin: PluginProtocol|None, msg: BasicMessage):
+		if self.state != 'playing':
+			self.logger.error(f"Cannot handle PluginReceive message, state is '{self.state}'")
+			return
+		if self.playlist_state is None:
+			self.logger.error(f"No active playlist state to handle PluginReceive message.")
+			return
+		if active_plugin is None:
+			self.logger.error(f"No active plugin to handle PluginReceive message.")
+			return
+		if self.active_context is None:
+			self.logger.error(f"No active context to handle PluginReceive message.")
+			return
+		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
+		try:
+			self.active_context.update_timestamp(msg.timestamp)
+			active_plugin.receive(self.active_context, current_track, msg)
+		except Exception as e:
+			self.state = "error"
+			self.logger.error(f"Error invoke receive PluginReceive with plugin '{active_plugin.name}' track '{current_track.title}': {e}", exc_info=True)
 	def _start_playback(self, msg: StartPlayback):
 		self.logger.info(f"'{self.name}' StartPlayback {self.state}")
 		if self.state != 'loaded':
@@ -118,6 +138,7 @@ class PlaylistLayer(DispatcherTask):
 			'current_track': current_track,
 		}
 		try:
+			self.active_context.update_timestamp(msg.timestamp)
 			self.active_plugin.start(self.active_context, current_track)
 			self.state = 'playing'
 			self.logger.info(f"'{self.name}' Playback started.")
@@ -130,47 +151,12 @@ class PlaylistLayer(DispatcherTask):
 			self.logger.error(f"Error starting playback with plugin '{self.active_plugin.name}' for track '{current_track.title}': {e}", exc_info=True)
 			self.state = 'error'
 	def _plugin_receive(self, msg: PluginReceive):
-		if self.state != 'playing':
-			self.logger.error(f"Cannot handle PluginReceive message, state is '{self.state}'")
-			return
-		if self.playlist_state is None:
-			self.logger.error(f"No active playlist state to handle PluginReceive message.")
-			return
-		if self.active_plugin is None:
-			self.logger.error(f"No active plugin to handle PluginReceive message.")
-			return
-		if self.active_context is None:
-			self.logger.error(f"No active context to handle PluginReceive message.")
-			return
-		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
-		try:
-			self.active_plugin.receive(self.active_context, current_track, msg)
-		except Exception as e:
-			self.state = "error"
-			self.logger.error(f"Error invoke receive PluginReceive with plugin '{self.active_plugin.name}' track '{current_track.title}': {e}", exc_info=True)
+		self._plugin_receive_send(self.active_plugin, msg)
 	def _future_completed(self, msg: FutureCompleted):
-		if self.state != 'playing':
-			self.logger.error(f"Cannot handle FutureCompleted message, state is '{self.state}'")
-			return
-		if self.playlist_state is None:
-			self.logger.error(f"No active playlist state to handle FutureCompleted message.")
-			return
-		if self.active_plugin is None:
-			self.logger.error(f"No active plugin to handle FutureCompleted message.")
-			return
-		if self.active_context is None:
-			self.logger.error(f"No active context to handle FutureCompleted message.")
-			return
-		if self.active_plugin.name != msg.plugin_name:
-			self.logger.error(f"Received FutureCompleted message for plugin '{msg.plugin_name}', but active plugin is '{self.active_plugin.name}'")
-			return
-		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
-		try:
-			self.active_plugin.receive(self.active_context, current_track, msg)
-		except Exception as e:
-			self.state = "error"
-			self.logger.error(f"Error invoke receive FutureCompleted with plugin '{self.active_plugin.name}' track '{current_track.title}': {e}", exc_info=True)
-	def _plugin_stop(self):
+		self._plugin_receive_send(self.active_plugin, msg)
+	def _timer_expired(self, msg: TimerExpired):
+		self._plugin_receive_send(self.active_plugin, msg)
+	def _plugin_stop(self, timestamp:datetime):
 		if self.playlist_state is None:
 			self.logger.error(f"No active playlist state to invoke.")
 			return
@@ -182,11 +168,12 @@ class PlaylistLayer(DispatcherTask):
 			return
 		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
 		try:
+			self.active_context.update_timestamp(timestamp)
 			self.active_plugin.stop(self.active_context, current_track)
 		except Exception as e:
 			self.state = "error"
 			self.logger.error(f"'{self.name}' Error invoke stop with plugin '{self.active_plugin.name}' track '{current_track.title}': {e}", exc_info=True)
-	def _plugin_start(self):
+	def _plugin_start(self, timestamp:datetime):
 		if self.playlist_state is None:
 			self.logger.error(f"No active playlist state to invoke.")
 			return
@@ -198,6 +185,7 @@ class PlaylistLayer(DispatcherTask):
 			return
 		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
 		try:
+			self.active_context.update_timestamp(timestamp)
 			self.active_plugin.start(self.active_context, current_track)
 		except Exception as e:
 			self.state = "error"
@@ -207,7 +195,7 @@ class PlaylistLayer(DispatcherTask):
 		self.logger.info(f"'{self.name}' NextTrack")
 		if self.active_plugin is not None:
 			self.logger.info(f"Stopping current plugin '{self.active_plugin.name}'")
-			self._plugin_stop()
+			self._plugin_stop(msg.timestamp)
 			self.active_plugin = None
 			self.active_context = None
 		# start next track logic
@@ -229,7 +217,7 @@ class PlaylistLayer(DispatcherTask):
 			self.active_context = self._create_context()
 			self.playlist_state['current_track_index'] = next_track_index
 			self.playlist_state['current_track'] = next_track
-			self._plugin_start()
+			self._plugin_start(msg.timestamp)
 			self.router.send("telemetry", Telemetry(msg.timestamp, "playlist_layer", {
 				"state": self.state,
 				"current_playlist_index": self.playlist_state["current_playlist_index"],
@@ -253,7 +241,7 @@ class PlaylistLayer(DispatcherTask):
 			self.playlist_state['current_playlist'] = next_playlist
 			self.playlist_state['current_track_index'] = next_track_index
 			self.playlist_state['current_track'] = next_track
-			self._plugin_start()
+			self._plugin_start(msg.timestamp)
 			self.router.send("telemetry", Telemetry(msg.timestamp, "playlist_layer", {
 				"state": self.state,
 				"current_playlist_index": self.playlist_state["current_playlist_index"],
@@ -272,9 +260,9 @@ class PlaylistLayer(DispatcherTask):
 			self.plugin_info = plugin_info
 
 			tod = msg.content.isp.get_service(TimeOfDay)
-			self.time_of_day = tod if tod is not None else SystemTimeOfDay()
+			self.timebase = tod if tod is not None else SystemTimeOfDay()
 			ts = msg.content.isp.get_service(IProvideTimer)
-			self.timer = ts if ts is not None else TimerService(ThreadPoolExecutor())
+			self.timer = ts if ts is not None else TimerThreadService(self.timebase)
 			dsm = msg.content.isp.get_service(DataSourceManager)
 			if dsm is None:
 				datasource_info = self.cm.enum_datasources()
@@ -289,7 +277,7 @@ class PlaylistLayer(DispatcherTask):
 			self.logger.info(f"schedule loaded")
 			self.state = 'loaded'
 			msg.notify()
-			self.accept(StartPlayback(self.time_of_day.current_time()))
+			self.accept(StartPlayback(self.timebase.current_time()))
 		except Exception as e:
 			self.logger.error(f"Failed to load/validate schedules: {e}", exc_info=True)
 			self.state = 'error'
@@ -302,7 +290,7 @@ class PlaylistLayer(DispatcherTask):
 		try:
 			if self.active_plugin is not None:
 				try:
-					self._plugin_stop()
+					self._plugin_stop(msg.timestamp)
 				except Exception as e:
 					self.logger.error(f"'{self.name}' Error stopping active plugin during quit: {e}", exc_info=True)
 				finally:

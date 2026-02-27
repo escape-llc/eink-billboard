@@ -13,16 +13,12 @@ from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..plugins.plugin_base import PluginExecutionContext, PluginProtocol
 from ..task.basic_task import DispatcherTask
 from ..task.display import DisplaySettings
-from ..task.messages import BasicMessage, ConfigureEvent, FutureCompleted, MessageSink, PluginReceive, QuitMessage, Telemetry
+from ..task.messages import ConfigureEvent, FutureCompleted, MessageSink, PluginReceive, QuitMessage, Telemetry, TimerExpired
 from ..task.protocols import IRequireShutdown
 from ..task.playlist_layer import NextTrack, StartPlayback
 from ..task.future_source import FutureSource, SubmitFuture
 from ..task.message_router import MessageRouter
-from ..task.timer import CreateTimerResult, IProvideTimer, TimerService
-
-@dataclass(frozen=True, slots=True)
-class TimerExpired(BasicMessage):
-	pass
+from ..task.timer import CreateTimerResult, IProvideTimer, TimerThreadService
 
 class TimerLayer(DispatcherTask):
 	def __init__(self, name, router: MessageRouter):
@@ -40,7 +36,7 @@ class TimerLayer(DispatcherTask):
 		self.active_plugin: PluginProtocol|None = None
 		self.active_context: PluginExecutionContext|None = None
 		self.future_source: SubmitFuture|None = None
-		self.time_of_day: TimeOfDay|None = None
+		self.timebase: TimeOfDay|None = None
 		self.timer_state: CreateTimerResult|None = None
 		self.state = 'uninitialized'
 		self.logger = logging.getLogger(__name__)
@@ -73,7 +69,7 @@ class TimerLayer(DispatcherTask):
 			self.logger.error(errormsg)
 			return { "plugin": None, "track": track, "error": errormsg }
 	def _create_context(self):
-		if self.cm is None or self.datasources is None or self.router is None or self.timer is None or self.future_source is None or self.time_of_day is None:
+		if self.cm is None or self.datasources is None or self.router is None or self.timer is None or self.future_source is None or self.timebase is None:
 			raise ValueError("Cannot create context, one or more required components are None.")
 		root = ServiceContainer()
 		scm = self.cm.settings_manager()
@@ -85,9 +81,9 @@ class TimerLayer(DispatcherTask):
 		root.add_service(MessageRouter, self.router)
 		root.add_service(IProvideTimer, self.timer)
 		root.add_service(SubmitFuture, self.future_source)
-		root.add_service(TimeOfDay, self.time_of_day)
+		root.add_service(TimeOfDay, self.timebase)
 		root.add_service(MessageSink, self)
-		return PluginExecutionContext(root, self.dimensions, self.time_of_day.current_time())
+		return PluginExecutionContext(root, self.dimensions, self.timebase.current_time())
 	def _configure_event(self, msg: ConfigureEvent):
 		self.cm = msg.content.cm
 		try:
@@ -101,9 +97,9 @@ class TimerLayer(DispatcherTask):
 			self.plugin_info = plugin_info
 
 			tod = msg.content.isp.get_service(TimeOfDay)
-			self.time_of_day = tod if tod is not None else SystemTimeOfDay()
+			self.timebase = tod if tod is not None else SystemTimeOfDay()
 			ts = msg.content.isp.get_service(IProvideTimer)
-			self.timer = ts if ts is not None else TimerService(ThreadPoolExecutor())
+			self.timer = ts if ts is not None else TimerThreadService(self.timebase)
 			dsm = msg.content.isp.get_service(DataSourceManager)
 			if dsm is None:
 				datasource_info = self.cm.enum_datasources()
@@ -118,7 +114,7 @@ class TimerLayer(DispatcherTask):
 			self.logger.info(f"schedule loaded")
 			self.state = 'loaded'
 			msg.notify()
-			self.accept(StartPlayback(self.time_of_day.current_time()))
+			self.accept(StartPlayback(self.timebase.current_time()))
 		except Exception as e:
 			self.logger.error(f"Failed to load/validate schedules: {e}", exc_info=True)
 			self.state = 'error'
@@ -145,6 +141,7 @@ class TimerLayer(DispatcherTask):
 			return
 		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
 		try:
+			self.active_context.update_timestamp(msg.timestamp)
 			self.active_plugin.receive(self.active_context, current_track, msg)
 		except Exception as e:
 			self.state = "error"
@@ -201,7 +198,7 @@ class TimerLayer(DispatcherTask):
 		}
 		if target_timestamp is not None:
 			# set a timer for plugin start
-			self.timer_state = self.timer.create_timer(target_timestamp - msg.timestamp, self, TimerExpired(target_timestamp))
+			self.timer_state = self.timer.create_timer(target_timestamp - msg.timestamp, self, "start", target_timestamp)
 			self.state = 'waiting'
 		else:
 			self.timer_state = None
@@ -249,6 +246,7 @@ class TimerLayer(DispatcherTask):
 			self.logger.error(f"No active playlist state to invoke.")
 			return
 		try:
+			self.active_context.update_timestamp(msg_ts)
 			self.active_plugin.start(self.active_context, current_track)
 			self.logger.info(f"'{self.name}' Plugin started.")
 			self.state = 'playing'
@@ -276,6 +274,7 @@ class TimerLayer(DispatcherTask):
 			return
 		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
 		try:
+			self.active_context.update_timestamp(msg_ts)
 			self.active_plugin.stop(self.active_context, current_track)
 		except Exception as e:
 			self.state = "error"
@@ -296,6 +295,7 @@ class TimerLayer(DispatcherTask):
 			return
 		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
 		try:
+			self.active_context.update_timestamp(msg.timestamp)
 			self.active_plugin.receive(self.active_context, current_track, msg)
 		except Exception as e:
 			self.state = "error"
@@ -391,7 +391,7 @@ class TimerLayer(DispatcherTask):
 				self.logger.warning(f"Cancelling existing timer before setting new timer.")
 				self.timer_state[1]()
 				self.timer_state = None
-			self.timer_state = self.timer.create_timer(target_timestamp - msg.timestamp, self, TimerExpired(target_timestamp))
+			self.timer_state = self.timer.create_timer(target_timestamp - msg.timestamp, self, "playlist", target_timestamp)
 			self.state = 'waiting'
 		pass
 	def _timer_expired(self, msg: TimerExpired):

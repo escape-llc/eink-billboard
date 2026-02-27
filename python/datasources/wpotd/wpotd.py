@@ -37,7 +37,7 @@ class Wpotd(DataSource, MediaList, MediaRender):
 		if self._es is None:
 			raise RuntimeError("Executor not set for DataSource")
 		def locate_image_url():
-			datetofetch = self._determine_date(params, dsec.schedule_ts)
+			datetofetch = self._determine_date(params, dsec.timestamp)
 			self.logger.info(f"'{self.name}' datetofetch: {datetofetch}")
 			data = self._fetch_potd(datetofetch)
 			picurl = data["image_src"]

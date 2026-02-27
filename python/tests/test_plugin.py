@@ -13,16 +13,16 @@ from ..datasources.newspaper.newspaper import Newspaper
 from ..datasources.openai_image.openai_image import OpenAI
 from ..datasources.wpotd.wpotd import Wpotd
 from ..model.service_container import ServiceContainer
-from ..plugins.slide_show.slide_show import SlideShow
-from ..task.playlist_layer import NextTrack
-from ..task.timer import IProvideTimer
-from .utils import RecordingTask, ScaledTimeOfDay, ScaledTimerService, create_configuration_manager, save_images
 from ..model.schedule import PlaylistSchedule, PlaylistScheduleData
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
+from ..plugins.slide_show.slide_show import SlideShow
 from ..plugins.plugin_base import PluginExecutionContext, PluginProtocol
+from ..task.playlist_layer import NextTrack
+from ..task.timer import IProvideTimer
 from ..task.future_source import FutureSource, SubmitFuture
 from ..task.message_router import MessageRouter, Route
 from ..task.messages import BasicMessage, MessageSink, QuitMessage
+from .utils import RecordingTask, ScaledTimeOfDay, ScaledTimerThreadService, create_configuration_manager, save_images
 
 class DebugMessageSink(MessageSink):
 	def __init__(self):
@@ -62,7 +62,7 @@ class TestPlugins(unittest.TestCase):
 		router = MessageRouter()
 		router.addRoute(Route("display", [display]))
 		time_of_day = ScaledTimeOfDay(datetime.now().astimezone(), 60)
-		timer = ScaledTimerService(60, ThreadPoolExecutor())
+		timer = ScaledTimerThreadService(time_of_day, 60)
 		root = ServiceContainer()
 		root.add_service(ConfigurationManager, cm)
 		root.add_service(StaticConfigurationManager, stm)
@@ -79,7 +79,6 @@ class TestPlugins(unittest.TestCase):
 		plugin.start(context, track)
 		completed = sink.stopped.wait(timeout=timeout)
 		fsource.shutdown()
-		timer.shutdown()
 		display.accept(QuitMessage(datetime.now()))
 		display.join()
 		save_images(display, plugin.name)

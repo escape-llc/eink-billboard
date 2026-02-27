@@ -1,7 +1,8 @@
 from datetime import datetime
+import inspect
 import unittest
 import logging
-from ..task.basic_task import DispatcherTask
+from ..task.basic_task import DispatcherTask, exclude_from_dispatch, is_excluded
 from ..task.messages import BasicMessage, MessageWithContent, QuitMessage
 
 
@@ -85,6 +86,29 @@ class TestDispatcherTask(unittest.TestCase):
 
 		self.assertIn(('quit_called', None), task.received)
 		self.assertTrue(task.stopped.is_set())
-	
+
+class TestDispatcherExclude(unittest.TestCase):
+	def setUp(self):
+		def regular_fn():
+				return "regular"
+
+		@exclude_from_dispatch
+		def helper_fn():
+				return "helper"
+
+		self.regular_fn = regular_fn
+		self.helper_fn = helper_fn
+
+	def _collect_dispatchable(self, objs):
+		return [o for o in objs if inspect.isfunction(o) and not is_excluded(o)]
+
+	def test_exclude_decorator(self):
+		items = [self.regular_fn, self.helper_fn]
+		dispatchable = self._collect_dispatchable(items)
+		self.assertIn(self.regular_fn, dispatchable)
+		self.assertNotIn(self.helper_fn, dispatchable)
+		self.assertTrue(is_excluded(self.helper_fn))
+		self.assertFalse(is_excluded(self.regular_fn))
+
 if __name__ == '__main__':
 	unittest.main()

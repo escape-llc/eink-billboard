@@ -32,7 +32,7 @@ class Countdown(DataSource, MediaItem, MediaRender):
 		def render_countdown():
 			display_cob = scm.open("display")
 			_, display_config = display_cob.get()
-			return self.generate_image(dsec.schedule_ts, stm, dsec.dimensions, params, display_config)
+			return self.generate_image(dsec.timestamp, stm, dsec.dimensions, params, display_config)
 		future = self._es.submit(render_countdown)
 		return future
 	def generate_image(self, schedule_ts:datetime, stm: StaticConfigurationManager, dimensions, settings, display_config) -> MediaRenderResult | None:

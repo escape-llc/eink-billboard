@@ -133,15 +133,18 @@ class Application(DispatcherTask):
 		self.playlist_layer.start()
 		self.timer_layer.start()
 	def _handleStop(self, timestamp: datetime):
-		if self.timer_layer.is_alive():
+		if self.timer_layer is not None and self.timer_layer.is_alive():
 			self.timer_layer.accept(QuitMessage(timestamp))
-		if self.playlist_layer.is_alive():
+		if self.playlist_layer is not None and self.playlist_layer.is_alive():
 			self.playlist_layer.accept(QuitMessage(timestamp))
-		self.playlist_layer.join()
-		self.logger.info("PlaylistLayer stopped");
-		self.timer_layer.join()
-		self.logger.info("TimerLayer stopped");
-		if self.display.is_alive():
-			self.display.accept(QuitMessage(timestamp))
-		self.display.join()
-		self.logger.info("Display stopped");
+		if self.playlist_layer is not None:
+			self.playlist_layer.join()
+			self.logger.info("PlaylistLayer stopped");
+		if self.timer_layer is not None:
+			self.timer_layer.join()
+			self.logger.info("TimerLayer stopped");
+		if self.display is not None:
+			if self.display.is_alive():
+				self.display.accept(QuitMessage(timestamp))
+			self.display.join()
+			self.logger.info("Display stopped");

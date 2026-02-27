@@ -1,15 +1,14 @@
 from concurrent.futures import Future
 from typing import Any, Callable, Protocol, runtime_checkable
-
-from .messages import MessageSink
-from .messages import BasicMessage
 from datetime import timedelta
 
-type CreateTimerResult = tuple[Future[BasicMessage|None], Callable[[], None]]
+from .messages import MessageSink, BasicMessage, TimerExpired
+
+type CreateTimerResult[T] = tuple[Future[TimerExpired[T]|None], Callable[[], None]]
 
 @runtime_checkable
 class IProvideTimer(Protocol):
-	def create_timer(self, deltatime: timedelta, sink: MessageSink|None, completed: BasicMessage) -> CreateTimerResult:
+	def create_timer[T](self, deltatime: timedelta, sink: MessageSink|None, token: str, state: T) -> CreateTimerResult[T]:
 		"""
 		Creates a timer that waits for deltatime and then sends the completed message to the sink.
 		Returns a tuple of (future, cancel_function). The future completes with the completed message when the timer expires, or None if cancelled.

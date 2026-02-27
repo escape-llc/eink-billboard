@@ -12,16 +12,16 @@ from ..utils.image_utils import render_html_arglist
 from ..utils.file_utils import path_to_file_url
 
 class PluginExecutionContext:
-	def __init__(self, isp: IServiceProvider, dimensions: tuple[int, int], schedule_ts: datetime):
+	def __init__(self, isp: IServiceProvider, dimensions: tuple[int, int], timestamp: datetime):
 		if isp is None:
 			raise ValueError("isp is None")
 		if dimensions is None:
 			raise ValueError("dimensions is None")
-		if schedule_ts is None:
-			raise ValueError("schedule_ts is None")
+		if timestamp is None:
+			raise ValueError("timestamp is None")
 		self._isp = isp
 		self._dimensions = dimensions
-		self._schedule_ts = schedule_ts
+		self._timestamp = timestamp
 	@property
 	def provider(self) -> IServiceProvider:
 		return self._isp
@@ -29,8 +29,12 @@ class PluginExecutionContext:
 	def dimensions(self) -> tuple[int, int]:
 		return self._dimensions
 	@property
-	def schedule_ts(self) -> datetime:
-		return self._schedule_ts
+	def timestamp(self) -> datetime:
+		return self._timestamp
+	def update_timestamp(self, new_ts: datetime):
+		if new_ts is None:
+			raise ValueError("new_ts is None")
+		self._timestamp = new_ts
 	def create_datasource_context(self, ds:DataSource):
 		cm = self._isp.required(ConfigurationManager)
 		dscm = cm.datasource_manager(ds.name)
@@ -39,7 +43,7 @@ class PluginExecutionContext:
 		dsec = DataSourceExecutionContext(
 			local,
 			self.dimensions,
-			self.schedule_ts
+			self.timestamp
 		)
 		return dsec
 

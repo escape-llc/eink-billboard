@@ -29,13 +29,13 @@ class Newspaper(DataSource, MediaList, MediaRender):
 		def load_next():
 			if state is None:
 				return None
-			image = self._generate_image(state, dsec.dimensions, dsec.schedule_ts)
+			image = self._generate_image(state, dsec.dimensions, dsec.timestamp)
 			return MediaRenderResult(image=image, title=f"Newspaper {state}")
 		future = self._es.submit(load_next)
 		return future
-	def _generate_image(self, newspaper_slug, dimensions, schedule_ts:datetime):
+	def _generate_image(self, newspaper_slug, dimensions, timestamp:datetime):
 		# Get today's date
-		today = schedule_ts
+		today = timestamp
 		# check the next day, then today, then prior day
 		days = [today + timedelta(days=diff) for diff in [1,0,-1,-2]]
 

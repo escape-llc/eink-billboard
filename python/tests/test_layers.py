@@ -18,7 +18,8 @@ from ..task.playlist_layer import PlaylistLayer, StartPlayback
 from ..task.message_router import MessageRouter, Route
 from ..task.future_source import FutureSource
 from ..task.timer_layer import TimerLayer
-from .utils import RecordingTask, ScaledTimeOfDay, ScaledTimerService, create_configuration_manager, save_images
+from ..task.protocols import IProvideTimer, IRequireShutdown
+from .utils import RecordingTask, ScaledTimeOfDay, ScaledTimerThreadService, create_configuration_manager, save_images
 
 class TestPlugin(PluginProtocol):
 	def __init__(self, id, name):
@@ -61,7 +62,7 @@ class PlaylistLayerSimulation(unittest.TestCase):
 		router.addRoute(Route("display", [display]))
 		router.addRoute(Route("telemetry", [tsink]))
 		time_base = ScaledTimeOfDay(datetime.now().astimezone(), 60)
-		timer = ScaledTimerService(60, ThreadPoolExecutor(thread_name_prefix="PlaylistLayerSimulation"))
+		timer = ScaledTimerThreadService(time_base, 60)
 		cm = create_configuration_manager()
 		ctr = ServiceContainer()
 		ctr.add_service(TimeOfDay, time_base)
@@ -82,7 +83,6 @@ class PlaylistLayerSimulation(unittest.TestCase):
 		layer.join(timeout=2)
 		display.accept(QuitMessage(evtime))
 		display.join()
-		timer.shutdown()
 		save_images(display, "playlist_layer_simulation")
 		self.assertTrue(completed, "PlaylistLayer simulation timed out before reaching trigger condition.")
 		self.assertIsNotNone(tsink.captured)
@@ -99,7 +99,7 @@ class TimerLayerSimulation(unittest.TestCase):
 		router.addRoute(Route("telemetry", [tsink]))
 		cm = create_configuration_manager()
 		time_base = ScaledTimeOfDay(datetime.now().astimezone(), 60)
-		timer = ScaledTimerService(60, ThreadPoolExecutor(thread_name_prefix="TimerLayerSimulation"))
+		timer = ScaledTimerThreadService(time_base, 60)
 		ctr = ServiceContainer()
 		ctr.add_service(TimeOfDay, time_base)
 		ctr.add_service(IProvideTimer, timer)
@@ -119,7 +119,6 @@ class TimerLayerSimulation(unittest.TestCase):
 		layer.join(timeout=2)
 		display.accept(QuitMessage(evtime))
 		display.join()
-		timer.shutdown()
 		save_images(display, "timer_layer_simulation")
 		self.assertTrue(completed, "TimerLayer simulation timed out before reaching trigger condition.")
 		self.assertIsNotNone(tsink.captured)
@@ -133,8 +132,8 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.layer = PlaylistLayer("playlistlayer", self.router)
 		self.layer.cm = create_configuration_manager()
 		self.layer.datasources = DataSourceManager(None, {})
-		self.layer.time_of_day = ScaledTimeOfDay(datetime.now().astimezone(), 60)
-		self.layer.timer = ScaledTimerService(60, ThreadPoolExecutor())
+		self.layer.timebase = ScaledTimeOfDay(datetime.now().astimezone(), 60)
+		self.layer.timer = ScaledTimerThreadService(self.layer.timebase, 60)
 		sink = NullMessageSink()
 		self.layer.future_source = FutureSource("playlist_layer_test", sink, ThreadPoolExecutor())
 
@@ -165,8 +164,7 @@ class PlaylistLayerTests(unittest.TestCase):
 		# Trigger playback
 		startts = datetime.now()
 		self.layer._start_playback(StartPlayback(startts))
-		self.layer.timer.shutdown()
-		self.layer.future_source.shutdown()
+		cast(IRequireShutdown, self.layer.future_source).shutdown()
 		self.assertEqual(self.layer.state, 'playing')
 		self.assertIsNotNone(self.layer.playlist_state)
 		self.assertIsNotNone(self.layer.active_context)
@@ -209,8 +207,8 @@ class TimerLayerTests(unittest.TestCase):
 		self.layer = TimerLayer("timerlayer", self.router)
 		self.layer.cm = create_configuration_manager()
 		self.layer.datasources = DataSourceManager(None, {})
-		self.layer.time_of_day = ScaledTimeOfDay(datetime.now().astimezone(), 60)
-		self.layer.timer = ScaledTimerService(60, ThreadPoolExecutor())
+		self.layer.timebase = ScaledTimeOfDay(datetime.now().astimezone(), 60)
+		self.layer.timer = ScaledTimerThreadService(self.layer.timebase, 60)
 		sink = NullMessageSink()
 		self.layer.future_source = FutureSource("timer_layer_test", sink, ThreadPoolExecutor())
 	def test_start_schedule_success(self):
@@ -251,8 +249,7 @@ class TimerLayerTests(unittest.TestCase):
 		# Trigger playback
 		startts = datetime.now()
 		self.layer._start_playback(StartPlayback(startts))
-		self.layer.timer.shutdown()
-		self.layer.future_source.shutdown()
+		cast(IRequireShutdown, self.layer.future_source).shutdown()
 		self.assertEqual(self.layer.state, 'waiting')
 		self.assertIsNotNone(self.layer.playlist_state)
 		self.assertIsNotNone(self.layer.active_context)

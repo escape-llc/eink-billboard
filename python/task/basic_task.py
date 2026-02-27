@@ -2,7 +2,7 @@ import inspect
 import threading
 import queue
 import logging
-from typing import Callable, Type
+from typing import Any, Callable, Type
 from .messages import MessageSink, BasicMessage, QuitMessage
 
 class CoreTask(threading.Thread, MessageSink):
@@ -21,6 +21,10 @@ class CoreTask(threading.Thread, MessageSink):
 		# stopped: QuitMessage processed
 		self.stopped = threading.Event()
 		self.logger = logging.getLogger(__name__)
+
+	def _dispatch(self, msg: BasicMessage):
+		"""Subclasses must implement this to handle messages pulled from the internal queue."""
+		raise NotImplementedError("Subclasses must implement _dispatch()")
 
 	def run(self):
 		self.logger.info(f"'{self.name}' start.")
@@ -51,6 +55,14 @@ class CoreTask(threading.Thread, MessageSink):
 		if isinstance(msg, QuitMessage):
 			self.msg_queue.shutdown()
 
+def exclude_from_dispatch(obj):
+	"""Mark a function or callable so the DispatcherTasks registration will skip it."""
+	setattr(obj, "__exclude_from_dispatch__", True)
+	return obj
+
+def is_excluded(obj: Any) -> bool:
+    """Return True if the object is marked to be excluded from dispatch."""
+    return bool(getattr(obj, "__exclude_from_dispatch__", False))
 
 type HandlerFunc = Callable[[BasicMessage], None]
 class DispatcherTask(CoreTask):
@@ -71,6 +83,8 @@ class DispatcherTask(CoreTask):
 		# 1. Inspect all bound methods
 		for name, method in inspect.getmembers(self, predicate=inspect.ismethod):
 			if name.startswith("__"):
+				continue
+			if getattr(method, "__exclude_from_dispatch__", False):
 				continue
 			if name == "quitMsg" or name == "_dispatch" or name == "accept":
 				continue

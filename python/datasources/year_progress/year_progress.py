@@ -32,8 +32,8 @@ class YearProgress(DataSource, MediaItem, MediaRender):
 		def render_countdown():
 			display_cob = scm.open("display")
 			_, display_config = display_cob.get()
-			img = self.generate_image(dsec.schedule_ts, stm, dsec.dimensions, params, display_config)
-			return None if img is None else MediaRenderResult(image=img, title=f"Year Progress: {dsec.schedule_ts.year}")
+			img = self.generate_image(dsec.timestamp, stm, dsec.dimensions, params, display_config)
+			return None if img is None else MediaRenderResult(image=img, title=f"Year Progress: {dsec.timestamp.year}")
 		future = self._es.submit(render_countdown)
 		return future
 	def generate_image(self, schedule_ts:datetime, stm: StaticConfigurationManager, dimensions, settings, display_config):

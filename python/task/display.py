@@ -9,12 +9,12 @@ from PIL import Image
 from ..display.mock_display import MockDisplay
 from ..display.tkinter_window import TkinterWindow
 from ..display.display_base import DisplayBase
-from ..model.configuration_manager import ConfigurationManager, ConfigurationObject
-from ..task.basic_task import DispatcherTask
-from ..task.timer_tick import TickMessage
-from ..task.messages import BasicMessage, ConfigureEvent, QuitMessage
+from ..model.configuration_manager import ConfigurationManager
+from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
+from ..task.basic_task import DispatcherTask, exclude_from_dispatch
+from ..task.messages import BasicMessage, ConfigureEvent, QuitMessage, TimerExpired
 from ..task.protocols import CreateTimerResult, IProvideTimer
-from ..task.timer import TimerService
+from ..task.timer import TimerThreadService
 from .message_router import MessageRouter
 from ..utils.image_compositor import ImageCompositor
 from ..utils.image_utils import apply_image_enhancement, change_orientation, resize_image
@@ -25,14 +25,8 @@ class DisplayImage(BasicMessage):
 	img: Image.Image
 
 @dataclass(frozen=True, slots=True)
-class PriorityImage(BasicMessage):
-	title:str
-	img: Image.Image
+class PriorityImage(DisplayImage):
 	duration: timedelta
-
-@dataclass(frozen=True, slots=True)
-class CommitTimerExpired(BasicMessage):
-	title: str
 
 @dataclass(frozen=True, slots=True)
 class RefreshBlackoutTimerExpired(BasicMessage):
@@ -59,6 +53,7 @@ class Display(DispatcherTask):
 		self.router = router
 		self.cm:ConfigurationManager|None = None
 		self.display:DisplayBase|None = None
+		self.timebase: TimeOfDay|None = None
 		self.timer: IProvideTimer|None = None
 		self.commit_timer: CreateTimerResult|None = None
 		self.priority_timer: CreateTimerResult|None = None
@@ -87,6 +82,8 @@ class Display(DispatcherTask):
 	def _configure_event(self, msg: ConfigureEvent):
 		try:
 			self.cm = msg.content.cm
+			tod = msg.content.isp.get_service(TimeOfDay)
+			self.timebase = tod if tod is not None else SystemTimeOfDay()
 			display_cob = self.cm.settings_manager().open("display")
 			_, display_settings = display_cob.get()
 			if display_settings is None:
@@ -99,7 +96,7 @@ class Display(DispatcherTask):
 			else:
 				raise ValueError(f"Unrecognized display type: '{display_type}'")
 			ts = msg.content.isp.get_service(IProvideTimer)
-			self.timer = ts if ts is not None else TimerService(ThreadPoolExecutor())
+			self.timer = ts if ts is not None else TimerThreadService(self.timebase)
 			self.resolution = self.display.initialize(self.cm)
 			self.logger.info(f"Loading display {display_type} {self.resolution[0]}x{self.resolution[1]}")
 			msg.notify()
@@ -107,7 +104,8 @@ class Display(DispatcherTask):
 		except Exception as e:
 			self.logger.error(f"configure.unhandled: {str(e)}")
 			msg.notify(True, e)
-	def _commit_timer_expired(self, msg: CommitTimerExpired):
+	@exclude_from_dispatch
+	def _commit_timer_expired(self, msg: DisplayImage):
 		try:
 			self.logger.info(f"Commit {self.compsitor._version} '{msg.title}'")
 			self.commit_timer = None
@@ -137,7 +135,8 @@ class Display(DispatcherTask):
 		except Exception as e:
 			self.logger.error(f"commit_timer_expired.unhandled: {str(e)}")
 		pass
-	def _priority_image_timer_expired(self, msg: PriorityImageTimerExpired):
+	@exclude_from_dispatch
+	def _priority_image_timer_expired(self, msg: PriorityImage):
 		self.logger.info(f"Priority timer expired for image '{msg.title}'")
 		self.priority_timer = None
 		if not self.priority_backlog.empty():
@@ -175,11 +174,11 @@ class Display(DispatcherTask):
 			else:
 				self.compsitor.set_layer_interstitial(msg.img)
 
-			self._do_priority_timer(self.timer, PriorityImageTimerExpired(msg.timestamp, msg.title))
+			self._set_priority_timer(self.timer, PriorityImageTimerExpired(msg.timestamp, msg.title))
 		except Exception as e:
 			self.logger.error("displayimage.unhandled", e)
 			pass
-	def _do_commit_timer(self, timer: IProvideTimer, cte: CommitTimerExpired) -> None:
+	def _set_commit_timer(self, timer: IProvideTimer, msg: DisplayImage) -> None:
 		if timer is None:
 			self.logger.error("No timer service available")
 			return
@@ -187,8 +186,8 @@ class Display(DispatcherTask):
 			self.commit_timer[1]()
 			self.commit_timer = None
 			self.logger.debug("Existing commit timer cancelled")
-		self.commit_timer = timer.create_timer(timedelta(seconds=2), self, cte)
-	def _do_priority_timer(self, timer: IProvideTimer, pite: PriorityImageTimerExpired) -> None:
+		self.commit_timer = timer.create_timer(timedelta(seconds=2), self, "commit", msg)
+	def _set_priority_timer(self, timer: IProvideTimer, pite: PriorityImage) -> None:
 		if timer is None:
 			self.logger.error("No timer service available")
 			return
@@ -196,7 +195,14 @@ class Display(DispatcherTask):
 			self.priority_timer[1]()
 			self.priority_timer = None
 			self.logger.debug("Existing priority timer cancelled")
-		self.priority_timer = timer.create_timer(timedelta(seconds=2), self, pite)
+		self.priority_timer = timer.create_timer(timedelta(seconds=2), self, "priority", pite)
+	def _timer_expired(self, msg: TimerExpired):
+		self.logger.info(f"{self.name}: {msg}")
+		if msg.token == "commit":
+			self._commit_timer_expired(cast(DisplayImage, msg.state))
+		elif msg.token == "priority":
+			self._priority_image_timer_expired(cast(PriorityImage, msg.state))
+		pass
 	def _display_image(self, msg: DisplayImage):
 		try:
 			if self.cm is None:
@@ -221,7 +227,7 @@ class Display(DispatcherTask):
 			else:
 				self.compsitor.set_layer_background(msg.img)
 
-			self._do_commit_timer(self.timer, CommitTimerExpired(msg.timestamp, msg.title))
+			self._set_commit_timer(self.timer, msg)
 		except Exception as e:
 			self.logger.error("displayimage.unhandled", e)
 			pass
