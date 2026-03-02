@@ -4,6 +4,7 @@ from typing import Any
 
 from ...datasources.data_source import DataSourceExecutionContext, DataSourceManager, MediaItem, MediaRender
 from ...model.schedule import TimerTaskItem
+from ...model.time_of_day import TimeOfDay
 from ...task.display import DisplayImage
 from ...task.protocols import CancelToken, SubmitFuture
 from ...task.message_router import MessageRouter
@@ -51,10 +52,11 @@ class Interstitial(PluginProtocol):
 			if isinstance(dataSource, MediaRender):
 				self._render_image(track.title, dsec, dataSource, settings, state, router, timer, timer_sink)
 		return None
-	def _continuation_start(self, cancelled:bool, result, exception, msg_ts) -> BasicMessage|None:
+	def _continuation_start(self, cancelled:bool, result, exception, context: PluginExecutionContext) -> BasicMessage|None:
 		if cancelled:
 			return None
-		return FutureCompleted(msg_ts, self._name, "start", result, exception)
+		tod:TimeOfDay|None = context.provider.get_service(TimeOfDay)
+		return FutureCompleted(tod.current_time() if tod is not None else context.timestamp, self._name, "start", result, exception)
 	def _render_image(self, title: str, context: DataSourceExecutionContext, dataSource: MediaRender, settings: dict, state: Any, router: MessageRouter, timer: IProvideTimer, timer_sink: MessageSink):
 		item = state
 		future2 = dataSource.render(context, settings, item)
@@ -70,7 +72,7 @@ class Interstitial(PluginProtocol):
 		if isinstance(track, TimerTaskItem):
 			submit = context.provider.required(SubmitFuture)
 			self.submit_result = submit.submit_future(lambda x: self._source_start(x, context, track),
-													 lambda cancelled,result,exception: self._continuation_start(cancelled, result, exception, context.timestamp))
+													 lambda cancelled,result,exception: self._continuation_start(cancelled, result, exception, context))
 			return
 		raise RuntimeError(f"Unsupported track type: {type(track)}")
 	def stop(self, context: PluginExecutionContext, track: TrackType) -> None:
