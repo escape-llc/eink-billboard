@@ -98,6 +98,24 @@ class DataSourceAccept(Protocol):
 	def accept(self, msg: DataSourceMessage) -> None:
 		...
 
+@runtime_checkable
+class MediaItemAsync(Protocol):
+	"""Ability to return a single media item asynchronously."""
+	async def open_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any]) -> Any:
+		...
+
+@runtime_checkable
+class MediaListAsync(Protocol):
+	"""Ability to return a list of media items asynchronously."""
+	async def open_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any]) -> list:
+		...
+
+@runtime_checkable
+class MediaRenderAsync(Protocol):
+	"""Ability to render media from the source's state (element for a MediaList) asynchronously."""
+	async def render_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> MediaRenderResult | None:
+		...
+
 class DataSourceManager:
 	"""
 	Maintains and manages multiple data sources.

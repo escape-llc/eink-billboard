@@ -3,12 +3,15 @@ from datetime import datetime
 from typing import cast
 import unittest
 
+from python.task.async_http_worker_pool import AsyncHttpWorkerPool
+from python.task.async_worker_pool import AsyncWorkerPool
+
 from ..datasources.countdown.countdown import Countdown
 from ..datasources.year_progress.year_progress import YearProgress
 from ..datasources.clock.clock import Clock
 from ..datasources.openai_image.openai_image import OpenAI
-from ..datasources.comic.comic_feed import ComicFeed
-from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager, MediaItem, MediaList, MediaRender, MediaRenderResult
+from ..datasources.comic.comic_feed import ComicFeed, ComicFeedAsync
+from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager, MediaItem, MediaItemAsync, MediaList, MediaListAsync, MediaRenderAsync, MediaRender, MediaRenderResult
 from ..datasources.wpotd.wpotd import Wpotd
 from ..datasources.image_folder.image_folder import ImageFolder
 from ..datasources.newspaper.newspaper import Newspaper
@@ -16,21 +19,21 @@ from ..model.configuration_manager import DatasourceConfigurationManager, Settin
 from ..model.service_container import ServiceContainer
 from .utils import create_configuration_manager, save_image, test_output_path_for
 
-class TestDataSources(unittest.TestCase):
-	def create_data_source_context(self, dsid:str, schedule_ts: datetime = datetime.now()) -> DataSourceExecutionContext:
-		cm = create_configuration_manager()
-		cm.ensure_folders()
-		scm = cm.settings_manager()
-		stm = cm.static_manager()
-		dscm = cm.datasource_manager(dsid)
-		root = ServiceContainer()
-		#root.add_service(ConfigurationManager, cm)
-		root.add_service(StaticConfigurationManager, stm)
-		root.add_service(SettingsConfigurationManager, scm)
-		root.add_service(DatasourceConfigurationManager, dscm)
-		resolution = (800,480)
-		return DataSourceExecutionContext(root, resolution, schedule_ts)
+def create_data_source_context(dsid:str, schedule_ts: datetime = datetime.now()) -> DataSourceExecutionContext:
+	cm = create_configuration_manager()
+	cm.ensure_folders()
+	scm = cm.settings_manager()
+	stm = cm.static_manager()
+	dscm = cm.datasource_manager(dsid)
+	root = ServiceContainer()
+	#root.add_service(ConfigurationManager, cm)
+	root.add_service(StaticConfigurationManager, stm)
+	root.add_service(SettingsConfigurationManager, scm)
+	root.add_service(DatasourceConfigurationManager, dscm)
+	resolution = (800,480)
+	return DataSourceExecutionContext(root, resolution, schedule_ts)
 
+class TestDataSources(unittest.TestCase):
 	def run_datasource(self, ds, params, image_size, image_count, timeout = 5):
 		self.assertIsInstance(ds, MediaList)
 		self.assertIsInstance(ds, MediaRender)
@@ -38,7 +41,7 @@ class TestDataSources(unittest.TestCase):
 		ds.set_executor(tpe)
 		try:
 			folder = test_output_path_for(f"ds-{ds.id}")
-			dsec = self.create_data_source_context(ds.id)
+			dsec = create_data_source_context(ds.id)
 			future_state = cast(MediaList, ds).open(dsec, params)
 			state:list = future_state.result(timeout=5)
 			self.assertTrue(len(state) > 0)
@@ -66,7 +69,7 @@ class TestDataSources(unittest.TestCase):
 		ds.set_executor(tpe)
 		try:
 			folder = test_output_path_for(f"ds-{ds.id}")
-			dsec = self.create_data_source_context(ds.id)
+			dsec = create_data_source_context(ds.id)
 			future_state = cast(MediaItem, ds).open(dsec, params)
 			state = future_state.result(timeout=5)
 			self.assertIsNotNone(state)
@@ -228,6 +231,63 @@ class TestDataSources(unittest.TestCase):
 			ds.open(dsec, params)
 		with self.assertRaises(RuntimeError):
 			ds.render(dsec, params, None)
+
+class TestAsyncDataSources(unittest.TestCase):
+	def setUp(self):
+			self.pool = AsyncHttpWorkerPool()
+			self.pool.start()
+
+	def tearDown(self):
+			try:
+					self.pool.shutdown()
+			except Exception:
+					pass
+	async def run_datasource_async(self, ds, params, image_size, image_count):
+		self.assertIsInstance(ds, MediaListAsync)
+		self.assertIsInstance(ds, MediaRenderAsync)
+		folder = test_output_path_for(f"ds-{ds.id}-async")
+		dsec = create_data_source_context(ds.id)
+		state:list = await cast(MediaListAsync, ds).open_async(dsec, params)
+		self.assertTrue(len(state) > 0)
+		images = []
+		ix = 0
+		while len(state) > 0:
+			item = state[0]
+			state.pop(0)
+			result = await cast(MediaRenderAsync, ds).render_async(dsec, params, item)
+			if result is None:
+				self.assertIsNotNone(result)
+			else:
+				images.append(result)
+				save_image(result.image, folder, ix, f"item_{ix}")
+			ix += 1
+		self.assertEqual(len(images), image_count)
+	async def run_datasource2_async(self, ds, params, image_size, image_count):
+		self.assertIsInstance(ds, MediaItemAsync)
+		self.assertIsInstance(ds, MediaRenderAsync)
+		folder = test_output_path_for(f"ds-{ds.id}-async")
+		dsec = create_data_source_context(ds.id)
+		state = await cast(MediaItemAsync, ds).open_async(dsec, params)
+		self.assertIsNotNone(state)
+		images = []
+		ix = 0
+		item = state
+		result = await cast(MediaRenderAsync, ds).render_async(dsec, params, item)
+		if result is None:
+			self.assertIsNotNone(result)
+		else:
+			images.append(result)
+			save_image(result.image, folder, ix, f"item_{ix}")
+		self.assertEqual(len(images), image_count)
+	def test_comic_feed(self):
+		ds = ComicFeedAsync("comic-feed", "comic-feed")
+		params = {
+			"comic": "XKCD",
+			"titleCaption": True,
+			"fontSize": 12
+		}
+		self.pool.submit(self.run_datasource_async, ds, params, (800, 480), 4).result(timeout=60)
+	pass
 
 if __name__ == "__main__":
 	unittest.main()

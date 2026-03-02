@@ -1,6 +1,8 @@
 import feedparser
 import re
 
+from ...task.async_http_worker_pool import client_var
+
 COMICS = {
 	"XKCD": {
 		"feed": "https://xkcd.com/atom.xml",
@@ -60,9 +62,7 @@ COMICS = {
 	},
 }
 
-def get_items(comic_name):
-	comic = COMICS[comic_name]
-	feed = feedparser.parse(comic["feed"])
+def parse_the_feed(comic_name: str, comic: dict, feed: feedparser.FeedParserDict):
 	items = []
 	for entry in feed.entries:
 		try:
@@ -85,3 +85,16 @@ def get_items(comic_name):
 		item["count"] = len(items)
 		index += 1
 	return items
+	pass
+
+async def get_items_async(comic_name):
+	comic = COMICS[comic_name]
+	client = client_var.get()
+	resp = await client.get(comic["feed"])
+	feed = feedparser.parse(resp.text)
+	return parse_the_feed(comic_name, comic, feed)
+
+def get_items(comic_name):
+	comic = COMICS[comic_name]
+	feed = feedparser.parse(comic["feed"])
+	return parse_the_feed(comic_name, comic, feed)
