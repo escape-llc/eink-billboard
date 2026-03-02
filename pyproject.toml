@@ -8,6 +8,7 @@ dependencies = [
     "cysystemd==2.0.1 ; sys_platform == 'linux'",
     "feedparser==6.0.11",
     "flask==3.1.1",
+    "httpx>=0.28.1",
     "icalendar==6.3.1",
     "inky==2.2.1 ; sys_platform == 'linux'",
     "numpy==2.2.1",
