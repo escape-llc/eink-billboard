@@ -1,3 +1,5 @@
+import io
+
 import requests
 from PIL import Image, ImageEnhance
 from io import BytesIO
@@ -6,8 +8,25 @@ import logging
 import hashlib
 import tempfile
 import subprocess
+from httpx import AsyncClient
+from ..task.async_http_worker_pool import client_var
 
 logger = logging.getLogger(__name__)
+
+async def stream_to_buffer(client: AsyncClient, url: str, headers: dict[str, str]|None = None) -> BytesIO:
+	async with client.stream("GET", url, headers=headers) as resp:
+		resp.raise_for_status()
+		buffer = io.BytesIO()
+		async for chunk in resp.aiter_bytes():
+			buffer.write(chunk)
+		buffer.seek(0)
+		return buffer
+
+async def get_image_async(image_url:str) -> Image.Image | None:
+	client = client_var.get()
+	buffer = await stream_to_buffer(client, image_url)
+	img = Image.open(buffer)
+	return img
 
 def get_image(image_url):
 	response = requests.get(image_url)

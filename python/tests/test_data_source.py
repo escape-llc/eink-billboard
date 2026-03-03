@@ -3,20 +3,18 @@ from datetime import datetime
 from typing import cast
 import unittest
 
-from python.task.async_http_worker_pool import AsyncHttpWorkerPool
-from python.task.async_worker_pool import AsyncWorkerPool
-
 from ..datasources.countdown.countdown import Countdown
 from ..datasources.year_progress.year_progress import YearProgress
 from ..datasources.clock.clock import Clock
-from ..datasources.openai_image.openai_image import OpenAI
+from ..datasources.openai_image.openai_image import OpenAI, OpenAIAsync
 from ..datasources.comic.comic_feed import ComicFeed, ComicFeedAsync
 from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager, MediaItem, MediaItemAsync, MediaList, MediaListAsync, MediaRenderAsync, MediaRender, MediaRenderResult
-from ..datasources.wpotd.wpotd import Wpotd
+from ..datasources.wpotd.wpotd import Wpotd, WpotdAsync
 from ..datasources.image_folder.image_folder import ImageFolder
-from ..datasources.newspaper.newspaper import Newspaper
+from ..datasources.newspaper.newspaper import Newspaper, NewspaperAsync
 from ..model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
+from ..task.async_http_worker_pool import AsyncHttpWorkerPool
 from .utils import create_configuration_manager, save_image, test_output_path_for
 
 def create_data_source_context(dsid:str, schedule_ts: datetime = datetime.now()) -> DataSourceExecutionContext:
@@ -234,14 +232,15 @@ class TestDataSources(unittest.TestCase):
 
 class TestAsyncDataSources(unittest.TestCase):
 	def setUp(self):
-			self.pool = AsyncHttpWorkerPool()
-			self.pool.start()
+		self.pool = AsyncHttpWorkerPool()
+		self.pool.start()
 
 	def tearDown(self):
-			try:
-					self.pool.shutdown()
-			except Exception:
-					pass
+		try:
+			self.pool.shutdown()
+		except Exception:
+			pass
+
 	async def run_datasource_async(self, ds, params, image_size, image_count):
 		self.assertIsInstance(ds, MediaListAsync)
 		self.assertIsInstance(ds, MediaRenderAsync)
@@ -287,7 +286,26 @@ class TestAsyncDataSources(unittest.TestCase):
 			"fontSize": 12
 		}
 		self.pool.submit(self.run_datasource_async, ds, params, (800, 480), 4).result(timeout=60)
-	pass
+	def test_newspaper(self):
+		ds = NewspaperAsync("newspaper", "newspaper")
+		params = {
+			"slug": "ny_nyt"
+		}
+		self.pool.submit(self.run_datasource_async, ds, params, (700, 1166), 1).result(timeout=60)
+	def test_wikipedia(self):
+		ds = WpotdAsync("wpotd", "wpotd")
+		params = {
+			"shrinkToFit": True
+		}
+		self.pool.submit(self.run_datasource_async, ds, params, (800,480), 1).result(timeout=60)
+	@unittest.skip("OpenAI Image tests cost money!")
+	def test_openai(self):
+		ds = OpenAIAsync("openai-image", "openai-image")
+		params = {
+			"prompt": "an electronic ink billboard in a futuristic setting",
+			"imageModel": "dall-e-3",
+		}
+		self.pool.submit(self.run_datasource_async, ds, params, (1024,1792), 1).result(timeout=60)
 
 if __name__ == "__main__":
 	unittest.main()

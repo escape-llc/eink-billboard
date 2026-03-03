@@ -7,6 +7,7 @@ import requests
 
 from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
 from ...task.async_http_worker_pool import client_var
+from ...utils.image_utils import stream_to_buffer
 from .comic_parser import get_items, get_items_async
 from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaListAsync, MediaRender, MediaRenderAsync, MediaRenderResult
 
@@ -82,13 +83,8 @@ class ComicFeedAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		return MediaRenderResult(image=img, title=item.get("title", "Comic"))
 	async def _download_and_compose_image(self, item, caption_font, width, height):
 		client = client_var.get()
-		async with client.stream("GET", item["image_url"]) as resp:
-			resp.raise_for_status()
-			buffer = io.BytesIO()
-			async for chunk in resp.aiter_bytes():
-				buffer.write(chunk)
-			buffer.seek(0)
-			return _compose_image(buffer, item, caption_font, width, height)
+		buffer = await stream_to_buffer(client, item["image_url"])
+		return _compose_image(buffer, item, caption_font, width, height)
 	pass
 
 class ComicFeed(DataSource, MediaList, MediaRender):
