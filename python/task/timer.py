@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import asyncio
 from concurrent.futures import Future
 from datetime import datetime, timedelta
 import threading
@@ -41,6 +42,16 @@ class TimerThreadService(IProvideTimer):
 		self.timebase = timebase
 		self.duration = duration
 		self.logger = logging.getLogger(__name__)
+	def delta_for(self, deltatime: timedelta) -> timedelta:
+		return timedelta(seconds=self.duration(deltatime))
+	async def sleep(self, deltatime: timedelta) -> None:
+		if deltatime is None:
+			raise ValueError("deltatime cannot be None")
+		if deltatime.total_seconds() < 0:
+			raise ValueError("deltatime cannot be negative")
+		dur = self.duration(deltatime)
+		self.logger.debug(f"Sleeping for {deltatime} ({dur})")
+		await asyncio.sleep(dur)
 	def create_timer[T](self, deltatime: timedelta, sink: MessageSink|None, token: str, state: T) -> CreateTimerResult[T]:
 		if deltatime is None:
 			raise ValueError("deltatime cannot be None")

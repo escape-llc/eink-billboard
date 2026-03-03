@@ -14,6 +14,15 @@ class IProvideTimer(Protocol):
 		Returns a tuple of (future, cancel_function). The future completes with the completed message when the timer expires, or None if cancelled.
 		"""
 		...
+	async def sleep(self, deltatime: timedelta) -> None:
+		"""
+		Asynchronously sleeps for the specified deltatime.
+		"""
+		...
+	def delta_for(self, deltatime: timedelta) -> timedelta:
+		"""Converts a deltatime to the actual time to wait, applying any scaling or adjustments as needed."""
+		...
+
 
 @runtime_checkable
 class IRequireShutdown(Protocol):

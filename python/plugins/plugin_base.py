@@ -1,5 +1,6 @@
 from datetime import datetime
 import os
+import threading
 from typing import Protocol, runtime_checkable
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -98,4 +99,14 @@ class PluginProtocol(Protocol):
 	def receive(self, context: PluginExecutionContext, track: TrackType, msg: BasicMessage) -> None:
 		...
 	def stop(self, context: PluginExecutionContext, track: TrackType) -> None:
+		...
+
+class PluginAsync(Protocol):
+	@property
+	def id(self) -> str:
+		...
+	@property
+	def name(self) -> str:
+		...
+	async def task_async(self, context: PluginExecutionContext, track: TrackType, done: threading.Event) -> None:
 		...
