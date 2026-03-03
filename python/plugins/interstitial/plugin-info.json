@@ -32,11 +32,21 @@
 					"lookup": "dataSource",
 					"label": "Data Source",
 					"description": "Single image source."
+				},
+				{
+					"name": "slideMinutes",
+					"type": "number",
+					"required": true,
+					"default": 1,
+					"min": 1,
+					"label": "Slide Duration Minutes",
+					"description": "Minutes for image."
 				}
 			]
 		},
 		"default": {
-			"dataSource": null
+			"dataSource": null,
+			"slideMinutes": 1
 		}
 	}
 }

@@ -188,7 +188,7 @@ class TestDataSources(unittest.TestCase):
 				dsm.shutdown()
 
 	def test_image_folder_raises_without_executor(self):
-		dsec = self.create_data_source_context("image-folder")
+		dsec = create_data_source_context("image-folder")
 		ds = ImageFolder("image-folder", "image-folder")
 		params = {"folder": "python/tests/images"}
 		with self.assertRaises(RuntimeError):
@@ -197,7 +197,7 @@ class TestDataSources(unittest.TestCase):
 			ds.render(dsec, params, None)
 
 	def test_comic_feed_raises_without_executor(self):
-		dsec = self.create_data_source_context("comic-feed")
+		dsec = create_data_source_context("comic-feed")
 		ds = ComicFeed("comic-feed", "comic-feed")
 		params = {"comic": "XKCD", "titleCaption": True, "fontSize": 12}
 		with self.assertRaises(RuntimeError):
@@ -206,7 +206,7 @@ class TestDataSources(unittest.TestCase):
 			ds.render(dsec, params, None)
 
 	def test_wpotd_raises_without_executor(self):
-		dsec = self.create_data_source_context("wpotd")
+		dsec = create_data_source_context("wpotd")
 		ds = Wpotd("wpotd", "wpotd")
 		params = {"shrinkToFit": True}
 		with self.assertRaises(RuntimeError):
@@ -215,7 +215,7 @@ class TestDataSources(unittest.TestCase):
 			ds.render(dsec, params, None)
 
 	def test_newspaper_raises_without_executor(self):
-		dsec = self.create_data_source_context("newspaper")
+		dsec = create_data_source_context("newspaper")
 		ds = Newspaper("newspaper", "newspaper")
 		params = {"slug": "ny_nyt"}
 		with self.assertRaises(RuntimeError):
@@ -224,7 +224,7 @@ class TestDataSources(unittest.TestCase):
 			ds.render(dsec, params, None)
 
 	def test_openai_raises_without_executor(self):
-		dsec = self.create_data_source_context("openai-image")
+		dsec = create_data_source_context("openai-image")
 		ds = OpenAI("openai-image", "openai-image")
 		params = {"prompt": "test", "imageModel": "dall-e-3"}
 		with self.assertRaises(RuntimeError):
