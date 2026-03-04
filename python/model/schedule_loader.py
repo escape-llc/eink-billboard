@@ -1,5 +1,5 @@
 import json
-from typing import Literal, TypedDict
+from typing import Literal, ReadOnly, TypedDict
 import uuid
 
 from .schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks
@@ -9,10 +9,10 @@ type LoaderType = Playlist|TimerTasks
 type SchemaType = Literal["urn:inky:storage:schedule:playlist:1", "urn:inky:storage:schedule:tasks:1"]
 
 class ScheduleLoaderDict(TypedDict):
-	info: LoaderType
-	name: str
-	path: str
-	type: SchemaType
+	info: ReadOnly[LoaderType]
+	name: ReadOnly[str]
+	path: ReadOnly[str]
+	type: ReadOnly[SchemaType]
 
 class ScheduleLoader:
 	@staticmethod

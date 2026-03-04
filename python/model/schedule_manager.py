@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import TypedDict
+from typing import ReadOnly, TypedDict
 
 from .schedule import Playlist
 from .schedule_loader import ScheduleLoader, ScheduleLoaderDict
@@ -8,8 +8,8 @@ from .schedule_loader import ScheduleLoader, ScheduleLoaderDict
 logger = logging.getLogger(__name__)
 
 class ScheduleManagerDict(TypedDict):
-	playlists: list[ScheduleLoaderDict]
-	tasks: list[ScheduleLoaderDict]
+	playlists: ReadOnly[list[ScheduleLoaderDict]]
+	tasks: ReadOnly[list[ScheduleLoaderDict]]
 
 class ScheduleManager:
 	def __init__(self, root_path):

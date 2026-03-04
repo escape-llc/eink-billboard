@@ -6,7 +6,7 @@ import logging
 import shutil
 import threading
 from pathlib import Path
-from typing import Any, Callable, Protocol, TypedDict, cast
+from typing import Any, Callable, Protocol, ReadOnly, TypedDict, cast
 from PIL import ImageFont
 
 from ..datasources.data_source import DataSource
@@ -14,26 +14,26 @@ from ..utils.file_utils import path_to_file_url
 from .schedule_manager import ScheduleManager
 
 class ItemSettingsDict(TypedDict):
-	schema: dict
-	default: dict
+	schema: ReadOnly[dict]
+	default: ReadOnly[dict]
 
 ItemInfoDict = TypedDict('ItemInfoDict', {
-	'id': str,
-	'name': str,
-	'version': str,
-	'class': str,
-	'file': str,
-	'module': str,
-	'description': str,
-	'disabled': bool,
-	'features': list[str],
-	'settings': ItemSettingsDict,
-	'instanceSettings': ItemSettingsDict
+	'id': ReadOnly[str],
+	'name': ReadOnly[str],
+	'version': ReadOnly[str],
+	'class': ReadOnly[str],
+	'file': ReadOnly[str],
+	'module': ReadOnly[str],
+	'description': ReadOnly[str],
+	'disabled': ReadOnly[bool],
+	'features': ReadOnly[list[str]],
+	'settings': ReadOnly[ItemSettingsDict],
+	'instanceSettings': ReadOnly[ItemSettingsDict]
 })
 
 class CollectInfoDict(TypedDict):
-	info: ItemInfoDict
-	path: str
+	info: ReadOnly[ItemInfoDict]
+	path: ReadOnly[str]
 
 logger = logging.getLogger(__name__)
 
