@@ -2,7 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 import logging
-from typing import cast
+from typing import NotRequired, ReadOnly, TypedDict, cast
 
 from .future_source import FutureSource, SubmitFuture
 from .display import DisplaySettings
@@ -11,7 +11,7 @@ from .message_router import MessageRouter
 from .basic_task import DispatcherTask
 from ..datasources.data_source import DataSourceManager
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
-from ..model.schedule import Playlist, ScheduleItemBase
+from ..model.schedule import Playlist, PlaylistSchedule, ScheduleItemBase
 from ..model.service_container import ServiceContainer
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..plugins.plugin_base import PluginExecutionContext, PluginProtocol
@@ -27,6 +27,11 @@ class StartPlayback(LayerControlMessage):
 @dataclass(frozen=True, slots=True)
 class NextTrack(LayerControlMessage):
 	pass
+
+class EvaluatePluginDict(TypedDict):
+	plugin: ReadOnly[PluginProtocol|None]
+	track: ReadOnly[PlaylistSchedule]
+	error: NotRequired[str]
 
 class PlaylistLayer(DispatcherTask):
 	def __init__(self, name, router: MessageRouter):
@@ -47,7 +52,7 @@ class PlaylistLayer(DispatcherTask):
 		self.timebase: TimeOfDay|None = None
 		self.state = 'uninitialized'
 		self.logger = logging.getLogger(__name__)
-	def _evaluate_plugin(self, track:ScheduleItemBase):
+	def _evaluate_plugin(self, track: PlaylistSchedule) -> EvaluatePluginDict:
 		if self.cm is None:
 			errormsg = "ConfigurationManager is not set."
 			self.logger.error(errormsg)
@@ -124,7 +129,7 @@ class PlaylistLayer(DispatcherTask):
 		if current_track is None:
 			self.logger.error(f"Current playlist '{current_playlist.name}' has no tracks.")
 			return
-		plugin_eval = self._evaluate_plugin(current_track)
+		plugin_eval = self._evaluate_plugin(cast(PlaylistSchedule, current_track))
 		active_plugin:PluginProtocol = cast(PluginProtocol, plugin_eval.get("plugin", None))
 		if active_plugin is None:
 			self.logger.error(f"Cannot start playback, plugin '{current_track.plugin_name}' for track '{current_track.title}' is not available.")
@@ -208,7 +213,7 @@ class PlaylistLayer(DispatcherTask):
 			# Move to next track in the same playlist
 			next_track_index = current_track_index + 1
 			next_track:ScheduleItemBase = current_playlist.items[next_track_index]
-			plugin_eval = self._evaluate_plugin(next_track)
+			plugin_eval = self._evaluate_plugin(cast(PlaylistSchedule, next_track))
 			active_plugin:PluginProtocol = cast(PluginProtocol, plugin_eval.get("plugin", None))
 			if active_plugin is None:
 				self.logger.error(f"Cannot start next track, plugin '{next_track.plugin_name}' for track '{next_track.title}' is not available.")
@@ -227,10 +232,10 @@ class PlaylistLayer(DispatcherTask):
 			self.logger.info(f"End of playlist '{current_playlist.name}' reached.")
 			current_playlist_index = cast(int, self.playlist_state.get('current_playlist_index'))
 			next_playlist_index = (current_playlist_index + 1) % len(self.playlists)
-			next_playlist:Playlist = self.playlists[next_playlist_index]
+			next_playlist:Playlist = cast(Playlist, self.playlists[next_playlist_index].get("info", None))
 			next_track_index = 0
 			next_track:ScheduleItemBase = next_playlist.items[next_track_index]
-			plugin_eval = self._evaluate_plugin(next_track)
+			plugin_eval = self._evaluate_plugin(cast(PlaylistSchedule, next_track))
 			active_plugin:PluginProtocol = cast(PluginProtocol, plugin_eval.get("plugin", None))
 			if active_plugin is None:
 				self.logger.error(f"Cannot start next track, plugin '{next_track.plugin_name}' for track '{next_track.title}' is not available.")
