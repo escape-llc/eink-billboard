@@ -6,7 +6,46 @@ from PIL import Image, ImageColor, ImageDraw, ImageFont
 from concurrent.futures import Future
 
 from ...model.configuration_manager import StaticConfigurationManager
-from ..data_source import DataSource, DataSourceExecutionContext, MediaItem, MediaRender, MediaRenderResult
+from ..data_source import DataSource, DataSourceExecutionContext, MediaItem, MediaItemAsync, MediaRender, MediaRenderAsync, MediaRenderResult
+
+class ClockAsync(DataSource, MediaItemAsync, MediaRenderAsync):
+	"""
+	Async version of the Clock data source.
+	"""
+	def __init__(self, id: str, name: str):
+		super().__init__(id, name)
+		self.logger = logging.getLogger(__name__)
+	async def open_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any]) -> Any:
+		clock_face = params.get("clockFace", "Gradient Clock")
+		primary_color = ImageColor.getcolor(params.get('primaryColor') or (255,255,255), "RGB")
+		secondary_color = ImageColor.getcolor(params.get('secondaryColor') or (0,0,0), "RGB")
+		return {
+			"clock_face": clock_face,
+			"primary_color": primary_color,
+			"secondary_color": secondary_color,
+		}
+	async def render_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> MediaRenderResult | None:
+		img: Image.Image|None = None
+		try:
+			dimensions = dsec.dimensions
+			clock_face = state.get("clock_face", None)
+			primary_color = state.get("primary_color", None)
+			secondary_color = state.get("secondary_color", None)
+			if not clock_face or not primary_color or not secondary_color:
+				raise RuntimeError("Clock parameters not properly initialized.")
+			if clock_face == "Gradient Clock":
+				img = Clock.draw_conic_clock(dimensions, dsec.timestamp, primary_color, secondary_color)
+			elif clock_face == "Digital Clock":
+				stm = dsec.provider.required(StaticConfigurationManager)
+				img = Clock.draw_digital_clock(dimensions, dsec.timestamp, stm, primary_color, secondary_color)
+			elif clock_face == "Divided Clock":
+				img = Clock.draw_divided_clock(dimensions, dsec.timestamp, primary_color, secondary_color)
+			elif clock_face == "Word Clock":
+				stm = dsec.provider.required(StaticConfigurationManager)
+				img = Clock.draw_word_clock(dimensions, dsec.timestamp, stm, primary_color, secondary_color)
+		except Exception as e:
+			self.logger.error(f"Failed to draw clock image: {str(e)}")
+		return None if img is None else MediaRenderResult(image=img, title=f"{dsec.timestamp.strftime('%H:%M:%S')}")
 
 class Clock(DataSource, MediaItem, MediaRender):
 	"""
@@ -36,21 +75,22 @@ class Clock(DataSource, MediaItem, MediaRender):
 			if not clock_face or not primary_color or not secondary_color:
 				raise RuntimeError("Clock parameters not properly initialized.")
 			if clock_face == "Gradient Clock":
-				img = self.draw_conic_clock(dimensions, dsec.timestamp, primary_color, secondary_color)
+				img = Clock.draw_conic_clock(dimensions, dsec.timestamp, primary_color, secondary_color)
 			elif clock_face == "Digital Clock":
 				stm = dsec.provider.required(StaticConfigurationManager)
-				img = self.draw_digital_clock(dimensions, dsec.timestamp, stm, primary_color, secondary_color)
+				img = Clock.draw_digital_clock(dimensions, dsec.timestamp, stm, primary_color, secondary_color)
 			elif clock_face == "Divided Clock":
-				img = self.draw_divided_clock(dimensions, dsec.timestamp, primary_color, secondary_color)
+				img = Clock.draw_divided_clock(dimensions, dsec.timestamp, primary_color, secondary_color)
 			elif clock_face == "Word Clock":
 				stm = dsec.provider.required(StaticConfigurationManager)
-				img = self.draw_word_clock(dimensions, dsec.timestamp, stm, primary_color, secondary_color)
+				img = Clock.draw_word_clock(dimensions, dsec.timestamp, stm, primary_color, secondary_color)
 		except Exception as e:
 			self.logger.error(f"Failed to draw clock image: {str(e)}")
 		fut = Future()
 		fut.set_result(None if img is None else MediaRenderResult(image=img, title=f"{dsec.timestamp.strftime('%H:%M:%S')}"))
 		return fut
-	def draw_conic_clock(self, dimensions, time, primary_color=(219, 50, 70, 255), secondary_color=(0, 0, 0, 255) ):
+	@staticmethod
+	def draw_conic_clock(dimensions, time, primary_color=(219, 50, 70, 255), secondary_color=(0, 0, 0, 255) ):
 		width, height = dimensions
 		hour_angle, minute_angle = Clock.calculate_clock_angles(time)
 
@@ -81,7 +121,8 @@ class Clock(DataSource, MediaItem, MediaRender):
 		Clock.drew_clock_center(final_image, max(int(dim*0.01), 1), primary_color, outline_color=(255, 255, 255, 255), width=max(int(dim*0.004), 1))
 
 		return final_image
-	def draw_digital_clock(self, dimensions, time, stm:StaticConfigurationManager, primary_color=(255,255,255), secondary_color=(0,0,0)):
+	@staticmethod
+	def draw_digital_clock(dimensions, time, stm:StaticConfigurationManager, primary_color=(255,255,255), secondary_color=(0,0,0)):
 		w,h = dimensions
 		time_str = Clock.format_time(time.hour, time.minute, zero_pad = True)
 
@@ -98,7 +139,8 @@ class Clock(DataSource, MediaItem, MediaRender):
 
 		combined = Image.alpha_composite(image, text)
 		return combined
-	def draw_word_clock(self, dimensions, time, stm:StaticConfigurationManager, primary_color=(0,0,0), secondary_color=(255,255,255)):
+	@staticmethod
+	def draw_word_clock(dimensions, time, stm:StaticConfigurationManager, primary_color=(0,0,0), secondary_color=(255,255,255)):
 		w,h = dimensions
 		bg = Image.new("RGBA", dimensions, primary_color+(255,))
 		dim = min(w,h)
@@ -142,7 +184,8 @@ class Clock(DataSource, MediaItem, MediaRender):
 
 		combined = Image.alpha_composite(bg, canvas)
 		return combined
-	def draw_divided_clock(self, dimensions, time, primary_color=(32,183,174), secondary_color=(255,255,255)):
+	@staticmethod
+	def draw_divided_clock(dimensions, time, primary_color=(32,183,174), secondary_color=(255,255,255)):
 		w,h = dimensions
 		bg = Image.new("RGBA", dimensions, primary_color+(255,))
 		bg_draw = ImageDraw.Draw(bg)

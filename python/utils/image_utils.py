@@ -83,7 +83,7 @@ def resize_image(image, desired_size, image_settings=[]):
 	image = image.crop((x_offset, y_offset, x_offset + new_width, y_offset + new_height))
 
 	# Step 3: Resize to the exact desired dimensions (if necessary)
-	return image.resize((desired_width, desired_height), Image.LANCZOS)
+	return image.resize((desired_width, desired_height), Image.Resampling.LANCZOS)
 
 def apply_image_enhancement(img, image_settings):
 	if image_settings is None:

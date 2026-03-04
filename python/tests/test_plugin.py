@@ -11,10 +11,10 @@ from python.task.async_http_worker_pool import AsyncHttpWorkerPool
 from ..model.time_of_day import TimeOfDay
 from ..datasources.comic.comic_feed import ComicFeed, ComicFeedAsync
 from ..datasources.data_source import DataSource, DataSourceManager
-from ..datasources.image_folder.image_folder import ImageFolder
-from ..datasources.newspaper.newspaper import Newspaper
-from ..datasources.openai_image.openai_image import OpenAI
-from ..datasources.wpotd.wpotd import Wpotd
+from ..datasources.image_folder.image_folder import ImageFolder, ImageFolderAsync
+from ..datasources.newspaper.newspaper import Newspaper, NewspaperAsync
+from ..datasources.openai_image.openai_image import OpenAI, OpenAIAsync
+from ..datasources.wpotd.wpotd import Wpotd, WpotdAsync
 from ..model.service_container import ServiceContainer
 from ..model.schedule import PlaylistSchedule, PlaylistScheduleData
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
@@ -219,6 +219,24 @@ class TestAsyncPlugins(unittest.TestCase):
 		display.join()
 		save_images(display, plugin.name)
 		return display
+	def test_slide_show_with_image_folder(self):
+		content = {
+			"dataSource": "image-folder",
+			"folder": "python/tests/images",
+			"slideMax": 0,
+			"slideMinutes": 1
+		}
+		plugin_data = PlaylistScheduleData(content)
+		track = PlaylistSchedule(
+			plugin_name="slide-show",
+			id="10",
+			title="10 Item",
+			content=plugin_data
+		)
+		dsmap:dict[str,DataSource] = {"image-folder": ImageFolderAsync("image-folder", "image-folder")}
+		datasources = DataSourceManager(None, dsmap)
+		display = self.run_slide_show(track, datasources)
+		self.assertEqual(len(display.msgs), 9, "display.msgs failed")
 	def test_slide_show_with_comic(self):
 		content = {
 			"dataSource": "comic-feed",
@@ -254,6 +272,61 @@ class TestAsyncPlugins(unittest.TestCase):
 		dsmap:dict[str,DataSource] = {"comic-feed": ComicFeedAsync("comic-feed", "comic-feed")}
 		datasources = DataSourceManager(None, dsmap)
 		display = self.run_slide_show(track, datasources, 20, testCancel=True)
+		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
+	def test_slide_show_with_wpotd(self):
+		content = {
+			"dataSource": "wpotd",
+			"slideMax": 0,
+			"slideMinutes": 3
+		}
+		plugin_data = PlaylistScheduleData(content)
+		track = PlaylistSchedule(
+			plugin_name="slide-show",
+			id="10",
+			title="10 Item",
+			content=plugin_data
+		)
+		dsmap:dict[str,DataSource] = {"wpotd": WpotdAsync("wpotd", "wpotd")}
+		datasources = DataSourceManager(None, dsmap)
+		display = self.run_slide_show(track, datasources, 5)
+		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
+	def test_slide_show_with_newspaper(self):
+		content = {
+			"dataSource": "newspaper",
+			"slug": "ny_nyt",
+			"slideMax": 0,
+			"slideMinutes": 3
+		}
+		plugin_data = PlaylistScheduleData(content)
+		track = PlaylistSchedule(
+			plugin_name="slide-show",
+			id="10",
+			title="10 Item",
+			content=plugin_data
+		)
+		dsmap:dict[str,DataSource] = {"newspaper": NewspaperAsync("newspaper", "newspaper")}
+		datasources = DataSourceManager(None, dsmap)
+		display = self.run_slide_show(track, datasources, 5)
+		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
+	@unittest.skip("OpenAI Image tests cost money!")
+	def test_slide_show_with_openai(self):
+		content = {
+			"dataSource": "openai-image",
+			"prompt": "A futuristic electronic inky display showing a slideshow of images in a modern home, digital art",
+			"slideMax": 0,
+			"slideMinutes": 5,
+			"timeoutSeconds": 60
+		}
+		plugin_data = PlaylistScheduleData(content)
+		track = PlaylistSchedule(
+			plugin_name="slide-show",
+			id="10",
+			title="10 Item",
+			content=plugin_data
+		)
+		dsmap:dict[str,DataSource] = {"openai-image": OpenAIAsync("openai-image", "openai-image")}
+		datasources = DataSourceManager(None, dsmap)
+		display = self.run_slide_show(track, datasources, 61)
 		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
 	pass
 

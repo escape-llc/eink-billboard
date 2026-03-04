@@ -3,14 +3,14 @@ from datetime import datetime
 from typing import cast
 import unittest
 
-from ..datasources.countdown.countdown import Countdown
-from ..datasources.year_progress.year_progress import YearProgress
-from ..datasources.clock.clock import Clock
+from ..datasources.countdown.countdown import Countdown, CountdownAsync
+from ..datasources.year_progress.year_progress import YearProgress, YearProgressAsync
+from ..datasources.clock.clock import Clock, ClockAsync
 from ..datasources.openai_image.openai_image import OpenAI, OpenAIAsync
 from ..datasources.comic.comic_feed import ComicFeed, ComicFeedAsync
 from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager, MediaItem, MediaItemAsync, MediaList, MediaListAsync, MediaRenderAsync, MediaRender, MediaRenderResult
 from ..datasources.wpotd.wpotd import Wpotd, WpotdAsync
-from ..datasources.image_folder.image_folder import ImageFolder
+from ..datasources.image_folder.image_folder import ImageFolder, ImageFolderAsync
 from ..datasources.newspaper.newspaper import Newspaper, NewspaperAsync
 from ..model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
@@ -279,6 +279,12 @@ class TestAsyncDataSources(unittest.TestCase):
 			images.append(result)
 			save_image(result.image, folder, ix, f"item_{ix}")
 		self.assertEqual(len(images), image_count)
+	def test_image_folder(self):
+		ds = ImageFolderAsync("image-folder", "image-folder")
+		params = {
+			"folder": "python/tests/images"
+		}
+		self.pool.submit(self.run_datasource_async, ds, params, (800, 480), 9).result(timeout=60)
 	def test_comic_feed(self):
 		ds = ComicFeedAsync("comic-feed", "comic-feed")
 		params = {
@@ -307,6 +313,51 @@ class TestAsyncDataSources(unittest.TestCase):
 			"imageModel": "dall-e-3",
 		}
 		self.pool.submit(self.run_datasource_async, ds, params, (1024,1792), 1).result(timeout=60)
+	def test_clock_gradient(self):
+		ds = ClockAsync("clock-gradient", "clock")
+		params = {
+			"clockFace": "Gradient Clock",
+			"primaryColor": "#db3246",
+			"secondaryColor": "#000000"
+		}
+		self.pool.submit(self.run_datasource2_async, ds, params, (800, 480), 1).result(timeout=60)
+	def test_clock_digital(self):
+		ds = ClockAsync("clock-digital", "clock")
+		params = {
+			"clockFace": "Digital Clock",
+			"primaryColor": "#ffffff",
+			"secondaryColor": "#000000"
+		}
+		self.pool.submit(self.run_datasource2_async, ds, params, (800,480), 1).result(timeout=60)
+	def test_clock_word(self):
+		ds = ClockAsync("clock-word", "clock")
+		params = {
+			"clockFace": "Word Clock",
+			"primaryColor": "#000000",
+			"secondaryColor": "#ffffff"
+		}
+		self.pool.submit(self.run_datasource2_async, ds, params, (800,480), 1).result(timeout=60)
+	def test_clock_divided(self):
+		ds = ClockAsync("clock-divided", "clock")
+		params = {
+			"clockFace": "Divided Clock",
+			"primaryColor": "#20b7ae",
+			"secondaryColor": "#ffffff"
+		}
+		self.pool.submit(self.run_datasource2_async, ds, params, (800,480), 1).result(timeout=60)
+	def test_countdown(self):
+		ds = CountdownAsync("countdown", "countdown")
+		params = {
+			"targetDate": "2027-01-01",
+			"title": "New Year Countdown"
+		}
+		self.pool.submit(self.run_datasource2_async, ds, params, (800,480), 1).result(timeout=60)
+	def test_year_progress(self):
+		ds = YearProgressAsync("year-progress", "year-progress")
+		params = {
+			"title": "New Year Countdown"
+		}
+		self.pool.submit(self.run_datasource2_async, ds, params, (800,480), 1).result(timeout=60)
 
 if __name__ == "__main__":
 	unittest.main()

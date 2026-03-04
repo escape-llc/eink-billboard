@@ -4,7 +4,7 @@ import os
 from typing import Any
 
 from PIL import Image, ImageOps, ImageFilter
-from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaRender, MediaRenderResult
+from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaListAsync, MediaRender, MediaRenderAsync, MediaRenderResult
 
 def list_files_in_folder(folder_path):
 	"""Return a list of image file paths in the given folder, excluding hidden files."""
@@ -24,7 +24,7 @@ def grab_image(image_path, dimensions, pad_image, logger):
 	try:
 		img = Image.open(image_path)
 		img = ImageOps.exif_transpose(img)  # Correct orientation using EXIF
-		img = ImageOps.contain(img, dimensions, Image.LANCZOS)
+		img = ImageOps.contain(img, dimensions, Image.Resampling.LANCZOS)
 
 		if pad_image:
 			bkg = ImageOps.fit(img, dimensions)
@@ -37,9 +37,24 @@ def grab_image(image_path, dimensions, pad_image, logger):
 		logger.error(f"Error loading image from {image_path}: {e}")
 		return None
 
+class ImageFolderAsync(DataSource, MediaListAsync, MediaRenderAsync):
+	def __init__(self, id: str, name: str):
+		super().__init__(id, name)
+		self.logger = logging.getLogger(__name__)
+	async def open_async(self, dsec: DataSourceExecutionContext, params: dict[str, Any]) -> list:
+		folder_path = params.get('folder')
+		image_files = list_files_in_folder(folder_path)
+		return image_files
+	async def render_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> MediaRenderResult | None:
+		if state is None:
+			return None
+		img = grab_image(state, dsec.dimensions, pad_image=True, logger=self.logger)
+		return None if img is None else MediaRenderResult(image=img, title="Image Folder")
+
 class ImageFolder(DataSource, MediaList, MediaRender):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
+		self.logger = logging.getLogger(__name__)
 	def open(self, dsec: DataSourceExecutionContext, params: dict[str, Any]) -> Future[list]:
 		if self._es is None:
 			raise RuntimeError("Executor not set for DataSource")
@@ -55,7 +70,7 @@ class ImageFolder(DataSource, MediaList, MediaRender):
 		def load_next():
 			if state is None:
 				return None
-			img = grab_image(state, dsec.dimensions, pad_image=True, logger=logging.getLogger(__name__))
+			img = grab_image(state, dsec.dimensions, pad_image=True, logger=self.logger)
 			return None if img is None else MediaRenderResult(image=img, title="Image Folder")
 		future = self._es.submit(load_next)
 		return future
