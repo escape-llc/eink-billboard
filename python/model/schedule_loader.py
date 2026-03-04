@@ -1,13 +1,22 @@
 import json
+from typing import Literal, TypedDict
 import uuid
 
 from .schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks
 
 type LoaderType = Playlist|TimerTasks
 
+type SchemaType = Literal["urn:inky:storage:schedule:playlist:1", "urn:inky:storage:schedule:tasks:1"]
+
+class ScheduleLoaderDict(TypedDict):
+	info: LoaderType
+	name: str
+	path: str
+	type: SchemaType
+
 class ScheduleLoader:
 	@staticmethod
-	def loadFile(path: str, name: str) -> dict:
+	def loadFile(path: str, name: str) -> ScheduleLoaderDict:
 		with open(path, 'r', encoding='utf-8') as f:
 			data = json.load(f)
 		schema = data.get("_schema", None)

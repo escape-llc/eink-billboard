@@ -6,12 +6,34 @@ import logging
 import shutil
 import threading
 from pathlib import Path
-from typing import Any, Callable, Protocol, cast
+from typing import Any, Callable, Protocol, TypedDict, cast
 from PIL import ImageFont
 
 from ..datasources.data_source import DataSource
 from ..utils.file_utils import path_to_file_url
 from .schedule_manager import ScheduleManager
+
+class ItemSettingsDict(TypedDict):
+	schema: dict
+	default: dict
+
+ItemInfoDict = TypedDict('ItemInfoDict', {
+	'id': str,
+	'name': str,
+	'version': str,
+	'class': str,
+	'file': str,
+	'module': str,
+	'description': str,
+	'disabled': bool,
+	'features': list[str],
+	'settings': ItemSettingsDict,
+	'instanceSettings': ItemSettingsDict
+})
+
+class CollectInfoDict(TypedDict):
+	info: ItemInfoDict
+	path: str
 
 logger = logging.getLogger(__name__)
 
@@ -557,9 +579,9 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		manager = StaticConfigurationManager(self.static_path)
 		return manager
 
-	def _collect_info(self, folder: str, info_file_name: str) -> list:
+	def _collect_info(self, folder: str, info_file_name: str) -> list[CollectInfoDict]:
 		# Iterate over all XXX folders
-		item_list = []
+		item_list: list[CollectInfoDict] = []
 		path = os.path.join(self.ROOT_PATH, folder)
 		logger.debug(f"collect_info: {path}")
 		for item in sorted(os.listdir(path)):
@@ -568,26 +590,26 @@ class ConfigurationManager(ConfigurationObjectFactory):
 				# Check if the XXX-info.json file exists
 				info_file = os.path.join(item_path, info_file_name)
 				if os.path.isfile(info_file):
-					logger.debug(f"plugin info {info_file}")
+					logger.debug(f"collect info: {info_file}")
 					with open(info_file) as f:
-						item_info = json.load(f)
-					item_list.append({ "info":item_info, "path":item_path })
+						item_info: ItemInfoDict = json.load(f)
+					item_list.append({ "info": item_info, "path": item_path })
 		return item_list
 
-	def enum_plugins(self) -> list:
+	def enum_plugins(self) -> list[CollectInfoDict]:
 		"""Reads the plugin-info.json config JSON from each plugin folder. Excludes the base plugin."""
 		# Iterate over all plugin folders
 		plugins_list = self._collect_info("plugins", "plugin-info.json")
 		return plugins_list
 
-	def enum_datasources(self) -> list:
+	def enum_datasources(self) -> list[CollectInfoDict]:
 		"""Reads the datasource-info.json config JSON from each datasource folder. Excludes the base datasource."""
 		# Iterate over all plugin folders
 		datasources_list = self._collect_info("datasources", "datasource-info.json")
 		return datasources_list
 
-	def _resolve(self, info_path:str, info: dict) -> Any|None:
-		info_id = info.get("id")
+	def _resolve(self, info_path:str, info: ItemInfoDict) -> Any|None:
+		info_id = cast(str, info.get("id"))
 		info_file = cast(str, info.get("file"))
 		info_module = cast(str, info.get("module"))
 		info_class = cast(str, info.get("class"))
@@ -603,7 +625,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			logger.error(f"Failed to import module '{info_module}': {e}")
 			return None
 
-	def create_plugin(self, info: dict) -> Any|None:
+	def create_plugin(self, info: CollectInfoDict) -> Any|None:
 		info_info = info["info"]
 		info_path = cast(str, info["path"])
 		info_id = info_info.get("id")
@@ -616,7 +638,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			return plugin_class(info_id, info_name)
 		return None
 
-	def load_plugins(self, infos: list[dict]) -> dict:
+	def load_plugins(self, infos: list[CollectInfoDict]) -> dict[str, Any]:
 		"""Take the result of enum_plugins() and instantiate the plugin objects."""
 		plugin_map = {}
 		for info in infos:
@@ -628,7 +650,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			pass
 		return plugin_map
 	
-	def create_datasource(self, info: dict) -> DataSource|None:
+	def create_datasource(self, info: CollectInfoDict) -> DataSource|None:
 		info_info = info["info"]
 		info_path = info["path"]
 		info_id = info_info.get("id")
@@ -641,7 +663,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			return ds_class(info_id, info_name)
 		return None
 
-	def load_datasources(self, infos: list[dict]) -> dict:
+	def load_datasources(self, infos: list[CollectInfoDict]) -> dict[str, Any]:
 		"""Take the result of enum_datasources() and instantiate the datasource objects."""
 		datasource_map = {}
 		for info in infos:
@@ -653,7 +675,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 				datasource_map[info_id] = datasource
 		return datasource_map
 
-	def load_blueprints(self, infos: list[dict]) -> dict:
+	def load_blueprints(self, infos: list[CollectInfoDict]) -> dict[str, Any]:
 		"""Take the result of enum_X() and resolve the blueprints."""
 		blueprint_map = {}
 		for info in infos:
