@@ -277,7 +277,7 @@ class Wpotd(DataSource, MediaList, MediaRender):
 				self.logger.warning("'{self.name}' SVG format is not supported by Pillow. Skipping image download.")
 				raise RuntimeError("'{self.name}' Unsupported image format: SVG.")
 
-			response = requests.get(url, headers=self.HEADERS, timeout=10)
+			response = requests.get(url, headers=HEADERS, timeout=10)
 			response.raise_for_status()
 			return Image.open(BytesIO(response.content))
 		except UnidentifiedImageError as e:

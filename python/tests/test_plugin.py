@@ -57,7 +57,6 @@ class TestPlugins(unittest.TestCase):
 	def run_slide_show(self, track:PlaylistSchedule, dsm: DataSourceManager, timeout=10):
 		plugin = SlideShow("slide-show", "Slide Show Plugin")
 		cm = create_configuration_manager()
-		plugin.cm = cm
 		scm = cm.settings_manager()
 		stm = cm.static_manager()
 		display = RecordingTask("FakeDisplay")

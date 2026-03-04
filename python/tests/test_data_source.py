@@ -178,7 +178,8 @@ class TestDataSources(unittest.TestCase):
 			for name, ds in sources.items():
 				retrieved = dsm.get_source(name)
 				self.assertIsNotNone(retrieved)
-				self.assertEqual(retrieved.name, ds.name)
+				if retrieved is not None:
+					self.assertEqual(retrieved.name, ds.name)
 			nonexistent = dsm.get_source("nonexistent-source")
 			self.assertIsNone(nonexistent)
 		finally:
