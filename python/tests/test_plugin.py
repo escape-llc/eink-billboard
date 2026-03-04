@@ -6,8 +6,6 @@ from time import sleep, time
 import unittest
 import logging
 
-from python.task.async_http_worker_pool import AsyncHttpWorkerPool
-
 from ..model.time_of_day import TimeOfDay
 from ..datasources.comic.comic_feed import ComicFeed, ComicFeedAsync
 from ..datasources.data_source import DataSource, DataSourceManager
@@ -20,6 +18,7 @@ from ..model.schedule import PlaylistSchedule, PlaylistScheduleData
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..plugins.slide_show.slide_show import SlideShow, SlideShowAsync
 from ..plugins.plugin_base import PluginExecutionContext, PluginProtocol
+from ..task.async_http_worker_pool import AsyncHttpWorkerPool
 from ..task.playlist_layer import NextTrack
 from ..task.timer import IProvideTimer
 from ..task.future_source import FutureSource, SubmitFuture
