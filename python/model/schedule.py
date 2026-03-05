@@ -1,4 +1,4 @@
-from typing import Any, Generator, Sequence, TypeVar, Protocol, runtime_checkable
+from typing import Any, Generator, Literal, Sequence, TypeVar, Protocol, TypedDict, runtime_checkable
 from datetime import datetime, timedelta
 
 T = TypeVar('T')
@@ -65,7 +65,30 @@ class Playlist:
 	def validate(self):
 		return None
 
-def generate_trigger_time(now: datetime, time: dict[str,Any], include_now: bool = False) -> Generator[datetime, None, None]:
+type TimeTriggerType = Literal["hourly", "hourofday", "specific"]
+type DayTriggerType = Literal["dayofweek", "dayofmonth", "dayandmonth"]
+class TimeTriggerDict(TypedDict):
+	type: TimeTriggerType
+	minutes: list[int]
+	hours: list[int]
+class TimeTriggerSpecificDict(TypedDict):
+	type: TimeTriggerType
+	minute: int
+	hour: int
+type TimeTriggers = TimeTriggerDict | TimeTriggerSpecificDict
+class DayTriggerDict(TypedDict):
+	type: DayTriggerType
+	days: list[int]
+class DayTriggerSpecificDict(TypedDict):
+	type: DayTriggerType
+	day: int
+	month: int
+type DayTriggers = DayTriggerDict | DayTriggerSpecificDict
+class TriggerDict(TypedDict):
+	time: TimeTriggers
+	day: DayTriggers
+
+def generate_trigger_time(now: datetime, time: TimeTriggers, include_now: bool = False) -> Generator[datetime, None, None]:
 	"""
 	Yield the datetimes that match the given time trigger configuration based on the target time.
 
@@ -114,7 +137,7 @@ def generate_trigger_time(now: datetime, time: dict[str,Any], include_now: bool 
 		case None:
 			pass
 	pass
-def generate_schedule(now: datetime, trigger: dict[str,Any], include_now: bool = False) -> Generator[datetime, None, None]:
+def generate_schedule(now: datetime, trigger: TriggerDict, include_now: bool = False) -> Generator[datetime, None, None]:
 	"""
 	Run through the trigger and generate the next trigger time(s) based on the current time.
 	Generates for the current day only!
@@ -180,7 +203,7 @@ class TimerTaskTask:
 		return retv
 	pass
 class TimerTaskItem(ScheduleItemBase):
-	def __init__(self, id: str, name: str, enabled: bool, desc: str, task: TimerTaskTask, trigger: dict):
+	def __init__(self, id: str, name: str, enabled: bool, desc: str, task: TimerTaskTask, trigger: TriggerDict):
 		if id is None:
 			raise ValueError("id cannot be None")
 		if name is None:
