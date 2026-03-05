@@ -23,7 +23,8 @@ from ..task.playlist_layer import NextTrack
 from ..task.timer import IProvideTimer
 from ..task.future_source import FutureSource, SubmitFuture
 from ..task.message_router import MessageRouter, Route
-from ..task.messages import BasicMessage, MessageSink, QuitMessage
+from ..task.messages import BasicMessage, QuitMessage
+from ..task.protocols import MessageSink
 from .utils import RecordingTask, ScaledTimeOfDay, ScaledTimerThreadService, create_configuration_manager, save_images
 
 class DebugMessageSink(MessageSink):

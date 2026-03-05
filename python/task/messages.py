@@ -1,8 +1,9 @@
-from typing import Any, Protocol, runtime_checkable
+from concurrent.futures import Future
+import threading
+from typing import Any
 from dataclasses import dataclass
 from datetime import datetime
 
-from ..model.configuration_manager import ConfigurationManager
 from ..model.service_container import IServiceProvider
 
 @dataclass(frozen=True, slots=True)
@@ -32,13 +33,6 @@ class BasicMessage:
 				if not isinstance(val, int):
 					raise TypeError(f"Field '{field_name}' must be an int")
 
-
-@runtime_checkable
-class MessageSink(Protocol):
-	"""Ability to accept messages."""
-	def accept(self, msg: BasicMessage):
-		pass
-
 @dataclass(frozen=True, slots=True)
 class QuitMessage(BasicMessage):
 	"""Message to signal the thread to quit."""
@@ -67,32 +61,17 @@ class StopEvent(BasicMessage):
 	pass
 
 @dataclass(frozen=True, slots=True)
-class ConfigureOptions:
-	"""Options for configuring tasks."""
-	cm: ConfigurationManager
-	isp: IServiceProvider
-
-@dataclass(frozen=True, slots=True)
-class ConfigureEvent(MessageWithContent[ConfigureOptions]):
-	"""Event to configure tasks with given options."""
-	token: str
-	notifyTo: MessageSink|None = None
-	def notify(self, error: bool = False, content = None):
-		if self.notifyTo is not None:
-			self.notifyTo.accept(ConfigureNotify(self.timestamp, self.token, error, content))
-
-@dataclass(frozen=True, slots=True)
-class ConfigureNotify(BasicMessage):
-	token: str
-	error: bool
-	content: Any|None = None
-
-@dataclass(frozen=True, slots=True)
 class FutureCompleted(BasicMessage):
 	plugin_name: str
 	token: str
 	result: Any|None = None
 	error: Any|None = None
+
+@dataclass(frozen=True, slots=True)
+class AsyncTaskCompleted(BasicMessage):
+	token: str
+	fut: Future
+	donev: threading.Event
 
 @dataclass(frozen=True, slots=True)
 class PluginReceive(BasicMessage):

@@ -1,5 +1,6 @@
 import queue
-from .messages import BasicMessage, MessageSink
+from .messages import BasicMessage
+from .protocols import MessageSink
 
 class TelemetrySink(MessageSink):
 	def __init__(self):

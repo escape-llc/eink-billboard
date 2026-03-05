@@ -3,7 +3,8 @@ import threading
 import queue
 import logging
 from typing import Any, Callable, Type
-from .messages import MessageSink, BasicMessage, QuitMessage
+from .messages import BasicMessage, QuitMessage
+from .protocols import MessageSink
 
 class CoreTask(threading.Thread, MessageSink):
 	"""
@@ -47,6 +48,9 @@ class CoreTask(threading.Thread, MessageSink):
 		"""Default QuitMessage handling: mark stopped and log."""
 		self.stopped.set()
 		self.logger.info(f"'{self.name}' Quit.")
+
+	def is_stopped(self):
+		return self.msg_queue.is_shutdown == True or self.stopped.is_set()
 
 	def accept(self, msg: BasicMessage):
 		if self.msg_queue.is_shutdown:

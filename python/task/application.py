@@ -1,7 +1,9 @@
 import threading
 from datetime import datetime
 
-from .messages import ConfigureNotify, MessageSink, StartEvent, StartOptions, StopEvent, QuitMessage, ConfigureOptions, ConfigureEvent
+from .messages import StartEvent, StartOptions, StopEvent, QuitMessage
+from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
+from .protocols import MessageSink, IProvideTimer
 from .display import Display, DisplaySettings
 from .basic_task import DispatcherTask, QuitMessage
 from .message_router import MessageRouter, Route

@@ -5,6 +5,7 @@ from typing import Any, Protocol, runtime_checkable
 from PIL import Image
 
 from ..model.service_container import IServiceProvider
+from ..task.protocols import IRequireShutdown
 
 class DataSource:
 	"""
@@ -116,7 +117,7 @@ class MediaRenderAsync(Protocol):
 	async def render_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> MediaRenderResult | None:
 		...
 
-class DataSourceManager:
+class DataSourceManager(IRequireShutdown):
 	"""
 	Maintains and manages multiple data sources.
 	Manages execution of Futures for data sources.

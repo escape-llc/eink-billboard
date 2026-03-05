@@ -1,5 +1,6 @@
 from .configuration_manager import ConfigurationManager
-from ..task.messages import BasicMessage, ConfigurationWatcherEvent, MessageSink
+from ..task.messages import BasicMessage, ConfigurationWatcherEvent
+from ..task.protocols import MessageSink
 
 class ConfigurationManagerEvictionSink(MessageSink):
 	def __init__(self, cm: ConfigurationManager):

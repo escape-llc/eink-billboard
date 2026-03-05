@@ -6,7 +6,8 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 from .time_of_day import TimeOfDay
-from ..task.messages import ConfigurationWatcherEvent, MessageSink
+from ..task.messages import ConfigurationWatcherEvent
+from ..task.protocols import MessageSink
 
 logger = logging.getLogger(__name__)
 

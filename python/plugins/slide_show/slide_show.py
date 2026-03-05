@@ -9,10 +9,10 @@ from ...model.schedule import PlaylistSchedule
 from ...model.time_of_day import TimeOfDay
 from ...task.display import DisplayImage
 from ...task.message_router import MessageRouter
-from ...task.protocols import CancelToken, SubmitFuture, SubmitResult
+from ...task.protocols import CancelToken, SubmitFuture, SubmitResult, MessageSink
 from ...task.playlist_layer import NextTrack
 from ...task.timer import IProvideTimer
-from ...task.messages import BasicMessage, FutureCompleted, MessageSink, TimerExpired
+from ...task.messages import BasicMessage, FutureCompleted, TimerExpired
 
 class SlideShowAsync(PluginAsync):
 	def __init__(self, id, name):

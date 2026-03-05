@@ -2,9 +2,15 @@ from concurrent.futures import Future
 from typing import Any, Callable, Protocol, runtime_checkable
 from datetime import timedelta
 
-from .messages import MessageSink, BasicMessage, TimerExpired
+from .messages import BasicMessage, TimerExpired
 
 type CreateTimerResult[T] = tuple[Future[TimerExpired[T]|None], Callable[[], None]]
+
+@runtime_checkable
+class MessageSink(Protocol):
+	"""Ability to accept messages."""
+	def accept(self, msg: BasicMessage):
+		...
 
 @runtime_checkable
 class IProvideTimer(Protocol):

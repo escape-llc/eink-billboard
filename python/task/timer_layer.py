@@ -13,8 +13,9 @@ from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..plugins.plugin_base import PluginExecutionContext, PluginProtocol
 from ..task.basic_task import DispatcherTask
 from ..task.display import DisplaySettings
-from ..task.messages import ConfigureEvent, FutureCompleted, MessageSink, PluginReceive, QuitMessage, Telemetry, TimerExpired
-from ..task.protocols import IRequireShutdown
+from ..task.messages import FutureCompleted, PluginReceive, QuitMessage, Telemetry, TimerExpired
+from ..task.protocols import IProvideTimer, SubmitFuture, IRequireShutdown, MessageSink
+from ..task.configure_event import ConfigureEvent
 from ..task.playlist_layer import NextTrack, StartPlayback
 from ..task.future_source import FutureSource, SubmitFuture
 from ..task.message_router import MessageRouter

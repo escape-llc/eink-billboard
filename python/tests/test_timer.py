@@ -1,9 +1,9 @@
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 import unittest
 
 from ..model.time_of_day import SystemTimeOfDay
-from ..task.messages import BasicMessage, MessageSink, TimerExpired
+from ..task.messages import BasicMessage, TimerExpired
+from ..task.protocols import MessageSink
 from ..task.timer_tick import TickMessage
 from ..task.timer import Timer, TimerThreadService
 

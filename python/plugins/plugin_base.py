@@ -101,6 +101,7 @@ class PluginProtocol(Protocol):
 	def stop(self, context: PluginExecutionContext, track: TrackType) -> None:
 		...
 
+@runtime_checkable
 class PluginAsync(Protocol):
 	@property
 	def id(self) -> str:
@@ -108,5 +109,5 @@ class PluginAsync(Protocol):
 	@property
 	def name(self) -> str:
 		...
-	async def task_async(self, context: PluginExecutionContext, track: TrackType, done: threading.Event) -> None:
+	async def task_async(self, context: PluginExecutionContext, track: TrackType, done: threading.Event) -> BasicMessage|None:
 		...

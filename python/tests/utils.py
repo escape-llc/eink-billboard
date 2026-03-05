@@ -9,7 +9,8 @@ from pathvalidate import sanitize_filename
 
 from ..model.time_of_day import TimeOfDay
 from ..task.basic_task import DispatcherTask
-from ..task.messages import BasicMessage, MessageSink
+from ..task.messages import BasicMessage
+from ..task.protocols import MessageSink
 from ..task.display import DisplayImage
 from ..task.timer import TimerThreadService
 from ..model.configuration_manager import ConfigurationManager

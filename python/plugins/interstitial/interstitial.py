@@ -7,9 +7,9 @@ from ...datasources.data_source import DataSourceExecutionContext, DataSourceMan
 from ...model.schedule import TimerTaskItem
 from ...model.time_of_day import TimeOfDay
 from ...task.display import DisplayImage, PriorityImage
-from ...task.protocols import CancelToken, SubmitFuture
+from ...task.protocols import CancelToken, SubmitFuture, MessageSink
 from ...task.message_router import MessageRouter
-from ...task.messages import BasicMessage, FutureCompleted, MessageSink, TimerExpired
+from ...task.messages import BasicMessage, FutureCompleted, TimerExpired
 from ...task.playlist_layer import NextTrack
 from ...task.timer import IProvideTimer
 from ..plugin_base import PluginAsync, PluginExecutionContext, TrackType, PluginProtocol

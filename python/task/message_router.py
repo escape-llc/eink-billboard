@@ -3,7 +3,7 @@ import threading
 import logging
 from typing import List
 
-from .basic_task import MessageSink
+from .protocols import MessageSink
 from .messages import BasicMessage
 
 class Route:

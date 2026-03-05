@@ -12,7 +12,9 @@ from ..display.display_base import DisplayBase
 from ..model.configuration_manager import ConfigurationManager
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..task.basic_task import DispatcherTask, exclude_from_dispatch
-from ..task.messages import BasicMessage, ConfigureEvent, QuitMessage, TimerExpired
+from ..task.messages import BasicMessage, QuitMessage, TimerExpired
+from ..task.configure_event import ConfigureEvent
+from ..task.protocols import MessageSink, IProvideTimer
 from ..task.protocols import CreateTimerResult, IProvideTimer
 from ..task.timer import TimerThreadService
 from .message_router import MessageRouter

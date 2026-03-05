@@ -7,8 +7,8 @@ import logging
 from typing import Callable
 
 from ..model.time_of_day import TimeOfDay
-from .protocols import CreateTimerResult, IProvideTimer
-from .messages import MessageSink, TimerExpired
+from .protocols import CreateTimerResult, IProvideTimer, MessageSink
+from .messages import TimerExpired
 from .timer_tick import TickMessage
 
 class Timer(ABC):
@@ -31,7 +31,7 @@ class Timer(ABC):
 		return self.triggered
 	@abstractmethod
 	def timer_expired(self):
-		pass
+		...
 
 class TimerThreadService(IProvideTimer):
 	def __init__(self, timebase: TimeOfDay, duration: Callable[[timedelta], float] = lambda dt: dt.total_seconds()):
@@ -85,4 +85,3 @@ class TimerThreadService(IProvideTimer):
 				fut.set_result(None)
 		timer.start()
 		return (fut, __cancel_all)
-	pass

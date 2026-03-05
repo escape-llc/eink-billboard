@@ -13,12 +13,14 @@ from ..model.time_of_day import TimeOfDay
 from ..plugins.plugin_base import PluginExecutionContext, PluginProtocol, TrackType
 from ..task.display import DisplaySettings
 from ..task.timer import IProvideTimer
-from ..task.messages import BasicMessage, ConfigureEvent, ConfigureOptions, MessageSink, QuitMessage, Telemetry
+from ..task.messages import BasicMessage, QuitMessage, Telemetry
+from ..task.protocols import MessageSink
+from ..task.configure_event import ConfigureEvent, ConfigureOptions
 from ..task.playlist_layer import PlaylistLayer, StartPlayback
 from ..task.message_router import MessageRouter, Route
 from ..task.future_source import FutureSource
 from ..task.timer_layer import TimerLayer
-from ..task.protocols import IProvideTimer, IRequireShutdown
+from ..task.protocols import IProvideTimer, IRequireShutdown, MessageSink
 from .utils import RecordingTask, ScaledTimeOfDay, ScaledTimerThreadService, create_configuration_manager, save_images
 
 class TestPlugin(PluginProtocol):

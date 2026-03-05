@@ -3,8 +3,7 @@ from concurrent.futures import Executor, Future
 import logging
 import threading
 
-from .protocols import FutureContinuation, FutureFunction, FutureResult, IRequireShutdown, SubmitFuture, SubmitResult
-from .messages import MessageSink
+from .protocols import FutureContinuation, FutureFunction, FutureResult, IRequireShutdown, SubmitFuture, SubmitResult, MessageSink
 
 class FutureSource(SubmitFuture, IRequireShutdown):
 	def __init__(self, owner: str, completion_port:MessageSink, executor:Executor) -> None:
