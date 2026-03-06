@@ -1,0 +1,30 @@
+name: CI Tests (uv + Container)
+
+on: [push, pull_request]
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    # Run all steps inside the specified container
+    container:
+      image: python:3.13.7-slim
+
+    steps:
+      - name: Checkout code
+        uses: [actions/checkout@v4](https://github.com)
+
+      - name: Install uv
+        uses: [astral-sh/setup-uv@v5](https://github.com/marketplace/actions/astral-sh-setup-uv)
+        with:
+          # Enable automatic caching for faster runs
+          enable-cache: true
+          # Explicitly set the python version for uv to use
+          python-version: "3.13.7"
+
+      - name: Install dependencies
+        # 'uv sync' ensures your environment matches uv.lock exactly
+        run: uv sync --frozen
+
+      - name: Run unittests
+        # Use 'uv run' to execute within the managed virtual environment
+        run: uv run python -m unittest discover tests
