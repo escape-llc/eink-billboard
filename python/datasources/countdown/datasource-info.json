@@ -2,7 +2,7 @@
 	"id": "countdown",
 	"name": "countdown",
 	"version": "0.0.1",
-	"class": "Countdown",
+	"class": "CountdownAsync",
 	"file": "countdown.py",
 	"module": "python.datasources.countdown.countdown",
 	"description": "Countdown to specfic date/time.",

@@ -2,7 +2,7 @@
 	"id": "clock",
 	"name": "Clock Data Source",
 	"version": "0.0.1",
-	"class": "Clock",
+	"class": "ClockAsync",
 	"file": "clock.py",
 	"module": "python.datasources.clock.clock",
 	"description": "A clock with various faces.",

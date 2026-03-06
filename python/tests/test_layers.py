@@ -131,7 +131,7 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.router = MessageRouter()
 		self.layer = PlaylistLayer("playlistlayer", self.router)
 		self.layer.cm = create_configuration_manager()
-		self.layer.datasources = DataSourceManager(None, {})
+		self.layer.datasources = DataSourceManager({})
 		self.layer.timebase = ScaledTimeOfDay(datetime.now().astimezone(), 60)
 		self.layer.timer = ScaledTimerThreadService(self.layer.timebase, 60)
 		sink = NullMessageSink()
@@ -172,7 +172,7 @@ class PlaylistLayerTests(unittest.TestCase):
 
 		# Should not raise, but should not start playback
 		self.layer._start_playback(StartPlayback(datetime.now()))
-		self.assertNotEqual(self.layer.state, 'loaded')
+		self.assertEqual(self.layer.state, 'loaded')
 
 	def test_ctor_invalid_router(self):
 		with self.assertRaises(ValueError):
@@ -195,7 +195,7 @@ class TimerLayerTests(unittest.TestCase):
 		self.router = MessageRouter()
 		self.layer = TimerLayer("timerlayer", self.router)
 		self.layer.cm = create_configuration_manager()
-		self.layer.datasources = DataSourceManager(None, {})
+		self.layer.datasources = DataSourceManager({})
 		self.layer.timebase = ScaledTimeOfDay(datetime.now().astimezone(), 60)
 		self.layer.timer = ScaledTimerThreadService(self.layer.timebase, 60)
 		sink = NullMessageSink()

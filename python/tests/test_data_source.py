@@ -1,17 +1,16 @@
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import cast
 import unittest
 
-from ..datasources.countdown.countdown import Countdown, CountdownAsync
-from ..datasources.year_progress.year_progress import YearProgress, YearProgressAsync
-from ..datasources.clock.clock import Clock, ClockAsync
-from ..datasources.openai_image.openai_image import OpenAI, OpenAIAsync
-from ..datasources.comic.comic_feed import ComicFeed, ComicFeedAsync
-from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager, MediaItem, MediaItemAsync, MediaList, MediaListAsync, MediaRenderAsync, MediaRender, MediaRenderResult
-from ..datasources.wpotd.wpotd import Wpotd, WpotdAsync
-from ..datasources.image_folder.image_folder import ImageFolder, ImageFolderAsync
-from ..datasources.newspaper.newspaper import Newspaper, NewspaperAsync
+from ..datasources.countdown.countdown import CountdownAsync
+from ..datasources.year_progress.year_progress import YearProgressAsync
+from ..datasources.clock.clock import ClockAsync
+from ..datasources.openai_image.openai_image import OpenAIAsync
+from ..datasources.comic.comic_feed import ComicFeedAsync
+from ..datasources.data_source import DataSourceExecutionContext, MediaItemAsync, MediaListAsync, MediaRenderAsync
+from ..datasources.wpotd.wpotd import WpotdAsync
+from ..datasources.image_folder.image_folder import ImageFolderAsync
+from ..datasources.newspaper.newspaper import NewspaperAsync
 from ..model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool
@@ -30,206 +29,6 @@ def create_data_source_context(dsid:str, schedule_ts: datetime = datetime.now())
 	root.add_service(DatasourceConfigurationManager, dscm)
 	resolution = (800,480)
 	return DataSourceExecutionContext(root, resolution, schedule_ts)
-
-class TestDataSources(unittest.TestCase):
-	def run_datasource(self, ds, params, image_size, image_count, timeout = 5):
-		self.assertIsInstance(ds, MediaList)
-		self.assertIsInstance(ds, MediaRender)
-		tpe = ThreadPoolExecutor(max_workers=2)
-		ds.set_executor(tpe)
-		try:
-			folder = test_output_path_for(f"ds-{ds.id}")
-			dsec = create_data_source_context(ds.id)
-			future_state = cast(MediaList, ds).open(dsec, params)
-			state:list = future_state.result(timeout=5)
-			self.assertTrue(len(state) > 0)
-			images = []
-			ix = 0
-			while len(state) > 0:
-				item = state[0]
-				state.pop(0)
-				future_img = cast(MediaRender, ds).render(dsec, params, item)
-				result = future_img.result(timeout=timeout)
-				if result is None:
-					self.assertIsNotNone(result)
-				else:
-					images.append(result)
-					save_image(result.image, folder, ix, f"item_{ix}")
-				ix += 1
-			self.assertEqual(len(images), image_count)
-		finally:
-			ds.set_executor(None)
-			tpe.shutdown(wait=True, cancel_futures=True)
-	def run_datasource2(self, ds, params, image_size, image_count, timeout = 5):
-		self.assertIsInstance(ds, MediaItem)
-		self.assertIsInstance(ds, MediaRender)
-		tpe = ThreadPoolExecutor(max_workers=2)
-		ds.set_executor(tpe)
-		try:
-			folder = test_output_path_for(f"ds-{ds.id}")
-			dsec = create_data_source_context(ds.id)
-			future_state = cast(MediaItem, ds).open(dsec, params)
-			state = future_state.result(timeout=5)
-			self.assertIsNotNone(state)
-			images = []
-			ix = 0
-			item = state
-			future_img = cast(MediaRender, ds).render(dsec, params, item)
-			result = future_img.result(timeout=timeout)
-			if result is None:
-				self.assertIsNotNone(result)
-			else:
-				images.append(result)
-				save_image(result.image, folder, ix, f"item_{ix}")
-			self.assertEqual(len(images), image_count)
-		finally:
-			ds.set_executor(None)
-			tpe.shutdown(wait=True, cancel_futures=True)
-	def test_image_folder(self):
-		ds = ImageFolder("image-folder", "image-folder")
-		params = {
-			"folder": "python/tests/images"
-		}
-		self.run_datasource(ds, params, (800, 480), 9)
-	def test_comic_feed(self):
-		ds = ComicFeed("comic-feed", "comic-feed")
-		params = {
-			"comic": "XKCD",
-			"titleCaption": True,
-			"fontSize": 12
-		}
-		self.run_datasource(ds, params, (800, 480), 4)
-	def test_wikipedia(self):
-		ds = Wpotd("wpotd", "wpotd")
-		params = {
-			"shrinkToFit": True
-		}
-		self.run_datasource(ds, params, (800, 480), 1)
-	def test_newspaper(self):
-		ds = Newspaper("newspaper", "newspaper")
-		params = {
-			"slug": "ny_nyt"
-		}
-		self.run_datasource(ds, params, (700, 1166), 1)
-	def test_clock_gradient(self):
-		ds = Clock("clock-gradient", "clock")
-		params = {
-			"clockFace": "Gradient Clock",
-			"primaryColor": "#db3246",
-			"secondaryColor": "#000000"
-		}
-		self.run_datasource2(ds, params, (800, 480), 1)
-	def test_clock_digital(self):
-		ds = Clock("clock-digital", "clock")
-		params = {
-			"clockFace": "Digital Clock",
-			"primaryColor": "#ffffff",
-			"secondaryColor": "#000000"
-		}
-		self.run_datasource2(ds, params, (800, 480), 1)
-	def test_clock_word(self):
-		ds = Clock("clock-word", "clock")
-		params = {
-			"clockFace": "Word Clock",
-			"primaryColor": "#000000",
-			"secondaryColor": "#ffffff"
-		}
-		self.run_datasource2(ds, params, (800, 480), 1)
-	def test_clock_divided(self):
-		ds = Clock("clock-divided", "clock")
-		params = {
-			"clockFace": "Divided Clock",
-			"primaryColor": "#20b7ae",
-			"secondaryColor": "#ffffff"
-		}
-		self.run_datasource2(ds, params, (800, 480), 1)
-	def test_countdown(self):
-		ds = Countdown("countdown", "countdown")
-		params = {
-			"targetDate": "2027-01-01",
-			"title": "New Year Countdown"
-		}
-		self.run_datasource2(ds, params, (800, 480), 1)
-	def test_year_progress(self):
-		ds = YearProgress("year-progress", "year-progress")
-		params = {
-			"title": "New Year Countdown"
-		}
-		self.run_datasource2(ds, params, (800, 480), 1)
-
-	@unittest.skip("OpenAI Image tests cost money!")
-	def test_openai(self):
-		ds = OpenAI("openai-image", "openai-image")
-		params = {
-			"prompt": "an electronic ink billboard in a futuristic setting",
-			"imageModel": "dall-e-3",
-		}
-		self.run_datasource(ds, params, (1024, 1792), 1, timeout=60)
-	def test_datasource_manager(self):
-		sources = {
-			"image-folder": ImageFolder("image-folder", "image-folder"),
-			"comic-feed": ComicFeed("comic-feed", "comic-feed"),
-			"wpotd": Wpotd("wpotd", "wpotd"),
-			"newspaper": Newspaper("newspaper", "newspaper")
-		}
-		dsm = ds_mgr = None
-		try:
-			dsm = ds_mgr = DataSourceManager(None, sources)
-			for name, ds in sources.items():
-				retrieved = dsm.get_source(name)
-				self.assertIsNotNone(retrieved)
-				if retrieved is not None:
-					self.assertEqual(retrieved.name, ds.name)
-			nonexistent = dsm.get_source("nonexistent-source")
-			self.assertIsNone(nonexistent)
-		finally:
-			if dsm is not None:
-				dsm.shutdown()
-
-	def test_image_folder_raises_without_executor(self):
-		dsec = create_data_source_context("image-folder")
-		ds = ImageFolder("image-folder", "image-folder")
-		params = {"folder": "python/tests/images"}
-		with self.assertRaises(RuntimeError):
-			ds.open(dsec, params)
-		with self.assertRaises(RuntimeError):
-			ds.render(dsec, params, None)
-
-	def test_comic_feed_raises_without_executor(self):
-		dsec = create_data_source_context("comic-feed")
-		ds = ComicFeed("comic-feed", "comic-feed")
-		params = {"comic": "XKCD", "titleCaption": True, "fontSize": 12}
-		with self.assertRaises(RuntimeError):
-			ds.open(dsec, params)
-		with self.assertRaises(RuntimeError):
-			ds.render(dsec, params, None)
-
-	def test_wpotd_raises_without_executor(self):
-		dsec = create_data_source_context("wpotd")
-		ds = Wpotd("wpotd", "wpotd")
-		params = {"shrinkToFit": True}
-		with self.assertRaises(RuntimeError):
-			ds.open(dsec, params)
-		with self.assertRaises(RuntimeError):
-			ds.render(dsec, params, None)
-
-	def test_newspaper_raises_without_executor(self):
-		dsec = create_data_source_context("newspaper")
-		ds = Newspaper("newspaper", "newspaper")
-		params = {"slug": "ny_nyt"}
-		with self.assertRaises(RuntimeError):
-			ds.open(dsec, params)
-		with self.assertRaises(RuntimeError):
-			ds.render(dsec, params, None)
-
-	def test_openai_raises_without_executor(self):
-		dsec = create_data_source_context("openai-image")
-		ds = OpenAI("openai-image", "openai-image")
-		params = {"prompt": "test", "imageModel": "dall-e-3"}
-		with self.assertRaises(RuntimeError):
-			ds.open(dsec, params)
-		with self.assertRaises(RuntimeError):
-			ds.render(dsec, params, None)
 
 class TestAsyncDataSources(unittest.TestCase):
 	def setUp(self):

@@ -2,7 +2,7 @@
 	"id": "openai-image",
 	"name": "OpenAI Image Datasource",
 	"version": "0.0.1",
-	"class": "OpenAI",
+	"class": "OpenAIAsync",
 	"file": "openai_image.py",
 	"module": "python.datasources.openai_image.openai_image",
 	"description": "OpenAI Gen-AI images.",

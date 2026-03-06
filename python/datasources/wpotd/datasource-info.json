@@ -2,7 +2,7 @@
 	"id": "wpotd",
 	"name": "Wikipedia Picture-of-the-Day",
 	"version": "0.0.1",
-	"class": "Wpotd",
+	"class": "WpotdAsync",
 	"file": "wpotd.py",
 	"module": "python.datasources.wpotd.wpotd",
 	"description": "A Wikipedia PotD downloader.",

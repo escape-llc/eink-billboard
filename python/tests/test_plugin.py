@@ -90,7 +90,7 @@ class TestAsyncPlugins(unittest.TestCase):
 			content=plugin_data
 		)
 		dsmap:dict[str,DataSource] = {"image-folder": ImageFolderAsync("image-folder", "image-folder")}
-		datasources = DataSourceManager(None, dsmap)
+		datasources = DataSourceManager(dsmap)
 		display = self.run_slide_show(track, datasources)
 		self.assertEqual(len(display.msgs), 9, "display.msgs failed")
 	def test_slide_show_with_comic(self):
@@ -108,7 +108,7 @@ class TestAsyncPlugins(unittest.TestCase):
 			content=plugin_data
 		)
 		dsmap:dict[str,DataSource] = {"comic-feed": ComicFeedAsync("comic-feed", "comic-feed")}
-		datasources = DataSourceManager(None, dsmap)
+		datasources = DataSourceManager(dsmap)
 		display = self.run_slide_show(track, datasources, 20)
 		self.assertEqual(len(display.msgs), 4, "display.msgs failed")
 	def test_slide_show_with_comic_cancel(self):
@@ -126,7 +126,7 @@ class TestAsyncPlugins(unittest.TestCase):
 			content=plugin_data
 		)
 		dsmap:dict[str,DataSource] = {"comic-feed": ComicFeedAsync("comic-feed", "comic-feed")}
-		datasources = DataSourceManager(None, dsmap)
+		datasources = DataSourceManager(dsmap)
 		display = self.run_slide_show(track, datasources, 20, testCancel=True)
 		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
 	def test_slide_show_with_wpotd(self):
@@ -143,7 +143,7 @@ class TestAsyncPlugins(unittest.TestCase):
 			content=plugin_data
 		)
 		dsmap:dict[str,DataSource] = {"wpotd": WpotdAsync("wpotd", "wpotd")}
-		datasources = DataSourceManager(None, dsmap)
+		datasources = DataSourceManager(dsmap)
 		display = self.run_slide_show(track, datasources, 5)
 		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
 	def test_slide_show_with_newspaper(self):
@@ -161,7 +161,7 @@ class TestAsyncPlugins(unittest.TestCase):
 			content=plugin_data
 		)
 		dsmap:dict[str,DataSource] = {"newspaper": NewspaperAsync("newspaper", "newspaper")}
-		datasources = DataSourceManager(None, dsmap)
+		datasources = DataSourceManager(dsmap)
 		display = self.run_slide_show(track, datasources, 5)
 		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
 	@unittest.skip("OpenAI Image tests cost money!")
@@ -181,7 +181,7 @@ class TestAsyncPlugins(unittest.TestCase):
 			content=plugin_data
 		)
 		dsmap:dict[str,DataSource] = {"openai-image": OpenAIAsync("openai-image", "openai-image")}
-		datasources = DataSourceManager(None, dsmap)
+		datasources = DataSourceManager(dsmap)
 		display = self.run_slide_show(track, datasources, 61)
 		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
 	pass

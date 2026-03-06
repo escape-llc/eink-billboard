@@ -2,7 +2,7 @@
 	"id": "comic",
 	"name": "Comic Plugin",
 	"version": "0.0.1",
-	"class": "ComicFeed",
+	"class": "ComicFeedAsync",
 	"file": "comic_feed.py",
 	"module": "python.datasources.comic.comic_feed",
 	"description": "A comic downloader.",

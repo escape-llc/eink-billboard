@@ -1,16 +1,14 @@
-from concurrent.futures import Future
 from datetime import datetime
 import logging
 import os
 from pathlib import Path
 from typing import Any
-from PIL import Image
 import zoneinfo
 
 from ...plugins.plugin_base import RenderSession
 from ...utils.file_utils import path_to_file_url
 from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
-from ...datasources.data_source import DataSource, DataSourceExecutionContext, MediaItem, MediaItemAsync, MediaRender, MediaRenderAsync, MediaRenderResult
+from ...datasources.data_source import DataSource, DataSourceExecutionContext, MediaItemAsync, MediaRenderAsync, MediaRenderResult
 
 def generate_image(schedule_ts:datetime, stm: StaticConfigurationManager, dimensions, settings, display_config):
 	if display_config.get("orientation") == "portrait":
@@ -54,28 +52,3 @@ class YearProgressAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 		_, display_config = display_cob.get()
 		img = generate_image(dsec.timestamp, stm, dsec.dimensions, params, display_config)
 		return None if img is None else MediaRenderResult(image=img, title=f"Year Progress: {dsec.timestamp.year}")
-
-class YearProgress(DataSource, MediaItem, MediaRender):
-	def __init__(self, id: str, name: str):
-		super().__init__(id, name)
-		self.logger = logging.getLogger(__name__)
-	def open(self, dsec: DataSourceExecutionContext, params: dict[str, Any]) -> Future[Any]:
-		if self._es is None:
-			raise RuntimeError("Executor not set for DataSource")
-		def open_countdown():
-			return {}
-			pass
-		future = self._es.submit(open_countdown)
-		return future
-	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[MediaRenderResult | None]:
-		if self._es is None:
-			raise RuntimeError("Executor not set for DataSource")
-		scm = dsec.provider.required(SettingsConfigurationManager)
-		stm = dsec.provider.required(StaticConfigurationManager)
-		def render_countdown():
-			display_cob = scm.open("display")
-			_, display_config = display_cob.get()
-			img = generate_image(dsec.timestamp, stm, dsec.dimensions, params, display_config)
-			return None if img is None else MediaRenderResult(image=img, title=f"Year Progress: {dsec.timestamp.year}")
-		future = self._es.submit(render_countdown)
-		return future

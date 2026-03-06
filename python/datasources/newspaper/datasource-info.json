@@ -2,7 +2,7 @@
 	"id": "newspaper",
 	"name": "Newspaper Picture-of-the-Day",
 	"version": "0.0.1",
-	"class": "Newspaper",
+	"class": "NewspaperAsync",
 	"file": "newspaper.py",
 	"module": "python.datasources.newspaper.newspaper",
 	"description": "A Newspaper PotD downloader.",

@@ -126,7 +126,7 @@ class TimerLayer(DispatcherTask):
 				datasource_info = self.cm.enum_datasources()
 				datasources = self.cm.load_datasources(datasource_info)
 				self.logger.info(f"Datasources loaded: {list(datasources.keys())}")
-				self.datasources = DataSourceManager(None, datasources)
+				self.datasources = DataSourceManager(datasources)
 			else:
 				self.datasources = dsm
 			if dsm is None and isinstance(self.datasources, IRequireShutdown):

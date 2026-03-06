@@ -1,15 +1,11 @@
-from concurrent.futures import Future
-import io
 from typing import IO, Any
 from PIL import Image, ImageDraw, ImageFont
-import httpx
-import requests
 
 from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
 from ...task.async_http_worker_pool import client_var
 from ...utils.image_utils import stream_to_buffer
-from .comic_parser import get_items, get_items_async
-from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaListAsync, MediaRender, MediaRenderAsync, MediaRenderResult
+from .comic_parser import get_items_async
+from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult
 
 def _wrap_text(text, font, width):
 	lines = []
@@ -85,46 +81,3 @@ class ComicFeedAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		client = client_var.get()
 		buffer = await stream_to_buffer(client, item["image_url"])
 		return _compose_image(buffer, item, caption_font, width, height)
-	pass
-
-class ComicFeed(DataSource, MediaList, MediaRender):
-	def __init__(self, id: str, name: str):
-		super().__init__(id, name)
-	def open(self, dsec: DataSourceExecutionContext, params: dict[str, Any]) -> Future[list]:
-		if self._es is None:
-			raise RuntimeError("Executor not set for DataSource")
-		comic = params.get("comic")
-		def future_feed_download():
-			return get_items(comic)
-		future = self._es.submit(future_feed_download)
-		return future
-	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[MediaRenderResult | None]:
-		if self._es is None:
-			raise RuntimeError("Executor not set for DataSource")
-		def future_feed_image():
-			if state is None:
-				return None
-			img = self._generate_image(dsec, params, state)
-			return img
-		future = self._es.submit(future_feed_image)
-		return future
-	def _generate_image(self, context: DataSourceExecutionContext, params, item) -> MediaRenderResult | None:
-		scm = context.provider.required(SettingsConfigurationManager)
-		stm = context.provider.required(StaticConfigurationManager)
-		display_cob = scm.open("display")
-		_, display_settings = display_cob.get()
-		if display_settings is None:
-			raise ValueError("display settings is None")
-		dimensions = context.dimensions
-		is_caption = params.get("titleCaption") == "true"
-		caption_font_size = params.get("fontSize", 16)
-		if display_settings.get("orientation") == "vertical":
-			dimensions = dimensions[::-1]
-		width, height = dimensions
-		caption_font = stm.get_font("Jost", font_size=int(caption_font_size)) if is_caption else None
-		img = self._download_and_compose_image(item, caption_font, width, height)
-		return MediaRenderResult(image=img, title=item.get("title", "Comic"))
-	def _download_and_compose_image(self, item, caption_font, width, height):
-		response = requests.get(item["image_url"], stream=True)
-		response.raise_for_status()
-		return _compose_image(response.raw, item, caption_font, width, height)

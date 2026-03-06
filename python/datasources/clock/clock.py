@@ -3,10 +3,9 @@ from typing import Any
 import numpy as np
 import math
 from PIL import Image, ImageColor, ImageDraw, ImageFont
-from concurrent.futures import Future
 
 from ...model.configuration_manager import StaticConfigurationManager
-from ..data_source import DataSource, DataSourceExecutionContext, MediaItem, MediaItemAsync, MediaRender, MediaRenderAsync, MediaRenderResult
+from ..data_source import DataSource, DataSourceExecutionContext, MediaItemAsync, MediaRenderAsync, MediaRenderResult
 
 class ClockAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 	"""
@@ -47,48 +46,10 @@ class ClockAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 			self.logger.error(f"Failed to draw clock image: {str(e)}")
 		return None if img is None else MediaRenderResult(image=img, title=f"{dsec.timestamp.strftime('%H:%M:%S')}")
 
-class Clock(DataSource, MediaItem, MediaRender):
+class Clock:
 	"""
 	Data source that provides the current time.
 	"""
-	def __init__(self, id: str, name: str):
-		super().__init__(id, name)
-		self.logger = logging.getLogger(__name__)
-	def open(self, dsec: DataSourceExecutionContext, params:dict[str,Any]) -> Future[Any]:
-		clock_face = params.get("clockFace", "Gradient Clock")
-		primary_color = ImageColor.getcolor(params.get('primaryColor') or (255,255,255), "RGB")
-		secondary_color = ImageColor.getcolor(params.get('secondaryColor') or (0,0,0), "RGB")
-		fut = Future()
-		fut.set_result({
-			"clock_face": clock_face,
-			"primary_color": primary_color,
-			"secondary_color": secondary_color,
-		})
-		return fut
-	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[MediaRenderResult | None]:
-		img: Image.Image|None = None
-		try:
-			dimensions = dsec.dimensions
-			clock_face = state.get("clock_face", None)
-			primary_color = state.get("primary_color", None)
-			secondary_color = state.get("secondary_color", None)
-			if not clock_face or not primary_color or not secondary_color:
-				raise RuntimeError("Clock parameters not properly initialized.")
-			if clock_face == "Gradient Clock":
-				img = Clock.draw_conic_clock(dimensions, dsec.timestamp, primary_color, secondary_color)
-			elif clock_face == "Digital Clock":
-				stm = dsec.provider.required(StaticConfigurationManager)
-				img = Clock.draw_digital_clock(dimensions, dsec.timestamp, stm, primary_color, secondary_color)
-			elif clock_face == "Divided Clock":
-				img = Clock.draw_divided_clock(dimensions, dsec.timestamp, primary_color, secondary_color)
-			elif clock_face == "Word Clock":
-				stm = dsec.provider.required(StaticConfigurationManager)
-				img = Clock.draw_word_clock(dimensions, dsec.timestamp, stm, primary_color, secondary_color)
-		except Exception as e:
-			self.logger.error(f"Failed to draw clock image: {str(e)}")
-		fut = Future()
-		fut.set_result(None if img is None else MediaRenderResult(image=img, title=f"{dsec.timestamp.strftime('%H:%M:%S')}"))
-		return fut
 	@staticmethod
 	def draw_conic_clock(dimensions, time, primary_color=(219, 50, 70, 255), secondary_color=(0, 0, 0, 255) ):
 		width, height = dimensions

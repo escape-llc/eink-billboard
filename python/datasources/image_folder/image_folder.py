@@ -1,10 +1,9 @@
-from concurrent.futures import Future
 import logging
 import os
 from typing import Any
 
 from PIL import Image, ImageOps, ImageFilter
-from ..data_source import DataSource, DataSourceExecutionContext, MediaList, MediaListAsync, MediaRender, MediaRenderAsync, MediaRenderResult
+from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult
 
 def list_files_in_folder(folder_path):
 	"""Return a list of image file paths in the given folder, excluding hidden files."""
@@ -50,28 +49,3 @@ class ImageFolderAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			return None
 		img = grab_image(state, dsec.dimensions, pad_image=True, logger=self.logger)
 		return None if img is None else MediaRenderResult(image=img, title="Image Folder")
-
-class ImageFolder(DataSource, MediaList, MediaRender):
-	def __init__(self, id: str, name: str):
-		super().__init__(id, name)
-		self.logger = logging.getLogger(__name__)
-	def open(self, dsec: DataSourceExecutionContext, params: dict[str, Any]) -> Future[list]:
-		if self._es is None:
-			raise RuntimeError("Executor not set for DataSource")
-		folder_path = params.get('folder')
-		def open_folder():
-			image_files = list_files_in_folder(folder_path)
-			return image_files
-		future = self._es.submit(open_folder)
-		return future
-	def render(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> Future[MediaRenderResult | None]:
-		if self._es is None:
-			raise RuntimeError("Executor not set for DataSource")
-		def load_next():
-			if state is None:
-				return None
-			img = grab_image(state, dsec.dimensions, pad_image=True, logger=self.logger)
-			return None if img is None else MediaRenderResult(image=img, title="Image Folder")
-		future = self._es.submit(load_next)
-		return future
-

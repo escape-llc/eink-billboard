@@ -2,7 +2,7 @@
 	"id": "image-folder",
 	"name": "Image Folder",
 	"version": "0.0.1",
-	"class": "ImageFolder",
+	"class": "ImageFolderAsync",
 	"file": "image_folder.py",
 	"module": "python.datasources.image_folder.image_folder",
 	"description": "Image folder data source.",
