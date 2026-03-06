@@ -24,7 +24,11 @@ class BasicMessage:
 				continue
 			# 3. Structural Validation (The Fix for 'datetime' vs 'datetime')
 			# Instead of isinstance, we check if the object has the core attributes of the type
-			if "datetime" in type_str.lower():
+			if "timedelta" in type_str.lower():
+				# Duck-typing: If it has 'days' and 'seconds', it's a timedelta object
+				if not (hasattr(val, "days") and hasattr(val, "seconds")):
+					raise TypeError(f"Field '{field_name}' must be a timedelta object")
+			elif "datetime" in type_str.lower():
 				# Duck-typing: If it has 'year' and 'strftime', it's a datetime object
 				if not (hasattr(val, "year") and hasattr(val, "strftime")):
 					raise TypeError(f"Field '{field_name}' must be a datetime object")

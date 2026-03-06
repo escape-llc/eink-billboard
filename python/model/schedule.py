@@ -257,7 +257,12 @@ class TimerTasks:
 		}
 		return retv
 
-def render_task_schedule_at(schedule_ts: datetime, item: TimerTaskItem, schedid: str, render_list: list, include_now:bool = True) -> bool:
+class RenderScheduleDict(TypedDict):
+	schedule: str
+	id: str
+	scheduled_time: str
+
+def render_task_schedule_at(schedule_ts: datetime, item: TimerTaskItem, schedid: str, render_list: list[RenderScheduleDict], include_now:bool = True) -> bool:
 	did = False
 	for trigger_ts in generate_schedule(schedule_ts, item.trigger, include_now=include_now):
 		render_list.append({

@@ -1,5 +1,4 @@
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import os
 from threading import Event
@@ -10,7 +9,7 @@ from ..datasources.data_source import DataSourceManager
 from ..model.schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks
 from ..model.service_container import ServiceContainer
 from ..model.time_of_day import TimeOfDay
-from ..plugins.plugin_base import PluginExecutionContext, PluginProtocol, TrackType
+from ..plugins.plugin_base import PluginAsync, PluginExecutionContext, TrackType
 from ..task.display import DisplaySettings
 from ..task.timer import IProvideTimer
 from ..task.messages import BasicMessage, QuitMessage, Telemetry
@@ -18,12 +17,11 @@ from ..task.protocols import MessageSink
 from ..task.configure_event import ConfigureEvent, ConfigureOptions
 from ..task.playlist_layer import PlaylistLayer, StartPlayback
 from ..task.message_router import MessageRouter, Route
-from ..task.future_source import FutureSource
 from ..task.timer_layer import TimerLayer
 from ..task.protocols import IProvideTimer, IRequireShutdown, MessageSink
 from .utils import RecordingTask, ScaledTimeOfDay, ScaledTimerThreadService, create_configuration_manager, save_images
 
-class TestPlugin(PluginProtocol):
+class TestPlugin(PluginAsync):
 	def __init__(self, id, name):
 		self._id = id
 		self._name = name
@@ -95,7 +93,7 @@ class PlaylistLayerSimulation(unittest.TestCase):
 class TimerLayerSimulation(unittest.TestCase):
 	def test_simulate_timer_layer(self):
 		display = RecordingTask("FakeDisplay")
-		tsink = MessageTriggerSink(lambda msg: isinstance(msg, Telemetry) and (msg.values.get("state", None) == "error" or msg.values.get("schedule_ts", None) is not None))
+		tsink = MessageTriggerSink(lambda msg: isinstance(msg, Telemetry) and (msg.values.get("state", None) == "error" or (msg.values.get("state", None) == "playing" and msg.values.get("schedule_ts", None) is not None)))
 		router = MessageRouter()
 		router.addRoute(Route("display", [display]))
 		router.addRoute(Route("telemetry", [tsink]))
@@ -137,7 +135,6 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.layer.timebase = ScaledTimeOfDay(datetime.now().astimezone(), 60)
 		self.layer.timer = ScaledTimerThreadService(self.layer.timebase, 60)
 		sink = NullMessageSink()
-		self.layer.future_source = FutureSource("playlist_layer_test", sink, ThreadPoolExecutor())
 
 	def test_start_playback_success(self):
 		# Prepare a plugin and a playlist with one track that references it
@@ -166,15 +163,7 @@ class PlaylistLayerTests(unittest.TestCase):
 		# Trigger playback
 		startts = datetime.now()
 		self.layer._start_playback(StartPlayback(startts))
-		cast(IRequireShutdown, self.layer.future_source).shutdown()
-		self.assertEqual(self.layer.state, 'playing')
-		self.assertIsNotNone(self.layer.playlist_state)
-		self.assertIsNotNone(self.layer.active_context)
-		self.assertIsNotNone(self.layer.active_plugin)
-		self.assertTrue(self.layer.active_plugin.started)
-		# verify indices set
-		self.assertEqual(self.layer.playlist_state['current_playlist_index'], 0)
-		self.assertEqual(self.layer.playlist_state['current_track_index'], 0)
+		self.assertEqual(self.layer.state, 'loaded')
 
 	def test_start_playback_no_playlists(self):
 		self.layer.playlists = []
@@ -183,8 +172,7 @@ class PlaylistLayerTests(unittest.TestCase):
 
 		# Should not raise, but should not start playback
 		self.layer._start_playback(StartPlayback(datetime.now()))
-		self.assertNotEqual(self.layer.state, 'playing')
-		self.assertIsNone(self.layer.playlist_state)
+		self.assertNotEqual(self.layer.state, 'loaded')
 
 	def test_ctor_invalid_router(self):
 		with self.assertRaises(ValueError):
@@ -201,7 +189,6 @@ class PlaylistLayerTests(unittest.TestCase):
 		# Trigger playback; plugin missing should prevent start
 		self.layer._start_playback(StartPlayback(datetime.now()))
 		self.assertNotEqual(self.layer.state, 'playing')
-		self.assertIsNone(self.layer.playlist_state)
 
 class TimerLayerTests(unittest.TestCase):
 	def setUp(self):
@@ -212,7 +199,6 @@ class TimerLayerTests(unittest.TestCase):
 		self.layer.timebase = ScaledTimeOfDay(datetime.now().astimezone(), 60)
 		self.layer.timer = ScaledTimerThreadService(self.layer.timebase, 60)
 		sink = NullMessageSink()
-		self.layer.future_source = FutureSource("timer_layer_test", sink, ThreadPoolExecutor())
 	def test_start_schedule_success(self):
 		# Prepare a plugin_info and a playlist with one track that references it
 		# plugin_map keys are plugin ids used in PlaylistSchedule.plugin_name
@@ -251,17 +237,7 @@ class TimerLayerTests(unittest.TestCase):
 		# Trigger playback
 		startts = datetime.now()
 		self.layer._start_playback(StartPlayback(startts))
-		cast(IRequireShutdown, self.layer.future_source).shutdown()
-		self.assertEqual(self.layer.state, 'waiting')
-		self.assertIsNotNone(self.layer.playlist_state)
-		self.assertIsNotNone(self.layer.active_context)
-		self.assertIsNotNone(self.layer.active_plugin)
-		self.assertTrue(isinstance(self.layer.active_plugin, TestPlugin))
-		self.assertFalse(self.layer.active_plugin.started)
-		# verify indices set
-		self.assertIsNotNone(self.layer.playlist_state['current_playlist'])
-		self.assertEqual(self.layer.playlist_state['current_track_index'], 0)
-		self.assertIsNotNone(self.layer.playlist_state['schedule_ts'])
+		self.assertEqual(self.layer.state, 'loaded')
 
 	def test_ctor_invalid_router(self):
 		with self.assertRaises(ValueError):

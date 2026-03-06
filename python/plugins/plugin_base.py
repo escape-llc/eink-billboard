@@ -86,20 +86,6 @@ class RenderSession:
 	pass
 
 type TrackType = ScheduleItemBase | TimerTaskTask
-@runtime_checkable
-class PluginProtocol(Protocol):
-	@property
-	def id(self) -> str:
-		...
-	@property
-	def name(self) -> str:
-		...
-	def start(self, context: PluginExecutionContext, track: TrackType) -> None:
-		...
-	def receive(self, context: PluginExecutionContext, track: TrackType, msg: BasicMessage) -> None:
-		...
-	def stop(self, context: PluginExecutionContext, track: TrackType) -> None:
-		...
 
 @runtime_checkable
 class PluginAsync(Protocol):

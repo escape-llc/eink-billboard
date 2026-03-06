@@ -1,25 +1,44 @@
-
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from concurrent.futures import Future
 from datetime import datetime
 import logging
-from typing import cast
+import threading
+from typing import Any, Any, NotRequired, ReadOnly, TypedDict, cast
+
+from python.model.schedule_loader import ScheduleLoaderDict
+from python.task.async_http_worker_pool import AsyncHttpWorkerPool
 
 from ..datasources.data_source import DataSourceManager
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
-from ..model.schedule import ScheduleItemBase, TimerTaskItem, TimerTasks, generate_schedule, Playlist
-from ..model.service_container import ServiceContainer
+from ..model.schedule import RenderScheduleDict, TimerTaskItem, Playlist, render_task_schedule_at
+from ..model.service_container import IServiceProvider, ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
-from ..plugins.plugin_base import PluginExecutionContext, PluginProtocol
+from ..plugins.plugin_base import PluginAsync, PluginExecutionContext
 from ..task.basic_task import DispatcherTask
 from ..task.display import DisplaySettings
-from ..task.messages import FutureCompleted, PluginReceive, QuitMessage, Telemetry, TimerExpired
-from ..task.protocols import IProvideTimer, SubmitFuture, IRequireShutdown, MessageSink
+from ..task.messages import AsyncTaskCompleted, AsyncTaskCompleted, BasicMessage, QuitMessage, Telemetry
+from ..task.protocols import IProvideTimer, IRequireShutdown, MessageSink
 from ..task.configure_event import ConfigureEvent
 from ..task.playlist_layer import NextTrack, StartPlayback
-from ..task.future_source import FutureSource, SubmitFuture
 from ..task.message_router import MessageRouter
-from ..task.timer import CreateTimerResult, IProvideTimer, TimerThreadService
+from ..task.timer import IProvideTimer, TimerThreadService
+
+class PlaylistStateDict(TypedDict):
+	current_playlist: Playlist
+	current_track_index: int
+	current_track: TimerTaskItem
+	schedule_ts: datetime|None
+
+class EvaluatePluginDict(TypedDict):
+	plugin: ReadOnly[PluginAsync|None]
+	track: ReadOnly[TimerTaskItem]
+	error: NotRequired[str]
+
+class TelemetryDict(TypedDict):
+	state: ReadOnly[str]
+	current_playlist: ReadOnly[Playlist|None]
+	current_track: ReadOnly[TimerTaskItem]
+	current_track_index: ReadOnly[int]
+	schedule_ts: ReadOnly[datetime|None]
 
 class TimerLayer(DispatcherTask):
 	def __init__(self, name, router: MessageRouter):
@@ -28,20 +47,18 @@ class TimerLayer(DispatcherTask):
 			raise ValueError("router is None")
 		self.router = router
 		self.cm:ConfigurationManager|None = None
-		self.tasks: list[TimerTasks] = []
+		self.tasks: list[ScheduleLoaderDict] = []
 		self.plugin_info = None
 		self.datasources: DataSourceManager|None = None
 		self.timer: IProvideTimer|None = None
 		self.dimensions:tuple[int,int] = (800,480)
-		self.playlist_state = None
-		self.active_plugin: PluginProtocol|None = None
-		self.active_context: PluginExecutionContext|None = None
-		self.future_source: SubmitFuture|None = None
+		self.task_pool: AsyncHttpWorkerPool|None = None
+		self.layer_task: tuple[Future, threading.Event] | None = None
+		self.shutdownlist: list[IRequireShutdown] = []
 		self.timebase: TimeOfDay|None = None
-		self.timer_state: CreateTimerResult|None = None
 		self.state = 'uninitialized'
 		self.logger = logging.getLogger(__name__)
-	def _evaluate_plugin(self, track:TimerTaskItem):
+	def _evaluate_plugin(self, track:TimerTaskItem) -> EvaluatePluginDict:
 		if self.cm is None:
 			errormsg = "Configuration manager is not set."
 			self.logger.error(errormsg)
@@ -59,18 +76,18 @@ class TimerLayer(DispatcherTask):
 		plugin = self.cm.create_plugin(pinfo)
 		if plugin is not None:
 #				self.logger.debug(f"selecting plugin '{timeslot.plugin_name}' with args {timeslot.content}")
-			if isinstance(plugin, PluginProtocol):
+			if isinstance(plugin, PluginAsync):
 				return { "plugin": plugin, "track": track }
 			else:
-				errormsg = f"Plugin '{piname}' is not a PluginProtocol instance."
+				errormsg = f"Plugin '{piname}' is not a PluginAsync instance."
 				self.logger.error(errormsg)
 				return { "plugin": plugin, "track": track, "error": errormsg }
 		else:
 			errormsg = f"Plugin '{piname}' is not available."
 			self.logger.error(errormsg)
 			return { "plugin": None, "track": track, "error": errormsg }
-	def _create_context(self):
-		if self.cm is None or self.datasources is None or self.router is None or self.timer is None or self.future_source is None or self.timebase is None:
+	def _create_container(self):
+		if self.cm is None or self.datasources is None or self.router is None or self.timer is None or self.timebase is None:
 			raise ValueError("Cannot create context, one or more required components are None.")
 		root = ServiceContainer()
 		scm = self.cm.settings_manager()
@@ -81,10 +98,9 @@ class TimerLayer(DispatcherTask):
 		root.add_service(DataSourceManager, self.datasources)
 		root.add_service(MessageRouter, self.router)
 		root.add_service(IProvideTimer, self.timer)
-		root.add_service(SubmitFuture, self.future_source)
 		root.add_service(TimeOfDay, self.timebase)
 		root.add_service(MessageSink, self)
-		return PluginExecutionContext(root, self.dimensions, self.timebase.current_time())
+		return root
 	def _configure_event(self, msg: ConfigureEvent):
 		self.cm = msg.content.cm
 		try:
@@ -99,8 +115,12 @@ class TimerLayer(DispatcherTask):
 
 			tod = msg.content.isp.get_service(TimeOfDay)
 			self.timebase = tod if tod is not None else SystemTimeOfDay()
+
 			ts = msg.content.isp.get_service(IProvideTimer)
 			self.timer = ts if ts is not None else TimerThreadService(self.timebase)
+			if ts is None and isinstance(self.timer, IRequireShutdown):
+				self.shutdownlist.append(self.timer)
+
 			dsm = msg.content.isp.get_service(DataSourceManager)
 			if dsm is None:
 				datasource_info = self.cm.enum_datasources()
@@ -109,8 +129,14 @@ class TimerLayer(DispatcherTask):
 				self.datasources = DataSourceManager(None, datasources)
 			else:
 				self.datasources = dsm
-			sf = msg.content.isp.get_service(SubmitFuture)
-			self.future_source = sf if sf is not None else FutureSource("timer_layer", self, ThreadPoolExecutor(thread_name_prefix="TimerLayer"))
+			if dsm is None and isinstance(self.datasources, IRequireShutdown):
+				self.shutdownlist.append(self.datasources)
+
+			ahwp = msg.content.isp.get_service(AsyncHttpWorkerPool)
+			self.task_pool = ahwp if ahwp is not None else AsyncHttpWorkerPool()
+			if ahwp is None and isinstance(self.task_pool, IRequireShutdown):
+				self.shutdownlist.append(self.task_pool)
+				self.task_pool.start()
 
 			self.logger.info(f"schedule loaded")
 			self.state = 'loaded'
@@ -124,30 +150,6 @@ class TimerLayer(DispatcherTask):
 	def _display_settings(self, msg: DisplaySettings):
 		self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
 		self.dimensions = (msg.width, msg.height)
-	def _future_completed(self, msg: FutureCompleted):
-		if self.state != 'playing':
-			self.logger.error(f"Cannot handle FutureCompleted message, state is '{self.state}'")
-			return
-		if self.playlist_state is None:
-			self.logger.error(f"No active playlist state to handle FutureCompleted message.")
-			return
-		if self.active_plugin is None:
-			self.logger.error(f"No active plugin to handle FutureCompleted message.")
-			return
-		if self.active_context is None:
-			self.logger.error(f"No active context to handle FutureCompleted message.")
-			return
-		if self.active_plugin.name != msg.plugin_name:
-			self.logger.error(f"Received FutureCompleted message for plugin '{msg.plugin_name}', but active plugin is '{self.active_plugin.name}'")
-			return
-		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
-		try:
-			self.active_context.update_timestamp(msg.timestamp)
-			self.active_plugin.receive(self.active_context, current_track, msg)
-		except Exception as e:
-			self.state = "error"
-			emsg = f"Error invoke receive FutureCompleted with plugin '{self.active_plugin.name}' track '{current_track.title}': {e}"
-			self._error_with_telemetry(emsg, msg.timestamp)
 	def _start_playback(self, msg: StartPlayback):
 		self.logger.info(f"'{self.name}' StartPlayback {self.state}")
 		if self.state != 'loaded':
@@ -159,51 +161,145 @@ class TimerLayer(DispatcherTask):
 		if self.timer is None:
 			self.logger.error(f"Timer service is not available.")
 			return
-		# Start playback logic here
-		# use the playlist metaphor so it works like playlist layer
-		# Create a flat list of TimerTaskItem from loaded tasks by selecting each entry's "info"
-		# and collecting its `.items`. This produces a list[TimerTaskItem].
-		enabled_task_items = self._get_enabled_tasks()
-
-		target_timestamp:datetime|None = None
-		initial_playlist:Playlist|None = self._startup_playlist(enabled_task_items)
-		if initial_playlist is None:
-			self.logger.info(f"No startup tasks found, proceeding to scheduled tasks.")
-			tpx = self._next_scheduled_playlist(msg.timestamp, enabled_task_items)
-			if tpx is not None:
-				target_timestamp, initial_playlist = tpx
-		if initial_playlist is None:
-			self.logger.info(f"No startup or scheduled playlist.")
+		self._run_layer_task(self.tasks, msg.timestamp)
+	async def _layer_task(self, isp: IServiceProvider, tasks: list[ScheduleLoaderDict], donev: threading.Event) -> BasicMessage|None:
+		try:
+			tod = isp.required(TimeOfDay)
+			timer = isp.required(IProvideTimer)
+			enabled_task_items = self._get_enabled_tasks(tasks)
+			# startup tasks loop
+			initial_playlist:Playlist|None = self._startup_playlist(enabled_task_items)
+			if initial_playlist is None:
+				self.logger.info(f"No startup playlist.")
+			else:
+				for index, item in enumerate(initial_playlist.items):
+					track = cast(TimerTaskItem, item)
+					plugin_eval = self._evaluate_plugin(track)
+					plugin:PluginAsync = cast(PluginAsync, plugin_eval.get("plugin", None))
+					if plugin is None:
+						self.logger.error(f"Cannot start startup task, plugin '{track.task.plugin_name}' for task '{track.task.title}' is not available.")
+						continue
+					try:
+						self.logger.info(f"Starting startup task '{track.title}' using plugin '{track.task.plugin_name}'.")
+						donev = threading.Event()
+						context = PluginExecutionContext(isp, self.dimensions, tod.current_time())
+						plugin_result = await plugin.task_async(context, track, donev)
+						self.state = 'playing'
+						telemetry = {
+							"state": self.state,
+							"current_playlist": initial_playlist,
+							"current_track": track,
+							"current_track_index": index,
+							"schedule_ts": None
+						}
+						self.logger.info(f"Startup task '{track.title}' completed with result: {plugin_result}")
+						self.router.send("telemetry", Telemetry(tod.current_time(), "timer_layer", telemetry))
+					except Exception as e:
+						self.state = 'error'
+						self._error_with_telemetry(f"Error during startup task '{track.title}': {e}", tod.current_time())
+				pass
+			# timer tasks loop
+			reftime = tod.current_time()
+			rendered_schedule = self._next_scheduled_playlist(reftime, enabled_task_items)
+			for sched in rendered_schedule:
+				sched_ts = datetime.fromisoformat(sched["scheduled_time"])
+				delta =  sched_ts - reftime
+				if delta.total_seconds() < 0:
+					self.logger.warning(f"Skipping past scheduled task '{sched['id']}' at {sched_ts} (scheduled time is in the past).")
+					continue
+				matching_items = [item for item in rendered_schedule if item["scheduled_time"] == sched["scheduled_time"]]
+				self.logger.info(f"Waiting for {len(matching_items)} scheduled task(s) at {sched_ts} (in {delta}).")
+				self.state = 'waiting'
+				telemetry2 = {
+					"state": self.state,
+					"schedule_ts": sched_ts
+				}
+				self.router.send("telemetry", Telemetry(reftime, "timer_layer", cast(dict[str,Any], telemetry2)))
+				await timer.sleep(delta)
+				actual = tod.current_time()
+				self.logger.info(f"Scheduled task time reached: {sched_ts}, actual: {actual}. Starting {len(matching_items)} task(s).")
+				# find the corresponding task items for this schedule timestamp
+				for match in matching_items:
+					task_item = next((t for t in enabled_task_items if t.id == match["id"]), None)
+					if task_item is None:
+						self.logger.error(f"No task item found for scheduled task id '{match['id']}' at {sched_ts}.")
+						continue
+					plugin_eval = self._evaluate_plugin(task_item)
+					plugin:PluginAsync = cast(PluginAsync, plugin_eval.get("plugin", None))
+					if plugin is None:
+						self.logger.error(f"Cannot start scheduled task, plugin '{task_item.task.plugin_name}' for task '{task_item.task.title}' is not available.")
+						continue
+					try:
+						self.logger.info(f"Starting scheduled task '{task_item.title}' using plugin '{task_item.task.plugin_name}'.")
+						donev = threading.Event()
+						context = PluginExecutionContext(isp, self.dimensions, tod.current_time())
+						plugin_result = await plugin.task_async(context, task_item, donev)
+						self.state = 'playing'
+						self.logger.info(f"Scheduled task '{task_item.title}' completed with result: {plugin_result}")
+						telemetry: TelemetryDict = {
+							"state": self.state,
+							"current_playlist": None,
+							"current_track": task_item,
+							"current_track_index": -1,
+							"schedule_ts": sched_ts
+						}
+						self.router.send("telemetry", Telemetry(tod.current_time(), "timer_layer", cast(dict[str,Any], telemetry)))
+					except Exception as e:
+						self.state = 'error'
+						self._error_with_telemetry(f"Error during scheduled task '{task_item.title}': {e}", tod.current_time())
+				pass
+			return None
+		finally:
+			donev.set()
+		pass
+	def _run_layer_task(self, tasks: list[ScheduleLoaderDict], timestamp: datetime):
+		if self.task_pool is None:
+			self.logger.error(f"No task pool available to invoke plugin start.")
+			return False
+		try:
+			donev = threading.Event()
+			def submit_callback(fut):
+				if not self.is_stopped():
+					self.accept(AsyncTaskCompleted(timestamp, "layer_task", fut, donev))
+			sc = self._create_container()
+			fut = self.task_pool.submit(self._layer_task, sc, tasks, donev, callback=submit_callback)
+			self.layer_task = (fut, donev)
+			return True
+		except Exception as e:
+			self.state = "error"
+			self._error_with_telemetry(f"Error invoke start layer task: {e}", timestamp)
+			return False
+	def _layer_stop(self):
+		if self.layer_task is None:
 			return
-		# NextTrack: at end of playlist
-		# TimerExpired: start playback of playlist from (5)
-		# NextTrack: advance to next task in that playlist
-		self.logger.info(f"{self.name}: starting playback: '{initial_playlist.name}'")
-		current_track:ScheduleItemBase|None = initial_playlist.items[0] if len(initial_playlist.items) > 0 else None
-		if current_track is None:
-			self.logger.error(f"Cannot start playback, playlist '{initial_playlist.name}' has no items.")
-			return
-		plugin_eval = self._evaluate_plugin(cast(TimerTaskItem, current_track))
-		active_plugin:PluginProtocol = cast(PluginProtocol, plugin_eval.get("plugin", None))
-		if active_plugin is None:
-			emsg = f"Cannot start playback, plugin '{current_track.task.plugin_name}' for task '{current_track.task.title}' is not available."
-			self._error_with_telemetry(emsg, msg.timestamp)
-			return
-		self.active_plugin = active_plugin
-		self.active_context = self._create_context()
-		self.playlist_state = {
-			'current_playlist': initial_playlist,
-			'current_track_index': 0,
-			'current_track': current_track,
-			'schedule_ts': target_timestamp
-		}
-		if target_timestamp is not None:
-			# set a timer for plugin start
-			self.timer_state = self.timer.create_timer(target_timestamp - msg.timestamp, self, "start", target_timestamp)
-			self.state = 'waiting'
+		fut, donev = self.layer_task
+		if not fut.done():
+			self.logger.info(f"Layer task still running, cancel...")
+			fut.cancel()
+			self.logger.info(f"Waiting for layer task to complete...")
+			donev.wait(timeout=2.0)
 		else:
-			self.timer_state = None
-			self._invoke_plugin_start(current_track, msg.timestamp)
+			self.logger.info(f"Layer task completed.")
+		self.layer_task = None
+	def _async_task_completed(self, msg: AsyncTaskCompleted):
+		if not msg.fut.done():
+			self.logger.info(f"Plugin task still running, cancel...")
+			msg.fut.cancel()
+			self.logger.info(f"Waiting for plugin task to complete...")
+			msg.donev.wait(timeout=2.0)
+		else:
+			self.logger.info(f"Plugin task completed.")
+			rmsg = msg.fut.result()
+			self.logger.info(f"Plugin task result: {rmsg}")
+			if rmsg is not None:
+				# handle any messages returned by the plugin task if needed
+				self.accept(rmsg)
+			else:
+				self.logger.info(f"Plugin task returned no message, forcing NextTrack.")
+				self.accept(NextTrack(msg.timestamp))
+		if msg.token == "layer_task":
+			self.layer_task = None
+		pass
 	def _error_with_telemetry(self, emsg:str, msg_ts:datetime):
 		self.logger.error(emsg, exc_info=True)
 		self.router.send("telemetry", Telemetry(msg_ts, "timer_layer", {
@@ -214,9 +310,9 @@ class TimerLayer(DispatcherTask):
 			'current_track': None,
 			'schedule_ts': None
 		}))
-	def _get_enabled_tasks(self):
+	def _get_enabled_tasks(self, tasks:list[ScheduleLoaderDict]) -> list[TimerTaskItem]:
 		task_items: list[TimerTaskItem] = []
-		for sched in self.tasks:
+		for sched in tasks:
 			info = sched.get("info") if isinstance(sched, dict) else getattr(sched, 'info', None)
 			if info is None:
 				continue
@@ -236,214 +332,37 @@ class TimerLayer(DispatcherTask):
 			return None
 		startup_playlist = Playlist("startup", "Startup Tasks", items=startup_task_items)
 		return startup_playlist
-	def _invoke_plugin_start(self, current_track:ScheduleItemBase, msg_ts:datetime):
-		if self.active_plugin is None:
-			self.logger.error(f"No active plugin to invoke.")
-			return
-		if self.active_context is None:
-			self.logger.error(f"No active context to invoke.")
-			return
-		if self.playlist_state is None:
-			self.logger.error(f"No active playlist state to invoke.")
-			return
-		try:
-			self.active_context.update_timestamp(msg_ts)
-			self.active_plugin.start(self.active_context, current_track)
-			self.logger.info(f"'{self.name}' Plugin started.")
-			self.state = 'playing'
-			self.router.send("telemetry", Telemetry(msg_ts, "timer_layer", {
-				"state": self.state,
-				"current_playlist": self.playlist_state["current_playlist"],
-				"current_track": self.playlist_state["current_track"],
-				"current_track_index": self.playlist_state["current_track_index"],
-				"schedule_ts": self.playlist_state["schedule_ts"]
-			}))
-		except Exception as e:
-			self.state = 'error'
-			emsg = f"Error starting playback with plugin '{self.active_plugin.name}' for track '{current_track.task.title}': {e}"
-			self._error_with_telemetry(emsg, msg_ts)
-		pass
-	def _invoke_plugin_stop(self, msg_ts:datetime):
-		if self.playlist_state is None:
-			self.logger.error(f"No active playlist state to invoke.")
-			return
-		if self.active_plugin is None:
-			self.logger.error(f"No active plugin to invoke.")
-			return
-		if self.active_context is None:
-			self.logger.error(f"No active context to invoke.")
-			return
-		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
-		try:
-			self.active_context.update_timestamp(msg_ts)
-			self.active_plugin.stop(self.active_context, current_track)
-		except Exception as e:
-			self.state = "error"
-			emsg = f"Error invoke stop with plugin '{self.active_plugin.name}' track '{current_track.title}': {e}"
-			self._error_with_telemetry(emsg, msg_ts)
-	def _plugin_receive(self, msg: PluginReceive):
-		if self.state != 'playing':
-			self.logger.error(f"Cannot handle PluginReceive message, state is '{self.state}'")
-			return
-		if self.playlist_state is None:
-			self.logger.error(f"No active playlist state to handle PluginReceive message.")
-			return
-		if self.active_plugin is None:
-			self.logger.error(f"No active plugin to handle PluginReceive message.")
-			return
-		if self.active_context is None:
-			self.logger.error(f"No active context to handle PluginReceive message.")
-			return
-		current_track:ScheduleItemBase = cast(ScheduleItemBase, self.playlist_state.get('current_track'))
-		try:
-			self.active_context.update_timestamp(msg.timestamp)
-			self.active_plugin.receive(self.active_context, current_track, msg)
-		except Exception as e:
-			self.state = "error"
-			emsg = f"Error invoke receive PluginReceive with plugin '{self.active_plugin.name}' track '{current_track.title}': {e}"
-			self._error_with_telemetry(emsg, msg.timestamp)
-	def _next_scheduled_playlist(self, now: datetime, enabled_task_items: list[TimerTaskItem]) -> tuple[datetime,Playlist]|None:
-		# Build list of (item, next_datetime) for each enabled task that has a next scheduled time
-		scheduled: list[tuple[TimerTaskItem, datetime]] = []
+	def _next_scheduled_playlist(self, now: datetime, enabled_task_items: list[TimerTaskItem]) -> list[RenderScheduleDict]:
+		scheduled: list[RenderScheduleDict] = []
 		for item in enabled_task_items:
 			try:
-				gx = generate_schedule(now, getattr(item, 'trigger', {}))
-				next_ts = next(gx, None)
-				if next_ts is None:
-					continue
-				scheduled.append((item, next_ts))
+				tdid = render_task_schedule_at(now, item, "schedule", scheduled)
 			except Exception as e:
 				self.logger.debug(f"Skipping task '{getattr(item, 'name', None)}' while computing next schedule: {e}")
-		# No scheduled items
-		if len(scheduled) == 0:
-			return None
 		# Sort by datetime
-		scheduled.sort(key=lambda pair: pair[1])
-		# Find earliest datetime and collect all items matching it
-		earliest_ts = scheduled[0][1]
-		earliest_items = [pair[0] for pair in scheduled if pair[1] == earliest_ts]
-		# Build and return a Playlist from those items
-		plist = Playlist("scheduled", f"Scheduled {earliest_ts.isoformat()}", items=earliest_items)
-		return (earliest_ts, plist)
-	def _next_track(self, msg: NextTrack):
-		self.logger.info(f"'{self.name}' NextTrack {msg}")
-		if self.timer is None:
-			self.logger.error(f"Timer service is not available.")
-			return
-		if self.active_plugin is not None:
-			self.logger.info(f"{self.name}: Stopping current plugin '{self.active_plugin.name}'")
-			self._invoke_plugin_stop(msg.timestamp)
-			self.active_plugin = None
-			self.active_context = None
-		# start next track logic
-		if self.playlist_state is None:
-			self.logger.error(f"No active playlist state to move to next track.")
-			return
-		current_track_index = cast(int, self.playlist_state.get('current_track_index'))
-		current_playlist:Playlist = cast(Playlist, self.playlist_state.get('current_playlist', None))
-		if current_track_index + 1 < len(current_playlist.items):
-			# Move to next track in the same playlist
-			next_track_index = current_track_index + 1
-			next_track:ScheduleItemBase = current_playlist.items[next_track_index]
-			plugin_eval = self._evaluate_plugin(cast(TimerTaskItem, next_track))
-			active_plugin:PluginProtocol = cast(PluginProtocol, plugin_eval.get("plugin", None))
-			if active_plugin is None:
-				self.logger.error(f"Cannot start next track, plugin '{next_track.plugin_name}' for track '{next_track.title}' is not available.")
-				return
-			self.active_plugin = active_plugin
-			self.active_context = self._create_context()
-			self.playlist_state['current_track_index'] = next_track_index
-			self.playlist_state['current_track'] = next_track
-			self._invoke_plugin_start(next_track, msg.timestamp)
-		else:
-			self.logger.info(f"End of playlist '{current_playlist.name}' reached.")
-			enabled_task_items = self._get_enabled_tasks()
-			target_timestamp:datetime|None = None
-			next_playlist:Playlist|None = None
-			tpx = self._next_scheduled_playlist(msg.timestamp, enabled_task_items)
-			if tpx is not None:
-				target_timestamp, next_playlist = tpx
-			if next_playlist is None or target_timestamp is None:
-				self.logger.info(f"No scheduled playlist found for next track after end of playlist.")
-				self.state = 'stopped'
-				self.playlist_state = None
-				self.router.send("telemetry", Telemetry(msg.timestamp, "timer_layer", {
-					"state": self.state,
-					"current_playlist": None,
-					"current_track": None,
-					"current_track_index": None,
-					"schedule_ts": None
-				}))
-				return
-			next_track_index = 0
-			next_track:ScheduleItemBase = next_playlist.items[next_track_index]
-			plugin_eval = self._evaluate_plugin(cast(TimerTaskItem, next_track))
-			active_plugin:PluginProtocol = cast(PluginProtocol, plugin_eval.get("plugin", None))
-			if active_plugin is None:
-				self.logger.error(f"Cannot start next track, plugin '{next_track.plugin_name}' for track '{next_track.title}' is not available.")
-				return
-			self.active_plugin = active_plugin
-			self.active_context = self._create_context()
-			self.playlist_state['current_playlist'] = next_playlist
-			self.playlist_state['current_track_index'] = next_track_index
-			self.playlist_state['current_track'] = next_track
-			self.playlist_state['schedule_ts'] = target_timestamp
-			if self.timer_state is not None:
-				self.logger.warning(f"Cancelling existing timer before setting new timer.")
-				self.timer_state[1]()
-				self.timer_state = None
-			self.timer_state = self.timer.create_timer(target_timestamp - msg.timestamp, self, "playlist", target_timestamp)
-			self.state = 'waiting'
-		pass
-	def _timer_expired(self, msg: TimerExpired):
-		self.logger.info(f"'{self.name}' TimerExpired at {msg.timestamp}.")
-		if self.state != 'waiting':
-			self.logger.error(f"Cannot start playback, state is '{self.state}'")
-			return
-		if self.playlist_state is None:
-			self.logger.error(f"No active playlist state on timer expired.")
-			return
-		# start the playlist
-		current_playlist:Playlist = cast(Playlist, self.playlist_state.get('current_playlist', None))
-		if current_playlist is None:
-			self.logger.error(f"No active playlist on timer expired.")
-			return
-		iidx = self.playlist_state.get('current_track_index', 0)
-		current_track:ScheduleItemBase|None = current_playlist.items[iidx] if len(current_playlist.items) > iidx else None
-		if current_track is None:
-			self.logger.error(f"Cannot start playback, playlist '{current_playlist.name}' has no items.")
-			return
-		self._invoke_plugin_start(current_track, msg.timestamp)
-		pass
+		scheduled.sort(key=lambda pair: pair["scheduled_time"])
+		return scheduled
 	def quitMsg(self, msg: QuitMessage):
 		self.logger.info(f"'{self.name}' quitting playback.")
 		try:
-			if self.active_plugin is not None:
+			try:
+				self._layer_stop()
+			except Exception as e:
+				self.logger.error(f"'{self.name}' Error stopping active plugin during quit: {e}", exc_info=True)
+			self.state = 'stopped'
+			# we tracked whether WE CREATED these things; shut them down
+			for shutdown_item in self.shutdownlist:
 				try:
-					self._invoke_plugin_stop(msg.timestamp)
+					shutdown_item.shutdown()
 				except Exception as e:
-					self.logger.error(f"'{self.name}' Error stopping active plugin during quit: {e}", exc_info=True)
-				finally:
-					self.active_plugin = None
-					self.active_context = None
-					self.playlist_state = None
-					self.state = 'stopped'
-			if self.timer_state is not None:
-				self.timer_state[1]()
-				self.timer_state = None
-			# TODO need to track whether WE CREATED this thing, or got it from outside
+					self.logger.error(f"'{self.name}' Error during shutdown of {shutdown_item}: {e}", exc_info=True)
+			self.shutdownlist.clear()
 			if self.timer is not None:
-				if isinstance(self.timer, IRequireShutdown):
-					self.timer.shutdown()
 				self.timer = None
 			if self.datasources is not None:
-				self.datasources.shutdown()
 				self.datasources = None
-			# TODO need to track whether WE CREATED this thing, or got it from outside
-			if self.future_source is not None:
-				if isinstance(self.future_source, IRequireShutdown):
-					self.future_source.shutdown()
-				self.future_source = None
+			if self.task_pool is not None:
+				self.task_pool = None
 		except Exception as e:
 			self.logger.error(f"'{self.name}' quit.unexpected: {e}", exc_info=True)
 		finally:

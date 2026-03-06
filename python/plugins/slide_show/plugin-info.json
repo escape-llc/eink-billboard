@@ -2,7 +2,7 @@
 	"id": "slide-show",
 	"name": "Slide Show",
 	"version": "0.0.1",
-	"class": "SlideShow",
+	"class": "SlideShowAsync",
 	"file": "slide_show.py",
 	"module": "python.plugins.slide_show.slide_show",
 	"description": "Media Gallery Slide Show.",

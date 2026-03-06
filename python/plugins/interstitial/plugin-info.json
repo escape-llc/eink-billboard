@@ -2,7 +2,7 @@
 	"id": "interstitial",
 	"name": "Interstitial Overlay",
 	"version": "0.0.1",
-	"class": "Interstitial",
+	"class": "InterstitialAsync",
 	"file": "interstitial.py",
 	"module": "python.plugins.interstitial.interstitial",
 	"description": "Interrupts the current display with an image.",

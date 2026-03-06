@@ -24,11 +24,11 @@ class TestConfigurationManager(unittest.TestCase):
 		info0 = list[0].get('info', None)
 		self.assertIsNotNone(info0, 'info0 failed')
 		self.assertEqual(info0['id'], 'interstitial', 'info0.id failed')
-		self.assertEqual(info0['class'], 'Interstitial', 'info0.class failed')
+		self.assertEqual(info0['class'], 'InterstitialAsync', 'info0.class failed')
 		info1 = list[1].get('info', None)
 		self.assertIsNotNone(info1, 'info1 failed')
 		self.assertEqual(info1['id'], 'slide-show', 'info1.id failed')
-		self.assertEqual(info1['class'], 'SlideShow', 'info1.class failed')
+		self.assertEqual(info1['class'], 'SlideShowAsync', 'info1.class failed')
 
 	def test_enum_datasources(self):
 		cm = ConfigurationManager()
@@ -38,11 +38,11 @@ class TestConfigurationManager(unittest.TestCase):
 		info0 = list[0].get('info', None)
 		self.assertIsNotNone(info0, 'info0 failed')
 		self.assertEqual(info0['id'], 'clock')
-		self.assertEqual(info0['class'], 'Clock')
+		self.assertEqual(info0['class'], 'ClockAsync')
 		info1 = list[1].get('info', None)
 		self.assertIsNotNone(info1, 'info1 failed')
 		self.assertEqual(info1['id'], 'comic')
-		self.assertEqual(info1['class'], 'ComicFeed')
+		self.assertEqual(info1['class'], 'ComicFeedAsync')
 
 	def test_load_plugins(self):
 		cm = ConfigurationManager()
