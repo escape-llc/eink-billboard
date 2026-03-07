@@ -3,7 +3,7 @@ name: CI Tests (uv + Container)
 on: [push, pull_request]
 
 jobs:
-  unittest: # Line 6: Job ID
+  unittest:
     runs-on: ubuntu-latest
 
     container:
@@ -20,7 +20,7 @@ jobs:
         python-version: "3.13.7"
 
     - name: Install dependencies
-      run: uv sync --frozen
+      run: uv sync --frozen --no-group device
 
     - name: Run unittests
       run: uv run python -m unittest discover tests
