@@ -23,4 +23,4 @@ jobs:
       run: uv sync --frozen --no-group device
 
     - name: Run unittests
-      run: uv run python -m unittest discover tests
+      run: uv run python -m unittest discover .
