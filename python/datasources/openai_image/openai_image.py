@@ -4,8 +4,9 @@ from openai import BadRequestError
 import logging
 from io import BytesIO
 import base64
-import requests
 import openai
+
+from python.utils.image_utils import get_image_async
 
 from ...model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult
@@ -94,8 +95,7 @@ class OpenAIAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		response = await ai_client.images.generate(**args)
 		if model in ["dall-e-3", "dall-e-2"]:
 			image_url = response.data[0].url
-			response = requests.get(image_url)
-			img = Image.open(BytesIO(response.content))
+			img = await get_image_async(image_url)
 			return img
 		elif model == "gpt-image-1":
 			image_base64 = response.data[0].b64_json

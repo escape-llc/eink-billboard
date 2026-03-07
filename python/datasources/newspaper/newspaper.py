@@ -6,7 +6,7 @@ import logging
 from httpx import HTTPStatusError
 
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult
-from ...utils.image_utils import get_image, get_image_async
+from ...utils.image_utils import get_image_async
 
 FREEDOM_FORUM_URL = "https://cdn.freedomforum.org/dfp/jpg{}/lg/{}.jpg"
 class NewspaperAsync(DataSource, MediaListAsync, MediaRenderAsync):

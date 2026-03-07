@@ -1,7 +1,6 @@
 import io
 import platform
 
-import requests
 from PIL import Image, ImageEnhance
 from io import BytesIO
 import os
@@ -27,15 +26,6 @@ async def get_image_async(image_url:str) -> Image.Image | None:
 	client = client_var.get()
 	buffer = await stream_to_buffer(client, image_url)
 	img = Image.open(buffer)
-	return img
-
-def get_image(image_url):
-	response = requests.get(image_url)
-	img = None
-	if 200 <= response.status_code < 300 or response.status_code == 304:
-		img = Image.open(BytesIO(response.content))
-	else:
-		logger.error(f"Received non-200 response from {image_url}: status_code: {response.status_code}")
 	return img
 
 def change_orientation(image, orientation, rotate180=False):
