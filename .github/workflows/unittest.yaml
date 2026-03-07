@@ -27,7 +27,7 @@ jobs:
 
     - name: Restore test .storage files
       run: |
-        echo "${{ secrets.TEST_DATA_B64 }}" | base64 --decode > storage.zip
+        echo "${{ secrets.TEST_STORAGE_B64 }}" | base64 --decode > storage.zip
         unzip storage.zip -d ./python/tests/
 
     - name: Run unittests
