@@ -19,7 +19,7 @@ jobs:
 #        sudo apt-get install -y python3-tk
 
     - name: Install chrome headless dependencies
-      run: apt-get update && apt-get install -y chrome-headless-shell
+      run: apt-get update && apt-get install -y chromium-headless-shell
 
     - name: Install uv
       uses: astral-sh/setup-uv@v5

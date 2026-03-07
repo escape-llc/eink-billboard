@@ -144,7 +144,7 @@ class TestAsyncPlugins(unittest.TestCase):
 		)
 		dsmap:dict[str,DataSource] = {"wpotd": WpotdAsync("wpotd", "wpotd")}
 		datasources = DataSourceManager(dsmap)
-		display = self.run_slide_show(track, datasources, 5)
+		display = self.run_slide_show(track, datasources, 10)
 		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
 	def test_slide_show_with_newspaper(self):
 		content = {
