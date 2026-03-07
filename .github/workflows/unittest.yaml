@@ -5,18 +5,16 @@ on: [push, pull_request]
 jobs:
   unittest: # Line 6: Job ID
     runs-on: ubuntu-latest
-    
-    # Line 10: container must be at this indentation level
+
     container:
-      # Line 12: Ensure 'image:' is indented under 'container:'
       image: python:3.13.7-slim
 
     steps:
     - name: Checkout code
-      uses: [actions/checkout@v4](https://github.com)
+      uses: actions/checkout@v4
 
     - name: Install uv
-      uses: [astral-sh/setup-uv@v5](https://github.com/marketplace/actions/astral-sh-setup-uv)
+      uses: astral-sh/setup-uv@v5
       with:
         enable-cache: true
         python-version: "3.13.7"
