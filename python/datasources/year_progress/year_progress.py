@@ -45,10 +45,12 @@ class YearProgressAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 		self.logger = logging.getLogger(__name__)
 	async def open_async(self, dsec: DataSourceExecutionContext, params: dict[str, Any]) -> Any:
 		return {}
-	async def render_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> MediaRenderResult | None:
+	async def render_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state: Any) -> MediaRenderResult | None:
 		scm = dsec.provider.required(SettingsConfigurationManager)
 		stm = dsec.provider.required(StaticConfigurationManager)
 		display_cob = scm.open("display")
 		_, display_config = display_cob.get()
+		if display_config is None:
+			raise ValueError("Display settings is None")
 		img = generate_image(dsec.timestamp, stm, dsec.dimensions, params, display_config)
 		return None if img is None else MediaRenderResult(image=img, title=f"Year Progress: {dsec.timestamp.year}")

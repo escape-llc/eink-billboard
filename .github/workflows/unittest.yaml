@@ -13,11 +13,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-#    - name: Install Tkinter
-#      run: |
-#        sudo apt-get update
-#        sudo apt-get install -y python3-tk
-
     - name: Install chrome headless dependencies
       run: apt-get update && apt-get install -y chromium-headless-shell
 
@@ -30,5 +25,21 @@ jobs:
     - name: Install dependencies
       run: uv sync --frozen --no-group device
 
+    - name: Restore test .storage files
+      run: |
+        echo "${{ secrets.TEST_DATA_B64 }}" | base64 --decode > storage.zip
+        unzip storage.zip -d ./python/tests/
+
     - name: Run unittests
       run: uv run python -m unittest discover .
+
+    - name: Zip test outputs
+      # -r for recursive, -q for quiet (hides file list in logs)
+      run: zip -r test-output.zip ./.test-output
+
+    - name: Upload Test Output
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-output-archive
+        path: test-output.zip
+        retention-days: 10

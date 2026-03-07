@@ -57,5 +57,7 @@ class CountdownAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 		stm = dsec.provider.required(StaticConfigurationManager)
 		display_cob = scm.open("display")
 		_, display_config = display_cob.get()
+		if display_config is None:
+			raise ValueError("Display settings is None")
 		return generate_image(dsec.timestamp, stm, dsec.dimensions, params, display_config)
 	pass
