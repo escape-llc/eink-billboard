@@ -131,7 +131,7 @@ class ConfigurationObject:
 				self._content = self._loader(self.moniker)
 				self._hash = create_hash(self._content) if self._content is not None else None
 			return (self._hash, self._content.copy() if self._content is not None else None)
-	def save(self, hash: str, content: dict) -> SaveResult:
+	def save(self, hash: str|None, content: dict) -> SaveResult:
 		with self._lock:
 			if self._content is None:
 				self._content = self._loader(self.moniker)

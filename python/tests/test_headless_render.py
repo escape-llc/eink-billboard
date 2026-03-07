@@ -38,6 +38,7 @@ class TestHeadlessRender(unittest.TestCase):
 		}
 		rendered_html = template.render(template_params)
 		image = render_html_arglist(rendered_html, arglist)
+		self.assertIsNotNone(image, "Failed to render image")
 		self.save_image(image, f"{title}.png")
 	def test_800x480_ws_off_si_off(self):
 		# dimensions have no effect without any screen-info or window-size

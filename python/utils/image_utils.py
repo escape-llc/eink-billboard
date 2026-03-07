@@ -1,4 +1,5 @@
 import io
+import platform
 
 import requests
 from PIL import Image, ImageEnhance
@@ -117,7 +118,7 @@ def compute_image_hash(image):
 	img_bytes = image.tobytes()
 	return hashlib.sha256(img_bytes).hexdigest()
 
-def render_html_arglist(html_str: str, arglist: list[str]):
+def render_html_arglist(html_str: str, arglist: list[str]) -> Image.Image | None:
 	image = None
 	try:
 		logger.debug(f"{html_str}")
@@ -132,7 +133,9 @@ def render_html_arglist(html_str: str, arglist: list[str]):
 	return image
 
 # DO NOT USE regular Chrome it does not render correctly
+os_type = platform.system()
 WIN_CHROME_HEADLESS = "C:\\Users\\Public\\chrome-headless-shell-win64\\chrome-headless-shell.exe"
+LINUX_CHROME_HEADLESS = "chromium-headless-shell"
 
 def render_chrome_headless_arglist(source_html_path: str, arglist: list[str]):
 	image = None
@@ -141,9 +144,8 @@ def render_chrome_headless_arglist(source_html_path: str, arglist: list[str]):
 		with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as img_file:
 			img_file_path = img_file.name
 		command = [
-#			"chromium-headless-shell",
-# TODO by OS platform
-			WIN_CHROME_HEADLESS,
+			# TODO by OS platform from .env.xxx file
+			WIN_CHROME_HEADLESS if os_type == "Windows" else LINUX_CHROME_HEADLESS,
 			source_html_path,
 			"--headless=new",
 			f"--screenshot={img_file_path}",

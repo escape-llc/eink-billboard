@@ -1,4 +1,6 @@
+import sys
 import threading
+from typing import Any
 import unittest
 import os
 import tempfile
@@ -8,6 +10,7 @@ from ..model.configuration_manager import ConfigurationManager
 from ..model.configuration_manager import ConfigurationObject
 
 class TestConfigurationManager(unittest.TestCase):
+	@unittest.skipUnless(sys.platform == "win32", "This test is for Windows only")
 	def test_os_path_windows(self):
 		ppath = "C:\\path\\to\\some\\folder"
 		plugins = os.path.join(ppath, "plugins")
@@ -52,8 +55,9 @@ class TestConfigurationManager(unittest.TestCase):
 		self.assertEqual(len(plugins), 2)  # Adjust based on expected number of loaded plugins
 		plugin = plugins.get('interstitial', None)
 		self.assertIsNotNone(plugin, 'plugin interstitial failed')
-		self.assertEqual(plugin.id, 'interstitial')
-		self.assertEqual(plugin.name, 'Interstitial Overlay')
+		if plugin is not None:
+			self.assertEqual(plugin.id, 'interstitial')
+			self.assertEqual(plugin.name, 'Interstitial Overlay')
 
 	def test_load_datasources(self):
 		cm = ConfigurationManager()
@@ -63,7 +67,9 @@ class TestConfigurationManager(unittest.TestCase):
 		self.assertEqual(len(datasources), 8)  # Adjust based on expected number of loaded datasources
 		datasource = datasources.get('comic', None)
 		self.assertIsNotNone(datasource, 'datasource comic failed')
-		self.assertEqual(datasource.name, 'Comic Plugin')
+		if datasource is not None:
+			self.assertEqual(datasource.id, 'comic')
+			self.assertEqual(datasource.name, 'Comic Plugin')
 
 	def test_load_save_plugin_state(self):
 		with tempfile.TemporaryDirectory() as tempdir:
@@ -229,7 +235,7 @@ class TestConfigurationObject(unittest.TestCase):
 
 	def test_load_empty_save_object(self):
 		loader_calls = {'count': 0}
-		saved = [None]
+		saved: list[Any] = [None]
 
 		def loader(moniker: str):
 			loader_calls['count'] += 1
@@ -269,22 +275,24 @@ class TestConfigurationObject(unittest.TestCase):
 
 		with obj as o:
 			hash1, content1 = o.get()
+			self.assertIsNotNone(content1)
 			self.assertEqual(content1, {'a': 1})
 			self.assertEqual(content1, saved[0])
 			self.assertEqual(len(saved), 1)
 			# verify we are modifying a copy and not the original
-			content1["a"] = 2
-			self.assertNotEqual(content1, saved[0])
-			# save should re-acquire the same lock (RLock) and succeed
-			ok, new_hash = o.save(hash1, content1)
-			self.assertTrue(ok)
-			self.assertEqual(len(saved), 2)
+			if content1 is not None:
+				content1["a"] = 2
+				self.assertNotEqual(content1, saved[0])
+				# save should re-acquire the same lock (RLock) and succeed
+				ok, new_hash = o.save(hash1, content1)
+				self.assertTrue(ok)
+				self.assertEqual(len(saved), 2)
 
-		# after context and save, cache evicted -> next get reloads
-		hash2, content2 = obj.get()
-		self.assertEqual(loader_calls['count'], 2)
-		self.assertEqual(content2, {'a': 2})
-		self.assertEqual(hash2, new_hash)
+				# after context and save, cache evicted -> next get reloads
+				hash2, content2 = obj.get()
+				self.assertEqual(loader_calls['count'], 2)
+				self.assertEqual(content2, {'a': 2})
+				self.assertEqual(hash2, new_hash)
 
 if __name__ == "__main__":
     unittest.main()

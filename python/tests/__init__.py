@@ -23,3 +23,10 @@ def setup_test_logging():
 
 # Execute the setup
 setup_test_logging()
+
+import sys
+from unittest.mock import MagicMock
+
+# Mock both the high-level and low-level modules
+sys.modules["_tkinter"] = MagicMock()
+sys.modules["tkinter"] = MagicMock()
