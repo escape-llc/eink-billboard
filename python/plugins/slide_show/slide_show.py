@@ -7,6 +7,7 @@ from typing import Any, TypedDict, cast
 from ..plugin_base import PluginAsync, PluginExecutionContext, TrackType
 from ...datasources.data_source import DataSourceManager, MediaListAsync, MediaRenderAsync
 from ...model.schedule import PlaylistSchedule
+from ...task.messages import BasicMessage
 from ...task.display import DisplayImage
 from ...task.message_router import MessageRouter
 from ...task.timer import IProvideTimer
@@ -66,7 +67,7 @@ class SlideShowAsync(PluginAsync):
 				# TODO save state for next time?
 				raise
 		pass
-	async def task_async(self, context: PluginExecutionContext, track: TrackType, done: threading.Event) -> None:
+	async def task_async(self, context: PluginExecutionContext, track: TrackType, done: threading.Event) -> BasicMessage|None:
 		self.logger.info(f"{self.id} start '{track.title}'")
 		try :
 			if isinstance(track, PlaylistSchedule):

@@ -4,15 +4,14 @@ import logging
 import threading
 from typing import Any, Any, NotRequired, ReadOnly, TypedDict, cast
 
-from python.model.schedule_loader import ScheduleLoaderDict
-from python.task.async_http_worker_pool import AsyncHttpWorkerPool
-
 from ..datasources.data_source import DataSourceManager
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.schedule import RenderScheduleDict, TimerTaskItem, Playlist, render_task_schedule_at
+from ..model.schedule_loader import ScheduleLoaderDict
 from ..model.service_container import IServiceProvider, ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..plugins.plugin_base import PluginAsync, PluginExecutionContext
+from ..task.async_http_worker_pool import AsyncHttpWorkerPool
 from ..task.basic_task import DispatcherTask
 from ..task.display import DisplaySettings
 from ..task.messages import AsyncTaskCompleted, AsyncTaskCompleted, BasicMessage, QuitMessage, Telemetry
