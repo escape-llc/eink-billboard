@@ -494,6 +494,10 @@ def render_tasks_schedule():
 		}
 		return jsonify(retv)
 	except Exception as e:
-		logger.error(f"/schedule/tasks/render: {str(e)}")
-		error = { "message": str(e), "id": "schedule-tasks-render", "success": False }
+		logger.exception("/schedule/tasks/render failed")
+		error = {
+			"message": "An internal error has occurred while rendering the schedule.",
+			"id": "schedule-tasks-render",
+			"success": False
+		}
 		return jsonify(error), 500
