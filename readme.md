@@ -34,13 +34,19 @@ After reviewing the code of the [InkyPi](https://github.com/fatihak/InkyPi) proj
 * Different architecture for settings, etc.
 	* Described in JSON configuration
 	* Web settings UI automatically build themselves
-* Re-implement existing plugins as data sources
+* Color theme
+	* Device-wide algorithmic color scheme
+	* Unified colors for all components
+* Re-implement existing plugins as `async` data sources
 	* The existing plugins just show (a list of) images/single image
 	* Encapsulate the notion of "list of images"
-* Re-implement existing plugins
+* Re-implement existing plugins as `async`
 	* Plugins are general-purpose "media player" like a slide-show
 	* Same plugin handles many data sources
 	* Tied to the display policy (see below) instead of the data
+* Re-implement with `async` tasks
+	* Important for easy cancellation during shutdown or re-configuration
+	* Greatly simplifies implementations
 * Support same displays
 	* Pimoroni
 	* Waveshare
@@ -71,6 +77,7 @@ After struggling with different ideas, we arrive at the following architecture, 
 	* Override both Background and Overlay layers.
 	* Content that is HTML-rendered, usually text, that does not expect to be overlaid with other information.
 	* Determined by the Data Source.
+	* Foreground layer with transparency will "blend over" the current Background image.
 * Priority layer
 	* Like "Breaking News" that interrupts All Layers, and display for a timed period.
 	* For example, show Clock on-the-hour for one minute, show Weather at bottom of every hour for five minutes.
@@ -111,7 +118,7 @@ It currently does not test the Flask portion of the system.
 
 ## Application Task
 
-This task and all the subsequent tasks are organized as `threading.Thread` implementations.
+This task and all the subsequent tasks are organized as `threading.Thread` implementations.  They form the Control Plane of the system.
 
 The thread consists of a queue and message loop of typical construction.  There is a special `QuitMessage` to terminate the loop and the thread.
 
@@ -161,7 +168,7 @@ When a track's schedule fires, it is executed.  Multiple tasks can fire at the s
 
 ### Display Task
 
-This task operates primarily on the `DisplayImage` message and sends the image to the current display.
+This task operates primarily on the `DisplayImage` message (and subclasses) and sends the image to the current display.
 
 Display Task uses a dynamically determined "driver" that matches the hardware used:
 
@@ -235,3 +242,14 @@ The following JSON may be used to set up the launch configuration for Python deb
 			"console": "integratedTerminal"
 		}
 ------
+
+## Note to Cloners
+
+If you are running a clone and want to have the `unittest.yaml` in Github workflow work properly, you must get a storage root copied into the test runner.
+
+We use the simple "trick" of base 64-encoding a ZIP archive, storing that string as a Repository Secret, and reversing the process in the workflow.
+
+1. Stage your test data.  By default this location should be `./python/tests/.storage`.
+2. Run the `prepare-test-data.ps1` script.  It uses the above path by default.
+3. Take the `secure-string.txt` file and copy/paste it into a Secret in GH.  Use the same name as in our YAML file `TEST_STORAGE_B64`.
+4. Run the `unittest.yaml` workflow; troubleshoot issues.

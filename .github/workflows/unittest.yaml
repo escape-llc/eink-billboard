@@ -26,6 +26,7 @@ jobs:
       run: uv sync --frozen --no-group device
 
     - name: Restore test .storage files
+      # use the prepare-test-data.ps1 script for the secret string; decode and unzip it here
       run: |
         echo "${{ secrets.TEST_STORAGE_B64 }}" | base64 --decode > storage.zip
         unzip -o storage.zip -d ./python/tests/.storage || true
