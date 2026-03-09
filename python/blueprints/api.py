@@ -395,9 +395,9 @@ def schedule_playlist_list():
 				dx[HASH_KEY] = hash
 				playlist_resp.append(dx)
 		return jsonify({ "success": True, "playlists": playlist_resp })
-	except Exception as e:
-		logger.error(f"/schedule/playlist/list: {str(e)}")
-		error = { "message": str(e), "id": "schedule-playlist-list", "success": False }
+	except Exception:
+		logger.exception("/schedule/playlist/list: unhandled exception while loading playlist schedule")
+		error = { "message": "An internal error occurred while loading the playlist schedule.", "id": "schedule-playlist-list", "success": False }
 		return jsonify(error), 500
 
 @api_bp.route('/schedule/timer/list', methods=['GET'])
