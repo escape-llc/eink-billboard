@@ -12,7 +12,7 @@ class ImageCompositor:
 		self.layer_background = None
 		self.layer_overlays:list[ImageOverlay] = []
 		self.layer_forground = None
-		self.layer_interstitial = None
+		self.layer_priority = None
 		self.composited_image = None
 	def set_layer_background(self, image: Image.Image) -> int:
 		self.layer_background = image
@@ -26,18 +26,21 @@ class ImageCompositor:
 		self.layer_forground = image
 		self._version += 1
 		return self._version
-	def set_layer_interstitial(self, image: Image.Image) -> int:
-		self.layer_interstitial = image
+	def set_layer_priority(self, image: Image.Image) -> int:
+		self.layer_priority = image
 		self._version += 1
 		return self._version
+	def is_dirty(self) -> bool:
+		return self._startVersion != self._version
 	def render(self) -> tuple[bool, Image.Image|None]:
 		if self._startVersion == self._version:
 			return (False, self.composited_image)
 		final_image = None
-		if self.layer_interstitial is not None:
-			final_image = self.layer_interstitial.copy()
+		if self.layer_priority is not None:
+			final_image = self.layer_priority.copy()
 		elif self.layer_forground is not None:
 			final_image = self.layer_forground.copy()
+			# TODO if foreground has transparcency, composite onto background in "lighten" mode
 		elif self.layer_background is not None:
 			final_image = self.layer_background.copy()
 			# add overlays

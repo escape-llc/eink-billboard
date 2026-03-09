@@ -138,13 +138,15 @@ class Display(DispatcherTask):
 			self.logger.error(f"commit_timer_expired.unhandled: {str(e)}")
 		pass
 	@exclude_from_dispatch
-	def _priority_image_timer_expired(self, msg: PriorityImage):
+	def _priority_image_timer_expired(self, msg: PriorityImageTimerExpired):
 		self.logger.info(f"Priority timer expired for image '{msg.title}'")
 		self.priority_timer = None
 		if not self.priority_backlog.empty():
 			self.logger.info(f"Processing next priority image from backlog")
 			next_msg = self.priority_backlog.get_nowait()
-			self._priority_image(next_msg)
+			# TODO cannot send to the handler!
+			self.compsitor.set_layer_priority(next_msg.img)
+			self._set_commit_timer(self.timer, next_msg)
 		pass
 	def _priority_image(self, msg: PriorityImage):
 		try:
@@ -157,24 +159,24 @@ class Display(DispatcherTask):
 			if self.timer is None:
 				self.logger.error("No timer service available")
 				return
-			display_cob = self.cm.settings_manager().open("display")
-			_, display_settings = display_cob.get()
-			self.displayImageCount += 1
-			self.logger.info(f"Display {self.displayImageCount} '{msg.title}'")
-
 			# check for queued PriorityImages and add to queue if one is currently active
 			if self.priority_timer is not None:
 				self.logger.info(f"Priority image already active, adding '{msg.title}' to backlog")
 				self.priority_backlog.put(msg)
 				return
 
+			display_cob = self.cm.settings_manager().open("display")
+			_, display_settings = display_cob.get()
+			self.displayImageCount += 1
+			self.logger.info(f"Display {self.displayImageCount} '{msg.title}'")
+
 			if display_settings is not None:
 			# Resize and adjust orientation
 				image = change_orientation(msg.img, display_settings.get("orientation", "landscape"))
 				image = resize_image(image, self.resolution)
-				self.compsitor.set_layer_interstitial(image)
+				self.compsitor.set_layer_priority(image)
 			else:
-				self.compsitor.set_layer_interstitial(msg.img)
+				self.compsitor.set_layer_priority(msg.img)
 
 			self._set_priority_timer(self.timer, PriorityImageTimerExpired(msg.timestamp, msg.title))
 		except Exception as e:
@@ -189,7 +191,7 @@ class Display(DispatcherTask):
 			self.commit_timer = None
 			self.logger.debug("Existing commit timer cancelled")
 		self.commit_timer = timer.create_timer(timedelta(seconds=2), self, "commit", msg)
-	def _set_priority_timer(self, timer: IProvideTimer, pite: PriorityImage) -> None:
+	def _set_priority_timer(self, timer: IProvideTimer, pite: PriorityImageTimerExpired) -> None:
 		if timer is None:
 			self.logger.error("No timer service available")
 			return
@@ -203,7 +205,7 @@ class Display(DispatcherTask):
 		if msg.token == "commit":
 			self._commit_timer_expired(cast(DisplayImage, msg.state))
 		elif msg.token == "priority":
-			self._priority_image_timer_expired(cast(PriorityImage, msg.state))
+			self._priority_image_timer_expired(cast(PriorityImageTimerExpired, msg.state))
 		pass
 	def _display_image(self, msg: DisplayImage):
 		try:

@@ -66,7 +66,7 @@ class TestImageCompositor(unittest.TestCase):
         self.assertTrue(changed)
         self.assertEqual(out.getpixel((0, 0)), fg.getpixel((0, 0)))
 
-        comp.set_layer_interstitial(inter)
+        comp.set_layer_priority(inter)
         changed2, out2 = comp.render()
         save_image(out2, folder, 2, "set_fg_interstitial")
         self.assertTrue(changed2)
