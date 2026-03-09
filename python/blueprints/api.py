@@ -423,9 +423,9 @@ def schedule_timed_list():
 				dx[HASH_KEY] = hash
 				task_resp.append(dx)
 		return jsonify({ "success": True, "timed": task_resp })
-	except Exception as e:
-		logger.error(f"/schedule/timer/list: {str(e)}")
-		error = { "message": str(e), "id": "schedule-timer-list", "success": False }
+	except Exception:
+		logger.exception("/schedule/timer/list: unhandled exception while loading timer schedule")
+		error = { "message": "An internal error occurred while loading the timer schedule.", "id": "schedule-timer-list", "success": False }
 		return jsonify(error), 500
 
 @api_bp.route('/schedule/tasks/render', methods=['GET'])
