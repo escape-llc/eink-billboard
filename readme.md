@@ -18,6 +18,7 @@ After reviewing the code of the [InkyPi](https://github.com/fatihak/InkyPi) proj
 	* Exercise Python's multi-platform capabilities
 * Task-based architecture with Message Passing
 	* Explore the multi-thread capabilities of Python
+	* Explore Python's `async`/`await`
 	* We actually build Real Production Apps this way!
 * Unit test coverage of the Python code
 * Playlist scheduling model
@@ -25,12 +26,14 @@ After reviewing the code of the [InkyPi](https://github.com/fatihak/InkyPi) proj
 	* No concept of time-of-day
 * "Day-planner" scheduling model
 	* Time/date sensitive tasks
-	* Plugins have time slots
-		* Different settings per time slot
-	* Multiple tasks may run at the same time slot
+	* Tasks have day/time "trigger"
+	* Tasks run plugins
+		* Different settings per task
+	* Multiple tasks may trigger at the same time
 * Replace Jinja with a modern web front end toolchain
 	* Vite
 	* Vue JS
+	* Descriptor-based UI
 * Different architecture for settings, etc.
 	* Described in JSON configuration
 	* Web settings UI automatically build themselves
@@ -38,24 +41,30 @@ After reviewing the code of the [InkyPi](https://github.com/fatihak/InkyPi) proj
 	* Device-wide algorithmic color scheme
 	* Unified colors for all components
 * Re-implement existing plugins as `async` data sources
-	* The existing plugins just show (a list of) images/single image
+	* The existing plugins just render one/list of image(s)
 	* Encapsulate the notion of "list of images"
-* Re-implement existing plugins as `async`
+	* Data sources may use other data sources
+* Plugins now "render" data sources to display layers (see below)
+	* Handles any data source with matching "features"
+	* Fewer and simpler plugins
+* Re-implement plugins as `async`
 	* Plugins are general-purpose "media player" like a slide-show
 	* Same plugin handles many data sources
 	* Tied to the display policy (see below) instead of the data
 * Re-implement with `async` tasks
-	* Important for easy cancellation during shutdown or re-configuration
+	* Self-hosting `async` loops for isolation between different tasks
+	* Easy cancellation during shutdown or re-configuration
 	* Greatly simplifies implementations
 * Support same displays
 	* Pimoroni
 	* Waveshare
 	* Mock
 	* Tk
-* Plugins do not require web authoring (for configuration) unless they need custom UI
+* Components do not require web authoring (for configuration) unless they need custom UI
 	* This is separate from plugins rendering content via `chromium-headless-shell`
+	* Schema descriptors provide the web application with metadata to build UI automatically
 * Plugins and Data Sources have more infrastructure support
-	* Set timers for slideshows
+	* Set timers (for slideshows, etc.)
 	* Schedule async operations, e.g. HTTP
 	* Plugin (temporary) state (saved as JSON)
 
@@ -66,22 +75,55 @@ After reviewing the code of the [InkyPi](https://github.com/fatihak/InkyPi) proj
 After struggling with different ideas, we arrive at the following architecture, based on "layers".  These are the layers, back to front:
 
 * Background layer
-	* Playlists provide images for the background, like a Digital Picture Frame.
+	* Playlist Layer provides images for the background layer.
+	* Like a Digital Picture Frame.
 	* Determined by the Data Source.
 * Overlay layer
-	* This uses the Timed Layer to update (semi-) transparent display "overlays" that are composited onto the background.
+	* Timer Layer provides images for the overlay layer.
+	* Semi-transparent image "overlays" are composited onto the background.
 	* Similar behavior to device Lock Screen, e.g. Date/weather/reminders/etc.
 	* Persistent (date/weather) or time-sensitive (reminders).
 	* Determined by the Data Source.
 * Foreground layer
-	* Override both Background and Overlay layers.
-	* Content that is HTML-rendered, usually text, that does not expect to be overlaid with other information.
+	* Playlist Layer provides images for the foreground layer.
+	* Overrides both Background and Overlay layers.
+	* Content that is HTML-rendered, usually text, not expected to be overlaid with other information, e.g. RSS Feed.
 	* Determined by the Data Source.
 	* Foreground layer with transparency will "blend over" the current Background image.
 * Priority layer
-	* Like "Breaking News" that interrupts All Layers, and display for a timed period.
-	* For example, show Clock on-the-hour for one minute, show Weather at bottom of every hour for five minutes.
-	* Multiple Priority layer requests are queued up and the display is updated after previous one expires.
+	* Timer Layer provides images for the priority layer.
+	* Like "Breaking News" that Interrupts All Layers, display for a timed period.
+		* show Clock on-the-hour for one minute.
+		* show Weather at bottom of every hour for five minutes.
+	* Does not interrupt activity on lower layers, e.g. an in-progress Slide Show continues to run.
+	* Multiple Priority layer images are queued up; the display is updated after previous one expires.
+
+The Display Task (see below) receives Display Instructions and executes them against a Compositor (see below).
+
+## Compositor
+
+Changes to the current final image are arbitrated by the Compositor, a component that collects all the image instructions
+for the layers, and determines the final image to output upon request.  This final image is then run through the post-processing
+display settings, and sent to the driver for rendering on hardware/software.
+
+The compositor "versions" each update to the layer data, and this is how it determines whether a new image should even be produced.
+
+## Commit Timer
+
+Because the system is message based, there is a Grace Period after each update, where the Display Task waits to see if additional display instructions arrive.   
+This is important, because of the Blanking Period (see below).  If this occurs, the timer is reset.  This continues until the timer actually expires.
+
+If the timer is expired, and the Blanking Period (see below) timer is expired, a new image is requested from the Compositor.
+
+The Commit Timer is currently 2 seconds.
+
+## Blanking Period
+
+To avoid over-refreshing the display, which is not good for it, there is a Blanking Period timer of 60 seconds.
+
+While this timer is active, display instructions are accummulated, and their net effect will be the next image rendered by the Compositor.
+
+This means a sequence of display instructions may appear "lost" and not visualized, e.g. two successive background layer updates in quick succession.
 
 # Tasks
 
@@ -130,14 +172,18 @@ Application Task manages the following additional components (tasks).
 * Playlist Layer
 * Display
 
-### Playlist Layer
+### Playlist Layer Task
 
-This layer runs the Playlists that update the Display's Background/Foreground Layer.
+This layer runs the Playlists that update the Display's Background/Foreground Layer.  The primary algorithm is run in a dedicated `async` coroutine the task controls.
 
 Each "Track" of the Playlist determines:
 
-* Data Source
+* Plugin
 * Plugin instance settings
+	* Data Source
+	* Data Source instance settings
+
+The Playlist Layer coroutine simply loops through all the playlists, and then all the tracks in each playlist.  When the last track of the last playlist ends, it terminates, and the Playlist Layer schedules the coroutine again.
 
 The primary plugin is the Slide Show plugin. The layer updated depends on the Data Source's "features".
 
@@ -147,24 +193,28 @@ Slide Show plugin advances its Data Source based on the Slideshow Time.  When th
 
 When a Playlist ends, another Playlist is selected from the schedule and started.  This may be the same Playlist.
 
-### Timer Layer
+### Timer Layer Task
 
-This layer runs the Timer Tasks that update the Display's Overlay/Priority Layer.
+This layer runs the Timer Tasks that update the Display's Overlay/Priority Layer.  The primary algorithm is run in a dedicated `async` coroutine the task controls.
 
 Each Track determines:
 
-* Schedule (Start Time(s))
+* Trigger (Start Time(s))
 	* Startup
 	* Day(s) of week
 	* Time(s) of day
-* Data Source
+* Plugin
 * Plugin instance settings
+	* Data Source
+	* Data Source instance settings
+
+The Timer Layer coroutine executes a Playlist consisting of the day's task list with startup and all the triggers materialized (exact time-of-day computed).  When this Playlist ends, the coroutine ends, and the Timer Layer calculates the next day's Playlist and schedules the coroutine again (without startup items).
 
 The primary plugin is the Interstitial plugin.  This updates the Display's Priority layer with the (timed) image.
 
-Schedules are very flexible, and may be any combination of day(s) and time(s) of day.
+Schedules are very flexible, and may be specific combinations of day(s) and time(s) of day.
 
-When a track's schedule fires, it is executed.  Multiple tasks can fire at the same time.  A Timer Task may or may not generate any image, based on business logic.
+When a track's task triggers, it is executed.  Multiple tasks can fire at the same time.  A Timer Task may or may not generate any image, based on business logic.
 
 ### Display Task
 
