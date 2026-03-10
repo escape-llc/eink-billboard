@@ -1,4 +1,3 @@
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import logging
@@ -39,6 +38,10 @@ class PriorityImageTimerExpired(BasicMessage):
 	title: str
 
 @dataclass(frozen=True, slots=True)
+class CommitTimerExpired(BasicMessage):
+	title: str
+
+@dataclass(frozen=True, slots=True)
 class DisplaySettings(BasicMessage):
 	"""
 	Notify tasks of the current display settings.
@@ -59,8 +62,9 @@ class Display(DispatcherTask):
 		self.timer: IProvideTimer|None = None
 		self.commit_timer: CreateTimerResult|None = None
 		self.priority_timer: CreateTimerResult|None = None
+		self.refresh_timer: CreateTimerResult|None = None
 		self.compsitor = ImageCompositor()
-		self.priority_backlog = queue.Queue()
+		self.priority_backlog = queue.Queue[PriorityImage]()
 		self.resolution = [800,480]
 		self.displayImageCount = 0
 		self.logger = logging.getLogger(__name__)
@@ -107,7 +111,7 @@ class Display(DispatcherTask):
 			self.logger.error(f"configure.unhandled: {str(e)}")
 			msg.notify(True, e)
 	@exclude_from_dispatch
-	def _commit_timer_expired(self, msg: DisplayImage):
+	def _commit_timer_expired(self, msg: CommitTimerExpired):
 		try:
 			self.logger.info(f"Commit {self.compsitor._version} '{msg.title}'")
 			self.commit_timer = None
@@ -117,10 +121,18 @@ class Display(DispatcherTask):
 			if self.display is None:
 				self.logger.error("No driver is loaded")
 				return
+			if self.refresh_timer is not None:
+				self.logger.info("Cannot Commit during refresh blackout")
+				return
 
 			display_cob = self.cm.settings_manager().open("display")
 			_, display_settings = display_cob.get()
-
+			self._render_and_display(self.display, display_settings, msg.title)
+		except Exception as e:
+			self.logger.error(f"commit_timer_expired.unhandled: {str(e)}")
+		pass
+	def _render_and_display(self, display: DisplayBase, display_settings: dict|None, title: str):
+		try:
 			updated, composited_image = self.compsitor.render()
 			if updated == False:
 				self.logger.debug(f"Image compositing no changes detected")
@@ -133,20 +145,52 @@ class Display(DispatcherTask):
 				if display_settings.get("rotate180", False): composited_image = composited_image.rotate(180)
 				composited_image = apply_image_enhancement(composited_image, display_settings)
 
-			self.display.render(composited_image, self.displayImageCount, msg.title)
+			display.render(composited_image, self.displayImageCount, title)
 		except Exception as e:
-			self.logger.error(f"commit_timer_expired.unhandled: {str(e)}")
+			self.logger.error(f"render_and_display.unhandled: {str(e)}")
 		pass
+	def _check_advance_foreground_image_queue(self) -> bool:
+		if self.timer is None:
+			self.logger.error("No timer service available")
+			return False
+		if self.refresh_timer is None and not self.priority_backlog.empty():
+			self.logger.info(f"Processing next priority image from backlog")
+			next_msg = self.priority_backlog.get_nowait()
+			self.compsitor.set_layer_priority(next_msg.img)
+			self._set_commit_timer(self.timer, CommitTimerExpired(next_msg.timestamp, next_msg.title))
+			self._set_priority_timer(self.timer, next_msg.duration, PriorityImageTimerExpired(next_msg.timestamp, next_msg.title))
+			return True
+		return False
 	@exclude_from_dispatch
 	def _priority_image_timer_expired(self, msg: PriorityImageTimerExpired):
 		self.logger.info(f"Priority timer expired for image '{msg.title}'")
 		self.priority_timer = None
-		if not self.priority_backlog.empty():
-			self.logger.info(f"Processing next priority image from backlog")
-			next_msg = self.priority_backlog.get_nowait()
-			# TODO cannot send to the handler!
-			self.compsitor.set_layer_priority(next_msg.img)
-			self._set_commit_timer(self.timer, next_msg)
+		if self.timer is None:
+			self.logger.error("No timer service available")
+			return
+		# ALSO checking this after the refresh timer expires
+		self._check_advance_foreground_image_queue()
+		pass
+	@exclude_from_dispatch
+	def _refresh_timer_expired(self, msg: RefreshBlackoutTimerExpired):
+		self.logger.info(f"Refresh timer expired")
+		self.refresh_timer = None
+		if self.display is None:
+			self.logger.error("No driver is loaded")
+			return
+		if self.cm is None:
+			self.logger.error("No configuration manager available")
+			return
+		if self._check_advance_foreground_image_queue():
+			self.logger.info("Advanced foreground image queue after refresh blackout expired")
+			return
+		if self.commit_timer is None:
+			self.logger.info("No commit timer active, check compositor")
+			if self.compsitor.is_dirty():
+				self.logger.info("Compositor is dirty, forcing commit")
+				display_cob = self.cm.settings_manager().open("display")
+				_, display_settings = display_cob.get()
+				self._render_and_display(self.display, display_settings, "Refresh Blackout Expired")
 		pass
 	def _priority_image(self, msg: PriorityImage):
 		try:
@@ -168,7 +212,7 @@ class Display(DispatcherTask):
 			display_cob = self.cm.settings_manager().open("display")
 			_, display_settings = display_cob.get()
 			self.displayImageCount += 1
-			self.logger.info(f"Display {self.displayImageCount} '{msg.title}'")
+			self.logger.info(f"Priority {self.displayImageCount} '{msg.title}'")
 
 			if display_settings is not None:
 			# Resize and adjust orientation
@@ -178,11 +222,11 @@ class Display(DispatcherTask):
 			else:
 				self.compsitor.set_layer_priority(msg.img)
 
-			self._set_priority_timer(self.timer, PriorityImageTimerExpired(msg.timestamp, msg.title))
+			self._set_priority_timer(self.timer, msg.duration, PriorityImageTimerExpired(msg.timestamp, msg.title))
 		except Exception as e:
-			self.logger.error("displayimage.unhandled", e)
+			self.logger.error("priorityimage.unhandled", e)
 			pass
-	def _set_commit_timer(self, timer: IProvideTimer, msg: DisplayImage) -> None:
+	def _set_commit_timer(self, timer: IProvideTimer, msg: CommitTimerExpired) -> None:
 		if timer is None:
 			self.logger.error("No timer service available")
 			return
@@ -191,7 +235,16 @@ class Display(DispatcherTask):
 			self.commit_timer = None
 			self.logger.debug("Existing commit timer cancelled")
 		self.commit_timer = timer.create_timer(timedelta(seconds=2), self, "commit", msg)
-	def _set_priority_timer(self, timer: IProvideTimer, pite: PriorityImageTimerExpired) -> None:
+	def _set_refresh_timer(self, timer: IProvideTimer, msg: RefreshBlackoutTimerExpired) -> None:
+		if timer is None:
+			self.logger.error("No timer service available")
+			return
+		if self.refresh_timer is not None:
+			self.refresh_timer[1]()
+			self.refresh_timer = None
+			self.logger.debug("Existing refresh timer cancelled")
+		self.refresh_timer = timer.create_timer(timedelta(seconds=60), self, "refresh", msg)
+	def _set_priority_timer(self, timer: IProvideTimer, td: timedelta, pite: PriorityImageTimerExpired) -> None:
 		if timer is None:
 			self.logger.error("No timer service available")
 			return
@@ -199,13 +252,15 @@ class Display(DispatcherTask):
 			self.priority_timer[1]()
 			self.priority_timer = None
 			self.logger.debug("Existing priority timer cancelled")
-		self.priority_timer = timer.create_timer(timedelta(seconds=2), self, "priority", pite)
+		self.priority_timer = timer.create_timer(td, self, "priority", pite)
 	def _timer_expired(self, msg: TimerExpired):
 		self.logger.info(f"{self.name}: {msg}")
 		if msg.token == "commit":
-			self._commit_timer_expired(cast(DisplayImage, msg.state))
+			self._commit_timer_expired(cast(CommitTimerExpired, msg.state))
 		elif msg.token == "priority":
 			self._priority_image_timer_expired(cast(PriorityImageTimerExpired, msg.state))
+		elif msg.token == "refresh":
+			self._refresh_timer_expired(cast(RefreshBlackoutTimerExpired, msg.state))
 		pass
 	def _display_image(self, msg: DisplayImage):
 		try:
@@ -231,7 +286,7 @@ class Display(DispatcherTask):
 			else:
 				self.compsitor.set_layer_background(msg.img)
 
-			self._set_commit_timer(self.timer, msg)
+			self._set_commit_timer(self.timer, CommitTimerExpired(msg.timestamp, msg.title))
 		except Exception as e:
 			self.logger.error("displayimage.unhandled", e)
 			pass
