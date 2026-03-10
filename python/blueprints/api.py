@@ -1,12 +1,12 @@
 from datetime import datetime, timedelta
 from functools import lru_cache
-from flask import Blueprint, Response, jsonify, render_template, current_app, send_from_directory, send_file, request
+from flask import Blueprint, Response, jsonify, current_app, send_file, request
 import zoneinfo
 import logging
-from typing import Generator, cast
+from typing import cast
 
 from ..model.service_container import IServiceProvider
-from ..model.schedule import TimerTaskItem, TimerTasks, daily_sequence, generate_schedule, render_task_schedule_at
+from ..model.schedule import TimerTasks, daily_sequence, render_task_schedule_at
 from ..model.configuration_manager import ConfigurationManager, ConfigurationObject, HASH_KEY, ID_KEY, create_hash
 
 logger = logging.getLogger(__name__)
