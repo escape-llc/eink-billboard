@@ -160,8 +160,9 @@ def update_settings_theme():
 		error = { "message": "File not found.", "id": "theme-settings", "success": False }
 		return jsonify(error), 404
 	except Exception as e:
-		logger.error(f"/settings/theme: {str(e)}")
-		error = { "message": str(e), "id": "theme-settings", "success": False }
+		# Log full exception details, including stack trace, but do not expose them to the client.
+		logger.exception(f"/settings/theme: Unexpected error while updating theme settings")
+		error = { "message": "An internal error has occurred.", "id": "theme-settings", "success": False }
 		return jsonify(error), 500
 
 @api_bp.route('/schemas/system', methods=['GET'])
