@@ -271,7 +271,7 @@ def save_plugin_settings(plugin:str):
 		return jsonify(error), 404
 	except Exception as e:
 		logger.error(f"/plugins/{plugin}/settings: {str(e)}")
-		error = { "message": str(e), "id": plugin, "success": False }
+		error = { "message": "An internal error has occurred.", "id": plugin, "success": False }
 		return jsonify(error), 500
 
 @api_bp.route('/datasources/list', methods=['GET'])
@@ -300,7 +300,7 @@ def datasource_settings(plugin:str):
 		return jsonify(error), 404
 	except Exception as e:
 		logger.error(f"/datasources/{plugin}/settings: {str(e)}")
-		error = { "message": str(e), "id": plugin, "success": False }
+		error = { "message": "An internal error has occurred.", "id": plugin, "success": False }
 		return jsonify(error), 500
 
 @lru_cache(maxsize=1)
