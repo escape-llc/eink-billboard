@@ -346,8 +346,8 @@ def save_datasource_settings(plugin:str):
 		error = { "message": "File not found.", "id": plugin, "success": False }
 		return jsonify(error), 404
 	except Exception as e:
-		logger.error(f"/datasources/{plugin}/settings: {str(e)}")
-		error = { "message": str(e), "id": plugin, "success": False }
+		logger.exception(f"/datasources/{plugin}/settings: Unexpected error")
+		error = { "message": "Internal server error.", "id": plugin, "success": False }
 		return jsonify(error), 500
 
 @api_bp.route('/lookups/timezone', methods=['GET'])
