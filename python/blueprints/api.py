@@ -180,7 +180,7 @@ def schemas_system():
 		return jsonify(error), 404
 	except Exception as e:
 		logger.error(f"/schemas/system: {path}: {str(e)}")
-		error = { "message": str(e), "id": "system-schema", "success": False }
+		error = { "message": "An internal error has occurred.", "id": "system-schema", "success": False }
 		return jsonify(error), 500
 
 @api_bp.route('/schemas/display', methods=['GET'])
@@ -199,7 +199,7 @@ def schemas_display():
 		return jsonify(error), 404
 	except Exception as e:
 		logger.error(f"/schemas/display: {path}: {str(e)}")
-		error = { "message": str(e), "id": "display-schema", "success": False }
+		error = { "message": "An internal error has occurred.", "id": "display-schema", "success": False }
 		return jsonify(error), 500
 
 @api_bp.route('/schemas/theme', methods=['GET'])
@@ -218,7 +218,7 @@ def schemas_theme():
 		return jsonify(error), 404
 	except Exception as e:
 		logger.error(f"/schemas/theme: {path}: {str(e)}")
-		error = { "message": str(e), "id": "theme-schema", "success": False }
+		error = { "message": "An internal error has occurred.", "id": "theme-schema", "success": False }
 		return jsonify(error), 500
 
 @api_bp.route('/schemas/plugin/<plugin>', methods=['GET'])
