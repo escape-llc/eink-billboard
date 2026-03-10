@@ -6,13 +6,17 @@ from ..model.service_container import ServiceContainer
 from ..model.configuration_manager import ConfigurationManager
 from ..model.time_of_day import TimeOfDay
 from ..task.application import Application
+from ..task.configure_event import ConfigureNotify
 from ..task.messages import QuitMessage, StartEvent, StartOptions, StopEvent, Telemetry
 from ..task.protocols import IProvideTimer
 
 class TestApplication(unittest.TestCase):
 	def test_start_configure_stop(self):
-		# stop when playlist_layer gets to the 4th track (index 3)
-		stopsink = MessageTriggerSink(lambda msg: isinstance(msg, Telemetry) and msg.name == "playlist_layer" and msg.values.get("current_track_index", None) == 3)
+		# stop when playlist_layer gets to the 4th track (index 3) OR configure failed
+		stopsink = MessageTriggerSink(lambda msg:
+																(isinstance(msg, Telemetry) and msg.name == "playlist_layer" and msg.values.get("current_track_index", None) == 3)
+																or (isinstance(msg, ConfigureNotify) and msg.error == True)
+																)
 		app = Application("TestApp", stopsink)
 		app.start()
 		storage = storage_path()
