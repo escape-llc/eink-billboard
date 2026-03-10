@@ -85,7 +85,7 @@ def update_settings_system():
 		return jsonify(error), 404
 	except Exception as e:
 		logger.error(f"/settings/system: {str(e)}")
-		error = { "message": str(e), "id": "system-settings", "success": False }
+		error = { "message": "An internal error has occurred.", "id": "system-settings", "success": False }
 		return jsonify(error), 500
 
 @api_bp.route('/settings/display', methods=['GET'])
@@ -104,7 +104,7 @@ def settings_display():
 		return jsonify(error), 404
 	except Exception as e:
 		logger.error(f"/settings/display: {str(e)}")
-		error = { "message": str(e), "id": "display-settings", "success": False }
+		error = { "message": "An internal error has occurred.", "id": "display-settings", "success": False }
 		return jsonify(error), 500
 
 @api_bp.route('/settings/display', methods=['PUT'])
@@ -123,7 +123,7 @@ def update_settings_display():
 		return jsonify(error), 404
 	except Exception as e:
 		logger.error(f"/settings/display: {str(e)}")
-		error = { "message": str(e), "id": "display-settings", "success": False }
+		error = { "message": "An internal error has occurred.", "id": "display-settings", "success": False }
 		return jsonify(error), 500
 
 @api_bp.route('/settings/theme', methods=['GET'])
