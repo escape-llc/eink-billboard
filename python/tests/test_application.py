@@ -48,6 +48,7 @@ class TestApplication(unittest.TestCase):
 		self.assertTrue(appstopped, "Application did not set app_stopped event as expected.")
 		tkstopped = app.stopped.is_set()
 		self.assertTrue(tkstopped, "Application did not set stopped event as expected.")
+		self.assertFalse(isinstance(stopsink.trigger_msg, ConfigureNotify) and stopsink.trigger_msg.error, "Application failed to start due to configuration error.")
 
 if __name__ == "__main__":
     unittest.main()
