@@ -15,7 +15,7 @@ class MockDisplay(DisplayBase):
 		self.display_settings = None
 		self.logger = logging.getLogger(__name__)
 
-	def initialize(self, cm: ConfigurationManager):
+	def initialize(self, cm: ConfigurationManager) -> tuple[int, int]:
 		self.logger.info(f"'{self.name}' initialize")
 		settings = cm.settings_manager()
 		display_cob = settings.open("display")
