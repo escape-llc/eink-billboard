@@ -42,7 +42,7 @@ def change_orientation(image, orientation, rotate180=False):
 		return image
 	return image.rotate(angle, expand=1)
 
-def resize_image(image, desired_size, image_settings=[]):
+def resize_image(image: Image.Image, desired_size: tuple[int, int], image_settings: list[str] = []) -> Image.Image:
 	img_width, img_height = image.size
 	desired_width, desired_height = desired_size
 	desired_width, desired_height = int(desired_width), int(desired_height)
@@ -76,7 +76,7 @@ def resize_image(image, desired_size, image_settings=[]):
 	# Step 3: Resize to the exact desired dimensions (if necessary)
 	return image.resize((desired_width, desired_height), Image.Resampling.LANCZOS)
 
-def apply_image_enhancement(img, image_settings):
+def apply_image_enhancement(img: Image.Image, image_settings: dict|None) -> Image.Image:
 	if image_settings is None:
 		return img
 
@@ -102,7 +102,7 @@ def apply_image_enhancement(img, image_settings):
 
 	return img
 
-def compute_image_hash(image):
+def compute_image_hash(image: Image.Image) -> str:
 	"""Compute SHA-256 hash of an image."""
 	image = image.convert("RGB")
 	img_bytes = image.tobytes()
