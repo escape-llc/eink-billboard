@@ -1,54 +1,25 @@
-from dataclasses import dataclass
-from datetime import datetime, timedelta
+import asyncio
+from concurrent.futures import Future
 import logging
-import queue
+import threading
 from typing import cast
-from PIL import Image
 
+from .display_messages import DisplayImage, DisplaySettings, PriorityImage
 from ..display.mock_display import MockDisplay
 from ..display.tkinter_window import TkinterWindow
 from ..display.display_base import DisplayBase
 from ..model.configuration_manager import ConfigurationManager
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
-from ..task.basic_task import DispatcherTask, exclude_from_dispatch
-from ..task.messages import BasicMessage, QuitMessage, TimerExpired
+from ..task.basic_task import DispatcherTask
+from ..task.messages import AsyncTaskCompleted, BasicMessage, QuitMessage
 from ..task.configure_event import ConfigureEvent
 from ..task.protocols import IProvideTimer
 from ..task.protocols import CreateTimerResult, IProvideTimer
 from ..task.timer import TimerThreadService
+from ..task.async_worker_pool import AsyncWorkerPool
 from .message_router import MessageRouter
 from ..utils.image_compositor import ImageCompositor
 from ..utils.image_utils import apply_image_enhancement, change_orientation, resize_image
-
-@dataclass(frozen=True, slots=True)
-class DisplayImage(BasicMessage):
-	title: str
-	img: Image.Image
-
-@dataclass(frozen=True, slots=True)
-class PriorityImage(DisplayImage):
-	duration: timedelta
-
-@dataclass(frozen=True, slots=True)
-class RefreshBlackoutTimerExpired(BasicMessage):
-	pass
-
-@dataclass(frozen=True, slots=True)
-class PriorityImageTimerExpired(BasicMessage):
-	title: str
-
-@dataclass(frozen=True, slots=True)
-class CommitTimerExpired(BasicMessage):
-	title: str
-
-@dataclass(frozen=True, slots=True)
-class DisplaySettings(BasicMessage):
-	"""
-	Notify tasks of the current display settings.
-	"""
-	name: str
-	width: int
-	height: int
 
 class Display(DispatcherTask):
 	def __init__(self, name, router:MessageRouter):
@@ -56,27 +27,49 @@ class Display(DispatcherTask):
 		if router is None:
 			raise ValueError("router is None")
 		self.router = router
-		self.cm:ConfigurationManager|None = None
-		self.display:DisplayBase|None = None
-		self.timebase: TimeOfDay|None = None
-		self.timer: IProvideTimer|None = None
-		self.commit_timer: CreateTimerResult|None = None
-		self.priority_timer: CreateTimerResult|None = None
-		self.refresh_timer: CreateTimerResult|None = None
+		self.cm: ConfigurationManager | None = None
+		self.display: DisplayBase | None = None
+		self.timebase: TimeOfDay | None = None
+		self.timer: IProvideTimer | None = None
+		self.commit_timer: CreateTimerResult | None = None
+		self.priority_timer: CreateTimerResult | None = None
+		self.refresh_timer: CreateTimerResult | None = None
 		self.compsitor = ImageCompositor()
-		self.priority_backlog = queue.Queue[PriorityImage]()
-		self.resolution = [800,480]
+		self.task_pool: AsyncWorkerPool | None = None
+		self.resolution = (800, 480)
 		self.displayImageCount = 0
+		self.commitq: asyncio.Queue[BasicMessage] | None = None
+		self.priorityq: asyncio.Queue[PriorityImage] | None = None
+		self.task_commit: tuple[Future, threading.Event] | None = None
+		self.task_priority: tuple[Future, threading.Event] | None = None
+		self.fut_render: tuple[Future, threading.Event] | None = None
 		self.logger = logging.getLogger(__name__)
 
+	def _stop_task(self, task:tuple[Future, threading.Event]):
+		fut, donev = task
+		if not fut.done():
+			self.logger.info(f"task still running, cancel...")
+			fut.cancel()
+			self.logger.info(f"Waiting for task to complete...")
+			donev.wait(timeout=2.0)
+		else:
+			self.logger.info(f"task completed.")
 	def quitMsg(self, msg: QuitMessage):
 		try:
-			if self.commit_timer is not None:
-				self.commit_timer[1]()
-				self.commit_timer = None
-			if self.priority_timer is not None:
-				self.priority_timer[1]()
-				self.priority_timer = None
+			if self.task_commit is not None:
+				self._stop_task(self.task_commit)
+				self.task_commit = None
+			if self.task_priority is not None:
+				self._stop_task(self.task_priority)
+				self.task_priority = None
+			if self.task_render is not None:
+				self._stop_task(self.task_render)
+				self.task_render = None
+			if self.task_pool is not None:
+				self.task_pool.shutdown()
+				self.task_pool = None
+				self.commitq = None
+				self.priorityq = None
 			if self.display is not None:
 				self.display.shutdown()
 		except Exception as e:
@@ -105,92 +98,109 @@ class Display(DispatcherTask):
 			self.timer = ts if ts is not None else TimerThreadService(self.timebase)
 			self.resolution = self.display.initialize(self.cm)
 			self.logger.info(f"Loading display {display_type} {self.resolution[0]}x{self.resolution[1]}")
+			self._start_tasks(self.display, self.compsitor, self.timebase, display_settings)
 			msg.notify()
-			self.router.send("display-settings", DisplaySettings(msg.timestamp, display_type, self.resolution[0], self.resolution[1]))
+			self.router.send("display-settings", DisplaySettings(msg.timestamp, display_type, self.resolution[0], self.resolution[1], []))
 		except Exception as e:
 			self.logger.error(f"configure.unhandled: {str(e)}")
 			msg.notify(True, e)
-	@exclude_from_dispatch
-	def _commit_timer_expired(self, msg: CommitTimerExpired):
-		try:
-			self.logger.info(f"Commit {self.compsitor._version} '{msg.title}'")
-			self.commit_timer = None
-			if self.cm is None:
-				self.logger.error("No configuration manager available")
-				return
-			if self.display is None:
-				self.logger.error("No driver is loaded")
-				return
-			if self.refresh_timer is not None:
-				self.logger.info("Cannot Commit during refresh blackout")
-				return
+	def _start_tasks(self, display: DisplayBase, compositor: ImageCompositor, timebase: TimeOfDay, display_settings: dict) -> None:
+		self.task_pool = AsyncWorkerPool()
+		self.task_pool.start()
+		task_future = self.task_pool.submit(self._task_create_queues(), None)
+		self.commitq, renderq, self.priorityq = task_future.result()
 
-			display_cob = self.cm.settings_manager().open("display")
-			_, display_settings = display_cob.get()
-			self._render_and_display(self.display, display_settings, msg.title)
-		except Exception as e:
-			self.logger.error(f"commit_timer_expired.unhandled: {str(e)}")
+		donev = threading.Event()
+		def commit_callback(fut):
+			if not self.is_stopped():
+				self.accept(AsyncTaskCompleted(timebase.current_time(), "commit_task", fut, donev))
+		self.task_commit = (self.task_pool.submit(self._task_commit_timer(cast(asyncio.Queue[BasicMessage], self.commitq), renderq, timebase), callback=commit_callback), donev)
+		donev2 = threading.Event()
+		def priority_callback(fut):
+			if not self.is_stopped():
+				self.accept(AsyncTaskCompleted(timebase.current_time(), "priority_task", fut, donev2))
+		self.task_priority = (self.task_pool.submit(self._task_priority_image(cast(asyncio.Queue[PriorityImage], self.priorityq), cast(asyncio.Queue[BasicMessage], self.commitq), self.resolution, display_settings), callback=priority_callback), donev2)
+		donev3 = threading.Event()
+		def render_callback(fut):
+			if not self.is_stopped():
+				self.accept(AsyncTaskCompleted(timebase.current_time(), "render_task", fut, donev3))
+		self.task_render = (self.task_pool.submit(self._task_render_and_display(renderq, compositor, display, display_settings), callback=render_callback), donev3)
 		pass
-	def _render_and_display(self, display: DisplayBase, display_settings: dict|None, title: str):
-		try:
-			updated, composited_image = self.compsitor.render()
-			if updated == False:
-				self.logger.debug(f"Image compositing no changes detected")
-				return
-			if composited_image is None:
-				self.logger.debug(f"Composited image failed")
-				return
+	async def _task_create_queues(self) -> tuple[asyncio.Queue[BasicMessage], asyncio.Queue[BasicMessage], asyncio.Queue[PriorityImage]]:
+		commitq: asyncio.Queue[BasicMessage] = asyncio.Queue()
+		renderq: asyncio.Queue[BasicMessage] = asyncio.Queue()
+		priorityq: asyncio.Queue[PriorityImage] = asyncio.Queue()
+		return (commitq, renderq, priorityq)
+	async def _task_background_layer(self, commitq: asyncio.Queue[BasicMessage], compositor: ImageCompositor, msg: DisplayImage):
+		compositor.set_layer_background(msg)
+		await commitq.put(BasicMessage(msg.timestamp))
+	async def _task_priority_layer(self, priorityq: asyncio.Queue[PriorityImage], compositor: ImageCompositor, msg: PriorityImage):
+		compositor.set_layer_priority(msg)
+		await priorityq.put(msg)
+	async def _task_commit_timer(self, commitq: asyncio.Queue[BasicMessage], renderq: asyncio.Queue[BasicMessage], timebase: TimeOfDay):
+		while True:
+			self.logger.info("Commit timer wait-for trigger")
+			_ = await commitq.get()
+			self.logger.info("Commit timer triggered")
+			commitq.task_done()
+			while True:
+				try:
+					_ = await asyncio.wait_for(commitq.get(), timeout=2.0)
+					commitq.task_done()
+					self.logger.info("Commit timer extended")
+				except asyncio.TimeoutError:
+					self.logger.info("Commit timer timeout")
+					await renderq.put(BasicMessage(timebase.current_time()))
+					# exit inner loop, wait for fresh message to reset commit timer
+					break
+				except Exception as e:
+					self.logger.error(f"commit_timer.unhandled: {str(e)}")
+		pass
+	async def _task_render_and_display(self, taskq: asyncio.Queue[BasicMessage], compsitor: ImageCompositor, display: DisplayBase, display_settings: dict|None):
+		rotate: bool = display_settings.get("rotate180", False) if display_settings is not None else False
+		displayImageCount: int = 0
+		while True:
+			try:
+				_ = await taskq.get()
+				package = compsitor.render()
+				if package is None:
+					self.logger.debug(f"Image compositing no changes detected")
+					continue
+				updated, render_info = package.render()
+				if updated == False:
+					self.logger.debug(f"Image compositing no changes detected")
+					continue
+				if render_info is None:
+					self.logger.debug(f"Composited image failed")
+					continue
+				the_image, the_title = render_info
+				if rotate: the_image = the_image.rotate(180)
+				the_image = apply_image_enhancement(the_image, display_settings)
 
-			if display_settings is not None:
-				if display_settings.get("rotate180", False): composited_image = composited_image.rotate(180)
-				composited_image = apply_image_enhancement(composited_image, display_settings)
-
-			display.render(composited_image, self.displayImageCount, title)
-		except Exception as e:
-			self.logger.error(f"render_and_display.unhandled: {str(e)}")
+				displayImageCount += 1
+				display.render(the_image, displayImageCount, the_title)
+				taskq.task_done()
+				await asyncio.sleep(60.0)
+			except Exception as e:
+				self.logger.error(f"_task_render_and_display.unhandled: {str(e)}")
 		pass
-	def _check_advance_foreground_image_queue(self) -> bool:
-		if self.timer is None:
-			self.logger.error("No timer service available")
-			return False
-		if self.refresh_timer is None and not self.priority_backlog.empty():
-			self.logger.info(f"Processing next priority image from backlog")
-			next_msg = self.priority_backlog.get_nowait()
-			self.compsitor.set_layer_priority(next_msg.img)
-			self._set_commit_timer(self.timer, CommitTimerExpired(next_msg.timestamp, next_msg.title))
-			self._set_priority_timer(self.timer, next_msg.duration, PriorityImageTimerExpired(next_msg.timestamp, next_msg.title))
-			return True
-		return False
-	@exclude_from_dispatch
-	def _priority_image_timer_expired(self, msg: PriorityImageTimerExpired):
-		self.logger.info(f"Priority timer expired for image '{msg.title}'")
-		self.priority_timer = None
-		if self.timer is None:
-			self.logger.error("No timer service available")
-			return
-		# ALSO checking this after the refresh timer expires
-		self._check_advance_foreground_image_queue()
-		pass
-	@exclude_from_dispatch
-	def _refresh_timer_expired(self, msg: RefreshBlackoutTimerExpired):
-		self.logger.info(f"Refresh timer expired")
-		self.refresh_timer = None
-		if self.display is None:
-			self.logger.error("No driver is loaded")
-			return
-		if self.cm is None:
-			self.logger.error("No configuration manager available")
-			return
-		if self._check_advance_foreground_image_queue():
-			self.logger.info("Advanced foreground image queue after refresh blackout expired")
-			return
-		if self.commit_timer is None:
-			self.logger.info("No commit timer active, check compositor")
-			if self.compsitor.is_dirty():
-				self.logger.info("Compositor is dirty, forcing commit")
-				display_cob = self.cm.settings_manager().open("display")
-				_, display_settings = display_cob.get()
-				self._render_and_display(self.display, display_settings, "Refresh Blackout Expired")
+	async def _task_priority_image(self, taskq: asyncio.Queue[PriorityImage], commitq: asyncio.Queue[BasicMessage], resolution: tuple[int, int], display_settings: dict|None):
+		ori:str = display_settings.get("orientation", "landscape") if display_settings is not None else "landscape"
+		while True:
+			try:
+				msg = await taskq.get()
+				# Resize and adjust orientation
+				image = change_orientation(msg.img, ori)
+				image = resize_image(image, resolution)
+				self.compsitor.set_layer_priority(DisplayImage(msg.timestamp, msg.title, image))
+				taskq.task_done()
+				await commitq.put(BasicMessage(msg.timestamp))
+				# TODO await the callback from the display task that the image was rendered before starting timer for the priority image
+				await asyncio.sleep(msg.duration.total_seconds())
+				self.compsitor.set_layer_priority(None)
+				await commitq.put(BasicMessage(msg.timestamp))
+			except Exception as e:
+				self.logger.error(f"priority_image.unhandled: {str(e)}")
 		pass
 	def _priority_image(self, msg: PriorityImage):
 		try:
@@ -200,68 +210,29 @@ class Display(DispatcherTask):
 			if self.display is None:
 				self.logger.error("No driver is loaded")
 				return
-			if self.timer is None:
-				self.logger.error("No timer service available")
+			if self.task_pool is None:
+				self.logger.error("No task pool available")
 				return
-			# check for queued PriorityImages and add to queue if one is currently active
-			if self.priority_timer is not None:
-				self.logger.info(f"Priority image already active, adding '{msg.title}' to backlog")
-				self.priority_backlog.put(msg)
+			if self.priorityq is None:
+				self.logger.error("No priority queue available")
 				return
 
 			display_cob = self.cm.settings_manager().open("display")
 			_, display_settings = display_cob.get()
-			self.displayImageCount += 1
-			self.logger.info(f"Priority {self.displayImageCount} '{msg.title}'")
 
 			if display_settings is not None:
 			# Resize and adjust orientation
 				image = change_orientation(msg.img, display_settings.get("orientation", "landscape"))
 				image = resize_image(image, self.resolution)
-				self.compsitor.set_layer_priority(image)
+				self.compsitor.set_layer_priority(DisplayImage(msg.timestamp, msg.title, image))
+				fut  = self.task_pool.submit(self._task_priority_layer(self.priorityq, self.compsitor, PriorityImage(msg.timestamp, msg.title, image, msg.duration)), None)
+				fut.result();
 			else:
-				self.compsitor.set_layer_priority(msg.img)
-
-			self._set_priority_timer(self.timer, msg.duration, PriorityImageTimerExpired(msg.timestamp, msg.title))
+				fut  = self.task_pool.submit(self._task_priority_layer(self.priorityq, self.compsitor, msg), None)
+				fut.result();
 		except Exception as e:
 			self.logger.error("priorityimage.unhandled", e)
 			pass
-	def _set_commit_timer(self, timer: IProvideTimer, msg: CommitTimerExpired) -> None:
-		if timer is None:
-			self.logger.error("No timer service available")
-			return
-		if self.commit_timer is not None:
-			self.commit_timer[1]()
-			self.commit_timer = None
-			self.logger.debug("Existing commit timer cancelled")
-		self.commit_timer = timer.create_timer(timedelta(seconds=2), self, "commit", msg)
-	def _set_refresh_timer(self, timer: IProvideTimer, msg: RefreshBlackoutTimerExpired) -> None:
-		if timer is None:
-			self.logger.error("No timer service available")
-			return
-		if self.refresh_timer is not None:
-			self.refresh_timer[1]()
-			self.refresh_timer = None
-			self.logger.debug("Existing refresh timer cancelled")
-		self.refresh_timer = timer.create_timer(timedelta(seconds=60), self, "refresh", msg)
-	def _set_priority_timer(self, timer: IProvideTimer, td: timedelta, pite: PriorityImageTimerExpired) -> None:
-		if timer is None:
-			self.logger.error("No timer service available")
-			return
-		if self.priority_timer is not None:
-			self.priority_timer[1]()
-			self.priority_timer = None
-			self.logger.debug("Existing priority timer cancelled")
-		self.priority_timer = timer.create_timer(td, self, "priority", pite)
-	def _timer_expired(self, msg: TimerExpired):
-		self.logger.info(f"{self.name}: {msg}")
-		if msg.token == "commit":
-			self._commit_timer_expired(cast(CommitTimerExpired, msg.state))
-		elif msg.token == "priority":
-			self._priority_image_timer_expired(cast(PriorityImageTimerExpired, msg.state))
-		elif msg.token == "refresh":
-			self._refresh_timer_expired(cast(RefreshBlackoutTimerExpired, msg.state))
-		pass
 	def _display_image(self, msg: DisplayImage):
 		try:
 			if self.cm is None:
@@ -270,8 +241,11 @@ class Display(DispatcherTask):
 			if self.display is None:
 				self.logger.error("No driver is loaded")
 				return
-			if self.timer is None:
-				self.logger.error("No timer service available")
+			if self.task_pool is None:
+				self.logger.error("No task pool available")
+				return
+			if self.commitq is None:
+				self.logger.error("No commit queue available")
 				return
 			display_cob = self.cm.settings_manager().open("display")
 			_, display_settings = display_cob.get()
@@ -282,11 +256,11 @@ class Display(DispatcherTask):
 			# Resize and adjust orientation
 				image = change_orientation(msg.img, display_settings.get("orientation", "landscape"))
 				image = resize_image(image, self.resolution)
-				self.compsitor.set_layer_background(image)
+				fut  = self.task_pool.submit(self._task_background_layer(self.commitq, self.compsitor, DisplayImage(msg.timestamp, msg.title, image)), None)
+				fut.result();
 			else:
-				self.compsitor.set_layer_background(msg.img)
-
-			self._set_commit_timer(self.timer, CommitTimerExpired(msg.timestamp, msg.title))
+				fut  = self.task_pool.submit(self._task_background_layer(self.commitq, self.compsitor, msg), None)
+				fut.result();
 		except Exception as e:
 			self.logger.error("displayimage.unhandled", e)
 			pass
