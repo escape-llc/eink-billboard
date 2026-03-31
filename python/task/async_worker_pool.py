@@ -6,7 +6,9 @@ from concurrent.futures import Future
 from types import CoroutineType
 from typing import Any, Callable
 
-class AsyncWorkerPool:
+from ..task.protocols import IRequireShutdown
+
+class AsyncWorkerPool(IRequireShutdown):
 	def __init__(self):
 		self.loop = asyncio.new_event_loop()
 		self._loop_ready = threading.Event()
@@ -31,7 +33,7 @@ class AsyncWorkerPool:
 		The callback receives the 'future' object as its only argument.
 		"""
 		# refuse new submissions after shutdown or if loop/thread not available
-		if getattr(self, '_shutdown', False) or self.loop.is_closed() or not self.thread.is_alive():
+		if self._shutdown or self.loop.is_closed() or not self.thread.is_alive():
 			# If caller passed a coroutine object, close it to avoid 'coroutine was never awaited' warnings
 			if inspect.iscoroutine(coro):
 				try:
