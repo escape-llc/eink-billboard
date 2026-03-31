@@ -4,12 +4,13 @@ from datetime import datetime
 from .messages import StartEvent, StartOptions, StopEvent, QuitMessage
 from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
 from .protocols import MessageSink, IProvideTimer
-from .display import Display, DisplaySettings
+from .display import Display
 from .basic_task import DispatcherTask, QuitMessage
 from .message_router import MessageRouter, Route
 from ..model.configuration_manager import ConfigurationManager
 from ..model.service_container import IServiceProvider, ServiceContainer
 from ..model.time_of_day import TimeOfDay
+from ..task.display_messages import DisplaySettings
 from ..task.playlist_layer import PlaylistLayer
 from ..task.timer import IProvideTimer
 from ..task.timer_layer import TimerLayer
