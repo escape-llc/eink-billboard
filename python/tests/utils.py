@@ -93,11 +93,13 @@ class MessageTriggerSink(MessageSink):
 		if trigger is None:
 			raise ValueError("trigger cannot be None")
 		self.trigger = trigger
+		self.trigger_msg: BasicMessage|None = None
 		self.stopped = threading.Event()
 		self.logger = logging.getLogger(__name__)
 	def accept(self, msg: BasicMessage):
 		self.logger.info(f"MessageTriggerSink received message: {msg}")
 		if self.trigger(msg):
+			self.trigger_msg = msg
 			self.stopped.set()
 
 def test_output_path_for(folder: str) -> str:
