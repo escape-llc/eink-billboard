@@ -6,12 +6,14 @@ import httpx
 import logging
 from concurrent.futures import Future
 
+from ..task.protocols import IRequireShutdown
+
 # 1. Define a ContextVar to hold the resource
 # Think of this as a global variable that is unique to each "Task chain"
 client_var: ContextVar[httpx.AsyncClient] = ContextVar("http_client")
 # use one context var for each resource
 
-class AsyncHttpWorkerPool:
+class AsyncHttpWorkerPool(IRequireShutdown):
 	def __init__(self):
 		self.loop = asyncio.new_event_loop()
 		self._loop_ready = threading.Event()
