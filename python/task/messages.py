@@ -78,10 +78,6 @@ class AsyncTaskCompleted(BasicMessage):
 	donev: threading.Event
 
 @dataclass(frozen=True, slots=True)
-class PluginReceive(BasicMessage):
-	pass
-
-@dataclass(frozen=True, slots=True)
 class Telemetry(BasicMessage):
 	name: str
 	values: dict[str,Any]
