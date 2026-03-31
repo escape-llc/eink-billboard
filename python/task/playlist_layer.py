@@ -6,7 +6,7 @@ import logging
 import threading
 from typing import Any, NotRequired, ReadOnly, TypedDict, cast
 
-from .display import DisplaySettings
+from .display_messages import DisplaySettings
 from .messages import AsyncTaskCompleted, BasicMessage, QuitMessage, Telemetry
 from .configure_event import ConfigureEvent
 from .message_router import MessageRouter

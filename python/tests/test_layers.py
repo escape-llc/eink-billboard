@@ -10,7 +10,7 @@ from ..model.schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, T
 from ..model.service_container import ServiceContainer
 from ..model.time_of_day import TimeOfDay
 from ..plugins.plugin_base import PluginAsync, PluginExecutionContext, TrackType
-from ..task.display import DisplaySettings
+from ..task.display_messages import DisplaySettings
 from ..task.timer import IProvideTimer
 from ..task.messages import BasicMessage, QuitMessage, Telemetry
 from ..task.protocols import MessageSink
@@ -71,7 +71,7 @@ class PlaylistLayerSimulation(unittest.TestCase):
 		evtime = time_base.current_time()
 		configure = ConfigureEvent(evtime, options, "configure", None)
 		layer = PlaylistLayer("testlayer", router)
-		dev = DisplaySettings(evtime, "none", 800, 480)
+		dev = DisplaySettings(evtime, "none", 800, 480, [])
 		display.start()
 		layer.start()
 		layer.accept(dev)
@@ -107,7 +107,7 @@ class TimerLayerSimulation(unittest.TestCase):
 		evtime = time_base.current_time()
 		configure = ConfigureEvent(evtime, options, "configure", None)
 		layer = TimerLayer("timerlayer", router)
-		dev = DisplaySettings(evtime, "none", 800, 480)
+		dev = DisplaySettings(evtime, "none", 800, 480, [])
 		display.start()
 		layer.start()
 		layer.accept(dev)
