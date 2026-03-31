@@ -6,8 +6,7 @@ from io import BytesIO
 import base64
 import openai
 
-from python.utils.image_utils import get_image_async
-
+from ...utils.image_utils import get_image_async
 from ...model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult
 
