@@ -1,5 +1,6 @@
 import io
 import platform
+from typing import Any, Callable, Mapping
 
 from PIL import Image, ImageEnhance
 from io import BytesIO
@@ -13,9 +14,12 @@ from ..task.async_http_worker_pool import client_var
 
 logger = logging.getLogger(__name__)
 
-async def stream_to_buffer(client: AsyncClient, url: str, headers: dict[str, str]|None = None) -> BytesIO:
-	async with client.stream("GET", url, headers=headers) as resp:
+async def stream_to_buffer(client: AsyncClient, url: str, headers: Mapping[str, str]|None = None, ctok: Callable[[str], bool]|None = None) -> BytesIO:
+	async with client.stream("GET", url, headers=headers, follow_redirects=True) as resp:
 		resp.raise_for_status()
+		ct = resp.headers.get("Content-Type", "")
+		if ctok and not ctok(ct):
+			raise RuntimeError(f"Unexpected content type: '{ct}'.")
 		buffer = io.BytesIO()
 		async for chunk in resp.aiter_bytes():
 			buffer.write(chunk)
@@ -24,11 +28,11 @@ async def stream_to_buffer(client: AsyncClient, url: str, headers: dict[str, str
 
 async def get_image_async(image_url:str) -> Image.Image | None:
 	client = client_var.get()
-	buffer = await stream_to_buffer(client, image_url)
+	buffer = await stream_to_buffer(client, image_url, ctok=lambda ct: ct.startswith("image/"))
 	img = Image.open(buffer)
 	return img
 
-def change_orientation(image, orientation, rotate180=False):
+def change_orientation(image: Image.Image, orientation: str, rotate180=False) -> Image.Image:
 	if orientation == 'landscape':
 		angle = 0
 	elif orientation == 'portrait':
@@ -76,7 +80,7 @@ def resize_image(image: Image.Image, desired_size: tuple[int, int], image_settin
 	# Step 3: Resize to the exact desired dimensions (if necessary)
 	return image.resize((desired_width, desired_height), Image.Resampling.LANCZOS)
 
-def apply_image_enhancement(img: Image.Image, image_settings: dict|None) -> Image.Image:
+def apply_image_enhancement(img: Image.Image, image_settings: Mapping[str,Any]|None) -> Image.Image:
 	if image_settings is None:
 		return img
 
