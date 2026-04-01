@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import logging
 import threading
-from typing import Any, NotRequired, ReadOnly, TypedDict, cast
+from typing import Any, Mapping, NotRequired, ReadOnly, TypedDict, cast
 
 from .display_messages import DisplaySettings
 from .messages import AsyncTaskCompleted, BasicMessage, QuitMessage, Telemetry
@@ -39,6 +39,13 @@ class TelemetryDict(TypedDict):
 	current_playlist: ReadOnly[Playlist]
 	current_track_index: ReadOnly[int]
 	current_track: ReadOnly[PlaylistSchedule]
+
+class StoppedTelemetryDict(TypedDict):
+	state: ReadOnly[str]
+	current_playlist_index: ReadOnly[int]
+	current_playlist: ReadOnly[None]
+	current_track_index: ReadOnly[int]
+	current_track: ReadOnly[None]
 
 class PlaylistStateDict(TypedDict):
 	current_playlist_index: int
@@ -123,7 +130,7 @@ class PlaylistLayer(DispatcherTask):
 		}))
 	def _start_playback(self, msg: StartPlayback):
 		self.logger.info(f"'{self.name}' StartPlayback {self.state}")
-		if self.state != 'loaded':
+		if self.state != 'loaded' and self.state != 'stopped':
 			self.logger.error(f"Cannot start playback, state is '{self.state}'")
 			return
 		if len(self.playlists) == 0:
@@ -158,7 +165,7 @@ class PlaylistLayer(DispatcherTask):
 							'current_track_index': tkindex,
 							'current_track': track,
 						}
-						self.router.send("telemetry", Telemetry(tod.current_time(), "playlist_layer", cast(dict[str,Any], telemetry)))
+						self.router.send("telemetry", Telemetry(tod.current_time(), "playlist_layer", cast(Mapping[str,Any], telemetry)))
 					except Exception as e:
 						self.state = "error"
 						self._error_with_telemetry(f"Error invoke start with plugin '{plugin.name}' track '{track.title}': {e}", tod.current_time())
@@ -214,6 +221,15 @@ class PlaylistLayer(DispatcherTask):
 				self.accept(rmsg)
 			else:
 				self.logger.info(f"Layer task returned no message, forcing StartPlayback.")
+				self.state = 'stopped'
+				telemetry: StoppedTelemetryDict = {
+					"state": self.state,
+					'current_playlist_index': -1,
+					'current_playlist': None,
+					'current_track_index': -1,
+					'current_track': None,
+				}
+				self.router.send("telemetry", Telemetry(msg.timestamp, "playlist_layer", cast(Mapping[str,Any], telemetry)))
 				self.accept(StartPlayback(msg.timestamp))
 		if msg.token == "layer_task":
 			self.layer_task = None

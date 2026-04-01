@@ -2,7 +2,7 @@ from datetime import datetime
 import logging
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 import zoneinfo
 
 from ...plugins.plugin_base import RenderSession
@@ -43,9 +43,9 @@ class YearProgressAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
-	async def open_async(self, dsec: DataSourceExecutionContext, params: dict[str, Any]) -> Any:
+	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> Any:
 		return {}
-	async def render_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state: Any) -> MediaRenderResult | None:
+	async def render_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any], state: Any) -> MediaRenderResult | None:
 		scm = dsec.provider.required(SettingsConfigurationManager)
 		stm = dsec.provider.required(StaticConfigurationManager)
 		display_cob = scm.open("display")

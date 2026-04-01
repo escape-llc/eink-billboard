@@ -1,4 +1,4 @@
-from typing import Tuple, Dict
+from typing import Mapping, Tuple, Dict
 
 class ColorTheme:
 	"""Represent a simple HSL-based color theme.
@@ -64,7 +64,7 @@ class ColorTheme:
 
 		return (self._hsl_str(base), self._hsl_str(h1), self._hsl_str(h2))
 
-	def to_css_vars(self, text_h: float | None = None) -> Dict[str, str]:
+	def to_css_vars(self, text_h: float | None = None) -> Mapping[str, str]:
 		"""Return a dict of CSS variable names -> values to initialize the
 		theme in CSS. Variables are aligned with `themes.css`.
 

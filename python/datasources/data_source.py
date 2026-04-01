@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Mapping, Protocol, runtime_checkable
 from PIL import Image
 
 from ..model.service_container import IServiceProvider
@@ -67,19 +67,19 @@ class DataSourceAccept(Protocol):
 @runtime_checkable
 class MediaItemAsync(Protocol):
 	"""Ability to return a single media item asynchronously."""
-	async def open_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any]) -> Any:
+	async def open_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any]) -> Any:
 		...
 
 @runtime_checkable
 class MediaListAsync(Protocol):
 	"""Ability to return a list of media items asynchronously."""
-	async def open_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any]) -> list:
+	async def open_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any]) -> list[Any]:
 		...
 
 @runtime_checkable
 class MediaRenderAsync(Protocol):
 	"""Ability to render media from the source's state (element for a MediaList) asynchronously."""
-	async def render_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> MediaRenderResult | None:
+	async def render_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any], state:Any) -> MediaRenderResult | None:
 		...
 
 class DataSourceManager:
@@ -87,7 +87,7 @@ class DataSourceManager:
 	Maintains and manages multiple data sources.
 	Manages execution of Futures for data sources.
 	"""
-	def __init__(self, sources: dict[str, DataSource]) -> None:
+	def __init__(self, sources: Mapping[str, DataSource]) -> None:
 		self.sources = sources
 	def get_source(self, name: str) -> DataSource|None:
 		return self.sources.get(name, None)

@@ -1,6 +1,6 @@
 from concurrent.futures import Future
 import threading
-from typing import Any
+from typing import Any, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -80,7 +80,7 @@ class AsyncTaskCompleted(BasicMessage):
 @dataclass(frozen=True, slots=True)
 class Telemetry(BasicMessage):
 	name: str
-	values: dict[str,Any]
+	values: Mapping[str,Any]
 
 @dataclass(frozen=True, slots=True)
 class ConfigurationWatcherEvent(BasicMessage):

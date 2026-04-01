@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Mapping
 from PIL import Image
 from datetime import timedelta, datetime
 import logging
@@ -13,13 +13,13 @@ class NewspaperAsync(DataSource, MediaListAsync, MediaRenderAsync):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
-	async def open_async(self, dsec: DataSourceExecutionContext, params: dict[str, Any]) -> list:
+	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
 		newspaper_slug = params.get('slug')
 		if not newspaper_slug:
 			raise RuntimeError("Newspaper input not provided.")
 		newspaper_slug = newspaper_slug.upper()
 		return [newspaper_slug]
-	async def render_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> MediaRenderResult | None:
+	async def render_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any], state:Any) -> MediaRenderResult | None:
 		if state is None:
 			return None
 		image = await self._generate_image(state, dsec.dimensions, dsec.timestamp)

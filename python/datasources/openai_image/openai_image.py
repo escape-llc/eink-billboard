@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Mapping
 from PIL import Image
 from openai import BadRequestError
 import logging
@@ -18,7 +18,7 @@ class OpenAIAsync(DataSource, MediaListAsync, MediaRenderAsync):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
-	async def open_async(self, dsec: DataSourceExecutionContext, params: dict[str, Any]) -> list:
+	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
 		dscm = dsec.provider.required(DatasourceConfigurationManager)
 		scm = dsec.provider.required(SettingsConfigurationManager)
 		ds_cob = dscm.open()
@@ -40,7 +40,7 @@ class OpenAIAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			raise RuntimeError("Display settings not found.")
 		orientation = display_settings.get("orientation", "landscape")
 		return [{ "api_key": api_key, "text_prompt": text_prompt, "image_model": image_model, "image_quality": image_quality, "randomize_prompt": randomize_prompt, "orientation": orientation }]
-	async def render_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> MediaRenderResult | None:
+	async def render_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any], state:Any) -> MediaRenderResult | None:
 		if state is None:
 			return None
 		image = await self._dispatch_image(dsec, state.get('api_key'), state.get('image_model'), state.get('image_quality'), state.get('text_prompt'), state.get('randomize_prompt'), state.get('orientation'))

@@ -6,7 +6,7 @@ import logging
 import shutil
 import threading
 from pathlib import Path
-from typing import Any, Callable, Protocol, ReadOnly, TypedDict, cast
+from typing import Any, Callable, Mapping, Protocol, ReadOnly, TypedDict, cast
 from PIL import ImageFont
 
 from ..datasources.data_source import DataSource
@@ -638,7 +638,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			return plugin_class(info_id, info_name)
 		return None
 
-	def load_plugins(self, infos: list[CollectInfoDict]) -> dict[str, Any]:
+	def load_plugins(self, infos: list[CollectInfoDict]) -> Mapping[str, Any]:
 		"""Take the result of enum_plugins() and instantiate the plugin objects."""
 		plugin_map = {}
 		for info in infos:
@@ -663,7 +663,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			return ds_class(info_id, info_name)
 		return None
 
-	def load_datasources(self, infos: list[CollectInfoDict]) -> dict[str, Any]:
+	def load_datasources(self, infos: list[CollectInfoDict]) -> Mapping[str, DataSource]:
 		"""Take the result of enum_datasources() and instantiate the datasource objects."""
 		datasource_map = {}
 		for info in infos:
@@ -675,7 +675,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 				datasource_map[info_id] = datasource
 		return datasource_map
 
-	def load_blueprints(self, infos: list[CollectInfoDict]) -> dict[str, Any]:
+	def load_blueprints(self, infos: list[CollectInfoDict]) -> Mapping[str, Any]:
 		"""Take the result of enum_X() and resolve the blueprints."""
 		blueprint_map = {}
 		for info in infos:

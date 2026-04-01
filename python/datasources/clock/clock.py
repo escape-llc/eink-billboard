@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, Mapping
 import numpy as np
 import math
 from PIL import Image, ImageColor, ImageDraw, ImageFont
@@ -14,7 +14,7 @@ class ClockAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
-	async def open_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any]) -> Any:
+	async def open_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any]) -> Any:
 		clock_face = params.get("clockFace", "Gradient Clock")
 		primary_color = ImageColor.getcolor(params.get('primaryColor') or (255,255,255), "RGB")
 		secondary_color = ImageColor.getcolor(params.get('secondaryColor') or (0,0,0), "RGB")
@@ -23,7 +23,7 @@ class ClockAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 			"primary_color": primary_color,
 			"secondary_color": secondary_color,
 		}
-	async def render_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> MediaRenderResult | None:
+	async def render_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any], state:Any) -> MediaRenderResult | None:
 		img: Image.Image|None = None
 		try:
 			dimensions = dsec.dimensions

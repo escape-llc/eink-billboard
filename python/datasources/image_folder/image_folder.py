@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any
+from typing import Any, Mapping
 
 from PIL import Image, ImageOps, ImageFilter
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult
@@ -40,11 +40,11 @@ class ImageFolderAsync(DataSource, MediaListAsync, MediaRenderAsync):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
-	async def open_async(self, dsec: DataSourceExecutionContext, params: dict[str, Any]) -> list:
+	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
 		folder_path = params.get('folder')
 		image_files = list_files_in_folder(folder_path)
 		return image_files
-	async def render_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> MediaRenderResult | None:
+	async def render_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any], state:Any) -> MediaRenderResult | None:
 		if state is None:
 			return None
 		img = grab_image(state, dsec.dimensions, pad_image=True, logger=self.logger)

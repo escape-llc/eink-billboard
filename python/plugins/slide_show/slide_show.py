@@ -2,7 +2,7 @@ import asyncio
 import logging
 import threading
 from datetime import timedelta
-from typing import Any, TypedDict, cast
+from typing import Any, Mapping, TypedDict, cast
 
 from ..plugin_base import PluginAsync, PluginExecutionContext, TrackType
 from ...datasources.data_source import DataSourceManager, MediaListAsync, MediaRenderAsync
@@ -45,7 +45,7 @@ class SlideShowAsync(PluginAsync):
 		if isinstance(dataSource, MediaListAsync) and isinstance(dataSource, MediaRenderAsync):
 			dsec = context.create_datasource_context(dataSource)
 			# TODO check for existing state to resume from?
-			state = await dataSource.open_async(dsec, cast(dict[str,Any], settings))
+			state = await dataSource.open_async(dsec, cast(Mapping[str,Any], settings))
 			if len(state) == 0:
 				raise RuntimeError(f"{dataSourceName}: No media items found for slide show")
 			slideMinutes = settings.get("slideMinutes", 15)
@@ -56,7 +56,7 @@ class SlideShowAsync(PluginAsync):
 				while len(state) > 0 and (slideMax == 0 or count < slideMax):
 					self.logger.info(f"{self.id} playing '{track.title}' {count + 1}/{startlen}")
 					item = state[0]
-					mrr = await dataSource.render_async(dsec, cast(dict[str,Any], settings), item)
+					mrr = await dataSource.render_async(dsec, cast(Mapping[str,Any], settings), item)
 					count += 1
 					state.pop(0)
 					if mrr is not None:

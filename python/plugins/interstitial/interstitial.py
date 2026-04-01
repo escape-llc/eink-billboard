@@ -1,7 +1,7 @@
 from datetime import timedelta
 import logging
 import threading
-from typing import Any, TypedDict, cast
+from typing import Any, Mapping, TypedDict, cast
 
 from ...datasources.data_source import DataSourceManager, MediaItemAsync, MediaRenderAsync
 from ...model.schedule import TimerTaskItem
@@ -39,11 +39,11 @@ class InterstitialAsync(PluginAsync):
 			raise RuntimeError(f"dataSource '{dataSourceName}' is not available")
 		if isinstance(dataSource, MediaItemAsync) and isinstance(dataSource, MediaRenderAsync):
 			dsec = context.create_datasource_context(dataSource)
-			state = await dataSource.open_async(dsec, cast(dict[str,Any],settings))
+			state = await dataSource.open_async(dsec, cast(Mapping[str,Any],settings))
 			if state is None:
 				raise RuntimeError(f"{dataSourceName}: No media items found for slide show")
 			item = state
-			mrr = await dataSource.render_async(dsec, cast(dict[str,Any],settings), item)
+			mrr = await dataSource.render_async(dsec, cast(Mapping[str,Any],settings), item)
 			if mrr is not None:
 				# send priority display message
 				slideMinutes = settings.get("slideMinutes", 1)

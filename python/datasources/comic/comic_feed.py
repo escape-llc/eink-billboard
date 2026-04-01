@@ -1,4 +1,4 @@
-from typing import IO, Any
+from typing import IO, Any, Mapping
 from PIL import Image, ImageDraw, ImageFont
 
 from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
@@ -52,11 +52,11 @@ def _compose_image(bytes:IO[bytes], item:dict, caption_font, width, height):
 class ComicFeedAsync(DataSource, MediaListAsync, MediaRenderAsync):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
-	async def open_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any]) -> list:
+	async def open_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any]) -> list:
 		comic = params.get("comic")
 		items = await get_items_async(comic)
 		return items
-	async def render_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> MediaRenderResult | None:
+	async def render_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any], state:Any) -> MediaRenderResult | None:
 		if state is None:
 			return None
 		mrr = await self._generate_image(dsec, params, state)
