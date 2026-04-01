@@ -13,9 +13,10 @@ Flow:
 3. Extract the image filename from the response. (_fetch_potd)
 4. Make another API request to get the image URL. (_fetch_image_src)
 5. Download the image from the URL. (_download_image)
+5a. NOTE: sometimes the "image" is actually a video: raise error
 6. Optionally resize the image to fit the device dimensions. (_shrink_to_fit))
 """
-from typing import Any
+from typing import Any, Mapping
 from PIL import Image, UnidentifiedImageError
 from datetime import date, timedelta
 from datetime import datetime
@@ -29,7 +30,7 @@ from ...utils.image_utils import stream_to_buffer
 API_URL = "https://en.wikipedia.org/w/api.php"
 HEADERS = { 'User-Agent': 'eInkBillboard/0.0 (https://github.com/escape-llc/eink-billboard/)' }
 
-def _determine_date(settings: dict[str, Any], schedule_ts) -> date:
+def _determine_date(settings: Mapping[str, Any], schedule_ts) -> date:
 	if settings.get("randomizeDate") == True:
 		start = datetime(2015, 1, 1).astimezone(schedule_ts.tzinfo)
 		delta_days = (schedule_ts - start).days
@@ -43,13 +44,13 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
-	async def open_async(self, dsec: DataSourceExecutionContext, params: dict[str, Any]) -> list:
+	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
 		datetofetch = _determine_date(params, dsec.timestamp)
 		self.logger.info(f"'{self.name}' datetofetch: {datetofetch}")
 		data = await self._fetch_potd(datetofetch)
 		picurl = data["image_src"]
 		return [{"url": picurl, "date": datetofetch}]
-	async def render_async(self, dsec: DataSourceExecutionContext, params:dict[str,Any], state:Any) -> MediaRenderResult | None:
+	async def render_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any], state:Any) -> MediaRenderResult | None:
 		if state is None:
 			return None
 		image = await self._download_image(state.get("url"))
@@ -101,9 +102,7 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 				raise RuntimeError("'{self.name}' Unsupported image format: SVG.")
 
 			client = client_var.get()
-#			response = await client.get(url, headers=HEADERS, timeout=10)
-#			response.raise_for_status()
-			buffer = await stream_to_buffer(client, url, headers=HEADERS)
+			buffer = await stream_to_buffer(client, url, headers=HEADERS, ctok=lambda ct: ct.startswith("image/"))
 			return Image.open(buffer)
 		except UnidentifiedImageError as e:
 			self.logger.error(f"'{self.name}' Unsupported image format at {url}: {str(e)}")
@@ -111,7 +110,7 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		except Exception as e:
 			self.logger.error(f"'{self.name}' Failed to load WPOTD image from {url}: {str(e)}")
 			raise RuntimeError(f"'{self.name}' Failed to load WPOTD image.")
-	async def _fetch_potd(self, cur_date: date) -> dict[str, Any]:
+	async def _fetch_potd(self, cur_date: date) -> Mapping[str, Any]:
 		title = f"Template:POTD/{cur_date.isoformat()}"
 		params = {
 			"action": "query",
@@ -133,14 +132,14 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			"image_page_url": f"https://en.wikipedia.org/wiki/{title}",
 			"date": cur_date
 		}
-	async def _make_request(self, params: dict[str, Any]) -> dict[str, Any]:
+	async def _make_request(self, params: Mapping[str, Any]) -> Mapping[str, Any]:
 		try:
 			client = client_var.get()
 			response = await client.get(API_URL, params=params, headers=HEADERS, timeout=10)
 			response.raise_for_status()
 			return response.json()
 		except Exception as e:
-			self.logger.error(f"'{self.name}' Wikipedia API request failed with params {params}: {str(e)}")
+			self.logger.error(f"'{self.name}' Wikipedia API request failed: {params}: {str(e)}")
 			raise RuntimeError(f"'{self.name}' Wikipedia API request failed.")
 	async def _fetch_image_src(self, filename: str) -> str:
 		params = {
