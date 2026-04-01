@@ -1,10 +1,11 @@
+from typing import cast
 import unittest
 import os
 import tempfile
 
 from .utils import storage_path
 from ..model.schedule import Playlist
-from ..model.schedule_manager import ScheduleManager
+from ..model.schedule_manager import ScheduleManager, ScheduleManagerDict
 
 class TestScheduleManager(unittest.TestCase):
 	def test_load_schedule(self):
@@ -44,7 +45,7 @@ class TestScheduleManager(unittest.TestCase):
 			"tasks": []
 		}
 		with self.assertRaises(ValueError):
-			sm.validate(schedule_list)
+			sm.validate(cast(ScheduleManagerDict, schedule_list))
 
 	def test_validate_playlist_info_none(self):
 		# master present, but a playlist entry has no 'info'
@@ -54,7 +55,7 @@ class TestScheduleManager(unittest.TestCase):
 			"tasks": []
 		}
 		with self.assertRaises(ValueError):
-			sm.validate(schedule_list)
+			sm.validate(cast(ScheduleManagerDict, schedule_list))
 
 	def test_ctor_invalid_root_path(self):
 		with self.assertRaises(ValueError):
@@ -69,6 +70,6 @@ class TestScheduleManager(unittest.TestCase):
 		with tempfile.TemporaryDirectory() as tmp:
 			sm = ScheduleManager(root_path=tmp)
 			with self.assertRaises(ValueError):
-				sm.validate(None)
+				sm.validate(cast(ScheduleManagerDict, None))
 			with self.assertRaises(ValueError):
-				sm.validate({})
+				sm.validate(cast(ScheduleManagerDict, {}))
