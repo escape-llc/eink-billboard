@@ -2,7 +2,7 @@ from concurrent.futures import Future
 from datetime import datetime
 import logging
 import threading
-from typing import Any, Any, NotRequired, ReadOnly, TypedDict, cast
+from typing import Any, Any, Mapping, NotRequired, ReadOnly, TypedDict, cast
 
 from ..datasources.data_source import DataSourceManager
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
@@ -202,7 +202,8 @@ class TimerLayer(DispatcherTask):
 			rendered_schedule = self._next_scheduled_playlist(reftime, enabled_task_items)
 			for sched in rendered_schedule:
 				sched_ts = datetime.fromisoformat(sched["scheduled_time"])
-				delta =  sched_ts - reftime
+				now = tod.current_time()
+				delta =  sched_ts - now
 				if delta.total_seconds() < 0:
 					self.logger.warning(f"Skipping past scheduled task '{sched['id']}' at {sched_ts} (scheduled time is in the past).")
 					continue
@@ -211,9 +212,11 @@ class TimerLayer(DispatcherTask):
 				self.state = 'waiting'
 				telemetry2 = {
 					"state": self.state,
-					"schedule_ts": sched_ts
+					"schedule_ts": sched_ts,
+					"now": now,
+					"delta": delta,
 				}
-				self.router.send("telemetry", Telemetry(reftime, "timer_layer", cast(dict[str,Any], telemetry2)))
+				self.router.send("telemetry", Telemetry(now, "timer_layer", cast(Mapping[str,Any], telemetry2)))
 				await timer.sleep(delta)
 				actual = tod.current_time()
 				self.logger.info(f"Scheduled task time reached: {sched_ts}, actual: {actual}. Starting {len(matching_items)} task(s).")
@@ -242,7 +245,7 @@ class TimerLayer(DispatcherTask):
 							"current_track_index": -1,
 							"schedule_ts": sched_ts
 						}
-						self.router.send("telemetry", Telemetry(tod.current_time(), "timer_layer", cast(dict[str,Any], telemetry)))
+						self.router.send("telemetry", Telemetry(tod.current_time(), "timer_layer", cast(Mapping[str,Any], telemetry)))
 					except Exception as e:
 						self.state = 'error'
 						self._error_with_telemetry(f"Error during scheduled task '{task_item.title}': {e}", tod.current_time())
@@ -301,14 +304,14 @@ class TimerLayer(DispatcherTask):
 		pass
 	def _error_with_telemetry(self, emsg:str, msg_ts:datetime):
 		self.logger.error(emsg, exc_info=True)
-		self.router.send("telemetry", Telemetry(msg_ts, "timer_layer", {
+		self.router.send("telemetry", Telemetry(msg_ts, "timer_layer", cast(Mapping[str,Any], {
 			"state": "error",
 			"message": emsg,
 			'current_playlist': None,
 			'current_track_index': None,
 			'current_track': None,
 			'schedule_ts': None
-		}))
+		})))
 	def _get_enabled_tasks(self, tasks:list[ScheduleLoaderDict]) -> list[TimerTaskItem]:
 		task_items: list[TimerTaskItem] = []
 		for sched in tasks:
