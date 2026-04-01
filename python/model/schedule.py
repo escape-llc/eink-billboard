@@ -95,7 +95,7 @@ def generate_trigger_time(now: datetime, time: TimeTriggers, include_now: bool =
 	:param now: Target time to evaluate the trigger against
 	:type now: datetime
 	:param time: Day trigger description dict, must contain "type" key with appropriate sub-keys for trigger evaluation
-	:type time: dict[str, Any]
+	:type time: TimeTriggers
 	:param include_now: Whether to include the current time if it matches the trigger
 	:type include_now: bool
 	"""
