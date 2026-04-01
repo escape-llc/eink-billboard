@@ -14,6 +14,10 @@ class PriorityImage(DisplayImage):
 	duration: timedelta
 
 @dataclass(frozen=True, slots=True)
+class ComputedImage(DisplayImage):
+	source: DisplayImage | PriorityImage
+
+@dataclass(frozen=True, slots=True)
 class OverlayDefinition:
 	index: int
 	title: str
