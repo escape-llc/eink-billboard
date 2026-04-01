@@ -2,9 +2,9 @@ import asyncio
 from concurrent.futures import Future
 import logging
 import threading
-from typing import cast
+from typing import Any, Mapping, cast
 
-from .display_messages import DisplayImage, DisplaySettings, PriorityImage
+from .display_messages import ComputedImage, DisplayImage, DisplaySettings, PriorityImage
 from ..display.mock_display import MockDisplay
 from ..display.tkinter_window import TkinterWindow
 from ..display.display_base import DisplayBase
@@ -37,7 +37,6 @@ class Display(DispatcherTask):
 		self.compsitor = ImageCompositor()
 		self.task_pool: AsyncWorkerPool | None = None
 		self.resolution = (800, 480)
-		self.displayImageCount = 0
 		self.commitq: asyncio.Queue[BasicMessage] | None = None
 		self.priorityq: asyncio.Queue[PriorityImage] | None = None
 		self.task_commit: tuple[Future, threading.Event] | None = None
@@ -134,12 +133,11 @@ class Display(DispatcherTask):
 	async def _task_background_layer(self, commitq: asyncio.Queue[BasicMessage], compositor: ImageCompositor, msg: DisplayImage):
 		compositor.set_layer_background(msg)
 		await commitq.put(BasicMessage(msg.timestamp))
-	async def _task_priority_layer(self, priorityq: asyncio.Queue[PriorityImage], compositor: ImageCompositor, msg: PriorityImage):
-		compositor.set_layer_priority(msg)
+	async def _task_priority_layer(self, priorityq: asyncio.Queue[PriorityImage], msg: PriorityImage):
 		await priorityq.put(msg)
 	async def _task_commit_timer(self, commitq: asyncio.Queue[BasicMessage], renderq: asyncio.Queue[BasicMessage], timebase: TimeOfDay):
 		while True:
-			self.logger.info("Commit timer wait-for trigger")
+			self.logger.debug("Commit timer arming")
 			_ = await commitq.get()
 			self.logger.info("Commit timer triggered")
 			commitq.task_done()
@@ -149,42 +147,37 @@ class Display(DispatcherTask):
 					commitq.task_done()
 					self.logger.info("Commit timer extended")
 				except asyncio.TimeoutError:
-					self.logger.info("Commit timer timeout")
+					self.logger.info("Commit timer ends")
 					await renderq.put(BasicMessage(timebase.current_time()))
 					# exit inner loop, wait for fresh message to reset commit timer
 					break
 				except Exception as e:
 					self.logger.error(f"commit_timer.unhandled: {str(e)}")
-		pass
-	async def _task_render_and_display(self, taskq: asyncio.Queue[BasicMessage], compsitor: ImageCompositor, display: DisplayBase, display_settings: dict|None):
+	async def _task_render_and_display(self, taskq: asyncio.Queue[BasicMessage], compsitor: ImageCompositor, display: DisplayBase, display_settings: Mapping[str, Any]|None):
 		rotate: bool = display_settings.get("rotate180", False) if display_settings is not None else False
 		displayImageCount: int = 0
 		while True:
 			try:
 				_ = await taskq.get()
-				package = compsitor.render()
+				package = compsitor.commit()
 				if package is None:
-					self.logger.debug(f"Image compositing no changes detected")
+					self.logger.debug(f"Compositor no changes detected")
 					continue
-				updated, render_info = package.render()
-				if updated == False:
-					self.logger.debug(f"Image compositing no changes detected")
-					continue
-				if render_info is None:
-					self.logger.debug(f"Composited image failed")
-					continue
-				the_image, the_title = render_info
+				the_image, the_title = package.render()
 				if rotate: the_image = the_image.rotate(180)
 				the_image = apply_image_enhancement(the_image, display_settings)
 
 				displayImageCount += 1
+				self.logger.info(f"Compositor v:{package.version} '{the_title}' ({displayImageCount})")
 				display.render(the_image, displayImageCount, the_title)
 				taskq.task_done()
+				self.logger.debug(f"Start blanking period")
 				await asyncio.sleep(60.0)
+				self.logger.debug(f"End blanking period")
 			except Exception as e:
 				self.logger.error(f"_task_render_and_display.unhandled: {str(e)}")
 		pass
-	async def _task_priority_image(self, taskq: asyncio.Queue[PriorityImage], commitq: asyncio.Queue[BasicMessage], resolution: tuple[int, int], display_settings: dict|None):
+	async def _task_priority_image(self, taskq: asyncio.Queue[PriorityImage], commitq: asyncio.Queue[BasicMessage], resolution: tuple[int, int], display_settings: Mapping[str, Any]|None):
 		ori:str = display_settings.get("orientation", "landscape") if display_settings is not None else "landscape"
 		while True:
 			try:
@@ -192,7 +185,8 @@ class Display(DispatcherTask):
 				# Resize and adjust orientation
 				image = change_orientation(msg.img, ori)
 				image = resize_image(image, resolution)
-				self.compsitor.set_layer_priority(DisplayImage(msg.timestamp, msg.title, image))
+				di = msg if image == msg.img else ComputedImage(msg.timestamp, msg.title, image, msg)
+				self.compsitor.set_layer_priority(di)
 				taskq.task_done()
 				await commitq.put(BasicMessage(msg.timestamp))
 				# TODO await the callback from the display task that the image was rendered before starting timer for the priority image
@@ -201,7 +195,6 @@ class Display(DispatcherTask):
 				await commitq.put(BasicMessage(msg.timestamp))
 			except Exception as e:
 				self.logger.error(f"priority_image.unhandled: {str(e)}")
-		pass
 	def _priority_image(self, msg: PriorityImage):
 		try:
 			if self.cm is None:
@@ -219,17 +212,10 @@ class Display(DispatcherTask):
 
 			display_cob = self.cm.settings_manager().open("display")
 			_, display_settings = display_cob.get()
+			self.logger.info(f"Priority '{msg.title}' ({msg.duration})")
 
-			if display_settings is not None:
-			# Resize and adjust orientation
-				image = change_orientation(msg.img, display_settings.get("orientation", "landscape"))
-				image = resize_image(image, self.resolution)
-				self.compsitor.set_layer_priority(DisplayImage(msg.timestamp, msg.title, image))
-				fut  = self.task_pool.submit(self._task_priority_layer(self.priorityq, self.compsitor, PriorityImage(msg.timestamp, msg.title, image, msg.duration)), None)
-				fut.result();
-			else:
-				fut  = self.task_pool.submit(self._task_priority_layer(self.priorityq, self.compsitor, msg), None)
-				fut.result();
+			fut  = self.task_pool.submit(self._task_priority_layer(self.priorityq, msg), None)
+			fut.result();
 		except Exception as e:
 			self.logger.error("priorityimage.unhandled", e)
 			pass
@@ -249,14 +235,14 @@ class Display(DispatcherTask):
 				return
 			display_cob = self.cm.settings_manager().open("display")
 			_, display_settings = display_cob.get()
-			self.displayImageCount += 1
-			self.logger.info(f"Display {self.displayImageCount} '{msg.title}'")
+			self.logger.info(f"Display '{msg.title}'")
 
 			if display_settings is not None:
 			# Resize and adjust orientation
 				image = change_orientation(msg.img, display_settings.get("orientation", "landscape"))
 				image = resize_image(image, self.resolution)
-				fut  = self.task_pool.submit(self._task_background_layer(self.commitq, self.compsitor, DisplayImage(msg.timestamp, msg.title, image)), None)
+				di = msg if image == msg.img else ComputedImage(msg.timestamp, msg.title, image, msg)
+				fut  = self.task_pool.submit(self._task_background_layer(self.commitq, self.compsitor, di), None)
 				fut.result();
 			else:
 				fut  = self.task_pool.submit(self._task_background_layer(self.commitq, self.compsitor, msg), None)
