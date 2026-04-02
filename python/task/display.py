@@ -1,5 +1,5 @@
 import asyncio
-from concurrent.futures import Future
+from concurrent.futures import CancelledError, Future
 import logging
 import threading
 from typing import Any, Mapping, cast
@@ -103,7 +103,7 @@ class Display(DispatcherTask):
 		except Exception as e:
 			self.logger.error(f"configure.unhandled: {str(e)}")
 			msg.notify(True, e)
-	def _start_tasks(self, display: DisplayBase, compositor: ImageCompositor, timebase: TimeOfDay, display_settings: dict) -> None:
+	def _start_tasks(self, display: DisplayBase, compositor: ImageCompositor, timebase: TimeOfDay, display_settings: Mapping[str,Any]) -> None:
 		self.task_pool = AsyncWorkerPool()
 		self.task_pool.start()
 		task_future = self.task_pool.submit(self._task_create_queues(), None)
@@ -113,17 +113,17 @@ class Display(DispatcherTask):
 		def commit_callback(fut):
 			if not self.is_stopped():
 				self.accept(AsyncTaskCompleted(timebase.current_time(), "commit_task", fut, donev))
-		self.task_commit = (self.task_pool.submit(self._task_commit_timer(cast(asyncio.Queue[BasicMessage], self.commitq), renderq, timebase), callback=commit_callback), donev)
+		self.task_commit = (self.task_pool.submit(self._task_commit_timer(cast(asyncio.Queue[BasicMessage], self.commitq), renderq, timebase, donev), callback=commit_callback), donev)
 		donev2 = threading.Event()
 		def priority_callback(fut):
 			if not self.is_stopped():
 				self.accept(AsyncTaskCompleted(timebase.current_time(), "priority_task", fut, donev2))
-		self.task_priority = (self.task_pool.submit(self._task_priority_image(cast(asyncio.Queue[PriorityImage], self.priorityq), cast(asyncio.Queue[BasicMessage], self.commitq), self.resolution, display_settings), callback=priority_callback), donev2)
+		self.task_priority = (self.task_pool.submit(self._task_priority_image(cast(asyncio.Queue[PriorityImage], self.priorityq), cast(asyncio.Queue[BasicMessage], self.commitq), self.resolution, display_settings, donev2), callback=priority_callback), donev2)
 		donev3 = threading.Event()
 		def render_callback(fut):
 			if not self.is_stopped():
 				self.accept(AsyncTaskCompleted(timebase.current_time(), "render_task", fut, donev3))
-		self.task_render = (self.task_pool.submit(self._task_render_and_display(renderq, compositor, display, display_settings), callback=render_callback), donev3)
+		self.task_render = (self.task_pool.submit(self._task_render_and_display(renderq, compositor, display, display_settings, donev3), callback=render_callback), donev3)
 		pass
 	async def _task_create_queues(self) -> tuple[asyncio.Queue[BasicMessage], asyncio.Queue[BasicMessage], asyncio.Queue[PriorityImage]]:
 		commitq: asyncio.Queue[BasicMessage] = asyncio.Queue()
@@ -135,66 +135,83 @@ class Display(DispatcherTask):
 		await commitq.put(BasicMessage(msg.timestamp))
 	async def _task_priority_layer(self, priorityq: asyncio.Queue[PriorityImage], msg: PriorityImage):
 		await priorityq.put(msg)
-	async def _task_commit_timer(self, commitq: asyncio.Queue[BasicMessage], renderq: asyncio.Queue[BasicMessage], timebase: TimeOfDay):
-		while True:
-			self.logger.debug("Commit timer arming")
-			_ = await commitq.get()
-			self.logger.info("Commit timer triggered")
-			commitq.task_done()
+	async def _task_commit_timer(self, commitq: asyncio.Queue[BasicMessage], renderq: asyncio.Queue[BasicMessage], timebase: TimeOfDay, donev: threading.Event):
+		try:
+			while True:
+				self.logger.debug("Commit timer arming")
+				_ = await commitq.get()
+				self.logger.debug("Commit timer triggered")
+				commitq.task_done()
+				while True:
+					try:
+						_ = await asyncio.wait_for(commitq.get(), timeout=2.0)
+						commitq.task_done()
+						self.logger.debug("Commit timer extended")
+					except asyncio.TimeoutError:
+						self.logger.debug("Commit timer ends")
+						await renderq.put(BasicMessage(timebase.current_time()))
+						# exit inner loop, wait for fresh message to reset commit timer
+						break
+					except Exception as e:
+						self.logger.error(f"commit_timer.unhandled: {str(e)}")
+		except CancelledError:
+			self.logger.info("commit timer task cancelled")
+			raise
+		finally:
+			donev.set()
+	async def _task_render_and_display(self, taskq: asyncio.Queue[BasicMessage], compsitor: ImageCompositor, display: DisplayBase, display_settings: Mapping[str, Any]|None, donev: threading.Event):
+		try:
+			rotate: bool = display_settings.get("rotate180", False) if display_settings is not None else False
+			displayImageCount: int = 0
 			while True:
 				try:
-					_ = await asyncio.wait_for(commitq.get(), timeout=2.0)
-					commitq.task_done()
-					self.logger.info("Commit timer extended")
-				except asyncio.TimeoutError:
-					self.logger.info("Commit timer ends")
-					await renderq.put(BasicMessage(timebase.current_time()))
-					# exit inner loop, wait for fresh message to reset commit timer
-					break
-				except Exception as e:
-					self.logger.error(f"commit_timer.unhandled: {str(e)}")
-	async def _task_render_and_display(self, taskq: asyncio.Queue[BasicMessage], compsitor: ImageCompositor, display: DisplayBase, display_settings: Mapping[str, Any]|None):
-		rotate: bool = display_settings.get("rotate180", False) if display_settings is not None else False
-		displayImageCount: int = 0
-		while True:
-			try:
-				_ = await taskq.get()
-				package = compsitor.commit()
-				if package is None:
-					self.logger.debug(f"Compositor no changes detected")
-					continue
-				the_image, the_title = package.render()
-				if rotate: the_image = the_image.rotate(180)
-				the_image = apply_image_enhancement(the_image, display_settings)
+					_ = await taskq.get()
+					package = compsitor.commit()
+					if package is None:
+						self.logger.debug(f"Compositor no changes detected")
+						continue
+					the_image, the_title = package.render()
+					if rotate: the_image = the_image.rotate(180)
+					the_image = apply_image_enhancement(the_image, display_settings)
 
-				displayImageCount += 1
-				self.logger.info(f"Compositor v:{package.version} '{the_title}' ({displayImageCount})")
-				display.render(the_image, displayImageCount, the_title)
-				taskq.task_done()
-				self.logger.debug(f"Start blanking period")
-				await asyncio.sleep(60.0)
-				self.logger.debug(f"End blanking period")
-			except Exception as e:
-				self.logger.error(f"_task_render_and_display.unhandled: {str(e)}")
-		pass
-	async def _task_priority_image(self, taskq: asyncio.Queue[PriorityImage], commitq: asyncio.Queue[BasicMessage], resolution: tuple[int, int], display_settings: Mapping[str, Any]|None):
-		ori:str = display_settings.get("orientation", "landscape") if display_settings is not None else "landscape"
-		while True:
-			try:
-				msg = await taskq.get()
-				# Resize and adjust orientation
-				image = change_orientation(msg.img, ori)
-				image = resize_image(image, resolution)
-				di = msg if image == msg.img else ComputedImage(msg.timestamp, msg.title, image, msg)
-				self.compsitor.set_layer_priority(di)
-				taskq.task_done()
-				await commitq.put(BasicMessage(msg.timestamp))
-				# TODO await the callback from the display task that the image was rendered before starting timer for the priority image
-				await asyncio.sleep(msg.duration.total_seconds())
-				self.compsitor.set_layer_priority(None)
-				await commitq.put(BasicMessage(msg.timestamp))
-			except Exception as e:
-				self.logger.error(f"priority_image.unhandled: {str(e)}")
+					displayImageCount += 1
+					self.logger.info(f"Compositor v:{package.version} '{the_title}' ({displayImageCount})")
+					display.render(the_image, displayImageCount, the_title)
+					taskq.task_done()
+					self.logger.debug(f"Start blanking period")
+					await asyncio.sleep(60.0)
+					self.logger.debug(f"End blanking period")
+				except Exception as e:
+					self.logger.error(f"_task_render_and_display.unhandled: {str(e)}")
+		except CancelledError:
+			self.logger.info("render and display task cancelled")
+			raise
+		finally:
+			donev.set()
+	async def _task_priority_image(self, taskq: asyncio.Queue[PriorityImage], commitq: asyncio.Queue[BasicMessage], resolution: tuple[int, int], display_settings: Mapping[str, Any]|None, donev: threading.Event):
+		try:
+			ori:str = display_settings.get("orientation", "landscape") if display_settings is not None else "landscape"
+			while True:
+				try:
+					msg = await taskq.get()
+					# Resize and adjust orientation
+					image = change_orientation(msg.img, ori)
+					image = resize_image(image, resolution)
+					di = msg if image == msg.img else ComputedImage(msg.timestamp, msg.title, image, msg)
+					self.compsitor.set_layer_priority(di)
+					taskq.task_done()
+					await commitq.put(BasicMessage(msg.timestamp))
+					# TODO await the callback from the display task that the image was rendered before starting timer for the priority image
+					await asyncio.sleep(msg.duration.total_seconds())
+					self.compsitor.set_layer_priority(None)
+					await commitq.put(BasicMessage(msg.timestamp))
+				except Exception as e:
+					self.logger.error(f"priority_image.unhandled: {str(e)}")
+		except CancelledError:
+			self.logger.info("priority image task cancelled")
+			raise
+		finally:
+			donev.set()
 	def _priority_image(self, msg: PriorityImage):
 		try:
 			if self.cm is None:
@@ -250,3 +267,23 @@ class Display(DispatcherTask):
 		except Exception as e:
 			self.logger.error("displayimage.unhandled", e)
 			pass
+	def _async_task_completed(self, msg: AsyncTaskCompleted):
+		if not msg.fut.done():
+			self.logger.info(f"{msg.token} task still running, cancel...")
+			msg.fut.cancel()
+			self.logger.info(f"Waiting for {msg.token} task to complete...")
+			msg.donev.wait(timeout=2.0)
+		else:
+			self.logger.info(f"{msg.token} task completed.")
+			rmsg = msg.fut.result()
+			self.logger.info(f"{msg.token} task result: {rmsg}")
+			if rmsg is not None:
+				# handle message returned by the task
+				self.accept(rmsg)
+		if msg.token == "commit_task":
+			self.task_commit = None
+		elif msg.token == "priority_task":
+			self.task_priority = None
+		elif msg.token == "render_task":
+			self.task_render = None
+		pass
