@@ -33,7 +33,11 @@ loggers:
     level: WARNING    # Only show Warnings and Errors
     handlers: [consoleHandler]
     propagate: False
-  urllib3:
+  httpcore.connection:
+    level: WARNING    # Only show Warnings and Errors
+    handlers: [consoleHandler]
+    propagate: False
+  httpcore.http11:
     level: WARNING    # Only show Warnings and Errors
     handlers: [consoleHandler]
     propagate: False
