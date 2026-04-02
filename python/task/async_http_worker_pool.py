@@ -24,7 +24,7 @@ class AsyncHttpWorkerPool(IRequireShutdown):
 
 	def _run_loop(self):
 		asyncio.set_event_loop(self.loop)
-		self.client = httpx.AsyncClient()
+		self.client = httpx.AsyncClient(max_redirects=5)
 		self.loop.call_soon(self._loop_ready.set)
 		self.loop.run_forever()
 
