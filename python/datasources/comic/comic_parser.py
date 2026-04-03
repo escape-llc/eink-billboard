@@ -19,7 +19,7 @@ COMICS = {
 		"caption": lambda element: "",
 	},
 	"Saturday Morning Breakfast Cereal": {
-		"feed": "http://www.smbc-comics.com/comic/rss",
+		"feed": "https://www.smbc-comics.com/comic/rss",
 		"element": lambda entry: entry.description,
 		"url": lambda element: re.search(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element).group(1),
 		"title": lambda entry: entry.title.split("-")[1].strip(),
@@ -33,7 +33,7 @@ COMICS = {
 		"caption": lambda element: re.search(r'<img[^>]+alt=["\"]([^"\"]+)["\"]', element).group(1),
 	},
 	"Questionable Content": {
-		"feed": "http://www.questionablecontent.net/QCRSS.xml",
+		"feed": "https://www.questionablecontent.net/QCRSS.xml",
 		"element": lambda entry: entry.description,
 		"url": lambda element: re.search(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element).group(1),
 		"title": lambda entry: entry.title,
@@ -90,11 +90,6 @@ def parse_the_feed(comic_name: str, comic: dict, feed: feedparser.FeedParserDict
 async def get_items_async(comic_name):
 	comic = COMICS[comic_name]
 	client = client_var.get()
-	resp = await client.get(comic["feed"])
+	resp = await client.get(comic["feed"], follow_redirects=True)
 	feed = feedparser.parse(resp.text)
-	return parse_the_feed(comic_name, comic, feed)
-
-def get_items(comic_name):
-	comic = COMICS[comic_name]
-	feed = feedparser.parse(comic["feed"])
 	return parse_the_feed(comic_name, comic, feed)
