@@ -45,14 +45,12 @@ export type TriggerDef = {
 }
 export type TimerTaskTask = {
 	plugin_name: string;
-	title: string;
 	content: Record<string, any>;
 }
 export type TimerTaskItem = {
 	id: string;
-	name: string;
 	enabled: boolean;
-	description: string;
+	title: string;
 	task: TimerTaskTask;
 	trigger: TriggerDef;
 }

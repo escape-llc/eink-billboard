@@ -79,17 +79,22 @@ class ScheduleLoader:
 		items = []
 		for entry in data.get("items", []):
 			id = entry["id"]
-			title = entry.get("title", "")
-			desc = entry.get("description", "")
+			title = entry.get("title", entry.get("name", ""))
 			enabled = entry.get("enabled", True)
 			etask = entry.get("task", None)
 			if etask is None:
-				raise ValueError(f"Timer task entry '{title}' is missing 'task' field.")
+				raise ValueError(f"Timer task entry '{id}' is missing 'task' field.")
+			plugin_name = etask.get("plugin_name", None)
+			if plugin_name is None:
+				raise ValueError(f"Timer task entry '{id}' is missing 'plugin_name' in 'task' field.")
+			content = etask.get("content", None)
+			if content is None:
+				raise ValueError(f"Timer task entry '{id}' is missing 'content' in 'task' field.")
+			trigger = entry.get("trigger", None)
+			if trigger is None:
+				raise ValueError(f"Timer task entry '{id}' is missing 'trigger' field.")
 			# only TimerTaskTask is supported currently
-			task = TimerTaskTask(
-				etask.get("plugin_name", None),
-				etask.get("title", None),
-				etask.get("content", {}))
-			item = TimerTaskItem(id, title, enabled, desc, task, entry.get("trigger", {}))
+			task = TimerTaskTask(plugin_name, content)
+			item = TimerTaskItem(id, title, enabled, task, trigger)
 			items.append(item)
 		return TimerTasks(sid, name, items)

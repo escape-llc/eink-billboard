@@ -5,7 +5,7 @@ import threading
 from typing import Any, Any, Mapping, NotRequired, ReadOnly, TypedDict, cast
 
 from ..datasources.data_source import DataSourceManager
-from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
+from ..model.configuration_manager import CollectInfoDict, ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.schedule import RenderScheduleDict, TimerTaskItem, Playlist, render_task_schedule_at
 from ..model.schedule_loader import ScheduleLoaderDict
 from ..model.service_container import IServiceProvider, ServiceContainer
@@ -47,7 +47,7 @@ class TimerLayer(DispatcherTask):
 		self.router = router
 		self.cm:ConfigurationManager|None = None
 		self.tasks: list[ScheduleLoaderDict] = []
-		self.plugin_info = None
+		self.plugin_info: list[CollectInfoDict]|None = None
 		self.datasources: DataSourceManager|None = None
 		self.timer: IProvideTimer|None = None
 		self.dimensions:tuple[int,int] = (800,480)

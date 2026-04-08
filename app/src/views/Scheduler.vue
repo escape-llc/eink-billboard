@@ -4,6 +4,9 @@
 		<template #start>
 			<div style="font-size:150%">Scheduler</div>
 		</template>
+		<template #center>
+			<Select v-model:="eventList" />
+		</template>
 	</Toolbar>
 	<AlCalendar style="width:100%" class="calendar" :dateRange="dateRange" :timeRange="timeRange" :eventList="eventList">
 		<template #dayheader="{ day }">
@@ -58,11 +61,11 @@
 	</div>
 </template>
 <script setup lang="ts">
-import { InputGroup, Button, Dialog, Toolbar } from "primevue"
+import { InputGroup, Button, Dialog, Toolbar, Select } from "primevue"
 import AlCalendar from "../components/AlCalendar.vue"
 import type { DateRange, TimeRange, EventInfo } from "../components/AlCalendar.vue"
 import { MS_PER_DAY } from "../components/DateUtils"
-import { ref, onMounted, nextTick } from "vue"
+import { ref, onMounted, nextTick, toRaw, provide, reactive, computed } from "vue"
 import BasicForm from "../components/BasicForm.vue"
 import type {FormDef} from "../components/FormDefs"
 
@@ -74,6 +77,11 @@ const timeRange = ref<TimeRange>({start: 0, end: 1440, interval:30 })
 const eventList = ref<EventInfo[]>([])
 const dialogOpen = ref(false)
 const currentEvent = ref()
+
+// editing model separate from the track until Apply
+const editModel = reactive<Record<string,any>>({} as any) // start with empty model, populate on track select
+const selectedPlugin = computed(() => pluginList.value.find(p => p.id === editModel.plugin_name) || null)
+const pluginOptions = computed(() => pluginList.value.map(p => ({ id: p.id, name: p.name })))
 
 function isToday(someDate:Date):boolean {
   const today = new Date(now);
@@ -101,19 +109,27 @@ function derefColor(event:any):string {
 	return "#ddeeff";
 }
 const API_URL = import.meta.env.VITE_API_URL
-let pluginList:any = undefined
+
+const pluginList = ref([])
+const dataSources = ref([])
+provide("settingsPluginsList", pluginList)
+provide("settingsDataSourcesList", dataSources)
+
 
 onMounted(() => {
 	const renderUrl = `${API_URL}api/schedule/tasks/render`
 	const listUrl = `${API_URL}api/plugins/list`
+	const listDatasourcesUrl = `${API_URL}api/datasources/list`
 	const pxs = [
-	fetch(renderUrl).then(rx => rx.json()),
-	fetch(listUrl).then(rx => rx.json()),
-]
+		fetch(renderUrl).then(rx => rx.json()),
+		fetch(listUrl).then(rx => rx.json()),
+		fetch(listDatasourcesUrl).then(rx => rx.json()),
+	]
 	Promise.all(pxs).then(rxs => {
 		console.log("yay", rxs)
 		const json = rxs[0]
-		pluginList = rxs[1]
+		pluginList.value = rxs[1]
+		dataSources.value = rxs[2]
 		if(json.success) {
 			json.start_ts = new Date(json.start_ts)
 			json.end_ts = new Date(json.end_ts)
@@ -132,7 +148,9 @@ onMounted(() => {
 				} satisfies EventInfo
 				if(sref) {
 					ei.title = `${sref.task.title} (${sref.task.plugin_name})`
-					ei.duration = sref.task.content.durationMinutes
+					if(sref.task.content.slideMinutes) {
+						ei.duration = sref.task.content.slideMinutes
+					}
 					ei.data = sref
 				}
 				events.push(ei)
@@ -146,15 +164,15 @@ onMounted(() => {
 })
 const handleEventClick = ($event, day, event) => {
 	console.log("handleEventClick", day, event)
-	if(pluginList) {
-		console.log("edit item", pluginList)
+	if(pluginList.value.length > 0) {
+		console.log("edit item", pluginList.value)
 		dialogOpen.value = true
 		currentEvent.value = event
-		const target = pluginList.find(px => px.id === event.event.data.plugin_name)
+		const target = pluginList.value.find(px => px.id === event.event.data.task.plugin_name)
 		if(target) {
-			form.value = target.instanceSettings
+			form.value = structuredClone(toRaw(target.instanceSettings))
 			nextTick().then(_ => {
-				initialValues.value = event.event.data.content
+				initialValues.value = structuredClone(toRaw(event.event.data.task.content))
 			})
 		}
 	}

@@ -5,10 +5,14 @@ from threading import Event
 from typing import cast
 import unittest
 
+from python.model.schedule_loader import ScheduleLoaderDict
+
 from ..datasources.data_source import DataSourceManager
-from ..model.schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks
+from ..model.configuration_manager import CollectInfoDict
+from ..model.schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks, TriggerDict
 from ..model.service_container import ServiceContainer
 from ..model.time_of_day import TimeOfDay
+from ..model.schedule_manager import SCHEMA_PLAYLIST, SCHEMA_TASKS
 from ..plugins.plugin_base import PluginAsync, PluginExecutionContext, TrackType
 from ..task.display_messages import DisplaySettings
 from ..task.timer import IProvideTimer
@@ -142,7 +146,7 @@ class PlaylistLayerTests(unittest.TestCase):
 		# plugin_map keys are plugin ids used in PlaylistSchedule.plugin_name
 		test_file_path = os.path.abspath(__file__)
 		folder = os.path.dirname(test_file_path)
-		self.layer.plugin_info = [
+		self.layer.plugin_info = cast(list[CollectInfoDict], [
 			{
 				"info": {
 					"id": "p1", "name": "Test Plugin",
@@ -150,14 +154,16 @@ class PlaylistLayerTests(unittest.TestCase):
 					"class":"TestPlugin",
 					"file":"test_layers.py"
 				},
-				"path": folder
+				"name": "Test Plugin",
+				"path": folder,
+				"type": SCHEMA_PLAYLIST
 			}
-		]
+		])
 
 		# Create a playlist with a single PlaylistSchedule track
 		track = PlaylistSchedule("p1", "t1", "Title", PlaylistScheduleData({}))
 		playlist = Playlist("pl1", "Main", items=[track])
-		self.layer.playlists = [{"info": playlist}]
+		self.layer.playlists = cast(list[ScheduleLoaderDict], [{"info": playlist, "name": "Test Playlist", "path": "/some/bogus/path", "type": SCHEMA_PLAYLIST}])
 		self.layer.state = 'loaded'
 
 		# Trigger playback
@@ -176,13 +182,13 @@ class PlaylistLayerTests(unittest.TestCase):
 
 	def test_ctor_invalid_router(self):
 		with self.assertRaises(ValueError):
-			PlaylistLayer("bad", None)
+			PlaylistLayer("bad", cast(MessageRouter, None))
 
 	def test_start_playback_missing_plugin(self):
 		# Playlist refers to a plugin that is not in plugin_map
 		track = PlaylistSchedule("missing", "t2", "Title2", PlaylistScheduleData({}))
 		playlist = Playlist("pl2", "Main2", items=[track])
-		self.layer.playlists = [{"info": playlist}]
+		self.layer.playlists = cast(list[ScheduleLoaderDict], [{"info": playlist, "name": "Test Playlist", "path": "/some/bogus/path", "type": SCHEMA_PLAYLIST}])
 		self.layer.plugin_info = []
 		self.layer.state = 'loaded'
 
@@ -204,7 +210,7 @@ class TimerLayerTests(unittest.TestCase):
 		# plugin_map keys are plugin ids used in PlaylistSchedule.plugin_name
 		test_file_path = os.path.abspath(__file__)
 		folder = os.path.dirname(test_file_path)
-		self.layer.plugin_info = [
+		self.layer.plugin_info = cast(list[CollectInfoDict], [
 			# reference the plugin defined in this file
 			{
 				"info": {
@@ -213,12 +219,14 @@ class TimerLayerTests(unittest.TestCase):
 					"class":"TestPlugin",
 					"file":"test_layers.py"
 				},
-				"path": folder
+				"name": "Test Plugin",
+				"path": folder,
+				"type": SCHEMA_PLAYLIST
 			}
-		]
+		])
 
 		# Create a playlist with a single track
-		task = TimerTaskTask("p1", "t1", {})
+		task = TimerTaskTask("p1", {})
 		trigger = {
 			"day": {
 				"type": "dayofweek",
@@ -226,12 +234,13 @@ class TimerLayerTests(unittest.TestCase):
 			},
 			"time": {
 				"type": "hourly",
+				"hours": list(range(0,24)),
 				"minutes": list(range(0,60))
 			}
 		}
-		item = TimerTaskItem("p1", "t1", True, "Title", task, trigger)
+		item = TimerTaskItem("p1", "Title", True, task, cast(TriggerDict, trigger))
 		tasks = TimerTasks("pl1", "Main", items=[item])
-		self.layer.tasks = [{"info": tasks}]
+		self.layer.tasks = [{"info": tasks, "name": "Test Tasks", "path": "/some/bogus/path", "type": SCHEMA_TASKS}]
 		self.layer.state = 'loaded'
 
 		# Trigger playback
@@ -241,7 +250,7 @@ class TimerLayerTests(unittest.TestCase):
 
 	def test_ctor_invalid_router(self):
 		with self.assertRaises(ValueError):
-			TimerLayer("bad", None)
+			TimerLayer("bad", cast(MessageRouter, None))
 
 if __name__ == '__main__':
 	unittest.main()

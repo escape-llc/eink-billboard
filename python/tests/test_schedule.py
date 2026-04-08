@@ -1,7 +1,10 @@
+from typing import cast
 import unittest
 from datetime import datetime, timedelta
 
 from ..model.schedule import (
+	TimeTriggerDict,
+	TriggerDict,
 	generate_schedule,
 	generate_trigger_time,
 )
@@ -9,8 +12,9 @@ from ..model.schedule import (
 class TestTriggers(unittest.TestCase):
 	def test_generate_trigger_time_hourly(self):
 		now = datetime(2024, 1, 1, 10, 15)  # Jan 1, 2024, 10:15 AM
-		time_config = {
+		time_config: TimeTriggerDict = {
 			"type": "hourly",
+			"hours": [10,11,12,13,14,15,16,17,18,19,20,21,22,23],
 			"minutes": [0, 30]
 		}
 		generator = generate_trigger_time(now, time_config)
@@ -51,15 +55,16 @@ class TestTriggers(unittest.TestCase):
 
 	def test_generate_schedule_daily(self):
 		now = datetime(2024, 1, 1, 10, 15)  # Jan 1, 2024, 10:15 AM
-		trigger_config = {
+		trigger_config: TriggerDict = {
 			"day": {
 				"type": "dayofweek",
 				"days": [0,1,2,3,4,5,6]  # Every day
 			},
-			"time": {
+			"time": cast(TimeTriggerDict, {
 				"type": "hourly",
+				"hours": [10,11,12,13,14,15,16,17,18,19,20,21,22,23],
 				"minutes": [0]
-			}
+			})
 		}
 		generator = generate_schedule(now, trigger_config)
 		expected_times = [

@@ -184,39 +184,33 @@ def daily_sequence(start_date: datetime, n_days: int) -> Generator[datetime, Non
 		yield start_ts + timedelta(days=ix)
 
 class TimerTaskTask:
-	def __init__(self, plugin_name: str, title: str, content: dict):
+	def __init__(self, plugin_name: str, content: dict):
 		if plugin_name is None:
 			raise ValueError("plugin_name cannot be None")
-		if title is None:
-			raise ValueError("title cannot be None")
 		if content is None:
 			raise ValueError("content cannot be None")
 		self.plugin_name = plugin_name
-		self.title = title
 		self.content = content
 	def to_dict(self) -> dict[str,Any]:
 		retv = {
-			"title": self.title,
 			"plugin_name": self.plugin_name,
 			"content": self.content.copy()
 		}
 		return retv
 	pass
 class TimerTaskItem(ScheduleItemBase):
-	def __init__(self, id: str, name: str, enabled: bool, desc: str, task: TimerTaskTask, trigger: TriggerDict):
+	def __init__(self, id: str, title: str, enabled: bool, task: TimerTaskTask, trigger: TriggerDict):
 		if id is None:
 			raise ValueError("id cannot be None")
-		if name is None:
-			raise ValueError("name cannot be None")
+		if title is None:
+			raise ValueError("title cannot be None")
 		if task is None:
 			raise ValueError("task cannot be None")
 		if trigger is None:
 			raise ValueError("trigger cannot be None")
-		# store id internally and keep `name` for backward compatibility
 		self._id = id
-		self.name = name
+		self._title = title
 		self.enabled = enabled
-		self.description = desc
 		self.task = task
 		self.trigger = trigger
 	@property
@@ -224,15 +218,12 @@ class TimerTaskItem(ScheduleItemBase):
 		return self._id
 	@property
 	def title(self) -> str:
-		# provide `title` property to satisfy PlaylistBase protocol
-		return self.name
+		return self._title
 	def to_dict(self) -> dict[str,Any]:
 		retv = {
 			"id": self._id,
-			"name": self.name,
-			"title": self.title,
 			"enabled": self.enabled,
-			"description": self.description,
+			"title": self.title,
 			"trigger": self.trigger.copy(),
 			"task": self.task.to_dict()
 		}

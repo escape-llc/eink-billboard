@@ -5,6 +5,9 @@ from typing import ReadOnly, TypedDict
 from .schedule import Playlist
 from .schedule_loader import ScheduleLoader, ScheduleLoaderDict
 
+SCHEMA_PLAYLIST = "urn:inky:storage:schedule:playlist:1"
+SCHEMA_TASKS = "urn:inky:storage:schedule:tasks:1"
+
 logger = logging.getLogger(__name__)
 
 class ScheduleManagerDict(TypedDict):
@@ -33,8 +36,8 @@ class ScheduleManager:
 			schedule_path = os.path.join(self.ROOT_PATH, schedule)
 			info = ScheduleLoader.loadFile(schedule_path, schedule)
 			item_list.append(info)
-		playlist_list = [item for item in item_list if item.get("type") == "urn:inky:storage:schedule:playlist:1"]
-		tasks_list = [item for item in item_list if item.get("type") == "urn:inky:storage:schedule:tasks:1"]
+		playlist_list = [item for item in item_list if item.get("type") == SCHEMA_PLAYLIST]
+		tasks_list = [item for item in item_list if item.get("type") == SCHEMA_TASKS]
 		return { "playlists": playlist_list, "tasks": tasks_list }
 
 	def validate(self, schedule: ScheduleManagerDict) -> None:
