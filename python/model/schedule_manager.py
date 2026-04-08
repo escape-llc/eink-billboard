@@ -2,11 +2,8 @@ import os
 import logging
 from typing import ReadOnly, TypedDict
 
-from .schedule import Playlist
+from .schedule import Playlist, SCHEMA_PLAYLIST, SCHEMA_TASKS
 from .schedule_loader import ScheduleLoader, ScheduleLoaderDict
-
-SCHEMA_PLAYLIST = "urn:inky:storage:schedule:playlist:1"
-SCHEMA_TASKS = "urn:inky:storage:schedule:tasks:1"
 
 logger = logging.getLogger(__name__)
 

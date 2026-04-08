@@ -9,10 +9,9 @@ from python.model.schedule_loader import ScheduleLoaderDict
 
 from ..datasources.data_source import DataSourceManager
 from ..model.configuration_manager import CollectInfoDict
-from ..model.schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks, TriggerDict
+from ..model.schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks, TriggerDict, SCHEMA_PLAYLIST, SCHEMA_TASKS
 from ..model.service_container import ServiceContainer
 from ..model.time_of_day import TimeOfDay
-from ..model.schedule_manager import SCHEMA_PLAYLIST, SCHEMA_TASKS
 from ..plugins.plugin_base import PluginAsync, PluginExecutionContext, TrackType
 from ..task.display_messages import DisplaySettings
 from ..task.timer import IProvideTimer

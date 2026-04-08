@@ -1,7 +1,8 @@
 from typing import Any, Generator, Literal, Sequence, TypeVar, Protocol, TypedDict, runtime_checkable
 from datetime import datetime, timedelta
 
-from .schedule_manager import SCHEMA_PLAYLIST, SCHEMA_TASKS
+SCHEMA_PLAYLIST = "urn:inky:storage:schedule:playlist:1"
+SCHEMA_TASKS = "urn:inky:storage:schedule:tasks:1"
 
 T = TypeVar('T')
 

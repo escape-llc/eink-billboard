@@ -3,8 +3,7 @@ import tempfile
 import json
 from datetime import datetime, timedelta
 
-from python.model.schedule_manager import SCHEMA_PLAYLIST
-
+from ..model.schedule import SCHEMA_PLAYLIST
 from ..model.schedule_loader import ScheduleLoader
 
 class TestScheduleLoader(unittest.TestCase):
