@@ -3,9 +3,10 @@ from typing import Literal, ReadOnly, TypedDict
 import uuid
 
 from .schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks
-
+from ..model.schedule_manager import SCHEMA_PLAYLIST, SCHEMA_TASKS
 type LoaderType = Playlist|TimerTasks
 
+# MUST be a literal
 type SchemaType = Literal["urn:inky:storage:schedule:playlist:1", "urn:inky:storage:schedule:tasks:1"]
 
 class ScheduleLoaderDict(TypedDict):
@@ -22,10 +23,10 @@ class ScheduleLoader:
 		schema = data.get("_schema", None)
 		if schema is None:
 			raise ValueError(f"Schedule file '{path}' is missing _schema field.")
-		if schema == "urn:inky:storage:schedule:playlist:1":
+		if schema == SCHEMA_PLAYLIST:
 			info = ScheduleLoader.parsePlaylist(data)
 			return { "info": info, "name": name, "path": path, "type": schema }
-		elif schema == "urn:inky:storage:schedule:tasks:1":
+		elif schema == SCHEMA_TASKS:
 			info = ScheduleLoader.parseTimerTasks(data)
 			return { "info": info, "name": name, "path": path, "type": schema }
 		else:
@@ -36,10 +37,10 @@ class ScheduleLoader:
 		schema = data.get("_schema", None)
 		if schema is None:
 			raise ValueError(f"Schedule is missing _schema field.")
-		if schema == "urn:inky:storage:schedule:playlist:1":
+		if schema == SCHEMA_PLAYLIST:
 			info = ScheduleLoader.parsePlaylist(data)
 			return info
-		elif schema == "urn:inky:storage:schedule:tasks:1":
+		elif schema == SCHEMA_TASKS:
 			info = ScheduleLoader.parseTimerTasks(data)
 			return info
 		else:

@@ -3,6 +3,8 @@ import tempfile
 import json
 from datetime import datetime, timedelta
 
+from python.model.schedule_manager import SCHEMA_PLAYLIST
+
 from ..model.schedule_loader import ScheduleLoader
 
 class TestScheduleLoader(unittest.TestCase):
@@ -10,7 +12,7 @@ class TestScheduleLoader(unittest.TestCase):
         # Create a temporary JSON file with schedule data
         now = datetime.now().replace(second=0, microsecond=0)
         schedule_data = {
-        "_schema": "urn:inky:storage:schedule:playlist:1",
+        "_schema": SCHEMA_PLAYLIST,
         "name": "Test Playlist",
         "id": "test-playlist",
         "items": [

@@ -1,6 +1,8 @@
 from typing import Any, Generator, Literal, Sequence, TypeVar, Protocol, TypedDict, runtime_checkable
 from datetime import datetime, timedelta
 
+from .schedule_manager import SCHEMA_PLAYLIST, SCHEMA_TASKS
+
 T = TypeVar('T')
 
 @runtime_checkable
@@ -58,7 +60,7 @@ class Playlist:
 		retv = {
 			"id": self.id,
 			"name": self.name,
-			"_schema": "urn:inky:storage:schedule:playlist:1",
+			"_schema": SCHEMA_PLAYLIST,
 			"items": [xx.to_dict() for xx in self.items]
 		}
 		return retv
@@ -243,7 +245,7 @@ class TimerTasks:
 		retv = {
 			"id": self.id,
 			"name": self.name,
-			"_schema": "urn:inky:storage:schedule:tasks:1",
+			"_schema": SCHEMA_TASKS,
 			"items": [xx.to_dict() for xx in self.items]
 		}
 		return retv
