@@ -7,7 +7,7 @@
 			</slot>
 		</InputGroupAddon>
 		<template v-if="field.type === 'boolean'">
-			<InputGroupAddon style="flex-grow:1">
+			<InputGroupAddon style="flex-grow:1;justify-content:flex-start">
 				<ToggleSwitch :name="field.name" size="small" fluid />
 			</InputGroupAddon>
 		</template>
