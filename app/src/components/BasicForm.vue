@@ -42,11 +42,17 @@ import type { LookupValue, FormDef, SchemaType, PropertiesDef } from "./FormDefs
 const form = ref()
 let currentResolver: z.ZodTypeAny|undefined = undefined;
 
+type AddToSchemaType = (resv: Record<string, z.ZodTypeAny>) => void
+type AddInitialValuesType = () => Record<string, any>
+
 export interface PropsType {
 	form?: FormDef
 	initialValues?: any
 	fieldNameWidth?: string
 	baseUrl: string
+	beforeFieldsSchema?: AddToSchemaType
+	afterFieldsSchema?: AddToSchemaType
+	addInitialValues?: AddInitialValuesType
 }
 export interface ValidateEventData {
 	result: z.ZodSafeParseResult<any>
@@ -96,7 +102,12 @@ watch(() => props.form, (nv,ov) => {
 watch(() => props.initialValues, (nv,ov) => {
 	console.log("watch.initialValues", nv, ov);
 	if(nv) {
-		localValues.value = structuredClone(toRaw(nv))
+		let ox = structuredClone(toRaw(nv))
+		if(props.addInitialValues) {
+			const addv = props.addInitialValues()
+			ox = Object.assign(ox, addv) // ensure new object reference to trigger form update
+		}
+		localValues.value = ox
 		ensureInitializeForm(props.form?.schema as SchemaType, localValues.value)
 	}
 	else {
@@ -327,7 +338,13 @@ function createResolver(schema: SchemaType, values: any[]): z.ZodTypeAny {
 			}
 		})
 	}
+	if(props.beforeFieldsSchema) {
+		props.beforeFieldsSchema(resv)
+	}
 	recursiveBit(schema.properties)
+	if(props.afterFieldsSchema) {
+		props.afterFieldsSchema(resv)
+	}
 	return z.object(resv)
 }
 const resolver = ({ values }) => {
