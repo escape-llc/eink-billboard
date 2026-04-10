@@ -40,13 +40,19 @@
 </template>
 <script setup lang="ts">
 import "leaflet/dist/leaflet.css";
-import { ref, watch, nextTick } from 'vue';
+import { ref, watch, provide } from 'vue';
 import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
 import { OpenStreetMapProvider } from 'leaflet-geosearch';
 import Button from 'primevue/button';
 import InputGroup from 'primevue/inputgroup';
 import InputGroupAddon from 'primevue/inputgroupaddon';
 import AutoComplete from 'primevue/autocomplete';
+
+// turns off all the form field context stuff since this component doesn't want it.
+// This allows it to be used inside forms without interfering with the form context.
+// The parent component can still pass the v-slot="$form" to this component and it will work as expected,
+// but this component won't provide any form context to its children.
+provide("$pcFormField", undefined)
 
 type LatLng = { latitude: number; longitude: number; };
 interface Props {
