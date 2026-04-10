@@ -26,16 +26,19 @@
 				</div>
 			</div>
 		</template>
-		<template #event="{ day, event}">
+		<template #event="{ day, event }">
 			<div class="event"
-				:style="{'grid-row': `${event.row} / span ${event.span}`, 'background-color': derefColor(event), 'border-left': `5px solid color-mix(in srgb, ${derefColor(event)} 80%, #333 20%)`}"
+				:style="{'grid-row': `${event.row} / span ${event.span}`, 'background-color': derefColor(event), 'border-left': `5px solid color-mix(in srgb, ${sidebarColor(event)} 80%, #333 20%)`}"
 				@click="handleEventClick($event, day, event)">
-				<div>{{ event.event.title }}</div>
+				<div class="event-title">{{ event.event.title }}</div>
 			</div>
 		</template>
 	</AlCalendar>
 	<Dialog v-model:visible="dialogOpen" model header="Edit Item" style="width:50%">
-		<BasicForm :form="form" :initialValues :baseUrl="API_URL" class="form">
+		<BasicForm ref="bf" :form="form" :initialValues="editModel.content" :baseUrl="API_URL"
+			:beforeFieldsSchema="beforeFieldsSchema" :addInitialValues="addInitialValues"
+			@validate="onValidated"
+			class="form">
 			<template #header>
 				<Toolbar style="width:100%" class="p-1 mt-2">
 					<template #start>
@@ -43,14 +46,52 @@
 					</template>
 					<template #end>
 						<InputGroup>
-							<Button size="small" icon="pi pi-check" severity="success" />
-							<Button size="small" icon="pi pi-times" severity="danger" />
+							<Button size="small" icon="pi pi-check" severity="success" :disabled="!editModelValid" @click="handleSubmit" />
+							<Button size="small" icon="pi pi-times" severity="danger" @click="handleReset" />
 						</InputGroup>
 					</template>
 				</Toolbar>
 			</template>
 			<template #group-header="slotProps">
 				<h3 class="mb-0">{{ slotProps.label }}</h3>
+			</template>
+			<template #before-fields>
+				<InputGroup>
+					<InputGroupAddon>
+						<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" fluid style="flex-shrink:0;flex-grow:1">Title</label>
+					</InputGroupAddon>
+					<InputText style="flex-grow:1" size="small" name="title" fluid v-model="editModel.title" />
+				</InputGroup>
+				<Message v-if="!isTitleValid"
+					severity="error" size="small" variant="simple">{{ titleErrorMessage }}</Message>
+				<InputGroup>
+					<InputGroupAddon>
+						<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" fluid style="flex-shrink:0;flex-grow:1">Enabled</label>
+					</InputGroupAddon>
+					<InputGroupAddon style="flex-grow:1;justify-content:flex-start">
+						<Checkbox v-model="editModel.enabled" fluid binary name="enabled" />
+					</InputGroupAddon>
+				</InputGroup>
+				<InputGroup>
+					<InputGroupAddon>
+						<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" fluid style="flex-shrink:0;flex-grow:1">Trigger</label>
+					</InputGroupAddon>
+					<InputGroupAddon style="flex-grow:1;justify-content:flex-start">
+						<FormField name="trigger" v-slot="$field" :validateOnValueUpdate="true" :initialValue="editModel.trigger">
+							<TimedTrigger :modelValue="$field.value" parentPropName="trigger." :fieldNameWidth="fieldNameWidth" @change="$field.onChange" />
+						</FormField>
+					</InputGroupAddon>
+				</InputGroup>
+				<InputGroup>
+					<InputGroupAddon>
+						<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" style="flex-shrink:0;flex-grow:1">Plugin</label>
+					</InputGroupAddon>
+					<Select :options="pluginOptions" optionLabel="name" optionValue="id" name="plugin_name" v-model="editModel.plugin_name" />
+				</InputGroup>
+				<Message v-if="!isTitleValid"
+					severity="error" size="small" variant="simple">{{ titleErrorMessage }}</Message>
+				<Message v-if="!isPluginValid"
+					severity="error" size="small" variant="simple">{{ pluginErrorMessage }}</Message>
 			</template>
 		</BasicForm>
 		<div class="flex gap-2 pt-2" style="justify-self:flex-end">
@@ -61,16 +102,22 @@
 	</div>
 </template>
 <script setup lang="ts">
-import { InputGroup, Button, Dialog, Toolbar, Select } from "primevue"
+import { InputGroup, InputGroupAddon, Button, Dialog, Toolbar, Select, Checkbox, InputText, Message } from "primevue"
+import FormField from '@primevue/forms/formfield';
 import AlCalendar from "../components/AlCalendar.vue"
 import type { DateRange, TimeRange, EventInfo } from "../components/AlCalendar.vue"
 import { MS_PER_DAY } from "../components/DateUtils"
-import { ref, onMounted, nextTick, toRaw, provide, reactive, computed } from "vue"
-import BasicForm from "../components/BasicForm.vue"
-import type {FormDef} from "../components/FormDefs"
+import { ref, onMounted, nextTick, toRaw, provide, computed } from "vue"
+import BasicForm, { type ValidateEventData } from "../components/BasicForm.vue"
+import type { FormDef } from "../components/FormDefs"
+import type { PluginDef } from "../components/ScheduleDefs"
+import { TriggerDefSchema } from "../components/ScheduleDefs"
+import TimedTrigger from "../components/TimedTrigger.vue"
+import z from "zod";
 
+const bf = ref<InstanceType<typeof BasicForm>>()
+const fieldNameWidth = "10rem";
 const form = ref<FormDef>()
-const initialValues = ref()
 const now = new Date()
 const dateRange = ref<DateRange>({ start:new Date(now), end:new Date(now.getTime() + 6*MS_PER_DAY) })
 const timeRange = ref<TimeRange>({start: 0, end: 1440, interval:30 })
@@ -78,10 +125,19 @@ const eventList = ref<EventInfo[]>([])
 const dialogOpen = ref(false)
 const currentEvent = ref()
 
+type DropdownOption = {
+	id: string,
+	name: string
+}
 // editing model separate from the track until Apply
-const editModel = reactive<Record<string,any>>({} as any) // start with empty model, populate on track select
-const selectedPlugin = computed(() => pluginList.value.find(p => p.id === editModel.plugin_name) || null)
-const pluginOptions = computed(() => pluginList.value.map(p => ({ id: p.id, name: p.name })))
+const editModel = ref<Record<string,any>>({} as any) // start with empty model, populate on track select
+const editModelValid = ref(false)
+const isTitleValid = ref(false)
+const titleErrorMessage = ref<string|undefined>(undefined)
+const isPluginValid = ref(false)
+const pluginErrorMessage = ref<string|undefined>(undefined)
+const selectedPlugin = computed(() => pluginList.value.find(p => p.id === editModel.value.plugin_name) || null)
+const pluginOptions = computed<DropdownOption[]>(() => pluginList.value.map(p => ({ id: p.id, name: p.name })))
 
 function isToday(someDate:Date):boolean {
   const today = new Date(now);
@@ -98,19 +154,32 @@ function derefSchedule(schedules:Record<string,any>, sid:string, id:string) {
 	}
 	return null
 }
+const color_map: Map<string, string> = new Map()
+
 function derefColor(event:any):string {
-	switch(event.event.data.plugin_name) {
-		case "clock": return "#ffeedd"
-		case "wpotd": return "#eeffdd"
-		case "newspaper": return "#ddffee"
-		case "image-folder": return "#ffddee"
-		case "ai-image": return "#eeddff"
+	const id = event.event.data.id
+	if(color_map.has(id)) {
+		return color_map.get(id) as string
 	}
-	return "#ddeeff";
+	else {
+		const hue = 180 + color_map.size * 137.508/4; // use golden angle increment for even distribution
+		const newColor = `hsl(${hue % 360}, 100%, 90%)`
+		color_map.set(id, newColor)
+		return newColor
+	}
+}
+function sidebarColor(event:any):string {
+	const enabled = event.event.data.enabled
+	if(enabled) {
+		return "rgb(0,255,0)"
+	}
+	else {
+		return "rgb(180,180,180)"
+	}
 }
 const API_URL = import.meta.env.VITE_API_URL
 
-const pluginList = ref([])
+const pluginList = ref<PluginDef[]>([])
 const dataSources = ref([])
 provide("settingsPluginsList", pluginList)
 provide("settingsDataSourcesList", dataSources)
@@ -118,11 +187,11 @@ provide("settingsDataSourcesList", dataSources)
 
 onMounted(() => {
 	const renderUrl = `${API_URL}api/schedule/tasks/render`
-	const listUrl = `${API_URL}api/plugins/list`
+	const listPluginsUrl = `${API_URL}api/plugins/list`
 	const listDatasourcesUrl = `${API_URL}api/datasources/list`
 	const pxs = [
 		fetch(renderUrl).then(rx => rx.json()),
-		fetch(listUrl).then(rx => rx.json()),
+		fetch(listPluginsUrl).then(rx => rx.json()),
 		fetch(listDatasourcesUrl).then(rx => rx.json()),
 	]
 	Promise.all(pxs).then(rxs => {
@@ -147,7 +216,7 @@ onMounted(() => {
 					data: undefined
 				} satisfies EventInfo
 				if(sref) {
-					ei.title = `${sref.task.title} (${sref.task.plugin_name})`
+					ei.title = `${sref.title} (${sref.task.plugin_name})`
 					if(sref.task.content.slideMinutes) {
 						ei.duration = sref.task.content.slideMinutes
 					}
@@ -162,6 +231,52 @@ onMounted(() => {
 		console.error("render.unhandled", ex)
 	})
 })
+const beforeFieldsSchema = (resv: Record<string, z.ZodTypeAny>) => {
+	resv['title'] = z.string().min(1, "Title is required")
+	resv['enabled'] = z.boolean()
+	resv['plugin_name'] = z.string().min(1, "Plugin is required")
+	resv['trigger'] = TriggerDefSchema
+}
+const addInitialValues = () => {
+	const ox = {
+		title: editModel.value.title || "",
+		enabled: editModel.value.enabled || false,
+		plugin_name: editModel.value.plugin_name || "",
+		trigger: editModel.value.trigger || {},
+	}
+	console.log("addInitialValues", ox)
+	return ox
+}
+const onValidated = ({ result, values }: ValidateEventData) => {
+	console.log("onValidated", result, values)
+	if(result.success) {
+		editModelValid.value = true
+		isTitleValid.value = true
+		titleErrorMessage.value = undefined
+		return;
+	}
+	else {
+		editModelValid.value = false
+		let issue = result.error.issues.find((ix) => ix.path[0] === 'title');
+		if(issue) {
+			isTitleValid.value = false
+			titleErrorMessage.value = issue.message
+		}
+		else {
+			isTitleValid.value = true
+			titleErrorMessage.value = undefined
+		}
+		issue = result.error.issues.find((ix) => ix.path[0] === 'plugin_name');
+		if(issue) {
+			isPluginValid.value = false
+			pluginErrorMessage.value = issue.message
+		}
+		else {
+			isPluginValid.value = true
+			pluginErrorMessage.value = undefined
+		}
+	}
+}
 const handleEventClick = ($event, day, event) => {
 	console.log("handleEventClick", day, event)
 	if(pluginList.value.length > 0) {
@@ -172,10 +287,28 @@ const handleEventClick = ($event, day, event) => {
 		if(target) {
 			form.value = structuredClone(toRaw(target.instanceSettings))
 			nextTick().then(_ => {
-				initialValues.value = structuredClone(toRaw(event.event.data.task.content))
+				//initialValues.value = structuredClone(toRaw(event.event.data.task.content))
+				const evx = structuredClone(toRaw(event.event.data))
+				console.log("ready2edit", evx)
+				const stage = {
+					id: evx.id,
+					title: evx.title,
+					enabled: evx.enabled,
+					trigger: evx.trigger,
+					plugin_name: evx.task.plugin_name,
+					content: evx.task.content
+				}
+				editModel.value = stage
 			})
 		}
 	}
+}
+const handleReset = () => {
+//	cancelEdit()
+	bf.value?.reset()
+}
+const handleSubmit = () => {
+	bf.value?.submit()
 }
 </script>
 <style scoped>
@@ -240,6 +373,14 @@ const handleEventClick = ($event, day, event) => {
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+.event-title {
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	overflow: hidden;
+	vertical-align: middle;
+	margin:0;
+	padding:0;
 }
 </style>
 <style>
