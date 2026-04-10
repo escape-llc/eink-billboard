@@ -32,11 +32,11 @@ import SelectButton from 'primevue/selectbutton'
 import { getTheme, presetForTheme, saveTheme, applyMode, CustomSurfaces } from './ThemeTools'
 import { ref } from 'vue'
 
-import { usePreset } from '@primevue/themes';
-import Aura from '@primevue/themes/aura';
-import Nora from '@primevue/themes/nora';
-import Material from '@primevue/themes/material';
-import Lara from '@primevue/themes/lara';
+import { usePreset } from '@primeuix/themes';
+import Aura from '@primeuix/themes/aura';
+import Nora from '@primeuix/themes/nora';
+import Material from '@primeuix/themes/material';
+import Lara from '@primeuix/themes/lara';
 
 const op = ref()
 const themeList = ref([
