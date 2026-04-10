@@ -80,7 +80,7 @@
 import { ref, reactive, computed, onMounted, provide } from 'vue'
 import { InputGroup, InputGroupAddon, Toolbar, Button, Dialog, Select, InputText } from 'primevue'
 import BasicForm, { type ValidateEventData } from '../components/BasicForm.vue'
-import type { PlaylistItem, PlaylistSchedule } from '../components/ScheduleDefs'
+import type { PlaylistItem, PlaylistSchedule, PluginDef } from '../components/ScheduleDefs'
 const API_URL = import.meta.env.VITE_API_URL
 const bf = ref<InstanceType<typeof BasicForm>>()
 const submitDisabled = ref(true)
@@ -93,15 +93,6 @@ provide("settingsDataSourcesList", dataSources)
 
 const listPluginsUrl = `${API_URL}api/plugins/list`
 const listDatasourcesUrl = `${API_URL}api/datasources/list`
-
-type PluginProperty = { name: string; type: string; label: string }
-type PluginDef = {
-	id: string
-	name: string
-	color?: string
-	instanceSettings: any // form def consumed by BasicForm
-	properties: PluginProperty[]
-}
 
 let _rev:string|undefined = undefined
 const pluginList = ref<PluginDef[]>([])
