@@ -1,5 +1,5 @@
 <template>
-	<div style="display:flex;flex-direction:column;flex-grow:1;justify-content: flex-start;" class="m-0 p-0">
+	<div style="display:flex;flex-direction:column;flex-grow:1;justify-content: flex-start;width:100%" class="m-0 p-0">
 		<InputGroup>
 			<InputGroupAddon>
 				<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" fluid style="flex-shrink:0;flex-grow:1">Run On Startup</label>
@@ -31,7 +31,7 @@
 				<div v-if="editModel.day.type === 'dayofmonth'">Days</div>
 				<CheckboxGroup v-if="editModel.day.type === 'dayofmonth'" v-model="editModel.day.days"
 					@value-change="onEmitChange('checkbox.day', $event)"
-					:name="`${parentPropName}day.days`" size="small" fluid class="flex flex-wrap gap-2 mt-2" style="flex-grow:1;max-width:24rem">
+					:name="`${parentPropName}day.days`" size="small" fluid class="flex flex-wrap gap-2 mt-2" style="flex-grow:1;max-width:36rem">
 					<template v-for="day in [...Array(31).keys()]" :key="day">
 						<div class="flex items-center gap-1">
 							<Checkbox inputId="day{{ day }}" :value="day + 1"/>
@@ -61,7 +61,7 @@
 					@value-change="onEmitChange('checkbox.time', $event)"
 					:invalid="hoursInvalid"
 					:name="`${parentPropName}time.hours`"
-					size="small" fluid class="flex flex-wrap gap-2" style="flex-grow:1;max-width:24rem">
+					size="small" fluid class="flex flex-wrap gap-2" style="flex-grow:1;max-width:36rem">
 					<template v-for="hour in [...Array(24).keys()]" :key="hour">
 						<div class="flex items-center gap-1">
 							<Checkbox inputId="hour{{ hour }}" :value="hour"/>
@@ -73,7 +73,7 @@
 				<CheckboxGroup v-if="editModel.time.type === 'hourly' || editModel.time.type === 'hourofday'" v-model="minutesArray"
 					@value-change="onEmitChange('time.minutes', $event)"
 					:name="`${parentPropName}time.minutes`"
-					size="small" fluid class="flex flex-wrap gap-2" style="flex-grow:1;max-width:24rem">
+					size="small" fluid class="flex flex-wrap gap-2" style="flex-grow:1;max-width:36rem">
 					<template v-for="minute in [...Array(60).keys()]" :key="minute">
 						<div class="flex items-center gap-1">
 							<Checkbox inputId="minute{{ minute }}" :value="minute"/>
@@ -152,7 +152,7 @@ watch(() => props.modelValue, (newVal) => {
 		}
 		nextTick(() => {
 			const result = TriggerDefSchema.safeParse(newVal)
-			console.log("tt.resolver.result", newVal, result);
+			console.log("tt.iv.result", newVal, result);
 			hoursInvalid.value = result.success ? false : !!result.error.issues.find((issue) => issue.path[0] === 'time' && issue.path[1] === 'hours');
 		})
 	}

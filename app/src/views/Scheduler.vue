@@ -34,8 +34,8 @@
 			</div>
 		</template>
 	</AlCalendar>
-	<Dialog v-model:visible="dialogOpen" model header="Edit Item" style="width:50%">
-		<BasicForm ref="bf" :form="form" :initialValues="editModel.content" :baseUrl="API_URL"
+	<Dialog v-model:visible="dialogOpen" model header="Edit Item" style="width:60%; font-size:90%">
+		<BasicForm v-if="selectedPlugin" ref="bf" :form="selectedPlugin.instanceSettings" :initialValues="editModel.content" :baseUrl="API_URL"
 			:beforeFieldsSchema="beforeFieldsSchema" :addInitialValues="addInitialValues"
 			@validate="onValidated"
 			class="form">
@@ -77,7 +77,7 @@
 						<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" fluid style="flex-shrink:0;flex-grow:1">Trigger</label>
 					</InputGroupAddon>
 					<InputGroupAddon style="flex-grow:1;justify-content:flex-start">
-						<FormField name="trigger" v-slot="$field" :validateOnValueUpdate="true" :initialValue="editModel.trigger">
+						<FormField name="trigger" v-slot="$field" :validateOnValueUpdate="true" :initialValue="editModel.trigger" style="display:flex;flex-grow:1">
 							<TimedTrigger :modelValue="$field.value" parentPropName="trigger." :fieldNameWidth="fieldNameWidth" @change="$field.onChange" />
 						</FormField>
 					</InputGroupAddon>
@@ -88,8 +88,6 @@
 					</InputGroupAddon>
 					<Select :options="pluginOptions" optionLabel="name" optionValue="id" name="plugin_name" v-model="editModel.plugin_name" />
 				</InputGroup>
-				<Message v-if="!isTitleValid"
-					severity="error" size="small" variant="simple">{{ titleErrorMessage }}</Message>
 				<Message v-if="!isPluginValid"
 					severity="error" size="small" variant="simple">{{ pluginErrorMessage }}</Message>
 			</template>
