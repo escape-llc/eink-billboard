@@ -40,6 +40,18 @@ class WebApiTestBase(unittest.TestCase):
 		self.client.close()
 		self.tmp.cleanup()
 
+	def write_datasource_settings(self, ident: str, doc: dict) -> str:
+		"""Create the stored settings of a datasource; the CI test storage has no datasources/plugins folders."""
+		folder = os.path.join(self.storage, "datasources", ident)
+		os.makedirs(folder, exist_ok=True)
+		settings_file = os.path.join(folder, "settings.json")
+		with open(settings_file, "w") as f:
+			json.dump(doc, f)
+		cob = self.cm.find(settings_file)
+		if cob is not None:
+			cob.evict()
+		return settings_file
+
 	def _routers(self):
 		routers = {}
 		routers.update(self.cm.load_routers(self.cm.enum_datasources()))
@@ -123,9 +135,14 @@ class TestPluginsAndDatasources(WebApiTestBase):
 		self.assertFalse(os.path.exists(os.path.join(self.tmp.name, "evil")))
 
 	def test_datasource_settings_round_trip(self):
-		resp = self.client.get("/api/datasources/openai-image/settings")
+		self.write_datasource_settings("wpotd", {"shrinkToFit": True})
+		resp = self.client.get("/api/datasources/wpotd/settings")
 		self.assertEqual(resp.status_code, 200, resp.text)
-		self.assertEqual(resp.json()["_id"], "datasource-openai-image-settings")
+		doc = resp.json()
+		self.assertEqual(doc["_id"], "datasource-wpotd-settings")
+		doc["shrinkToFit"] = False
+		self.assertEqual(self.client.put("/api/datasources/wpotd/settings", json=doc).status_code, 200)
+		self.assertIs(self.client.get("/api/datasources/wpotd/settings").json()["shrinkToFit"], False)
 
 	def test_missing_settings_is_404_and_first_save_needs_no_rev(self):
 		# a plugin with no stored settings.json yet
@@ -133,6 +150,9 @@ class TestPluginsAndDatasources(WebApiTestBase):
 			settings_file = os.path.join(self.storage, "datasources", ident, "settings.json")
 			if os.path.exists(settings_file):
 				os.remove(settings_file)
+			cob = self.cm.find(settings_file)
+			if cob is not None:
+				cob.evict()
 			resp = self.client.get(f"/api/datasources/{ident}/settings")
 			body = _error_shape(self, resp, 404)
 			self.assertIsNone(body["rev"])
@@ -141,10 +161,7 @@ class TestPluginsAndDatasources(WebApiTestBase):
 
 	def test_secrets_are_masked_and_kept(self):
 		url = "/api/datasources/openai-image/settings"
-		settings_file = os.path.join(self.storage, "datasources", "openai-image", "settings.json")
-		with open(settings_file, "w") as f:
-			json.dump({"apiKey": "sk-test-1"}, f)
-		self.cm.find(settings_file) and self.cm.find(settings_file).evict()
+		settings_file = self.write_datasource_settings("openai-image", {"apiKey": "sk-test-1"})
 
 		doc = self.client.get(url).json()
 		self.assertEqual(doc["apiKey"], SECRET_MASK)
