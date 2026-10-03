@@ -6,7 +6,6 @@ from typing import Any, Mapping, cast
 
 from .display_messages import ComputedImage, DisplayImage, DisplaySettings, PriorityImage
 from ..display.mock_display import MockDisplay
-from ..display.tkinter_window import TkinterWindow
 from ..display.display_base import DisplayBase
 from ..model.configuration_manager import ConfigurationManager
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
@@ -90,6 +89,11 @@ class Display(DispatcherTask):
 			if display_type == "mock":
 				self.display = MockDisplay("mock")
 			elif display_type == "tk":
+				# the Tk display is for interactive debugging; tkinter is not installed on every system (headless devices)
+				try:
+					from ..display.tkinter_window import TkinterWindow
+				except ImportError as ie:
+					raise ValueError(f"The 'tk' display requires tkinter, which is not available: {ie}") from ie
 				self.display = TkinterWindow("tk")
 			else:
 				raise ValueError(f"Unrecognized display type: '{display_type}'")

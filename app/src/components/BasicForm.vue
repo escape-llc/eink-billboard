@@ -32,6 +32,7 @@
 	</div>
 </template>
 <script setup lang="ts">
+import { apiJson } from "./ApiClient"
 //import { InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Message, Select } from 'primevue';
 import Form from "@primevue/forms/form"
 import { ref, toRaw, nextTick, watch, inject, computed } from "vue"
@@ -233,7 +234,7 @@ function lookupUrl(target: any): void {
 	if(!target.lookupUrl) return;
 	const finalUrl = `${props.baseUrl}${target.lookupUrl}`
 	//console.log("lookupUrl.start", finalUrl)
-	fetch(finalUrl).then(rx => rx.json()).then(json => {
+	apiJson(finalUrl).then(json => {
 		//console.log("lookupUrl", json, target)
 		nextTick().then(_ => {
 			target.list = json

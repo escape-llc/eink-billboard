@@ -8,6 +8,8 @@ export type FieldDef = {
 	label: string
 	type: "string" | "boolean" | "number" | "int" | "location" | "schema" | "date"
 	required: boolean
+	/** shown as a password input; the server never sends the stored value back */
+	secret?: boolean
 	lookup?: string
 	min?: number
 	max?: number

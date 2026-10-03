@@ -77,6 +77,7 @@
 </template>
 
 <script setup lang="ts">
+import { apiJson } from "../components/ApiClient"
 import { ref, reactive, computed, onMounted, provide } from 'vue'
 import { InputGroup, InputGroupAddon, Toolbar, Button, Dialog, Select, InputText } from 'primevue'
 import BasicForm, { type ValidateEventData } from '../components/BasicForm.vue'
@@ -237,8 +238,8 @@ function defaultPropertiesFromPlugin(p: PluginDef) {
 }
 
 function initProviders() {
-	const px0 = fetch(listPluginsUrl).then(rx => rx.json())
-	const px1 = fetch(listDatasourcesUrl).then(rx => rx.json())
+	const px0 = apiJson(listPluginsUrl)
+	const px1 = apiJson(listDatasourcesUrl)
 	const px3 = px0.then(json => {
 		console.log("plugins", json)
 		plugins.value = structuredClone(json)
@@ -264,7 +265,7 @@ function initProviders() {
 const playlistListUrl = `${API_URL}api/schedule/playlist/list`
 let allPlaylists: PlaylistSchedule[] = []
 function loadSchedules() {
-	fetch(playlistListUrl).then(rx => rx.json()).then(json => {
+	apiJson(playlistListUrl).then(json => {
 		console.log("playlists", json)
 		// ensure it doesnt get reactive
 		allPlaylists = structuredClone(json.playlists)

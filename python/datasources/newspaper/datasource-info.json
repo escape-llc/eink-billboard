@@ -8,9 +8,9 @@
 	"description": "A Newspaper PotD downloader.",
 	"disabled": false,
 	"features": ["internet", "layer-foreground", "media-image"],
-	"blueprint": {
-		"id": "newspaper-bp",
-		"class": "newspaper_bp",
+	"router": {
+		"id": "newspaper-router",
+		"class": "newspaper_router",
 		"file": "api.py",
 		"module": "python.datasources.newspaper.api"
 	},

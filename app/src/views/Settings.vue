@@ -150,6 +150,7 @@
 		</Tabs>
 </template>
 <script setup lang="ts">
+import { apiJson, ApiError } from "../components/ApiClient"
 
 import Tabs from 'primevue/tabs';
 import TabList from 'primevue/tablist';
@@ -207,39 +208,37 @@ const listPluginsUrl = `${API_URL}api/plugins/list`
 const listDatasourcesUrl = `${API_URL}api/datasources/list`
 
 function downloadToRef(url:string, vref: Ref<any>, errv: any = undefined) {
-	fetch(url).then(rx => rx.json()).then(data => {
+	apiJson(url).then(data => {
 		console.log("downloadToRef", data)
 		vref.value = data
 	})
 	.catch(ex => {
 		console.error("downloadToRef.unhandled", ex)
 		vref.value = errv
+		toast.add({severity:'error', summary: 'Error', detail: `Failed to load: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
 }
 function fetchSettings(url:string, vref: Ref<any>, schema:any) {
-	fetch(url)
-	.then(rx => ({ status: rx.status, json: rx.json() }))
+	apiJson(url)
 	.then(data => {
 		console.log("fetchSettings", data)
-		if(data.status === 200) {
-			data.json.then(dx => {
-				vref.value = dx
-			})
-		}
-		else {
+		vref.value = data
+	})
+	.catch(ex => {
+		if(ex instanceof ApiError && ex.status === 404) {
+			// nothing stored yet: start from the defaults in the schema
 			const defv = toRaw(schema.settings.default)
 			console.log("default", defv)
 			vref.value = structuredClone(defv)
+			return
 		}
-	})
-	.catch(ex => {
 		console.error("fetchSettings.unhandled", ex)
 		toast.add({severity:'error', summary: 'Error', detail: `Failed to load settings: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
 }
 onMounted(() => {
-	const px0 = fetch(listPluginsUrl).then(rx => rx.json())
-	const px1 = fetch(listDatasourcesUrl).then(rx => rx.json())
+	const px0 = apiJson(listPluginsUrl)
+	const px1 = apiJson(listDatasourcesUrl)
 	const px3 = px0.then(json => {
 		console.log("plugins", json)
 		plugins.value = json

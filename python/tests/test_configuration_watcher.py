@@ -1,4 +1,5 @@
 import threading
+import time
 import unittest
 import tempfile
 from datetime import datetime
@@ -60,16 +61,17 @@ class TestConfigurationWatcher(unittest.TestCase):
 		self.assertEqual(mx.type, 'deleted')
 		self.assertEqual(mx.path, 'z.txt')
 
-		# simulate moved event (dest_path present but handler uses src_path)
+		# simulate moved event: the source is reported as moved, the destination as modified
+		# (an atomic save writes a temp file and renames it over the real file)
 		sink.reset()
 		ev4 = FileMovedEvent(src_path='old.txt', dest_path='new.txt')
 		handler.on_moved(ev4)
-		sig = sink.signal.wait(timeout=0.2)
-		self.assertTrue(sig, 'moved: Event was not received within timeout')
-		self.assertEqual(len(sink.messages), 1)
-		mx = sink.messages[0]
-		self.assertEqual(mx.type, 'moved')
-		self.assertEqual(mx.path, 'old.txt')
+		deadline = time.monotonic() + 1.0
+		while len(sink.messages) < 2 and time.monotonic() < deadline:
+			time.sleep(0.01)
+		self.assertEqual(len(sink.messages), 2, 'moved: Events were not received within timeout')
+		by_path = { m.path: m.type for m in sink.messages }
+		self.assertEqual(by_path, { 'old.txt': 'moved', 'new.txt': 'modified' })
 
 	def test_configuration_watcher_start_stop_and_double_start(self):
 		now = datetime(2020, 1, 2, 3, 4, 5)
