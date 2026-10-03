@@ -62,6 +62,10 @@ class MessageSinkHandler(FileSystemEventHandler):
 			return
 		logger.debug(f"File moved from {event.src_path} to {event.dest_path}")
 		self._start_timer(event.src_path, "moved")
+		# atomic saves (write temp file, rename over target) show up as a move onto the real file
+		dest = getattr(event, "dest_path", None)
+		if dest:
+			self._start_timer(dest, "modified")
 #		self._sink.accept(ConfigurationWatcherEvent(self._tod.current_time(), "moved", event.src_path))
 
 class ConfigurationWatcher:

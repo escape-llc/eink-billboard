@@ -4,6 +4,7 @@ import os
 import json
 import logging
 import shutil
+import tempfile
 import threading
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, ReadOnly, TypedDict, cast
@@ -83,16 +84,30 @@ def _internal_load(file_path: str) -> dict|None:
 	return None
 
 def _internal_save(file_path: str, data: dict) -> None:
+	"""
+	Atomically replace the file with the JSON document.
+	Writes to a temp file in the same folder, flushes it to disk, then renames over the target,
+	so a crash or power loss never leaves a truncated file. Errors propagate to the caller.
+	"""
+	if file_path is None:
+		raise ValueError("file_path cannot be None")
+	if data is None:
+		raise ValueError("data cannot be None")
+	folder = os.path.dirname(file_path) or "."
+	fd, temp_path = tempfile.mkstemp(dir=folder, prefix=".tmp-", suffix=".json")
 	try:
-		if file_path is None:
-			raise ValueError("file_path cannot be None")
-		if data is None:
-			raise ValueError("data cannot be None")
-		with open(file_path, 'w') as fx:
+		with os.fdopen(fd, 'w', encoding='utf-8') as fx:
 			json.dump(data, fx, indent=2)
-#			logger.debug(f"File '{file_path}' saved successfully.")
-	except Exception as e:
-		logger.error(f"Error saving file '{file_path}': {e}")
+			fx.flush()
+			os.fsync(fx.fileno())
+		os.replace(temp_path, file_path)
+	except BaseException:
+		try:
+			os.remove(temp_path)
+		except OSError:
+			pass
+		logger.error(f"Error saving file '{file_path}'")
+		raise
 
 type LoadFunc = Callable[[str], dict|None]
 type SaveFunc = Callable[[str, dict], None]
@@ -504,7 +519,11 @@ class ConfigurationManager(ConfigurationObjectFactory):
 
 	def _save_settings(self, settings_file: str, settings: dict) -> None:
 		with self._lock:
-			_internal_save(settings_file, settings)
+			try:
+				_internal_save(settings_file, settings)
+			except Exception as e:
+				# storage reset keeps going; the failure is logged
+				logger.error(f"Error saving settings '{settings_file}': {e}")
 
 	def find(self, moniker: str) -> ConfigurationObject|None:
 		"""Find a ConfigurationObject for the given moniker, or None if not found."""
@@ -675,9 +694,9 @@ class ConfigurationManager(ConfigurationObjectFactory):
 				datasource_map[info_id] = datasource
 		return datasource_map
 
-	def load_blueprints(self, infos: list[CollectInfoDict]) -> Mapping[str, Any]:
-		"""Take the result of enum_X() and resolve the blueprints."""
-		blueprint_map = {}
+	def load_routers(self, infos: list[CollectInfoDict]) -> Mapping[str, Any]:
+		"""Take the result of enum_X() and resolve the optional web API routers contributed by plugins/datasources."""
+		router_map = {}
 		for info in infos:
 			info_info = info["info"]
 			info_path = info["path"]
@@ -686,12 +705,10 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			if info_info.get("disabled", False):
 				logger.info(f"'{info_name}' (ID: {info_id}) is disabled; skipping load.")
 				continue
-			blueprint_info = info_info.get("blueprint", None)
-			if blueprint_info is None:
+			router_info = info_info.get("router", None)
+			if router_info is None:
 				continue
-			blueprint_class = self._resolve(info_path, blueprint_info)
-			if blueprint_class:
-				# Create an instance of the blueprint class and add it to the blueprint_classes dictionary
-				blueprint_map[info_id] = blueprint_class
-			pass
-		return blueprint_map
+			router = self._resolve(info_path, router_info)
+			if router:
+				router_map[info_id] = router
+		return router_map

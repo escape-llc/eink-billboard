@@ -41,7 +41,8 @@
 			</InputGroupAddon>
 		</template>
 		<template v-else>
-			<InputText style="flex-grow:1" :name="field.name" size="small" type="text"
+			<InputText style="flex-grow:1" :name="field.name" size="small" :type="field.secret ? 'password' : 'text'"
+				:autocomplete="field.secret ? 'new-password' : undefined"
 				:placeholder="field.label" fluid />
 		</template>
 	</InputGroup>

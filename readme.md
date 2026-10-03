@@ -145,9 +145,9 @@ This is what runs the production application.  It includes:
 	* CORS
 	* storage root
 * Application Task management (see below)
-* Flask configuration and management
+* FastAPI configuration and management, served by `uvicorn`
 	* static (for web app)
-	* blueprints
+	* API routers (`/api`), including the ones plugins and datasources contribute
 
 ### `unittest`
 
@@ -156,7 +156,7 @@ This runs the unit tests for Python.  Some of the configuration from the Main Ta
 * deploy storage
 * preset settings etc.
 
-It currently does not test the Flask portion of the system.
+The web API is tested in-process with FastAPI's `TestClient` (`test_web_api.py`), against a temporary copy of the test storage.
 
 ## Application Task
 
@@ -268,6 +268,16 @@ Use the following recipe to get started with development:
 * `python -m python.eink-billboard --dev --cors "http://localhost:5173" --host localhost --storage ./.storage`
 * New Terminal 2
 * `cd app && npm run dev`
+
+## Web API
+
+* The API is under `/api`; interactive documentation is served at `/api/docs`.
+* Every error response has the same body: `{ "success": false, "message": "...", "id": "..." }` (plus `rev` on a `409` revision conflict, and `errors` on a `422` validation failure).
+* Settings documents carry `_id` and `_rev`. A `PUT` must send back the `_rev` it loaded; if the settings changed in the meantime the server answers `409` with the current `rev`.
+* Settings the schema marks `"secret": true` (e.g. an API key) are returned as `********`. Sending `********` back, or omitting the field, keeps the stored value.
+* Set `--token <value>` (or the `EINK_API_TOKEN` environment variable) to require `Authorization: Bearer <value>` on every `/api` request. The web app asks for the token the first time it gets a `401`. Do this whenever the server listens on a network you do not fully trust.
+* `--port` overrides the listening port (default `8080` with `--dev`, otherwise `80`).
+* Plugins and datasources may contribute an API router; name it in the `"router"` entry of their `*-info.json`.
 
 ## Debug
 

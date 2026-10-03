@@ -100,6 +100,7 @@
 	</div>
 </template>
 <script setup lang="ts">
+import { apiJson } from "../components/ApiClient"
 import { InputGroup, InputGroupAddon, Button, Dialog, Toolbar, Select, Checkbox, InputText, Message } from "primevue"
 import FormField from '@primevue/forms/formfield';
 import AlCalendar from "../components/AlCalendar.vue"
@@ -188,9 +189,9 @@ onMounted(() => {
 	const listPluginsUrl = `${API_URL}api/plugins/list`
 	const listDatasourcesUrl = `${API_URL}api/datasources/list`
 	const pxs = [
-		fetch(renderUrl).then(rx => rx.json()),
-		fetch(listPluginsUrl).then(rx => rx.json()),
-		fetch(listDatasourcesUrl).then(rx => rx.json()),
+		apiJson(renderUrl),
+		apiJson(listPluginsUrl),
+		apiJson(listDatasourcesUrl),
 	]
 	Promise.all(pxs).then(rxs => {
 		console.log("yay", rxs)

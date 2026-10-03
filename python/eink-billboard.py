@@ -3,7 +3,12 @@
 # run from root folder
 # python -m python.eink-billboard --dev --cors "http://localhost:5173" --host localhost --storage ./.storage
 
-import os, logging.config
+import argparse
+import logging
+import logging.config
+import os
+import warnings
+
 import yaml
 
 from .model.configuration_watcher import ConfigurationWatcher
@@ -12,133 +17,74 @@ from .model.service_container import ServiceContainer
 from .model.time_of_day import SystemTimeOfDay, TimeOfDay
 from .model.configuration_manager import ConfigurationManager
 
-from .blueprints.root import root_bp
-from .blueprints.api import api_bp
 from .task.telemetry_sink import TelemetrySink
 from .task.application import Application, StartEvent
 from .task.messages import QuitMessage, StartOptions
+from .web.app import WebSettings, create_app
 
-logfile = os.path.join(os.path.dirname(__file__), 'config', 'logging.yaml')
-with open(logfile, 'r') as f:
-	config = yaml.safe_load(f.read())
-	logging.config.dictConfig(config)
-
-# suppress warning from inky library https://github.com/pimoroni/inky/issues/205
-import warnings
-warnings.filterwarnings("ignore", message=".*Busy Wait: Held high.*")
-
-import random
-import logging
-import argparse
-#from utils.app_utils import generate_startup_image
-from flask import Flask, request
-from werkzeug.serving import is_running_from_reloader
-# from config import Config
-#from jinja2 import ChoiceLoader, FileSystemLoader
-from waitress import serve
+APPNAME: str = "EInk Billboard"
+TOKEN_ENV = "EINK_API_TOKEN"
 
 logger = logging.getLogger(__name__)
 
-# Parse command line arguments
-APPNAME: str = "EInk Billboard"
-parser = argparse.ArgumentParser(description=f"{APPNAME} Server")
-parser.add_argument('--dev', action='store_true', help='Run in development mode')
-parser.add_argument('--host', help='Change listening interface')
-parser.add_argument('--app', help='Path to web app bundle')
-parser.add_argument('--storage', help='Path to storage folder; relative to location of the PY file!')
-parser.add_argument('--cors', help='Activate CORS and set the allowed host URL')
-args = parser.parse_args()
+def configure_logging() -> None:
+	logfile = os.path.join(os.path.dirname(__file__), 'config', 'logging.yaml')
+	with open(logfile, 'r') as f:
+		logging.config.dictConfig(yaml.safe_load(f.read()))
+	# suppress warning from inky library https://github.com/pimoroni/inky/issues/205
+	warnings.filterwarnings("ignore", message=".*Busy Wait: Held high.*")
 
-# development mode
-if args.dev:
-#    Config.config_file = os.path.join(Config.BASE_DIR, "config", "device_dev.json")
-	DEV_MODE = True
-	PORT = 8080
-	logger.info(f"Starting {APPNAME} in DEVELOPMENT mode on port 8080")
-else:
-	DEV_MODE = False
-	PORT = 80
-	logger.info(f"Starting {APPNAME} in PRODUCTION mode on port 80")
+def parse_args(argv: list[str]|None = None) -> argparse.Namespace:
+	parser = argparse.ArgumentParser(description=f"{APPNAME} Server")
+	parser.add_argument('--dev', action='store_true', help='Run in development mode')
+	parser.add_argument('--host', default="0.0.0.0", help='Change listening interface')
+	parser.add_argument('--port', type=int, help='Listening port; default 8080 in development mode, 80 otherwise')
+	parser.add_argument('--app', default="../app/dist", help='Path to web app bundle')
+	parser.add_argument('--storage', help='Path to storage folder; relative to location of the PY file!')
+	parser.add_argument('--cors', help='Activate CORS and set the allowed host URL')
+	parser.add_argument('--token', help=f'Require this Bearer token on /api requests (default: the {TOKEN_ENV} environment variable)')
+	return parser.parse_args(argv)
 
-# listening interface
-HOST: str = "0.0.0.0"
-if args.host:
-	HOST = args.host
-	logger.info(f"HOST {HOST}")
+def run_application(args: argparse.Namespace) -> None:
+	import uvicorn
 
-# app bundle path
-PATH: str = "../app/dist"
-if args.app:
-	PATH = args.app
-	logger.info(f"PATH {PATH}")
+	dev_mode: bool = args.dev
+	port: int = args.port if args.port else (8080 if dev_mode else 80)
+	logger.info(f"Starting {APPNAME} in {'DEVELOPMENT' if dev_mode else 'PRODUCTION'} mode on port {port}")
+	storage: str|None = os.path.abspath(args.storage) if args.storage else None
+	if storage:
+		logger.info(f"STORAGE {storage}")
+	token: str|None = args.token or os.environ.get(TOKEN_ENV) or None
+	if token is None and args.host not in ("localhost", "127.0.0.1", "::1"):
+		logger.warning(f"The API is open to the network without a token; set --token or {TOKEN_ENV} to require one.")
 
-# storage root path
-STORAGE: str|None = None
-if args.storage:
-	STORAGE = os.path.abspath(args.storage)
-	logger.info(f"STORAGE {STORAGE}")
-
-logging.getLogger('waitress.queue').setLevel(logging.ERROR)
-app = Flask(__name__, static_folder=f"{PATH}/static", template_folder=f"{PATH}", static_url_path="/static")
-if args.cors:
-	from flask_cors import CORS
-	CORSDM: str|None = args.cors
-	logger.info(f"CORS {CORSDM}")
-	cors_options = {r"/api/*": {"origins": CORSDM}}
-	if CORSDM is None:
-		CORS(app)
-	else:
-		CORS(app, resources=cors_options)
-#template_dirs = [
-#   os.path.join(os.path.dirname(__file__), "templates"),    # Default template folder
-#   os.path.join(os.path.dirname(__file__), "plugins"),      # Plugin templates
-#]
-# app.jinja_loader = ChoiceLoader([FileSystemLoader(directory) for directory in template_dirs])
-
-# Set additional parameters
-app.secret_key = str(random.randint(100000,999999))
-app.config['MAX_FORM_PARTS'] = 10_000
-
-def run_application():
-	# display default inkypi image on startup
-#	if device_config.get_config("startup") is True:
-#		logger.info("Startup flag is set, displaying startup image")
-#		img = generate_startup_image(device_config.get_resolution())
-#		display_manager.display_image(img)
-#		device_config.update_value("startup", False, write=True)
-
-	cm = ConfigurationManager(storage_path=STORAGE)
+	cm = ConfigurationManager(storage_path=storage)
 	# TODO get system settings timezone and use it in SystemTimeOfDay
 	time_base = SystemTimeOfDay()
 	watcher_sink = ConfigurationManagerEvictionSink(cm)
 	config_watcher = ConfigurationWatcher(time_base, watcher_sink, cm.STORAGE_PATH)
-	# register plugin blueprints
-	p_blueprint_map = cm.load_blueprints(cm.enum_plugins())
-	for bp_name, bp in p_blueprint_map.items():
-		app.register_blueprint(bp)
-		logger.info(f"Registered pi blueprint: {bp_name}")
-	# register datasource blueprints
-	d_blueprint_map = cm.load_blueprints(cm.enum_datasources())
-	for bp_name, bp in d_blueprint_map.items():
-		app.register_blueprint(bp)
-		logger.info(f"Registered ds blueprint: {bp_name}")
-	# Register Blueprints
-	app.register_blueprint(root_bp)
-	app.register_blueprint(api_bp)
+	# plugins and datasources may contribute API routers
+	routers = {}
+	routers.update(cm.load_routers(cm.enum_plugins()))
+	routers.update(cm.load_routers(cm.enum_datasources()))
+	app = create_app(
+		WebSettings(app_path=args.app, cors_origin=args.cors, api_token=token),
+		routers=routers
+	)
 	# start the application layer
 	sink = TelemetrySink()
 	xapp: Application = Application(APPNAME, sink)
 	try:
 		xapp.start()
 		force_reset: bool = False
-		if STORAGE is not None:
-			force_reset = not os.path.exists(STORAGE)
+		if storage is not None:
+			force_reset = not os.path.exists(storage)
 			if force_reset:
 				logger.info("No storage folder detected, force_reset")
 		else:
 			logger.info("No storage folder specified, force_reset check bypassed")
 		# TODO pull force_reset logic into host application (this code)
-		options = StartOptions(storagePath=STORAGE,hardReset=force_reset)
+		options = StartOptions(storagePath=storage, hardReset=force_reset)
 		root = ServiceContainer()
 		root.add_service(ConfigurationManager, cm)
 		root.add_service(TimeOfDay, time_base)
@@ -147,10 +93,10 @@ def run_application():
 		xapp.accept(StartEvent(time_base.current_time(), options, root))
 		started = xapp.app_started.wait(timeout=5)
 		if not started:
-			logger.warning(f"Application start timed out")
+			logger.warning("Application start timed out")
 		else:
 			logger.info("Application is started")
-		app.config['ROOT_CONTAINER'] = root
+		app.state.root_container = root
 
 		msg = sink.receive()
 		while msg is not None:
@@ -158,20 +104,9 @@ def run_application():
 			msg = sink.receive()
 
 		config_watcher.start()
-
-		# Get local IP address for display (only in dev mode when running on non-Pi)
-		if DEV_MODE and HOST == '0.0.0.0':
-			import socket
-			try:
-				s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-				s.connect(("8.8.8.8", 80))
-				local_ip = s.getsockname()[0]
-				s.close()
-				logger.info(f"Serving on http://{local_ip}:{PORT}")
-			except:
-				pass  # Ignore if we can't get the IP
-
-		serve(app, host=HOST, port=PORT, threads=1)
+		# endpoints are plain functions: they run in uvicorn's thread pool and may block on the (locked) configuration files
+		# log_config=None keeps the logging configuration from logging.yaml
+		uvicorn.run(app, host=args.host, port=port, log_config=None)
 	except Exception as e:
 		logger.error(f"Exception in main: {e}", exc_info=True)
 	finally:
@@ -179,12 +114,15 @@ def run_application():
 		try:
 			xapp.accept(QuitMessage(time_base.current_time()))
 			xapp.join(timeout=5)
-			if config_watcher is not None:
-				config_watcher.stop()
+			config_watcher.stop()
 		except Exception as ee:
 			logger.error(f"Exception during shutdown: {ee}", exc_info=True)
 		finally:
 			logger.info("eInk Billboard application shut down complete")
 
+def main(argv: list[str]|None = None) -> None:
+	configure_logging()
+	run_application(parse_args(argv))
+
 if __name__ == '__main__':
-	run_application()
+	main()

@@ -15,6 +15,7 @@
 					"name": "apiKey",
 					"type": "string",
 					"required": true,
+					"secret": true,
 					"default": null,
 					"label": "API Key",
 					"description": "Your OpenAI API key."

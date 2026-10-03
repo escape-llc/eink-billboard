@@ -1,0 +1,306 @@
+import json
+import os
+import shutil
+import tempfile
+import unittest
+from unittest import mock
+
+from fastapi.testclient import TestClient
+
+from .utils import storage_path
+from ..model.configuration_manager import ConfigurationManager, _internal_save
+from ..model.service_container import ServiceContainer
+from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
+from ..web.app import WebSettings, create_app
+from ..web.documents import SECRET_MASK
+
+def _error_shape(test: unittest.TestCase, resp, status: int):
+	test.assertEqual(resp.status_code, status, resp.text)
+	body = resp.json()
+	test.assertIs(body["success"], False)
+	test.assertIsInstance(body["message"], str)
+	return body
+
+class WebApiTestBase(unittest.TestCase):
+	"""Each test works on a private copy of the test storage, so writes never touch the original."""
+	token: str|None = None
+
+	def setUp(self):
+		self.tmp = tempfile.TemporaryDirectory()
+		self.storage = os.path.join(self.tmp.name, ".storage")
+		shutil.copytree(storage_path(), self.storage)
+		self.cm = ConfigurationManager(storage_path=self.storage)
+		root = ServiceContainer()
+		root.add_service(ConfigurationManager, self.cm)
+		root.add_service(TimeOfDay, SystemTimeOfDay())
+		self.app = create_app(WebSettings(api_token=self.token), root, self._routers())
+		self.client = TestClient(self.app, raise_server_exceptions=False)
+
+	def tearDown(self):
+		self.client.close()
+		self.tmp.cleanup()
+
+	def _routers(self):
+		routers = {}
+		routers.update(self.cm.load_routers(self.cm.enum_datasources()))
+		return routers
+
+class TestSettings(WebApiTestBase):
+	def test_get_device_settings_has_id_and_rev(self):
+		for name in ("system", "display", "theme"):
+			resp = self.client.get(f"/api/settings/{name}")
+			self.assertEqual(resp.status_code, 200, resp.text)
+			doc = resp.json()
+			self.assertEqual(doc["_id"], f"{name}-settings")
+			self.assertTrue(doc["_rev"])
+
+	def test_put_round_trip_changes_rev(self):
+		doc = self.client.get("/api/settings/system").json()
+		doc["locale"] = "fr-FR"
+		resp = self.client.put("/api/settings/system", json=doc)
+		self.assertEqual(resp.status_code, 200, resp.text)
+		saved = resp.json()
+		self.assertTrue(saved["success"])
+		self.assertNotEqual(saved["rev"], doc["_rev"])
+		again = self.client.get("/api/settings/system").json()
+		self.assertEqual(again["locale"], "fr-FR")
+		self.assertEqual(again["_rev"], saved["rev"])
+
+	def test_put_without_id_is_accepted(self):
+		doc = self.client.get("/api/settings/system").json()
+		doc.pop("_id")
+		self.assertEqual(self.client.put("/api/settings/system", json=doc).status_code, 200)
+
+	def test_put_stale_rev_is_conflict_with_current_rev(self):
+		doc = self.client.get("/api/settings/system").json()
+		first = dict(doc, locale="de-DE")
+		self.assertEqual(self.client.put("/api/settings/system", json=first).status_code, 200)
+		second = dict(doc, locale="es-ES")  # still carries the old _rev
+		body = _error_shape(self, self.client.put("/api/settings/system", json=second), 409)
+		current = self.client.get("/api/settings/system").json()
+		self.assertEqual(body["rev"], current["_rev"])
+		self.assertEqual(current["locale"], "de-DE")
+
+	def test_put_id_mismatch(self):
+		doc = self.client.get("/api/settings/system").json()
+		doc["_id"] = "display-settings"
+		_error_shape(self, self.client.put("/api/settings/system", json=doc), 400)
+
+	def test_put_rejects_bad_bodies(self):
+		_error_shape(self, self.client.put("/api/settings/system", json=["not", "a", "dict"]), 422)
+		_error_shape(self, self.client.put("/api/settings/system", content=b"{nope", headers={"content-type": "application/json"}), 422)
+		doc = self.client.get("/api/settings/system").json()
+		doc["timezoneName"] = 42
+		body = _error_shape(self, self.client.put("/api/settings/system", json=doc), 422)
+		self.assertEqual(body["errors"][0]["path"], ["timezoneName"])
+
+	def test_unknown_settings_name_is_404(self):
+		for name in ("nope", "..", "%2e%2e", "..%2f..%2fsecrets", "system-settings"):
+			_error_shape(self, self.client.get(f"/api/settings/{name}"), 404)
+			_error_shape(self, self.client.get(f"/api/schemas/{name}"), 404)
+
+	def test_schemas(self):
+		for name in ("system", "display", "theme"):
+			resp = self.client.get(f"/api/schemas/{name}")
+			self.assertEqual(resp.status_code, 200)
+			self.assertIn("schema", resp.json())
+
+class TestPluginsAndDatasources(WebApiTestBase):
+	def test_lists(self):
+		plugins = self.client.get("/api/plugins/list").json()
+		datasources = self.client.get("/api/datasources/list").json()
+		self.assertIn("slide-show", {p["id"] for p in plugins})
+		self.assertIn("openai-image", {d["id"] for d in datasources})
+
+	def test_unknown_ids_are_404_and_create_nothing(self):
+		before = sorted(os.listdir(self.storage))
+		evil = ("nope", "..", "%2e%2e", "..%2f..%2fevil", "..%5c..%5cevil", "x%00y")
+		for ident in evil:
+			for kind in ("plugins", "datasources"):
+				_error_shape(self, self.client.get(f"/api/{kind}/{ident}/settings"), 404)
+				_error_shape(self, self.client.put(f"/api/{kind}/{ident}/settings", json={"a": 1}), 404)
+		self.assertEqual(sorted(os.listdir(self.storage)), before)
+		self.assertFalse(os.path.exists(os.path.join(self.tmp.name, "evil")))
+
+	def test_datasource_settings_round_trip(self):
+		resp = self.client.get("/api/datasources/openai-image/settings")
+		self.assertEqual(resp.status_code, 200, resp.text)
+		self.assertEqual(resp.json()["_id"], "datasource-openai-image-settings")
+
+	def test_missing_settings_is_404_and_first_save_needs_no_rev(self):
+		# a plugin with no stored settings.json yet
+		for ident in ("clock", "wpotd"):
+			settings_file = os.path.join(self.storage, "datasources", ident, "settings.json")
+			if os.path.exists(settings_file):
+				os.remove(settings_file)
+			resp = self.client.get(f"/api/datasources/{ident}/settings")
+			body = _error_shape(self, resp, 404)
+			self.assertIsNone(body["rev"])
+			resp = self.client.put(f"/api/datasources/{ident}/settings", json={"x": 1})
+			self.assertEqual(resp.status_code, 200, resp.text)
+
+	def test_secrets_are_masked_and_kept(self):
+		url = "/api/datasources/openai-image/settings"
+		settings_file = os.path.join(self.storage, "datasources", "openai-image", "settings.json")
+		with open(settings_file, "w") as f:
+			json.dump({"apiKey": "sk-test-1"}, f)
+		self.cm.find(settings_file) and self.cm.find(settings_file).evict()
+
+		doc = self.client.get(url).json()
+		self.assertEqual(doc["apiKey"], SECRET_MASK)
+		self.assertNotIn("sk-test-1", json.dumps(doc))
+
+		# saving the masked value back keeps the stored secret
+		self.assertEqual(self.client.put(url, json=doc).status_code, 200)
+		with open(settings_file) as f:
+			self.assertEqual(json.load(f)["apiKey"], "sk-test-1")
+
+		# omitting it keeps it too
+		doc = self.client.get(url).json()
+		doc.pop("apiKey")
+		self.assertEqual(self.client.put(url, json=doc).status_code, 200)
+		with open(settings_file) as f:
+			self.assertEqual(json.load(f)["apiKey"], "sk-test-1")
+
+		# a new value replaces it
+		doc = self.client.get(url).json()
+		doc["apiKey"] = "sk-test-2"
+		self.assertEqual(self.client.put(url, json=doc).status_code, 200)
+		with open(settings_file) as f:
+			self.assertEqual(json.load(f)["apiKey"], "sk-test-2")
+		self.assertEqual(self.client.get(url).json()["apiKey"], SECRET_MASK)
+
+class TestLookups(WebApiTestBase):
+	def test_lookups(self):
+		tz = self.client.get("/api/lookups/timezone").json()
+		self.assertIn("America/New_York", {x["value"] for x in tz})
+		self.assertEqual({x["value"] for x in self.client.get("/api/lookups/locale").json()}, {"en-US", "es-ES", "fr-FR", "de-DE"})
+
+	def test_plugin_contributed_router(self):
+		resp = self.client.get("/api/datasource/newspaper/lookups/newspaperSlug")
+		self.assertEqual(resp.status_code, 200)
+		self.assertTrue(all({"name", "value"} <= x.keys() for x in resp.json()))
+
+class TestSchedule(WebApiTestBase):
+	def test_lists(self):
+		pl = self.client.get("/api/schedule/playlist/list").json()
+		self.assertTrue(pl["success"])
+		self.assertGreater(len(pl["playlists"]), 0)
+		self.assertTrue(all("_rev" in p for p in pl["playlists"]))
+		tl = self.client.get("/api/schedule/timer/list").json()
+		self.assertTrue(tl["success"])
+		self.assertGreater(len(tl["timed"]), 0)
+
+	def test_lists_are_empty_not_errors_without_schedules(self):
+		for name in os.listdir(os.path.join(self.storage, "schedules")):
+			os.remove(os.path.join(self.storage, "schedules", name))
+		self.assertEqual(self.client.get("/api/schedule/playlist/list").json(), {"success": True, "playlists": []})
+		self.assertEqual(self.client.get("/api/schedule/timer/list").json(), {"success": True, "timed": []})
+		render = self.client.get("/api/schedule/tasks/render").json()
+		self.assertTrue(render["success"])
+		self.assertEqual(render["render"], [])
+
+	def test_render(self):
+		resp = self.client.get("/api/schedule/tasks/render", params={"start": "2026-01-05", "days": 2})
+		self.assertEqual(resp.status_code, 200, resp.text)
+		doc = resp.json()
+		self.assertEqual(doc["days"], 2)
+		self.assertTrue(doc["start_ts"].startswith("2026-01-05T00:00:00"))
+		self.assertGreater(len(doc["render"]), 0)
+		self.assertTrue({"schedule", "id", "scheduled_time"} <= doc["render"][0].keys())
+
+	def test_render_validates_parameters(self):
+		for params in ({"days": 0}, {"days": 100000}, {"days": "x"}, {"start": "not-a-date"}):
+			_error_shape(self, self.client.get("/api/schedule/tasks/render", params=params), 422)
+
+class TestErrorsAndAuth(WebApiTestBase):
+	def test_unknown_api_path_is_json_404(self):
+		_error_shape(self, self.client.get("/api/nope"), 404)
+
+	def test_unhandled_error_hides_details(self):
+		with mock.patch.object(ConfigurationManager, "settings_manager", side_effect=RuntimeError("secret path /etc/x")):
+			body = _error_shape(self, self.client.get("/api/settings/system"), 500)
+		self.assertNotIn("secret path", json.dumps(body))
+
+	def test_not_ready_without_container(self):
+		self.app.state.root_container = None
+		_error_shape(self, self.client.get("/api/settings/system"), 503)
+
+class TestToken(WebApiTestBase):
+	token = "t0ken"
+
+	def test_requires_bearer_token(self):
+		_error_shape(self, self.client.get("/api/settings/system"), 401)
+		_error_shape(self, self.client.get("/api/settings/system", headers={"Authorization": "Bearer wrong"}), 401)
+		_error_shape(self, self.client.get("/api/settings/system", headers={"Authorization": "Basic t0ken"}), 401)
+		_error_shape(self, self.client.put("/api/settings/system", json={}), 401)
+		ok = self.client.get("/api/settings/system", headers={"Authorization": "Bearer t0ken"})
+		self.assertEqual(ok.status_code, 200)
+
+class TestWebApp(unittest.TestCase):
+	def setUp(self):
+		self.tmp = tempfile.TemporaryDirectory()
+		os.makedirs(os.path.join(self.tmp.name, "static"))
+		with open(os.path.join(self.tmp.name, "index.html"), "w") as f:
+			f.write("<html>spa</html>")
+		with open(os.path.join(self.tmp.name, "static", "a.js"), "w") as f:
+			f.write("console.log(1)")
+		with open(os.path.join(self.tmp.name, "secret.txt"), "w") as f:
+			f.write("not served")
+		self.client = TestClient(create_app(WebSettings(app_path=self.tmp.name)))
+	def tearDown(self):
+		self.client.close()
+		self.tmp.cleanup()
+
+	def test_spa_fallback_and_static(self):
+		for path in ("/", "/settings", "/some/deep/route"):
+			resp = self.client.get(path)
+			self.assertEqual(resp.status_code, 200)
+			self.assertIn("spa", resp.text)
+		self.assertEqual(self.client.get("/static/a.js").text, "console.log(1)")
+		self.assertEqual(self.client.get("/static/missing.js").status_code, 404)
+
+	def test_api_paths_never_fall_back_to_spa(self):
+		resp = self.client.get("/api/whatever")
+		self.assertEqual(resp.status_code, 404)
+		self.assertEqual(resp.headers["content-type"], "application/json")
+
+	def test_static_does_not_escape_folder(self):
+		self.assertNotEqual(self.client.get("/static/../secret.txt").text, "not served")
+		self.assertNotEqual(self.client.get("/static/%2e%2e/secret.txt").text, "not served")
+
+class TestCors(unittest.TestCase):
+	def test_only_configured_origin_is_allowed(self):
+		client = TestClient(create_app(WebSettings(cors_origin="http://localhost:5173")))
+		ok = client.options("/api/settings/system", headers={"Origin": "http://localhost:5173", "Access-Control-Request-Method": "PUT"})
+		self.assertEqual(ok.headers.get("access-control-allow-origin"), "http://localhost:5173")
+		bad = client.options("/api/settings/system", headers={"Origin": "http://evil.example", "Access-Control-Request-Method": "PUT"})
+		self.assertNotIn("access-control-allow-origin", bad.headers)
+
+class TestAtomicSave(unittest.TestCase):
+	def test_replaces_file_and_leaves_no_temp_files(self):
+		with tempfile.TemporaryDirectory() as td:
+			path = os.path.join(td, "s.json")
+			_internal_save(path, {"a": 1})
+			_internal_save(path, {"a": 2})
+			with open(path) as f:
+				self.assertEqual(json.load(f), {"a": 2})
+			self.assertEqual(os.listdir(td), ["s.json"])
+
+	def test_failure_propagates_and_keeps_original(self):
+		with tempfile.TemporaryDirectory() as td:
+			path = os.path.join(td, "s.json")
+			_internal_save(path, {"a": 1})
+			with mock.patch("os.replace", side_effect=OSError("disk full")):
+				with self.assertRaises(OSError):
+					_internal_save(path, {"a": 2})
+			with open(path) as f:
+				self.assertEqual(json.load(f), {"a": 1})
+			self.assertEqual(os.listdir(td), ["s.json"])
+			with self.assertRaises(TypeError):
+				_internal_save(path, {"a": object()})
+			with open(path) as f:
+				self.assertEqual(json.load(f), {"a": 1})
+
+if __name__ == '__main__':
+	unittest.main()

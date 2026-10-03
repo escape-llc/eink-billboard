@@ -23,6 +23,7 @@
 	</BasicForm>
 </template>
 <script setup lang="ts">
+import { apiPut } from "./ApiClient"
 import { ref, watch, nextTick } from "vue"
 import BasicForm from "./BasicForm.vue"
 import type { ValidateEventData } from "./BasicForm.vue"
@@ -113,19 +114,7 @@ const submitForm = (data:any) => {
 		if(_schema) {
 			post._schema = _schema
 		}
-		fetch(props.settingsUrl, {
-			method: "PUT",
-			headers: {
-				"Content-Type": "application/json"
-			},
-			body: JSON.stringify(post)
-		})
-		.then(rx => {
-			if(!rx.ok) {
-				throw new Error(`Error ${rx.status}: ${rx.statusText}`)
-			}
-			return rx.json()
-		})
+		apiPut(props.settingsUrl, post)
 		.then(jv => {
 			console.log("submitForm.result", jv)
 			if(jv.success) {

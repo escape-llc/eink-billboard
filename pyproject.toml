@@ -6,9 +6,10 @@ readme = "readme.md"
 requires-python = ">=3.13"
 dependencies = [
     "feedparser==6.0.12",
-    "flask==3.1.3",
+    "fastapi>=0.115",
     "httpx>=0.28.1",
     "icalendar==6.3.1",
+    "jinja2>=3.1",
     "numpy==2.2.1",
     "openai==1.58.1",
     "pathvalidate==3.3.1",
@@ -18,15 +19,13 @@ dependencies = [
     "pyyaml>=6.0.3",
     "recurring-ical-events==3.7.0",
     "tzdata>=2025.2",
-    "waitress==3.0.2",
+    "uvicorn>=0.32",
     "watchdog==6.0.0",
-    "werkzeug==3.1.6",
 ]
 
 [dependency-groups]
 dev = [
     "coverage>=7.13.0",
-    "flask-cors==6.0.1",
 ]
 device = [
     "cysystemd==2.0.1 ; sys_platform == 'linux'",
