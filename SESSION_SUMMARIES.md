@@ -17,7 +17,7 @@ Rule of thumb: **one summary per commit-worthy unit of work, written while it is
 ## Where it goes
 
 Post to a Discussions category named **AI Session Summaries**. If Discussions or that category does not exist yet, the maintainer creates it in the repository settings (an agent cannot).
-An agent without a tool that can create discussions drafts the text and hands it to the maintainer to post; it never posts on the maintainer's behalf unless asked.
+An agent without a tool that can create discussions (see the current limitation in `WORKFLOW.md`'s "Expected tools") drafts the text and hands it to the maintainer to post; it never posts on the maintainer's behalf unless asked.
 These are maintainer-directed build-in-public notes; let them read as what they are.
 
 ## The prompt
