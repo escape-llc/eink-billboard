@@ -79,7 +79,7 @@
 <script setup lang="ts">
 import { apiJson } from "../components/ApiClient"
 import { ref, reactive, computed, onMounted, provide } from 'vue'
-import { InputGroup, InputGroupAddon, Toolbar, Button, Dialog, Select, InputText } from 'primevue'
+import { InputGroup, InputGroupAddon, Toolbar, Button, Select, InputText } from 'primevue'
 import BasicForm, { type ValidateEventData } from '../components/BasicForm.vue'
 import type { PlaylistItem, PlaylistSchedule, PluginDef } from '../components/ScheduleDefs'
 const API_URL = import.meta.env.VITE_API_URL
@@ -197,19 +197,7 @@ function selectTrack(idx: number) {
 	}
 }
 
-function editTrack(idx: number) {
-	selectTrack(idx)
-}
 
-function applyChanges() {
-	if (selectedIndex.value === null) return
-	const t = tracks.value[selectedIndex.value]
-	t.plugin_name = editModel.plugin_name!
-	t.type = "PlaylistSchedule"
-	t.content = JSON.parse(JSON.stringify(editModel.content || {}))
-	// update id if changed (rare)
-	t.id = editModel.id ?? t.id
-}
 
 function cancelEdit() {
 	if (selectedIndex.value !== null) selectTrack(selectedIndex.value)
@@ -222,9 +210,6 @@ function cancelEdit() {
 	}
 }
 
-function onFormChange(newValues: any) {
-	editModel.content = newValues
-}
 
 function defaultPropertiesFromPlugin(p: PluginDef) {
 	const props: Record<string, any> = {}

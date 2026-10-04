@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
-
 const appversion = __APP_VERSION__;
 </script>
 

@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { Listbox, Dialog, InputGroup, InputGroupAddon, Tag, Toast, TieredMenu, Button, Toolbar, ConfirmDialog } from 'primevue';
+import { InputGroup, Toast, TieredMenu, Button, Toolbar, ConfirmDialog } from 'primevue';
 import { RouterLink, RouterView } from 'vue-router'
 import ThemeSelector from './components/ThemeSelector.vue'
-import { computed, ref, toRaw } from 'vue';
+import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { useToast } from 'primevue';
 const router = useRouter();
-const toast = useToast();
 const menu = ref<InstanceType<typeof TieredMenu>|null>(null)
 const toggleMenu = (event:MouseEvent):void => {
 	menu.value?.toggle(event);

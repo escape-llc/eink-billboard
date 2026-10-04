@@ -10,7 +10,7 @@
 			<div class="select-panel">
 				<template v-for="item in primaryList">
 					<button type="button"
-						:class="{ 'active-color': item.value === currentPrimary.value }" class="primary-button"
+						:class="{ 'active-color': item.value === currentPrimary?.value }" class="primary-button"
 						:style="styleFor(item)" :title="item.name" @click="handleCurrentPrimary(item)" />
 				</template>
 			</div>
@@ -18,19 +18,21 @@
 			<div class="select-panel">
 				<template v-for="item in surfaceList">
 					<button type="button"
-						:class="{ 'active-color': item.value === currentSurface.value }" class="primary-button"
+						:class="{ 'active-color': item.value === currentSurface?.value }" class="primary-button"
 						:style="styleFor(item)" :title="item.name" @click="handleCurrentSurface(item)" />
 				</template>
 			</div>
 		</div>
 	</Popover>
 </template>
-<script setup>
+<script setup lang="ts">
 import Button from 'primevue/button'
 import Popover from 'primevue/popover'
 import SelectButton from 'primevue/selectbutton'
 import { getTheme, presetForTheme, saveTheme, applyMode, CustomSurfaces } from './ThemeTools'
 import { ref } from 'vue'
+
+interface Option { name: string, value: any, color?: string }
 
 import { usePreset } from '@primeuix/themes';
 import Aura from '@primeuix/themes/aura';
@@ -92,41 +94,41 @@ const surfaceList = ref([
 const selectedSurface = theme ? surfaceList.value.find(fx => fx.value == theme.surface) : surfaceList.value[0]
 const currentSurface = ref(selectedSurface)
 
-const openPopover = ev => {
+const openPopover = (ev: Event) => {
 	op.value.toggle(ev);
 }
 function updateThePreset() {
-	const theme = currentTheme.value;
-	const mode = currentMode.value;
-	const primary = currentPrimary.value;
-	const surface = currentSurface.value;
+	const theme = currentTheme.value!;
+	const mode = currentMode.value!;
+	const primary = currentPrimary.value!;
+	const surface = currentSurface.value!;
 	//console.log("updateThePreset", theme, mode, primary, surface);
 	const obj = saveTheme(undefined, theme.name, mode.value, primary.value, surface.value);
 	const preset = presetForTheme(obj);
 	console.log("saveTheme", obj, preset);
 	usePreset(preset);
 }
-const handleCurrentTheme = ev => {
+const handleCurrentTheme = (_ev?: unknown) => {
 	console.log("handleCurrentTheme", currentTheme.value);
 	updateThePreset();
 }
-const handleCurrentMode = ev => {
+const handleCurrentMode = (_ev?: unknown) => {
 	console.log("handleCurrentMode", currentMode.value);
-	applyMode(currentMode.value.value);
+	applyMode(currentMode.value!.value);
 	updateThePreset();
 }
-const handleCurrentPrimary = item => {
+const handleCurrentPrimary = (item: Option) => {
 	console.log("handleCurrentPrimary", item);
 	currentPrimary.value = item;
 	updateThePreset();
 }
-const handleCurrentSurface = item => {
+const handleCurrentSurface = (item: (typeof surfaceList.value)[number]) => {
 	console.log("handleCurrentSurface", item);
 	currentSurface.value = item;
 	updateThePreset();
 }
 
-const styleFor = item => {
+const styleFor = (item: Option) => {
 	const color = "color" in item ? item.color : `var(--p-${item.value}-500)`;
 	return {
 		"background-color": color

@@ -157,7 +157,8 @@ function formProperties(schema: SchemaType) :any[] {
 				else if(isLookupItems(schema, px.lookup, "url")) {
 					fx.list = []
 					fx.listType = "url"
-					fx.lookupUrl = toRaw(schema.lookups ? schema.lookups[px.lookup].url : null)
+					const urlLookup = schema.lookups ? schema.lookups[px.lookup] : undefined
+					fx.lookupUrl = toRaw(urlLookup && 'url' in urlLookup ? urlLookup.url : null)
 				}
 				else if(isLookupItems(schema, px.lookup, "schema")) {
 					fx.list = lookupSchema(schema, px.lookup)
@@ -171,7 +172,7 @@ function formProperties(schema: SchemaType) :any[] {
 				const svalue = localValues.value[px.name]
 				console.log("formProperties.schema", px.name, svalue, fx.list)
 				if(svalue) {
-					const target = fx.list.find(vx => vx.value === svalue)
+					const target = fx.list.find((vx: any) => vx.value === svalue)
 					if(target) {
 						fx.children = formProperties(target.schema.schema as SchemaType)
 					}
@@ -348,7 +349,7 @@ function createResolver(schema: SchemaType, values: any[]): z.ZodTypeAny {
 	}
 	return z.object(resv)
 }
-const resolver = ({ values }) => {
+const resolver = ({ values }: { values: Record<string, any> }) => {
 	const errors:Record<PropertyKey,any> = {};
 	console.log("resolver", values, currentResolver)
 	if(!currentResolver) return { values, errors };
@@ -388,7 +389,7 @@ const handleFormFieldEvent = (data:any) => {
 		const field = localProperties.value.find((f:any) => f.name === data.field.name)
 		if(field) {
 			field.children = formProperties(data.selected.schema.schema)
-			currentResolver = createResolver(props.form.schema, localProperties.value)
+			currentResolver = createResolver(props.form!.schema, localProperties.value)
 			startLookups(data.selected.schema.schema, field.children)
 			nextTick().then(_ => {
 				form.value?.validate();
