@@ -255,36 +255,54 @@ class TestToken(WebApiTestBase):
 		self.assertEqual(ok.status_code, 200)
 
 class TestWebApp(unittest.TestCase):
+	"""The built web app in Vite's default layout: index.html and public/ files at the root, bundles in assets/."""
 	def setUp(self):
 		self.tmp = tempfile.TemporaryDirectory()
-		os.makedirs(os.path.join(self.tmp.name, "static"))
-		with open(os.path.join(self.tmp.name, "index.html"), "w") as f:
-			f.write("<html>spa</html>")
-		with open(os.path.join(self.tmp.name, "static", "a.js"), "w") as f:
-			f.write("console.log(1)")
+		self.dist = os.path.join(self.tmp.name, "dist")
+		os.makedirs(os.path.join(self.dist, "assets"))
+		files = {
+			"index.html": "<html>spa</html>",
+			"logo.svg": "<svg>logo</svg>",
+			os.path.join("assets", "a-1234.js"): "console.log(1)",
+		}
+		for name, text in files.items():
+			with open(os.path.join(self.dist, name), "w") as f:
+				f.write(text)
 		with open(os.path.join(self.tmp.name, "secret.txt"), "w") as f:
 			f.write("not served")
-		self.client = TestClient(create_app(WebSettings(app_path=self.tmp.name)))
+		self.client = TestClient(create_app(WebSettings(app_path=self.dist)))
 	def tearDown(self):
 		self.client.close()
 		self.tmp.cleanup()
 
-	def test_spa_fallback_and_static(self):
+	def test_spa_fallback(self):
 		for path in ("/", "/settings", "/some/deep/route"):
 			resp = self.client.get(path)
 			self.assertEqual(resp.status_code, 200)
 			self.assertIn("spa", resp.text)
-		self.assertEqual(self.client.get("/static/a.js").text, "console.log(1)")
-		self.assertEqual(self.client.get("/static/missing.js").status_code, 404)
+
+	def test_serves_public_files_from_the_root_and_assets(self):
+		logo = self.client.get("/logo.svg")
+		self.assertEqual(logo.status_code, 200)
+		self.assertEqual(logo.text, "<svg>logo</svg>")
+		self.assertEqual(logo.headers["content-type"].split(";")[0], "image/svg+xml")
+		asset = self.client.get("/assets/a-1234.js")
+		self.assertEqual(asset.text, "console.log(1)")
+		self.assertIn("immutable", asset.headers["cache-control"])
+		self.assertNotIn("immutable", logo.headers.get("cache-control", ""))
+
+	def test_missing_file_falls_back_to_the_app(self):
+		self.assertIn("spa", self.client.get("/assets/missing.js").text)
 
 	def test_api_paths_never_fall_back_to_spa(self):
 		resp = self.client.get("/api/whatever")
 		self.assertEqual(resp.status_code, 404)
 		self.assertEqual(resp.headers["content-type"], "application/json")
 
-	def test_static_does_not_escape_folder(self):
-		self.assertNotEqual(self.client.get("/static/../secret.txt").text, "not served")
-		self.assertNotEqual(self.client.get("/static/%2e%2e/secret.txt").text, "not served")
+	def test_does_not_escape_the_bundle_folder(self):
+		for path in ("/../secret.txt", "/%2e%2e/secret.txt", "/assets/../../secret.txt", "/assets/%2e%2e/%2e%2e/secret.txt", "/..%2fsecret.txt", "/%00"):
+			resp = self.client.get(path)
+			self.assertNotEqual(resp.text, "not served", path)
 
 class TestCors(unittest.TestCase):
 	def test_only_configured_origin_is_allowed(self):

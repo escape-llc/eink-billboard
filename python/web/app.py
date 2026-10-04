@@ -7,7 +7,6 @@ from typing import Any, Mapping
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
 from ..model.service_container import IServiceProvider
 from .deps import require_token
@@ -62,17 +61,34 @@ def create_app(web: WebSettings, root_container: IServiceProvider|None = None, r
 	return app
 
 def _mount_web_app(app: FastAPI, app_path: str|None) -> None:
+	"""Serve the built web app (Vite's default layout: index.html and public/ files at the root, hashed bundles in assets/)."""
 	if not app_path:
 		return
-	index = os.path.join(app_path, "index.html")
-	static = os.path.join(app_path, "static")
+	root = os.path.realpath(app_path)
+	index = os.path.join(root, "index.html")
 	if not os.path.isfile(index):
 		logger.warning(f"Web app not found at '{app_path}'; serving the API only.")
 		return
-	if os.path.isdir(static):
-		app.mount("/static", StaticFiles(directory=static), name="static")
 
-	# the client-side router owns every other path
+	def _file_in_bundle(path: str) -> str|None:
+		"""The real file the URL path names, only if it is inside the bundle folder."""
+		if not path:
+			return None
+		try:
+			candidate = os.path.realpath(os.path.join(root, path))
+			if os.path.commonpath([root, candidate]) == root and os.path.isfile(candidate):
+				return candidate
+		except (OSError, ValueError):
+			pass
+		return None
+
+	# existing files are served as they are; the client-side router owns every other path
 	@app.get("/{path:path}", include_in_schema=False)
-	def spa(path: str):
-		return FileResponse(index, media_type="text/html")
+	def web_app(path: str):
+		file = _file_in_bundle(path)
+		if file is None:
+			return FileResponse(index, media_type="text/html")
+		if path.startswith("assets/"):
+			# the file names carry a content hash, so they never change
+			return FileResponse(file, headers={"Cache-Control": "public, max-age=31536000, immutable"})
+		return FileResponse(file)
