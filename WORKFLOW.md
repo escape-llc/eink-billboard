@@ -31,10 +31,11 @@ Standing default: every real change goes through this sequence, not a direct com
 7. **Wait for CI to go green before merging, always.** Required: the `unittest` job (`CI Tests (uv + Container)`) and CodeQL. Never merge on "the diff looks right" alone.
 8. **Read every review comment's content**, not just whether the review check passed. Evaluate each finding and reply on its thread: fix the confirmed ones (and say which commit), and answer false positives with what you actually checked.
    A reply the next reviewer can read is what stops a settled finding from being raised again.
-9. **Squash-merge and delete the branch, automatically.** The maintainer's standing preference (2026-10-04) is that a PR merges by itself as soon as CI is green on its latest head and no review thread is waiting on you; do not wait to be asked.
-   GitHub's own auto-merge is not enabled for this repository (Settings, General, Pull Requests, "Allow auto-merge"; turning it on is the maintainer's call), so whoever owns the PR merges it when the green result arrives:
-   subscribe to the PR's activity, and on the CI-success event confirm the head SHA is the one that passed and the PR is mergeable, then squash-merge pinned to that SHA.
-   Anything red, conflicted, or with an open review thread is not merged: fix it first.
+9. **Squash-merge and delete the branch, automatically.** The maintainer's standing preference (2026-10-04) is that a PR merges by itself once CI is green on its latest head and no review thread is waiting on you; do not wait to be asked.
+   GitHub's auto-merge is enabled for this repository, and a ruleset on `master` requires a pull request (0 approvals), the `unittest` check, and CodeQL, with squash merges and head-branch deletion.
+   So right after opening the PR, **turn on auto-merge for it** (`gh pr merge <N> --auto --squash`, or the GitHub tool `enable_pr_auto_merge` with `SQUASH`), and keep the PR subscribed so a red check or conflict still reaches you.
+   If auto-merge cannot be enabled (the call says the PR is already mergeable, or the setting is off), merge it yourself when the green result arrives: confirm the head SHA is the one that passed and the PR is mergeable, then squash-merge pinned to that SHA.
+   Anything red, conflicted, or with an open review thread is not merged: fix it first. A push to the branch restarts the checks; auto-merge stays armed for the new head.
 10. **Close the issue** if the merge did not already auto-close it.
 11. **Sync local `master`** (`git checkout master && git pull --ff-only`) and drop the merged local branch. A merged PR is finished; further work starts a new branch.
 12. **Write up the piece of work** per `SESSION_SUMMARIES.md`: one summary per commit-worthy unit of work, posted to Discussions (or drafted for the maintainer to post), with a one-line back-link comment on the PR.
@@ -44,7 +45,7 @@ When in doubt, run the sequence: an extra issue and PR is cheap; an undocumented
 
 ### Where this differs from "just ask the agent"
 
-- Opening a PR still needs the maintainer to have asked for the change to land (an agent session may have its own rule requiring an explicit request, and that rule wins). Merging does not: once a PR exists and is green, merge it (step 9).
+- Opening a PR still needs the maintainer to have asked for the change to land (an agent session may have its own rule requiring an explicit request, and that rule wins). Merging does not: once a PR exists, arm auto-merge (step 9) so it lands when green.
 - Whoever works on a PR owns it until it is green and mergeable: a red check or a merge conflict is work now, not something to leave for review.
 
 ## A literal per-issue checklist, not just this file's prose
