@@ -78,7 +78,7 @@
 					</InputGroupAddon>
 					<InputGroupAddon style="flex-grow:1;justify-content:flex-start">
 						<FormField name="trigger" v-slot="$field" :validateOnValueUpdate="true" :initialValue="editModel.trigger" style="display:flex;flex-grow:1">
-							<TimedTrigger :modelValue="$field.value" parentPropName="trigger." :fieldNameWidth="fieldNameWidth" @change="$field.onChange" />
+							<TimedTrigger :modelValue="$field.value" parentPropName="trigger." :fieldNameWidth="fieldNameWidth" @change="$field.props.onChange" />
 						</FormField>
 					</InputGroupAddon>
 				</InputGroup>
@@ -148,7 +148,7 @@ function isToday(someDate:Date):boolean {
 function derefSchedule(schedules:Record<string,any>, sid:string, id:string) {
 	if(sid in schedules) {
 		const schedule = schedules[sid]
-		const item = schedule.items.find(sx => sx.id === id)
+		const item = schedule.items.find((sx: any) => sx.id === id)
 		return item
 	}
 	return null
@@ -202,7 +202,7 @@ onMounted(() => {
 			json.start_ts = new Date(json.start_ts)
 			json.end_ts = new Date(json.end_ts)
 			const events:EventInfo[] = []
-			json.render.forEach(rx => {
+			json.render.forEach((rx: any) => {
 				rx.start = new Date(rx.scheduled_time)
 				rx.end = new Date(rx.start.getTime() + 30*60*1000)
 //				console.log("item", rx)
@@ -276,7 +276,7 @@ const onValidated = ({ result, values }: ValidateEventData) => {
 		}
 	}
 }
-const handleEventClick = ($event, day, event) => {
+const handleEventClick = (_event: any, day: any, event: any) => {
 	console.log("handleEventClick", day, event)
 	if(pluginList.value.length > 0) {
 		console.log("edit item", pluginList.value)

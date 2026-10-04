@@ -36,7 +36,7 @@
 		<template v-else-if="field.type === 'location'">
 			<InputGroupAddon style="flex-grow:1">
 				<FormField style="width:100%;height:300px" :name="field.name" v-slot="$field" :validateOnValueUpdate="true">
-					<LeafletPicker :name="field.name" :modelValue="$field.value" @change="$field.onChange" />
+					<LeafletPicker :name="field.name" :modelValue="$field.value" @change="$field.props.onChange" />
 				</FormField>
 			</InputGroupAddon>
 		</template>
@@ -86,6 +86,8 @@ export interface EmitsType {
 }
 
 const props = defineProps<PropsType>()
+// explicit slot types: the template forwards every slot to the recursive child, which TypeScript cannot infer
+defineSlots<Record<string, (props: any) => any>>()
 const emits = defineEmits<EmitsType>()
 function handleSchemaChange(event: any, field: any) {
 	console.log("Schema change", event, field)

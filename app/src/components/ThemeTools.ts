@@ -124,10 +124,9 @@ function primaryFor(color: string) {
 }
 /**
  * Return components config overrides.
- * @param {PresetConfig} preset 
  * @returns new instance.
  */
-function componentsFor(preset: any) {
+function componentsFor() {
 	return {
 		panel: {
 			colorScheme: {
@@ -148,7 +147,7 @@ function componentsFor(preset: any) {
  */
 function presetFor(preset: any) {
 	const surface = surfaceFor(preset.surface ?? DEFAULT_SURFACE);
-	const components = componentsFor(preset);
+	const components = componentsFor();
 	return {
 		components,
 		semantic: {
@@ -206,7 +205,7 @@ const saveTheme = (key?: string, name?: string, mode?: string, primary?: string,
 const presetForTheme = (config: any) => {
 	const target = ThemeList.find(tl => tl.name == config.name) ?? DefaultTheme;
 	const presets = presetFor(config);
-	const output = definePreset(target.value, presets);
+	const output = definePreset(target.value, presets as unknown as Parameters<typeof definePreset>[1]);
 	DEBUG && console.log("presetForTheme", config, presets, output);
 	return output;
 }
