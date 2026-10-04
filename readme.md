@@ -146,7 +146,7 @@ This is what runs the production application.  It includes:
 	* storage root
 * Application Task management (see below)
 * FastAPI configuration and management, served by `uvicorn`
-	* static (for web app)
+	* the built web app: files at the bundle root (Vite default layout), `index.html` for client-side routes
 	* API routers (`/api`), including the ones plugins and datasources contribute
 
 ### `unittest`
