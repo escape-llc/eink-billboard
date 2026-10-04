@@ -213,7 +213,7 @@ class Clock:
 		
 		# Fill with the specified solid color
 		gradient[~anglemask] = (0, 0, 0, 0)
-		return Image.fromarray(gradient, mode="RGBA")
+		return Image.fromarray(gradient)  # (h, w, 4) uint8 is RGBA; the mode argument is deprecated
 	@staticmethod
 	def pad_color(color):
 		# Add 255, until 4 values (RGBA) are in that array
