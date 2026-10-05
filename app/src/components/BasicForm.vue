@@ -240,6 +240,22 @@ function createResolver(fields: FormField[]): z.ZodTypeAny {
 	}
 	return z.object(resv)
 }
+const serverErrors: Record<string, { message: string, value: string }> = {}
+let lastSubmitted: Record<string, any> = {}
+/** Show the `errors` of a 422 response (`[{ path: [name], message }]`) on their fields. Returns how many matched a field of this form. */
+const setServerErrors = (errors: { path?: unknown[], message?: string }[]): number => {
+	const values = lastSubmitted
+	let matched = 0
+	for(const e of errors ?? []) {
+		const name = Array.isArray(e?.path) ? e.path[0] : undefined
+		if(typeof name === "string" && typeof e.message === "string") {
+			serverErrors[name] = { message: e.message, value: JSON.stringify(values?.[name]) }
+			matched++
+		}
+	}
+	nextTick().then(_ => form.value?.validate())
+	return matched
+}
 const resolver = ({ values }: { values: Record<string, any> }) => {
 	const errors:Record<PropertyKey,any> = {};
 	if(!currentResolver) return { values, errors };
@@ -253,6 +269,15 @@ const resolver = ({ values }: { values: Record<string, any> }) => {
 			}
 		});
 	}
+	// problems the server reported stay on a field until its value changes
+	for(const [name, entry] of Object.entries(serverErrors)) {
+		if(JSON.stringify(values[name]) !== entry.value) {
+			delete serverErrors[name]
+		}
+		else if(!errors[name]) {
+			errors[name] = [{ message: entry.message }]
+		}
+	}
 	emits('validate', { result, values });
 	return {
 		values, // (Optional) Used to pass current form values to submit event.
@@ -260,6 +285,7 @@ const resolver = ({ values }: { values: Record<string, any> }) => {
 	};
 }
 const handleSubmit = (data:any) => {
+	lastSubmitted = data.values ?? {}
 	const result = currentResolver?.safeParse(data.values);
 	emits('submit', { result, data });
 }
@@ -282,7 +308,8 @@ const handleFormFieldEvent = (data:any) => {
 		}
 	}
 }
-defineExpose({ submit, reset })
+const isDirty = computed(() => Object.values<{ dirty?: boolean }>(form.value?.states ?? {}).some(st => st.dirty))
+defineExpose({ submit, reset, setServerErrors, isDirty })
 </script>
 <style scoped>
 </style>
