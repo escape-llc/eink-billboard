@@ -32,7 +32,7 @@
 	</div>
 </template>
 <script setup lang="ts">
-import { apiJson } from "./ApiClient"
+import { apiJson, joinUrl } from "./ApiClient"
 //import { InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Message, Select } from 'primevue';
 import Form from "@primevue/forms/form"
 import { ref, toRaw, nextTick, watch, inject, computed } from "vue"
@@ -233,7 +233,7 @@ function lookupSchema(schema: SchemaType, lookup:string): LookupValue[] {
 function lookupUrl(target: any): void {
 	if(!target) return;
 	if(!target.lookupUrl) return;
-	const finalUrl = `${props.baseUrl}${target.lookupUrl}`
+	const finalUrl = joinUrl(props.baseUrl, target.lookupUrl)
 	//console.log("lookupUrl.start", finalUrl)
 	apiJson(finalUrl).then(json => {
 		//console.log("lookupUrl", json, target)

@@ -42,11 +42,13 @@ uv run python -m unittest python.tests.test_web_api   # the API tests (about 1 s
 uv run python -m python.eink-billboard --dev --cors http://localhost:5173 --host localhost --storage ./.storage
 cd app && npm ci && npm run dev            # web app on :5173
 
-cd app && npx vite build                   # production bundle -> app/dist (served with --app)
+cd app && npm run build                    # type-check (vue-tsc), then the production bundle -> app/dist (served with --app)
 ```
 
-- `npm run build` runs `vue-tsc` first and currently fails on about 32 pre-existing type errors; use `npx vite build`, and do not add new ones
-  (compare the sorted output of `npx vue-tsc -b` before and after your change).
+- `npm run build` runs `vue-tsc -b` first, which reports **zero** errors; keep it that way (a type error fails the build).
+- The built app uses hash routes (`/#/settings`), and Vite's default layout: `index.html` and `public/` files at the root, bundles in `assets/`.
+- To check a web change in a real browser, Playwright is available in the cloud sandbox (Node `playwright` under `/opt/node-tools`, run with `NODE_PATH=/opt/node-tools/node_modules`):
+  serve the build with `--app app/dist`, load the pages, and look at failed requests and console errors, not just whether the page renders.
 - Options: `--port` (default 8080 with `--dev`, else 80), `--token` or `EINK_API_TOKEN` (Bearer token on `/api`), `--app` (web bundle folder).
 - Do not start the server with `pkill -f`/`pgrep -f` patterns that match your own shell command; start it in the background, record its PID, and signal that PID
   (`uv run` is a wrapper: signal the Python child, not the `uv` process).

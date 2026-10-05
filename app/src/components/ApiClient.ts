@@ -15,6 +15,14 @@ export class ApiError extends Error {
 	}
 }
 
+/**
+ * Join a base URL and a path with exactly one slash between them, however either is written.
+ * `/` + `/api/x` must be `/api/x`, not `//api/x`, which a browser reads as a host called "api".
+ */
+export function joinUrl(base: string, path: string): string {
+	return `${base.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`
+}
+
 const TOKEN_KEY = "eink-billboard.api-token"
 
 function readToken(): string | null {
