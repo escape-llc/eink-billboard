@@ -1,0 +1,327 @@
+{
+	"comment": "Cases both the form (FormValidation.ts) and the server (documents.validate_properties) must agree on. error is the message of the first problem, or null.",
+	"cases": [
+		{
+			"name": "string required, empty",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "string"
+			},
+			"value": "",
+			"error": "Required"
+		},
+		{
+			"name": "string required, null",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "string"
+			},
+			"value": null,
+			"error": "Required"
+		},
+		{
+			"name": "string required, set",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "string"
+			},
+			"value": "x",
+			"error": null
+		},
+		{
+			"name": "string optional, empty",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": false,
+				"type": "string"
+			},
+			"value": "",
+			"error": null
+		},
+		{
+			"name": "string optional, null",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": false,
+				"type": "string"
+			},
+			"value": null,
+			"error": null
+		},
+		{
+			"name": "enum, member",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "string",
+				"enum": [
+					"a",
+					"b"
+				]
+			},
+			"value": "a",
+			"error": null
+		},
+		{
+			"name": "enum, not a member",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "string",
+				"enum": [
+					"a",
+					"b"
+				]
+			},
+			"value": "z",
+			"error": "Not one of the allowed values"
+		},
+		{
+			"name": "enum optional, null",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": false,
+				"type": "string",
+				"enum": [
+					"a"
+				]
+			},
+			"value": null,
+			"error": null
+		},
+		{
+			"name": "number min 0, below",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "number",
+				"min": 0
+			},
+			"value": -1,
+			"error": "Minimum 0"
+		},
+		{
+			"name": "number min 0, at",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "number",
+				"min": 0
+			},
+			"value": 0,
+			"error": null
+		},
+		{
+			"name": "number max 0, above",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "number",
+				"max": 0
+			},
+			"value": 1,
+			"error": "Maximum 0"
+		},
+		{
+			"name": "number min 0.5, below",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "number",
+				"min": 0.5
+			},
+			"value": 0.25,
+			"error": "Minimum 0.5"
+		},
+		{
+			"name": "number required, null",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "number"
+			},
+			"value": null,
+			"error": "Required"
+		},
+		{
+			"name": "number optional, null",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": false,
+				"type": "number"
+			},
+			"value": null,
+			"error": null
+		},
+		{
+			"name": "int, fraction",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "int"
+			},
+			"value": 1.5,
+			"error": "Whole numbers only"
+		},
+		{
+			"name": "int, whole",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "int"
+			},
+			"value": 3,
+			"error": null
+		},
+		{
+			"name": "int min 1, below",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "int",
+				"min": 1
+			},
+			"value": 0,
+			"error": "Minimum 1"
+		},
+		{
+			"name": "location required, null",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "location"
+			},
+			"value": null,
+			"error": "Required"
+		},
+		{
+			"name": "location optional, null",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": false,
+				"type": "location"
+			},
+			"value": null,
+			"error": null
+		},
+		{
+			"name": "location, in range",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "location"
+			},
+			"value": {
+				"latitude": 45,
+				"longitude": -122
+			},
+			"error": null
+		},
+		{
+			"name": "location, latitude out of range",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "location"
+			},
+			"value": {
+				"latitude": 91,
+				"longitude": 0
+			},
+			"error": "Latitude is -90 to 90"
+		},
+		{
+			"name": "location, longitude out of range",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "location"
+			},
+			"value": {
+				"latitude": 0,
+				"longitude": -181
+			},
+			"error": "Longitude is -180 to 180"
+		},
+		{
+			"name": "date, valid",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "date"
+			},
+			"value": "2026-10-05",
+			"error": null
+		},
+		{
+			"name": "date, impossible",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "date"
+			},
+			"value": "2026-02-31",
+			"error": "Expected a date (YYYY-MM-DD)"
+		},
+		{
+			"name": "date optional, empty",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": false,
+				"type": "date"
+			},
+			"value": "",
+			"error": null
+		},
+		{
+			"name": "date required, empty",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "date"
+			},
+			"value": "",
+			"error": "Required"
+		},
+		{
+			"name": "boolean, true",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "boolean"
+			},
+			"value": true,
+			"error": null
+		}
+	]
+}

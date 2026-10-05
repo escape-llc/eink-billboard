@@ -11,6 +11,8 @@ export type FieldDef = {
 	/** shown as a password input; the server never sends the stored value back */
 	secret?: boolean
 	lookup?: string
+	/** the allowed values of a string field */
+	enum?: string[]
 	min?: number
 	max?: number
 	step?: number
