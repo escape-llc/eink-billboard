@@ -89,8 +89,7 @@ const injplugins = inject("settingsPluginsList", ref([]))
 const injdataSources = inject("settingsDataSourcesList", ref([]))
 const plugins = computed<any[]>(() => injplugins.value)
 const dataSources = computed<any[]>(() => injdataSources.value)
-watch(() => props.form, (nv,ov) => {
-	console.log("watch.form", nv, ov);
+watch(() => props.form, (nv) => {
 	if(nv) {
 		ensureInitializeForm(nv.schema, localValues.value)
 	}
@@ -100,8 +99,7 @@ watch(() => props.form, (nv,ov) => {
 	}
 }, { immediate:true }
 )
-watch(() => props.initialValues, (nv,ov) => {
-	console.log("watch.initialValues", nv, ov);
+watch(() => props.initialValues, (nv) => {
 	if(nv) {
 		let ox = structuredClone(toRaw(nv))
 		if(props.addInitialValues) {
@@ -121,10 +119,8 @@ watch(() => props.initialValues, (nv,ov) => {
 }, { immediate:true }
 )
 function ensureInitializeForm(schema: SchemaType, values: any): void {
-	console.log("ensureInitializeForm", schema, values);
 	if(values && Object.keys(values).length === 0) return;
 	if(!schema) return;
-	console.log("ensureInitializeForm.fire");
 	localProperties.value = formProperties(schema)
 	currentResolver = createResolver(schema, localProperties.value)
 	startLookups(schema, localProperties.value)
@@ -170,7 +166,6 @@ function formProperties(schema: SchemaType) :any[] {
 			}
 			if(px.type === "schema" && "list" in fx && fx.listType === "schema") {
 				const svalue = localValues.value[px.name]
-				console.log("formProperties.schema", px.name, svalue, fx.list)
 				if(svalue) {
 					const target = fx.list.find((vx: any) => vx.value === svalue)
 					if(target) {
@@ -267,10 +262,10 @@ function schemaFor(px: PropertiesDef): z.ZodTypeAny|undefined {
 			return r2
 		case "number":
 			let r4 = z.number()
-			if(px.min) {
+			if(px.min !== undefined) {
 				r4 = r4.min(px.min, { error:`Minimum ${px.min}` })
 			}
-			if(px.max) {
+			if(px.max !== undefined) {
 				r4 = r4.max(px.max, { error:`Maximum ${px.max}` })
 			}
 			// for number this must go on the end
@@ -297,24 +292,17 @@ function schemaFor(px: PropertiesDef): z.ZodTypeAny|undefined {
 				r8 = r8.min(1, { error:"Required" })
 			}
 			return r8
+		case "int":
+			const ri = z.number().int({ error:"Whole numbers only" })
+			const ric = px.min !== undefined ? ri.min(px.min, { error:`Minimum ${px.min}` }) : ri
+			const rid = px.max !== undefined ? ric.max(px.max, { error:`Maximum ${px.max}` }) : ric
+			return px.required === true ? rid.nonoptional() : rid
 		case "date":
-			if(px.required === true) {
-				const strictlyRequired = z.preprocess((val) => {
-					// Fix missing seconds for HTML inputs
-					if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(val)) {
-						return `${val}:00`;
-					}
-					return val;
-				}, z.iso.date());
-				return strictlyRequired
-			}
-			else {
-				return nulableAndEmptyDateSchema
-			}
+			return px.required === true ? z.iso.date() : nulableAndEmptyDateSchema
 		default:
 			console.warn("no validation for type, using 'string'", px)
 			let r3 = z.string()
-			if(px.required === true) {
+			if((px as { required?: boolean }).required === true) {
 				r3 = r3.min(1, { error:"Required" })
 			}
 			return r3
@@ -351,10 +339,8 @@ function createResolver(schema: SchemaType, values: any[]): z.ZodTypeAny {
 }
 const resolver = ({ values }: { values: Record<string, any> }) => {
 	const errors:Record<PropertyKey,any> = {};
-	console.log("resolver", values, currentResolver)
 	if(!currentResolver) return { values, errors };
 	const result = currentResolver.safeParse(values);
-	console.log("resolver", values, result);
 	if(!result.success) {
 		result.error.issues.forEach(issue => {
 			const field = issue.path[0];
@@ -364,7 +350,6 @@ const resolver = ({ values }: { values: Record<string, any> }) => {
 			}
 		});
 	}
-	console.log("resolver.errors", errors);
 	emits('validate', { result, values });
 	return {
 		values, // (Optional) Used to pass current form values to submit event.
@@ -372,9 +357,7 @@ const resolver = ({ values }: { values: Record<string, any> }) => {
 	};
 }
 const handleSubmit = (data:any) => {
-	console.log("handleSubmit", data);
 	const result = currentResolver?.safeParse(data.values);
-	console.log("handleSubmit.validate", result);
 	emits('submit', { result, data });
 }
 const submit = () => {
@@ -384,7 +367,6 @@ const reset = () => {
 	form.value?.reset();
 }
 const handleFormFieldEvent = (data:any) => {
-	console.log("handleFormFieldEvent", data)
 	if(data.type === "schema-change") {
 		const field = localProperties.value.find((f:any) => f.name === data.field.name)
 		if(field) {
