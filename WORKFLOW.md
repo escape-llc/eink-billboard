@@ -22,7 +22,7 @@ Standing default: every real change goes through this sequence, not a direct com
 1. **Look before starting.** Read the last several session summaries and any unanswered review comments on recent PRs (see `AGENTS.md`, "Generalizing lessons"). Skip for a trivial typo.
 2. **Open an issue** describing what is changing and why. Label it with existing labels that fit; do not invent a new label without asking.
 3. **Branch off an up-to-date `master`** (`git fetch origin master`, then branch from `origin/master`; never from a stale local copy). Agents work on the branch the session names (`claude/<name>`).
-4. **Make the change and verify it locally** before pushing: the Python tests you touched plus `test_web_api`, and for web changes `npx vite build` and the `vue-tsc` before/after comparison.
+4. **Make the change and verify it locally** before pushing: the Python tests you touched plus `test_web_api`, and for web changes `npm run build` (type-check plus bundle) and a look at the affected pages in a real browser.
    If CI restores test data from a secret, also run the affected tests **without** `datasources/` and `plugins/` in the test storage (see `AGENTS.md`).
    Re-read your own diff adversarially, then check what is staged: `git diff --cached --name-only` must show no storage files, keys, `dist/`, or `node_modules`.
 5. **Commit.** Imperative subject, a body that says *why*, and the attribution trailers the session was given. Reference the issue number in the body if it clarifies.
@@ -57,7 +57,7 @@ At the start of each issue, write this checklist as a file in **your own scratch
 - [ ] Read recent session summaries / unanswered PR review comments
 - [ ] Issue filed and labeled
 - [ ] Branched from a freshly fetched master
-- [ ] Change made; verified locally (tests touched + test_web_api; vite build / vue-tsc comparison for web; CI-storage run)
+- [ ] Change made; verified locally (tests touched + test_web_api; npm run build, and the pages in a browser, for web; CI-storage run)
 - [ ] Staged files checked (no storage, keys, dist, node_modules)
 - [ ] Committed with attribution trailers, pushed
 - [ ] PR opened (Closes #N only if it is the whole fix), labeled, Summary + Test plan
