@@ -17,16 +17,25 @@ router = APIRouter()
 DEVICE_SETTINGS = ("system", "display", "theme")
 
 def _device_name(name: str) -> str:
-	if name not in DEVICE_SETTINGS:
-		raise ApiError(404, f"Unknown settings '{name}'.", f"{name}-settings")
-	return name
+	"""
+	The device-wide settings the URL names. What is returned is the constant from our own list, never the URL's string,
+	so nothing that builds a file path is made from request data.
+	"""
+	for known in DEVICE_SETTINGS:
+		if known == name:
+			return known
+	raise ApiError(404, "Unknown settings.", "settings")
 
-def _find_item(items: list[CollectInfoDict], item_id: str, kind: str) -> CollectInfoDict:
-	"""Only IDs that the plugin/datasource folders actually declare are accepted."""
+def _find_item(items: list[CollectInfoDict], item_id: str, kind: str) -> tuple[str, CollectInfoDict]:
+	"""
+	Only IDs that the plugin/datasource folders actually declare are accepted.
+	Returns the declared ID (from the descriptor, not the URL's string) with the item: that is what may build a file path.
+	"""
 	for item in items:
-		if item["info"].get("id") == item_id:
-			return item
-	raise ApiError(404, f"Unknown {kind} '{item_id}'.", item_id)
+		declared = item["info"].get("id")
+		if isinstance(declared, str) and declared == item_id:
+			return declared, item
+	raise ApiError(404, f"Unknown {kind}.", None)
 
 def _settings_properties(item: CollectInfoDict) -> list[dict]:
 	return item["info"].get("settings", {}).get("schema", {}).get("properties", [])
@@ -63,26 +72,26 @@ def datasources_list(cm: CM):
 
 @router.get('/plugins/{plugin_id}/settings')
 def get_plugin_settings(plugin_id: str, cm: CM):
-	item = _find_item(cm.enum_plugins(), plugin_id, "plugin")
-	cob = cm.plugin_manager(plugin_id).open()
-	return get_document(f"plugin-{plugin_id}-settings", cob, secret_fields(_settings_properties(item)))
+	declared, item = _find_item(cm.enum_plugins(), plugin_id, "plugin")
+	cob = cm.plugin_manager(declared).open()
+	return get_document(f"plugin-{declared}-settings", cob, secret_fields(_settings_properties(item)))
 
 @router.put('/plugins/{plugin_id}/settings')
 def put_plugin_settings(plugin_id: str, cm: CM, body: dict[str, Any] = Body(...)):
-	item = _find_item(cm.enum_plugins(), plugin_id, "plugin")
-	cob = cm.plugin_manager(plugin_id).open()
+	declared, item = _find_item(cm.enum_plugins(), plugin_id, "plugin")
+	cob = cm.plugin_manager(declared).open()
 	properties = _settings_properties(item)
-	return put_document(f"plugin-{plugin_id}-settings", body, cob, properties, secret_fields(properties))
+	return put_document(f"plugin-{declared}-settings", body, cob, properties, secret_fields(properties))
 
 @router.get('/datasources/{datasource_id}/settings')
 def get_datasource_settings(datasource_id: str, cm: CM):
-	item = _find_item(cm.enum_datasources(), datasource_id, "datasource")
-	cob = cm.datasource_manager(datasource_id).open()
-	return get_document(f"datasource-{datasource_id}-settings", cob, secret_fields(_settings_properties(item)))
+	declared, item = _find_item(cm.enum_datasources(), datasource_id, "datasource")
+	cob = cm.datasource_manager(declared).open()
+	return get_document(f"datasource-{declared}-settings", cob, secret_fields(_settings_properties(item)))
 
 @router.put('/datasources/{datasource_id}/settings')
 def put_datasource_settings(datasource_id: str, cm: CM, body: dict[str, Any] = Body(...)):
-	item = _find_item(cm.enum_datasources(), datasource_id, "datasource")
-	cob = cm.datasource_manager(datasource_id).open()
+	declared, item = _find_item(cm.enum_datasources(), datasource_id, "datasource")
+	cob = cm.datasource_manager(declared).open()
 	properties = _settings_properties(item)
-	return put_document(f"datasource-{datasource_id}-settings", body, cob, properties, secret_fields(properties))
+	return put_document(f"datasource-{declared}-settings", body, cob, properties, secret_fields(properties))

@@ -70,16 +70,20 @@ def _mount_web_app(app: FastAPI, app_path: str|None) -> None:
 		logger.warning(f"Web app not found at '{app_path}'; serving the API only.")
 		return
 
+	# the folder prefix every served file must start with
+	prefix = root if root.endswith(os.sep) else root + os.sep
+
 	def _file_in_bundle(path: str) -> str|None:
 		"""The real file the URL path names, only if it is inside the bundle folder."""
 		if not path:
 			return None
 		try:
+			# resolve "..", symbolic links, and the rest first, then require the result to be under the bundle folder
 			candidate = os.path.realpath(os.path.join(root, path))
-			if os.path.commonpath([root, candidate]) == root and os.path.isfile(candidate):
-				return candidate
 		except (OSError, ValueError):
-			pass
+			return None
+		if candidate.startswith(prefix) and os.path.isfile(candidate):
+			return candidate
 		return None
 
 	# existing files are served as they are; the client-side router owns every other path
