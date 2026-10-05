@@ -43,12 +43,17 @@ uv run python -m python.eink-billboard --dev --cors http://localhost:5173 --host
 cd app && npm ci && npm run dev            # web app on :5173
 
 cd app && npm run build                    # type-check (vue-tsc), then the production bundle -> app/dist (served with --app)
+cd app && npm test                         # web unit tests (Vitest + jsdom), src/**/*.test.ts
+cd app && npm run e2e                      # build, then the browser tests (Playwright) against two real servers
 ```
 
 - `npm run build` runs `vue-tsc -b` first, which reports **zero** errors; keep it that way (a type error fails the build).
 - The built app uses hash routes (`/#/settings`), and Vite's default layout: `index.html` and `public/` files at the root, bundles in `assets/`.
-- To check a web change in a real browser, Playwright is available in the cloud sandbox (Node `playwright` under `/opt/node-tools`, run with `NODE_PATH=/opt/node-tools/node_modules`):
-  serve the build with `--app app/dist`, load the pages, and look at failed requests and console errors, not just whether the page renders.
+- **Browser tests** (`app/e2e/`, Playwright Test): `playwright.config.ts` starts two real servers on a storage built by `scripts/e2e_storage.py` (the factory defaults plus the **synthetic** fixtures in `app/e2e/fixtures/storage`: schedules, a system settings file, a fake API key).
+  No secret and none of the real test storage is involved, so they run on fork PRs. One server is open (port 8099), one requires a token (8098, `e2e-token`). They need `uv sync` and, once, `npx playwright install chromium`; in the cloud sandbox the browser is already installed and `@playwright/test` is pinned (`~1.56.1`) to match it.
+  `watchProblems()` in `e2e/support.ts` fails a test on any page error, console error, failed request, or HTTP error that the test did not declare, so a page that merely renders is not enough.
+  Gotchas: the app uses hash routes (`/#/settings`); PrimeVue option accessible names are not their text, so match options by visible text; the factory `location: null` leaves Save disabled, so the fixture sets one.
+- CI: `.github/workflows/web.yaml` runs the `web` job (build, unit tests) and the `e2e` job (browser tests) on pull requests and pushes to `master`. They are not required checks until the maintainer adds them to the ruleset.
 - Options: `--port` (default 8080 with `--dev`, else 80), `--token` or `EINK_API_TOKEN` (Bearer token on `/api`), `--app` (web bundle folder).
 - Do not start the server with `pkill -f`/`pgrep -f` patterns that match your own shell command; start it in the background, record its PID, and signal that PID
   (`uv run` is a wrapper: signal the Python child, not the `uv` process).

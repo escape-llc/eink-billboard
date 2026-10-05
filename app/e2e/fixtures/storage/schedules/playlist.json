@@ -1,0 +1,31 @@
+{
+	"_schema": "urn:inky:storage:schedule:playlist:1",
+	"name": "E2E Playlist",
+	"id": "e2e-playlist",
+	"items": [
+		{
+			"type": "PlaylistSchedule",
+			"plugin_name": "slide-show",
+			"id": "0",
+			"title": "Morning slides",
+			"content": {
+				"dataSource": "image-folder",
+				"slideMax": 4,
+				"slideMinutes": 2,
+				"folder": "__E2E_IMAGES__"
+			}
+		},
+		{
+			"type": "PlaylistSchedule",
+			"plugin_name": "slide-show",
+			"id": "1",
+			"title": "Evening slides",
+			"content": {
+				"dataSource": "image-folder",
+				"slideMax": 2,
+				"slideMinutes": 5,
+				"folder": "__E2E_IMAGES__"
+			}
+		}
+	]
+}

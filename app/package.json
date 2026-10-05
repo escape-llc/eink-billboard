@@ -7,7 +7,11 @@
 		"dev": "vite",
 		"build": "vue-tsc -b && vite build",
 		"build2": "vite build",
-		"preview": "vite preview"
+		"preview": "vite preview",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"e2e": "npm run build && playwright test",
+		"e2e:run": "playwright test"
 	},
 	"dependencies": {
 		"@primeuix/styled": "^0.7.4",
@@ -27,10 +31,13 @@
 		"zod": "^4.3.6"
 	},
 	"devDependencies": {
+		"@playwright/test": "~1.56.1",
 		"@vitejs/plugin-vue": "^6.0.5",
 		"@vue/tsconfig": "^0.9.1",
+		"jsdom": "^29.1.1",
 		"typescript": "~5.8.3",
 		"vite": "^8.0.7",
+		"vitest": "^5.0.3",
 		"vue-tsc": "^3.2.6"
 	}
 }

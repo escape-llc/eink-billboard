@@ -1,0 +1,10 @@
+{
+	"_schema": "urn:inky:storage:settings:system:1",
+	"timezoneName": "America/New_York",
+	"locale": "en-US",
+	"timeFormat": "24h",
+	"location": {
+		"latitude": 40.7128,
+		"longitude": -74.006
+	}
+}
