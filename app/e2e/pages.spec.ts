@@ -1,0 +1,61 @@
+import { expect, test } from "@playwright/test"
+import { stubMapTiles, watchProblems } from "./support"
+
+// The app uses hash routes: /#/settings
+test.describe("every page renders from the seeded storage, without errors", () => {
+	test.beforeEach(async ({ page }) => stubMapTiles(page))
+
+	test("welcome", async ({ page }) => {
+		const watch = watchProblems(page)
+		await page.goto("/")
+		await expect(page.getByText("Welcome to eInk Billboard!")).toBeVisible()
+		await expect(page).toHaveTitle("eInk Billboard")
+		// the favicon comes from the bundle's public folder
+		expect((await page.request.get("/logo.svg")).status()).toBe(200)
+		watch.expectNone()
+	})
+
+	test("settings shows the system settings form", async ({ page }) => {
+		const watch = watchProblems(page)
+		await page.goto("/#/settings")
+		for (const tab of ["System", "Display", "Theme", "Plugins", "Data Sources"]) {
+			await expect(page.getByRole("tab", { name: tab })).toBeVisible()
+		}
+		for (const label of ["Timezone", "Locale", "Time Format", "Location"]) {
+			await expect(page.locator("label", { hasText: label })).toBeVisible()
+		}
+		watch.expectNone()
+	})
+
+	test("schedule shows the timer tasks of the week", async ({ page }) => {
+		const watch = watchProblems(page)
+		await page.goto("/#/schedule")
+		// the enabled task fires every quarter hour; the paused one is on a few days
+		await expect(page.getByText(/Quarter-hour clock/).first()).toBeVisible()
+		for (const day of ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]) {
+			await expect(page.getByText(day, { exact: false }).first()).toBeVisible()
+		}
+		watch.expectNone()
+	})
+
+	test("playlist shows the tracks", async ({ page }) => {
+		const watch = watchProblems(page)
+		await page.goto("/#/playlist")
+		await expect(page.getByText("E2E Playlist").first()).toBeVisible()
+		await expect(page.getByText("Morning slides")).toBeVisible()
+		await expect(page.getByText("Evening slides")).toBeVisible()
+		watch.expectNone()
+	})
+
+	test("the theme selector applies a colour", async ({ page }) => {
+		const watch = watchProblems(page)
+		await page.goto("/")
+		await page.getByRole("button", { name: "Theme Control" }).click()
+		const swatches = page.locator(".primary-button")
+		// 16 primary colours and 8 surfaces
+		await expect(swatches).toHaveCount(24)
+		await swatches.nth(3).click()
+		await expect(swatches.nth(3)).toHaveClass(/active-color/)
+		watch.expectNone()
+	})
+})

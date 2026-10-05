@@ -66,19 +66,41 @@ async function toApiError(rx: Response): Promise<ApiError> {
 	return new ApiError(rx.status, message, body)
 }
 
+// A page loads several things at once, so several requests can get a 401 together. Only the first asks:
+// a token typed (or a prompt cancelled) changes the epoch, and a request that was sent in an earlier epoch
+// uses what was decided instead of prompting again.
+let tokenEpoch = 0
+// typed in this session; kept in storage once the server accepts it
+let enteredToken: string | null = null
+
 export async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
-	let rx = await fetch(url, withToken(init, readToken()))
+	const epoch = tokenEpoch
+	const sentWith = enteredToken ?? readToken()
+	let rx = await fetch(url, withToken(init, sentWith))
+	if(rx.status !== 401) {
+		return rx
+	}
+	let token = enteredToken ?? readToken()
+	if(epoch === tokenEpoch && (!token || token === sentWith)) {
+		// window.prompt blocks, so the other requests that failed with this one wait behind it
+		token = window.prompt("This device requires an API token:")
+		tokenEpoch++
+		enteredToken = token || null
+	}
+	if(!token || token === sentWith) {
+		throw await toApiError(rx)
+	}
+	rx = await fetch(url, withToken(init, token))
 	if(rx.status === 401) {
-		const entered = window.prompt("This device requires an API token:")
-		if(!entered) {
-			throw await toApiError(rx)
+		if(enteredToken === token) {
+			enteredToken = null
 		}
-		rx = await fetch(url, withToken(init, entered))
-		if(rx.status === 401) {
-			writeToken(null)
-			throw await toApiError(rx)
-		}
-		writeToken(entered)
+		writeToken(null)
+		throw await toApiError(rx)
+	}
+	writeToken(token)
+	if(enteredToken === token) {
+		enteredToken = null
 	}
 	return rx
 }

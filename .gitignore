@@ -5,3 +5,4 @@ __pycache__/
 .test-output/
 tests/.storage/
 .coverage
+.e2e-storage/

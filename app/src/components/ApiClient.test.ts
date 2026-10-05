@@ -118,6 +118,40 @@ describe("ApiClient requests", () => {
 			expect(authorizationOf(fetchMock, 1)).toBe("Bearer wrong")
 		})
 
+		// a page loads several things at once, and they all fail together
+		const answerByToken = (valid: string) => async (_url: string, init?: RequestInit) => {
+			const sent = new Headers(init?.headers).get("Authorization")
+			return sent === `Bearer ${valid}`
+				? jsonResponse({ ok: true })
+				: jsonResponse({ success: false, message: "Missing or invalid API token." }, 401)
+		}
+
+		it("asks only once when several requests fail together, and retries them all with the token", async () => {
+			fetchMock.mockImplementation(answerByToken("s3cret"))
+			const prompt = vi.spyOn(window, "prompt").mockReturnValue("s3cret")
+			const results = await Promise.all(["/api/a", "/api/b", "/api/c", "/api/d"].map(u => apiJson(u)))
+			expect(results).toEqual([{ ok: true }, { ok: true }, { ok: true }, { ok: true }])
+			expect(prompt).toHaveBeenCalledTimes(1)
+			expect(localStorage.getItem(TOKEN_KEY)).toBe("s3cret")
+		})
+
+		it("asks only once when several requests fail together and the prompt is cancelled", async () => {
+			fetchMock.mockImplementation(answerByToken("s3cret"))
+			const prompt = vi.spyOn(window, "prompt").mockReturnValue(null)
+			const results = await Promise.allSettled(["/api/a", "/api/b", "/api/c"].map(u => apiJson(u)))
+			expect(results.map(r => r.status)).toEqual(["rejected", "rejected", "rejected"])
+			for (const r of results) expect((r as PromiseRejectedResult).reason).toMatchObject({ status: 401 })
+			expect(prompt).toHaveBeenCalledTimes(1)
+		})
+
+		it("asks again for a later request, after the first answer was cancelled", async () => {
+			fetchMock.mockImplementation(answerByToken("s3cret"))
+			const prompt = vi.spyOn(window, "prompt").mockReturnValueOnce(null).mockReturnValueOnce("s3cret")
+			await expect(apiJson("/api/a")).rejects.toMatchObject({ status: 401 })
+			await expect(apiJson("/api/b")).resolves.toEqual({ ok: true })
+			expect(prompt).toHaveBeenCalledTimes(2)
+		})
+
 		it("apiFetch hands back the response of a successful retry untouched", async () => {
 			fetchMock
 				.mockResolvedValueOnce(new Response("", { status: 401 }))

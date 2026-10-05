@@ -9,7 +9,9 @@
 		"build2": "vite build",
 		"preview": "vite preview",
 		"test": "vitest run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"e2e": "npm run build && playwright test",
+		"e2e:run": "playwright test"
 	},
 	"dependencies": {
 		"@primeuix/styled": "^0.7.4",
@@ -29,6 +31,7 @@
 		"zod": "^4.3.6"
 	},
 	"devDependencies": {
+		"@playwright/test": "~1.56.1",
 		"@vitejs/plugin-vue": "^6.0.5",
 		"@vue/tsconfig": "^0.9.1",
 		"jsdom": "^29.1.1",
