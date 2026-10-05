@@ -84,7 +84,9 @@ cd app && npm run e2e                      # build, then the browser tests (Play
   Error bodies do not echo the URL's text back. CodeQL's `py/path-injection` alerts are about exactly this; fix the flow, do not dismiss the alert.
 - **Secrets.** A schema property with `"secret": true` is masked (`********`) in GET responses and kept when the mask, or nothing, is sent back. Mark any new key/token/password property that way.
 - **Plugins and datasources can add API routes:** export an `APIRouter` and name it in the `"router"` entry of the `*-info.json`.
-- **Web app.** All backend calls go through `ApiClient` (`apiJson`/`apiPut`); do not call `fetch` directly, since it adds the token and surfaces the server's message.
+- **Web app.** All backend calls go through `ApiClient` (`apiJson`/`apiPut`); do not call `fetch` directly, since it sends the session cookie, signs in when the server asks, and surfaces the server's message.
+- **The browser stores nothing but the theme** (`localStorage`, key `theme-...`); everything else lives on the server, which is trusted. Never put a token, a session, or any other state in `localStorage`, `sessionStorage`, or a script-readable cookie (CodeQL flags it as clear-text storage of sensitive information, and it is not needed).
+  The API token is the one case that looks like it needs storage: it is sent once to `POST /api/session`, and the server keeps the session (`python/web/sessions.py`) behind an `HttpOnly`, `SameSite=Strict` cookie. The e2e tests assert that only the theme is stored.
 - **After swapping a framework or library, check what it was installing for you.** Removing Flask silently removed `jinja2` (and `markupsafe`), which four modules still imported; only the tests noticed.
   Grep the imports against `pyproject.toml` and declare every third-party package you import directly.
 - **A failure's cause is usually in what the change touched indirectly:** the watcher, the CI storage, a transitive dependency. Reproduce under CI conditions before concluding anything.
