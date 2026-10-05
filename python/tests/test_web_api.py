@@ -13,6 +13,7 @@ from ..model.service_container import ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..web.app import WebSettings, create_app
 from ..web.documents import SECRET_MASK
+from ..web.sessions import SessionStore
 
 def _error_shape(test: unittest.TestCase, resp, status: int):
 	test.assertEqual(resp.status_code, status, resp.text)
@@ -261,6 +262,102 @@ class TestToken(WebApiTestBase):
 		ok = self.client.get("/api/settings/system", headers={"Authorization": "Bearer t0ken"})
 		self.assertEqual(ok.status_code, 200)
 
+class TestSessions(WebApiTestBase):
+	"""The web app signs in once and the server remembers it; the browser holds only an HttpOnly cookie."""
+	token = "t0ken"
+	BEARER = {"Authorization": "Bearer t0ken"}
+
+	def sign_in(self):
+		resp = self.client.post("/api/session", headers=self.BEARER)
+		self.assertEqual(resp.status_code, 200, resp.text)
+		return resp
+
+	def test_sign_in_sets_a_cookie_scripts_cannot_read(self):
+		cookie = self.sign_in().headers["set-cookie"]
+		self.assertTrue(cookie.startswith("eink_session="))
+		attributes = [a.strip().lower() for a in cookie.split(";")[1:]]
+		self.assertIn("httponly", attributes)
+		self.assertIn("samesite=strict", attributes)
+		self.assertIn("path=/api", attributes)
+		self.assertTrue(any(a.startswith("max-age=") for a in attributes))
+		# plain HTTP is normal on a home network: a Secure cookie would never come back
+		self.assertNotIn("secure", attributes)
+
+	def test_the_cookie_alone_opens_the_api(self):
+		_error_shape(self, self.client.get("/api/settings/system"), 401)
+		self.sign_in()
+		self.client.headers.pop("Authorization", None)
+		self.assertEqual(self.client.get("/api/settings/system").status_code, 200)
+		doc = self.client.get("/api/settings/system").json()
+		self.assertEqual(self.client.put("/api/settings/system", json=doc).status_code, 200)
+
+	def test_the_cookie_is_marked_secure_over_https(self):
+		with TestClient(self.app, base_url="https://testserver") as https:
+			cookie = https.post("/api/session", headers=self.BEARER).headers["set-cookie"]
+		self.assertIn("secure", [a.strip().lower() for a in cookie.split(";")[1:]])
+
+	def test_a_wrong_or_missing_token_starts_nothing(self):
+		for headers in ({}, {"Authorization": "Bearer nope"}, {"Authorization": "Basic t0ken"}):
+			resp = self.client.post("/api/session", headers=headers)
+			_error_shape(self, resp, 401)
+			self.assertNotIn("set-cookie", resp.headers)
+		_error_shape(self, self.client.get("/api/settings/system"), 401)
+
+	def test_an_unknown_cookie_is_refused(self):
+		self.client.cookies.set("eink_session", "not-a-session", path="/api")
+		_error_shape(self, self.client.get("/api/settings/system"), 401)
+
+	def test_signing_out_ends_the_session(self):
+		self.sign_in()
+		self.assertEqual(self.client.get("/api/settings/system").status_code, 200)
+		sid = self.client.cookies.get("eink_session")
+		resp = self.client.delete("/api/session")
+		self.assertEqual(resp.status_code, 200)
+		self.assertIn("max-age=0", resp.headers["set-cookie"].lower())
+		# the old ID is dead on the server even if somebody kept it
+		self.client.cookies.clear()
+		self.client.cookies.set("eink_session", sid, path="/api")
+		_error_shape(self, self.client.get("/api/settings/system"), 401)
+
+	def test_a_session_expires(self):
+		now = [1000.0]
+		self.app.state.sessions = SessionStore(ttl_seconds=60, clock=lambda: now[0])
+		self.sign_in()
+		self.assertEqual(self.client.get("/api/settings/system").status_code, 200)
+		now[0] += 61
+		_error_shape(self, self.client.get("/api/settings/system"), 401)
+
+	def test_the_bearer_token_still_works_for_scripts(self):
+		self.assertEqual(self.client.get("/api/settings/system", headers=self.BEARER).status_code, 200)
+
+class TestSessionsWithoutAToken(WebApiTestBase):
+	def test_nothing_to_sign_in_to(self):
+		resp = self.client.post("/api/session")
+		self.assertEqual(resp.json(), {"success": True, "required": False})
+		self.assertNotIn("set-cookie", resp.headers)
+
+class TestSessionStore(unittest.TestCase):
+	def test_ids_are_unique_and_unguessable(self):
+		store = SessionStore()
+		ids = {store.create() for _ in range(20)}
+		self.assertEqual(len(ids), 20)
+		self.assertTrue(all(len(i) >= 40 for i in ids))
+		self.assertFalse(store.valid(None))
+		self.assertFalse(store.valid(""))
+		self.assertFalse(store.valid("guess"))
+
+	def test_the_oldest_are_dropped_when_there_are_too_many(self):
+		now = [0.0]
+		store = SessionStore(max_sessions=3, clock=lambda: now[0])
+		first = store.create()
+		now[0] += 1
+		others = []
+		for _ in range(3):
+			others.append(store.create())
+			now[0] += 1
+		self.assertFalse(store.valid(first))
+		self.assertTrue(all(store.valid(s) for s in others))
+
 class TestWebApp(unittest.TestCase):
 	"""The built web app in Vite's default layout: index.html and public/ files at the root, bundles in assets/."""
 	def setUp(self):
@@ -320,6 +417,12 @@ class TestWebApp(unittest.TestCase):
 			self.assertNotEqual(resp.text, "not served", path)
 
 class TestCors(unittest.TestCase):
+	def test_the_session_cookie_may_be_used_from_the_configured_origin(self):
+		client = TestClient(create_app(WebSettings(cors_origin="http://localhost:5173")))
+		resp = client.options("/api/session", headers={"Origin": "http://localhost:5173", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "authorization"})
+		self.assertEqual(resp.headers.get("access-control-allow-origin"), "http://localhost:5173")
+		self.assertEqual(resp.headers.get("access-control-allow-credentials"), "true")
+
 	def test_only_configured_origin_is_allowed(self):
 		client = TestClient(create_app(WebSettings(cors_origin="http://localhost:5173")))
 		ok = client.options("/api/settings/system", headers={"Origin": "http://localhost:5173", "Access-Control-Request-Method": "PUT"})

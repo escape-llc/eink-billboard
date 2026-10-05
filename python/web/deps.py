@@ -24,15 +24,25 @@ def get_time_of_day(request: Request) -> TimeOfDay:
 	tod = isp.get_service(TimeOfDay) if isp is not None else None
 	return tod if tod is not None else SystemTimeOfDay()
 
-def require_token(request: Request) -> None:
-	"""When the application has an API token configured, every /api request must present it as a Bearer token."""
+SESSION_COOKIE = "eink_session"
+
+def has_valid_bearer(request: Request) -> bool:
 	token: str|None = getattr(request.app.state, "api_token", None)
 	if not token:
+		return False
+	scheme, _, presented = request.headers.get("authorization", "").partition(" ")
+	return scheme.lower() == "bearer" and hmac.compare_digest(presented.strip().encode(), token.encode())
+
+def require_token(request: Request) -> None:
+	"""
+	When the application has an API token configured, every /api request must present it as a Bearer token (scripts),
+	or carry the cookie of a session started with it (the web app, see routers/session.py).
+	"""
+	if not getattr(request.app.state, "api_token", None):
 		return
-	header = request.headers.get("authorization", "")
-	scheme, _, presented = header.partition(" ")
-	if scheme.lower() != "bearer" or not hmac.compare_digest(presented.strip().encode(), token.encode()):
-		raise ApiError(401, "Missing or invalid API token.")
+	if has_valid_bearer(request) or request.app.state.sessions.valid(request.cookies.get(SESSION_COOKIE)):
+		return
+	raise ApiError(401, "Missing or invalid API token.")
 
 CM = Annotated[ConfigurationManager, Depends(get_cm)]
 TOD = Annotated[TimeOfDay, Depends(get_time_of_day)]

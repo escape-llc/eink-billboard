@@ -11,7 +11,8 @@ from fastapi.responses import FileResponse
 from ..model.service_container import IServiceProvider
 from .deps import require_token
 from .errors import ApiError, install_error_handlers
-from .routers import lookups, schedule, settings
+from .routers import lookups, schedule, session, settings
+from .sessions import SessionStore
 
 logger = logging.getLogger(__name__)
 
@@ -34,13 +35,16 @@ def create_app(web: WebSettings, root_container: IServiceProvider|None = None, r
 	app = FastAPI(title="eInk Billboard", docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json")
 	app.state.root_container = root_container
 	app.state.api_token = web.api_token
+	app.state.sessions = SessionStore()
 	install_error_handlers(app)
 
 	if web.cors_origin:
 		app.add_middleware(
 			CORSMiddleware,
 			allow_origins=[web.cors_origin],
-			allow_methods=["GET", "PUT"],
+			# the web app signs in with a cookie, so a cross-origin development page must be allowed to send it
+			allow_credentials=True,
+			allow_methods=["GET", "PUT", "POST", "DELETE"],
 			allow_headers=["Content-Type", "Authorization"],
 		)
 
@@ -51,6 +55,8 @@ def create_app(web: WebSettings, root_container: IServiceProvider|None = None, r
 		api.include_router(router)
 		logger.info(f"Registered router: {name}")
 	app.include_router(api)
+	# not behind the token check: signing in is how you get past it
+	app.include_router(session.router, prefix="/api")
 
 	# unknown API paths must stay JSON 404s and never fall through to the web app
 	@app.api_route("/api/{path:path}", methods=["GET", "PUT", "POST", "DELETE", "PATCH"], include_in_schema=False)

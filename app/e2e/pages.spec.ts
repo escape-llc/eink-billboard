@@ -47,6 +47,19 @@ test.describe("every page renders from the seeded storage, without errors", () =
 		watch.expectNone()
 	})
 
+	test("the browser stores nothing but the theme", async ({ page }) => {
+		const watch = watchProblems(page)
+		await page.goto("/#/settings")
+		await expect(page.getByRole("tab", { name: "System" })).toBeVisible()
+		await page.getByRole("button", { name: "Theme Control" }).click()
+		await page.locator(".primary-button").nth(3).click()
+		const stored = await page.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }))
+		expect(stored.local.length, "the theme is saved").toBeGreaterThan(0)
+		expect(stored.local.filter(k => !k.startsWith("theme-")), "localStorage keys besides the theme").toEqual([])
+		expect(stored.session, "sessionStorage keys").toEqual([])
+		watch.expectNone()
+	})
+
 	test("the theme selector applies a colour", async ({ page }) => {
 		const watch = watchProblems(page)
 		await page.goto("/")

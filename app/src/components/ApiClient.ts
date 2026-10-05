@@ -1,8 +1,12 @@
 /**
  * Calls to the backend API.
  *
- * - sends the API token (when the server requires one) as a Bearer token; the user is asked for it on the first 401
+ * - every request carries the browser's cookies, which is how the session started by `signIn` is recognised
  * - turns every non-2xx response into an ApiError carrying the server's `message`
+ *
+ * The browser stores nothing for this (the theme is the only thing kept in local storage): when the server requires
+ * an API token, it is sent once to start a session, which the server remembers and the browser holds only as an
+ * HttpOnly cookie that scripts cannot read.
  */
 export class ApiError extends Error {
 	status: number
@@ -23,36 +27,7 @@ export function joinUrl(base: string, path: string): string {
 	return `${base.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`
 }
 
-const TOKEN_KEY = "eink-billboard.api-token"
-
-function readToken(): string | null {
-	try {
-		return localStorage.getItem(TOKEN_KEY)
-	}
-	catch {
-		return null
-	}
-}
-function writeToken(token: string | null) {
-	try {
-		if(token) {
-			localStorage.setItem(TOKEN_KEY, token)
-		}
-		else {
-			localStorage.removeItem(TOKEN_KEY)
-		}
-	}
-	catch {
-		// storage is not available (private window, etc.); the token is asked for again next time
-	}
-}
-
-function withToken(init: RequestInit | undefined, token: string | null): RequestInit {
-	if(!token) return init ?? {}
-	const headers = new Headers(init?.headers)
-	headers.set("Authorization", `Bearer ${token}`)
-	return { ...init, headers }
-}
+const SESSION_URL = joinUrl(import.meta.env.VITE_API_URL ?? "/", "api/session")
 
 async function toApiError(rx: Response): Promise<ApiError> {
 	let body: any = undefined
@@ -66,41 +41,61 @@ async function toApiError(rx: Response): Promise<ApiError> {
 	return new ApiError(rx.status, message, body)
 }
 
-// A page loads several things at once, so several requests can get a 401 together. Only the first asks:
-// a token typed (or a prompt cancelled) changes the epoch, and a request that was sent in an earlier epoch
-// uses what was decided instead of prompting again.
-let tokenEpoch = 0
-// typed in this session; kept in storage once the server accepts it
-let enteredToken: string | null = null
+/** Ask for the token and start a session with it. False when the prompt is cancelled or the server refuses the token. */
+async function signIn(): Promise<boolean> {
+	// window.prompt blocks, so the other requests that failed with this one wait behind it
+	const token = window.prompt("This device requires an API token:")
+	if(!token) {
+		return false
+	}
+	const rx = await fetch(SESSION_URL, {
+		method: "POST",
+		credentials: "include",
+		headers: { Authorization: `Bearer ${token}` }
+	})
+	return rx.ok
+}
+
+// A page loads several things at once, in waves, so many requests can get a 401. Only the first asks;
+// the others wait for that sign-in. A request that was sent before a sign-in finished and answered after it
+// (the epoch changed) is simply retried.
+let signingIn: Promise<boolean> | null = null
+let epoch = 0
+// The prompt was cancelled or the server refused the token: do not keep asking while this page is open.
+// The requests fail with the server's message, and reloading the page asks again.
+let declined = false
 
 export async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
-	const epoch = tokenEpoch
-	const sentWith = enteredToken ?? readToken()
-	let rx = await fetch(url, withToken(init, sentWith))
+	const send = () => fetch(url, { credentials: "include", ...init })
+	const sentIn = epoch
+	let rx = await send()
 	if(rx.status !== 401) {
 		return rx
 	}
-	let token = enteredToken ?? readToken()
-	if(epoch === tokenEpoch && (!token || token === sentWith)) {
-		// window.prompt blocks, so the other requests that failed with this one wait behind it
-		token = window.prompt("This device requires an API token:")
-		tokenEpoch++
-		enteredToken = token || null
-	}
-	if(!token || token === sentWith) {
-		throw await toApiError(rx)
-	}
-	rx = await fetch(url, withToken(init, token))
-	if(rx.status === 401) {
-		if(enteredToken === token) {
-			enteredToken = null
+	if(epoch !== sentIn) {
+		rx = await send()
+		if(rx.status !== 401) {
+			return rx
 		}
-		writeToken(null)
+	}
+	if(declined) {
 		throw await toApiError(rx)
 	}
-	writeToken(token)
-	if(enteredToken === token) {
-		enteredToken = null
+	signingIn ??= signIn().then(ok => {
+		if(ok) {
+			epoch++
+		}
+		else {
+			declined = true
+		}
+		return ok
+	}).finally(() => { signingIn = null })
+	if(!await signingIn) {
+		throw await toApiError(rx)
+	}
+	rx = await send()
+	if(rx.status === 401) {
+		throw await toApiError(rx)
 	}
 	return rx
 }
@@ -120,4 +115,9 @@ export function apiPut<T = any>(url: string, data: unknown): Promise<T> {
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(data)
 	})
+}
+
+/** End the session on the server and drop the cookie. */
+export async function signOut(): Promise<void> {
+	await fetch(SESSION_URL, { method: "DELETE", credentials: "include" })
 }
