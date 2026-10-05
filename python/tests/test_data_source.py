@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import cast
+from typing import Any, cast
 import unittest
 
 from ..datasources.countdown.countdown import CountdownAsync
@@ -84,6 +84,11 @@ class TestAsyncDataSources(unittest.TestCase):
 			"folder": "python/tests/images"
 		}
 		self.pool.submit(self.run_datasource_async, ds, params, (800, 480), 9).result(timeout=60)
+	def test_image_folder_requires_folder(self):
+		import asyncio
+		ds = ImageFolderAsync("image-folder", "image-folder")
+		with self.assertRaisesRegex(ValueError, "'folder' setting is required"):
+			asyncio.run(ds.open_async(cast(Any, None), {}))
 	def test_comic_feed(self):
 		ds = ComicFeedAsync("comic-feed", "comic-feed")
 		params = {
