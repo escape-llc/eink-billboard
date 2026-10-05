@@ -19,8 +19,13 @@ FIXTURES = os.path.join(ROOT, "app", "e2e", "fixtures", "storage")
 # the playlist fixture plays the repository's own test images, so no track fails (a failing track is retried without delay)
 PLACEHOLDERS = { "__E2E_IMAGES__": os.path.join(ROOT, "python", "tests", "images") }
 
+# the only place a storage may be built: the folder is deleted first, so it must not be able to name anything else
+SCRATCH = os.path.join(ROOT, ".e2e-storage")
+
 def build(target: str) -> str:
-	target = os.path.abspath(target)
+	target = os.path.realpath(target)
+	if not target.startswith(os.path.realpath(SCRATCH) + os.sep):
+		sys.exit(f"Refusing to build a storage outside {SCRATCH}: {target}")
 	shutil.rmtree(target, ignore_errors=True)
 	os.makedirs(target)
 	ConfigurationManager(storage_path=target).hard_reset()

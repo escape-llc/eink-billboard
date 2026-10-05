@@ -134,6 +134,13 @@ class TestPluginsAndDatasources(WebApiTestBase):
 		self.assertEqual(sorted(os.listdir(self.storage)), before)
 		self.assertFalse(os.path.exists(os.path.join(self.tmp.name, "evil")))
 
+	def test_unknown_ids_are_not_echoed_back(self):
+		probe = "zz-probe-zz"
+		for url in (f"/api/plugins/{probe}/settings", f"/api/datasources/{probe}/settings", f"/api/settings/{probe}", f"/api/schemas/{probe}"):
+			resp = self.client.get(url)
+			self.assertEqual(resp.status_code, 404, url)
+			self.assertNotIn(probe, resp.text, url)
+
 	def test_datasource_settings_round_trip(self):
 		self.write_datasource_settings("wpotd", {"shrinkToFit": True})
 		resp = self.client.get("/api/datasources/wpotd/settings")
@@ -298,6 +305,14 @@ class TestWebApp(unittest.TestCase):
 		resp = self.client.get("/api/whatever")
 		self.assertEqual(resp.status_code, 404)
 		self.assertEqual(resp.headers["content-type"], "application/json")
+
+	def test_does_not_follow_a_link_out_of_the_bundle(self):
+		link = os.path.join(self.dist, "assets", "outside.txt")
+		try:
+			os.symlink(os.path.join(self.tmp.name, "secret.txt"), link)
+		except (OSError, NotImplementedError):
+			self.skipTest("symbolic links are not available here")
+		self.assertNotEqual(self.client.get("/assets/outside.txt").text, "not served")
 
 	def test_does_not_escape_the_bundle_folder(self):
 		for path in ("/../secret.txt", "/%2e%2e/secret.txt", "/assets/../../secret.txt", "/assets/%2e%2e/%2e%2e/secret.txt", "/..%2fsecret.txt", "/%00"):

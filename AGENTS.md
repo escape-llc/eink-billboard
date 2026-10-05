@@ -80,6 +80,8 @@ cd app && npm run e2e                      # build, then the browser tests (Play
 - **Settings documents** carry `_id` and `_rev` (a content hash); a `PUT` must echo `_rev` or gets 409. Files are written atomically by `_internal_save`; never write settings files any other way.
   Anything that watches the files must therefore also handle a *move onto* the real file (the watcher reports the destination), not only modifications.
 - **IDs from URLs are untrusted.** Plugin and datasource IDs must come from `cm.enum_plugins()` / `cm.enum_datasources()`; never build a path from a raw URL parameter.
+  Validating is not enough for the analyser (or a reader): what builds the path must be **our own value** (the constant from our list, the ID declared in the descriptor), not the URL's string that passed a check. Files served for a URL are resolved with `realpath` and must start with the folder's prefix (see `_file_in_bundle`), which also stops symbolic links.
+  Error bodies do not echo the URL's text back. CodeQL's `py/path-injection` alerts are about exactly this; fix the flow, do not dismiss the alert.
 - **Secrets.** A schema property with `"secret": true` is masked (`********`) in GET responses and kept when the mask, or nothing, is sent back. Mark any new key/token/password property that way.
 - **Plugins and datasources can add API routes:** export an `APIRouter` and name it in the `"router"` entry of the `*-info.json`.
 - **Web app.** All backend calls go through `ApiClient` (`apiJson`/`apiPut`); do not call `fetch` directly, since it adds the token and surfaces the server's message.
