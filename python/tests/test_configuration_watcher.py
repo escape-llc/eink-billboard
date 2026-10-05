@@ -88,5 +88,36 @@ class TestConfigurationWatcher(unittest.TestCase):
 			# stop should cleanly stop the observer
 			watcher.stop()
 
+	def test_temp_files_ignored_and_no_keys_retained(self):
+		sink = _RecordingSink()
+		handler = MessageSinkHandler(ConstantTimeOfDay(datetime(2020, 1, 2, 3, 4, 5)), sink, 0.05)
+		for i in range(20):
+			tmp = f'd/.tmp-{i}.json'
+			handler.on_created(FileCreatedEvent(src_path=tmp))
+			handler.on_modified(FileModifiedEvent(src_path=tmp))
+			handler.on_moved(FileMovedEvent(src_path=tmp, dest_path='d/real.json'))
+		time.sleep(0.3)
+		self.assertEqual([(m.type, m.path) for m in sink.messages], [('modified', 'd/real.json')])
+		self.assertEqual(handler.timers, {})
+
+	def test_cancel_all_stops_pending_events(self):
+		sink = _RecordingSink()
+		handler = MessageSinkHandler(ConstantTimeOfDay(datetime(2020, 1, 2, 3, 4, 5)), sink, 0.1)
+		handler.on_modified(FileModifiedEvent(src_path='x.json'))
+		handler.cancel_all()
+		time.sleep(0.3)
+		self.assertEqual(sink.messages, [])
+		self.assertEqual(handler.timers, {})
+
+	def test_repeated_events_debounce_to_one(self):
+		sink = _RecordingSink()
+		handler = MessageSinkHandler(ConstantTimeOfDay(datetime(2020, 1, 2, 3, 4, 5)), sink, 0.1)
+		for _ in range(5):
+			handler.on_modified(FileModifiedEvent(src_path='x.json'))
+			time.sleep(0.02)
+		time.sleep(0.4)
+		self.assertEqual(len(sink.messages), 1)
+		self.assertEqual(handler.timers, {})
+
 if __name__ == '__main__':
 	unittest.main()
