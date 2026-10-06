@@ -42,6 +42,8 @@ class ImageFolderAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		self.logger = logging.getLogger(__name__)
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
 		folder_path = params.get('folder')
+		if not folder_path:
+			raise ValueError("The 'folder' setting is required for the image folder datasource.")
 		image_files = list_files_in_folder(folder_path)
 		return image_files
 	async def render_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any], state:Any) -> MediaRenderResult | None:

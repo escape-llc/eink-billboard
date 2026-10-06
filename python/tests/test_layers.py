@@ -179,6 +179,49 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.layer._start_playback(StartPlayback(datetime.now()))
 		self.assertEqual(self.layer.state, 'loaded')
 
+	def test_failing_pass_backs_off_and_resets(self):
+		import asyncio, time
+		class Boom:
+			def __init__(self, id, name):
+				self.id, self.name = id, name
+			async def task_async(self, ctx, track, donev):
+				raise RuntimeError("boom")
+		class Fine:
+			def __init__(self, id, name):
+				self.id, self.name = id, name
+			async def task_async(self, ctx, track, donev):
+				return None
+		layer = self.layer
+		layer.BACKOFF_INITIAL_SECONDS = 0.2
+		layer.BACKOFF_MAX_SECONDS = 0.4
+		track = PlaylistSchedule("p1", "t1", "Title", PlaylistScheduleData({}))
+		playlists = cast(list[ScheduleLoaderDict], [{"info": Playlist("pl1", "Main", items=[track]), "name": "x", "path": "/x", "type": SCHEMA_PLAYLIST}])
+		plugin_cls = [Boom]
+		layer._evaluate_plugin = lambda t: {"plugin": plugin_cls[0]("p1", "Plugin"), "track": t}  # type: ignore
+		root = ServiceContainer()
+		root.add_service(TimeOfDay, layer.timebase)
+		def one_pass() -> float:
+			start = time.monotonic()
+			asyncio.run(layer._layer_task(root, playlists, Event()))
+			return time.monotonic() - start
+		self.assertGreaterEqual(one_pass(), 0.2)
+		self.assertGreaterEqual(one_pass(), 0.4)
+		self.assertGreaterEqual(one_pass(), 0.4)
+		self.assertLessEqual(layer._backoff, 0.4)
+		plugin_cls[0] = Fine
+		self.assertLess(one_pass(), 0.2)
+		self.assertEqual(layer._backoff, 0.0)
+
+	def test_empty_playlists_back_off(self):
+		import asyncio, time
+		layer = self.layer
+		layer.BACKOFF_INITIAL_SECONDS = 0.2
+		root = ServiceContainer()
+		root.add_service(TimeOfDay, layer.timebase)
+		start = time.monotonic()
+		asyncio.run(layer._layer_task(root, [], Event()))
+		self.assertGreaterEqual(time.monotonic() - start, 0.2)
+
 	def test_ctor_invalid_router(self):
 		with self.assertRaises(ValueError):
 			PlaylistLayer("bad", cast(MessageRouter, None))
