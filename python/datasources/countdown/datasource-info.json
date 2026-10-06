@@ -29,7 +29,7 @@
 				},
 				{
 					"name": "targetDate",
-					"type": "datetime",
+					"type": "date",
 					"required": true,
 					"label": "Target Date",
 					"description": "Countdown to date."

@@ -11,7 +11,7 @@
 				<ToggleSwitch :name="field.name" size="small" fluid />
 			</InputGroupAddon>
 		</template>
-		<template v-if="field.type === 'schema'">
+		<template v-else-if="field.type === 'schema'">
 			<Select size="small" :name="field.name" :options="field.list"
 				optionLabel="name" optionValue="value" :showClear="field.required === false"
 				:placeholder="field.label" fluid @change="handleSchemaChange($event, field)" />
@@ -26,10 +26,11 @@
 				optionLabel="name" optionValue="value" :showClear="field.required === false"
 				:placeholder="field.label" fluid />
 		</template>
-		<template v-else-if="field.type === 'number'">
+		<template v-else-if="field.type === 'number' || field.type === 'int'">
 			<InputNumber style="flex-grow:1" :name="field.name" size="small"
 				:min="field.min" :max="field.max" :step="field.step" :showButtons="true"
-				:minFractionDigits="field.minFractionDigits || 0" :maxFractionDigits="field.maxFractionDigits || 0"
+				:minFractionDigits="field.type === 'int' ? 0 : field.minFractionDigits || 0"
+				:maxFractionDigits="field.type === 'int' ? 0 : field.maxFractionDigits || 0"
 				:showClear="field.required === false"
 				:placeholder="field.label" fluid />
 		</template>
@@ -37,6 +38,15 @@
 			<InputGroupAddon style="flex-grow:1">
 				<FormField style="width:100%;height:300px" :name="field.name" v-slot="$field" :validateOnValueUpdate="true">
 					<LeafletPicker :name="field.name" :modelValue="$field.value" @change="$field.props.onChange" />
+				</FormField>
+			</InputGroupAddon>
+		</template>
+		<template v-else-if="field.type === 'date'">
+			<InputGroupAddon style="flex-grow:1">
+				<FormField style="width:100%" :name="field.name" v-slot="$field" :validateOnValueUpdate="true">
+					<DatePicker size="small" fluid showIcon showButtonBar dateFormat="yy-mm-dd"
+						:modelValue="isoToDate($field.value)" :placeholder="field.label"
+						@update:modelValue="(d: Date|(Date|null)[]|null|undefined) => $field.props.onChange(dateToIso(Array.isArray(d) ? d[0] : d))" />
 				</FormField>
 			</InputGroupAddon>
 		</template>
@@ -66,9 +76,10 @@
 	</template>
 </template>
 <script setup lang="ts">
-import { Message, InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Select } from 'primevue';
+import { Message, InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Select, DatePicker } from 'primevue';
 import FormField from '@primevue/forms/formfield';
 import LeafletPicker from './LeafletPicker.vue';
+import { isoToDate, dateToIso } from './FormDates';
 import { computed, toRaw } from 'vue';
 export interface PropsType {
 	field: any
@@ -90,7 +101,6 @@ const props = defineProps<PropsType>()
 defineSlots<Record<string, (props: any) => any>>()
 const emits = defineEmits<EmitsType>()
 function handleSchemaChange(event: any, field: any) {
-	console.log("Schema change", event, field)
 	// emit an event to the parent with the selected schema
 	const schema = field.list.find((s: any) => s.value === event.value);
 	if (schema) {
