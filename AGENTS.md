@@ -94,7 +94,7 @@ cd app && npm run e2e                      # build, then the browser tests (Play
   | `location` | `{latitude -90..90, longitude -180..180}` |
   | `schema` | a string; the form also checks it is one of the available plugins/datasources |
   | `header` | no value, never validated |
-| `description` | shown under the field as help text (any property) |
+  | `description` | shown under the field as help text (any property) |
 
   **Conditional visibility.** A property may carry `visibleIf`, a predicate over the other fields' values (`app/src/components/FormVisibility.ts`, `python/web/visibility.py`, cases in `python/tests/form_visibility.json`):
   `{ "field": "x", "eq" | "ne" | "in" | "set": ... }`, combined with `all` / `any` / `not`. Names are the form's field names (children of a `schema` field share them); unset (missing, `null`, `""`) reads as `null`.

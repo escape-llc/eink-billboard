@@ -1,3 +1,4 @@
+import asyncio
 from asyncio import CancelledError
 from concurrent.futures import Future
 from dataclasses import dataclass
@@ -59,6 +60,9 @@ class EvaluatePluginDict(TypedDict):
 	error: NotRequired[str]
 
 class PlaylistLayer(DispatcherTask):
+	# a pass in which no track succeeded waits before the next pass: doubling from the first value up to the second
+	BACKOFF_INITIAL_SECONDS = 1.0
+	BACKOFF_MAX_SECONDS = 60.0
 	def __init__(self, name, router: MessageRouter):
 		super().__init__(name)
 		if router is None:
@@ -75,6 +79,7 @@ class PlaylistLayer(DispatcherTask):
 		self.timebase: TimeOfDay|None = None
 		self.shutdownlist: list[IRequireShutdown] = []
 		self.state = 'uninitialized'
+		self._backoff = 0.0
 		self.logger = logging.getLogger(__name__)
 	def _evaluate_plugin(self, track: PlaylistSchedule) -> EvaluatePluginDict:
 		if self.cm is None:
@@ -141,6 +146,7 @@ class PlaylistLayer(DispatcherTask):
 		self.logger.info(f"'{self.name}' Layer task started.")
 		try:
 			tod = isp.required(TimeOfDay)
+			succeeded = 0
 			for plindex, plinfo in enumerate(playlists):
 				playlist:Playlist = cast(Playlist, plinfo.get("info"))
 				self.logger.info(f"Loaded playlist '{playlist.name}' with {len(playlist.items)} items.")
@@ -157,6 +163,8 @@ class PlaylistLayer(DispatcherTask):
 						ctx = PluginExecutionContext(isp, self.dimensions, tod.current_time())
 						msg = await plugin.task_async(ctx, track, donev)
 						self.logger.info(f"Plugin '{plugin.name}' for track '{track.title}' completed with message: {msg}")
+						succeeded += 1
+						self._backoff = 0.0
 						self.state = 'playing'
 						telemetry: TelemetryDict = {
 							"state": self.state,
@@ -169,6 +177,11 @@ class PlaylistLayer(DispatcherTask):
 					except Exception as e:
 						self.state = "error"
 						self._error_with_telemetry(f"Error invoke start with plugin '{plugin.name}' track '{track.title}': {e}", tod.current_time())
+			if succeeded == 0:
+				# nothing played (every track failed, or there were none); do not let the next pass start at once
+				self._backoff = self.BACKOFF_INITIAL_SECONDS if self._backoff <= 0 else min(self._backoff * 2, self.BACKOFF_MAX_SECONDS)
+				self.logger.warning(f"'{self.name}' no track succeeded in this pass, waiting {self._backoff:g}s before the next one.")
+				await asyncio.sleep(self._backoff)
 			return None
 		except CancelledError as ce:
 			self.logger.info(f"'{self.name}' Layer task cancelled.")
