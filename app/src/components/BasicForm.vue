@@ -38,7 +38,8 @@ import Form from "@primevue/forms/form"
 import { ref, toRaw, nextTick, watch, inject, computed } from "vue"
 import z from "zod"
 import BasicFormField from './BasicFormField.vue'
-import type { LookupValue, FormDef, SchemaType, PropertiesDef } from "./FormDefs"
+import { fieldRules, type FormField } from "./FormValidation"
+import type { LookupValue, FormDef, SchemaType } from "./FormDefs"
 
 const form = ref()
 let currentResolver: z.ZodTypeAny|undefined = undefined;
@@ -63,23 +64,6 @@ export interface EmitsType {
 	(e: 'validate', data: ValidateEventData): void
 	(e: 'submit', data: any): void
 }
-
-z.config({
-	customError: (issue)=> {
-		if (issue.code === "invalid_type" && (issue.input === null || issue.input === undefined)) {
-			return "Required";
-		}
-		return undefined;
-	}
-});
-const nullableAndEmptyStringSchema = z.preprocess(
-  (val) => (val === "" ? null : val),
-  z.string().nullable()
-);
-const nulableAndEmptyDateSchema = z.preprocess(
-  (arg) => (arg === "" ? null : arg), // Convert "" to null
-  z.iso.date().nullable()    // Then allow null or a valid ISO date
-);
 
 const props = withDefaults(defineProps<PropsType>(), { fieldNameWidth: "10rem" })
 const emits = defineEmits<EmitsType>()
@@ -122,7 +106,7 @@ function ensureInitializeForm(schema: SchemaType, values: any): void {
 	if(values && Object.keys(values).length === 0) return;
 	if(!schema) return;
 	localProperties.value = formProperties(schema)
-	currentResolver = createResolver(schema, localProperties.value)
+	currentResolver = createResolver(localProperties.value)
 	startLookups(schema, localProperties.value)
 }
 function startLookups(schema: SchemaType, values: any[]): void {
@@ -245,93 +229,12 @@ function lookupUrl(target: any): void {
 		// TODO add an entry corresponding to current value if missing
 	})
 }
-function schemaFor(px: PropertiesDef): z.ZodTypeAny|undefined {
-	if(!px) return undefined;
-	switch(px.type) {
-		case "header":
-			return undefined
-		case "string":
-			if(px.required === true) {
-				return z.string().min(1, { error:"Required" })
-			}
-			else {
-				return nullableAndEmptyStringSchema
-			}
-		case "boolean":
-			let r2 = z.boolean()
-			return r2
-		case "number":
-			let r4 = z.number()
-			if(px.min !== undefined) {
-				r4 = r4.min(px.min, { error:`Minimum ${px.min}` })
-			}
-			if(px.max !== undefined) {
-				r4 = r4.max(px.max, { error:`Maximum ${px.max}` })
-			}
-			// for number this must go on the end
-			if(px.required === true) {
-				let r5 = r4.nonoptional()
-				return r5
-			}
-			else {
-				return r4
-			}
-		case "location":
-			let r6 = z.object({ latitude: z.number(), longitude: z.number() })
-			if(px.required === true) {
-				let r7 = r6.nonoptional()
-				return r7
-			}
-			else {
-				return r6
-			}
-		case "schema":
-			// TODO enforce value is in the schema list
-			let r8 = z.string()
-			if(px.required === true) {
-				r8 = r8.min(1, { error:"Required" })
-			}
-			return r8
-		case "int":
-			const ri = z.number().int({ error:"Whole numbers only" })
-			const ric = px.min !== undefined ? ri.min(px.min, { error:`Minimum ${px.min}` }) : ri
-			const rid = px.max !== undefined ? ric.max(px.max, { error:`Maximum ${px.max}` }) : ric
-			return px.required === true ? rid.nonoptional() : rid
-		case "date":
-			return px.required === true ? z.iso.date() : nulableAndEmptyDateSchema
-		default:
-			console.warn("no validation for type, using 'string'", px)
-			let r3 = z.string()
-			if((px as { required?: boolean }).required === true) {
-				r3 = r3.min(1, { error:"Required" })
-			}
-			return r3
-	}
-}
-function createResolver(schema: SchemaType, values: any[]): z.ZodTypeAny {
+function createResolver(fields: FormField[]): z.ZodTypeAny {
 	const resv: Record<string, z.ZodTypeAny> = {}
-	function recursiveBit(props: PropertiesDef[]): void {
-		props.forEach(px => {
-			const sx = schemaFor(px)
-			//console.log("schemaFor", px.name, sx)
-			if(sx) {
-				resv[px.name] = sx
-			}
-			if(px.type === "schema" && "lookup" in px && px.lookup) {
-				const target = values.find(vx => vx.name === px.lookup)
-				if(target) {
-					//console.log("recursive.schema", px.lookup, target.children)
-					if(target.children) {
-						recursiveBit(target.children)
-					}
-				}
-			}
-		})
-	}
 	if(props.beforeFieldsSchema) {
 		props.beforeFieldsSchema(resv)
 	}
-	recursiveBit(schema.properties)
+	fieldRules(fields, resv)
 	if(props.afterFieldsSchema) {
 		props.afterFieldsSchema(resv)
 	}
@@ -371,7 +274,7 @@ const handleFormFieldEvent = (data:any) => {
 		const field = localProperties.value.find((f:any) => f.name === data.field.name)
 		if(field) {
 			field.children = formProperties(data.selected.schema.schema)
-			currentResolver = createResolver(props.form!.schema, localProperties.value)
+			currentResolver = createResolver(localProperties.value)
 			startLookups(data.selected.schema.schema, field.children)
 			nextTick().then(_ => {
 				form.value?.validate();

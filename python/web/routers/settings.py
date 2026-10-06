@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 
 from ...model.configuration_manager import CollectInfoDict, ConfigurationManager
 from ..deps import CM
-from ..documents import get_document, load_schema_properties, put_document, secret_fields
+from ..documents import get_document, load_schema_lookups, load_schema_properties, put_document, secret_fields
 from ..errors import ApiError
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ def put_device_settings(name: str, cm: CM, body: dict[str, Any] = Body(...)):
 	name = _device_name(name)
 	cob = cm.settings_manager().open(name)
 	properties = load_schema_properties(cm.schema_path(name))
-	return put_document(f"{name}-settings", body, cob, properties)
+	return put_document(f"{name}-settings", body, cob, properties, lookups=load_schema_lookups(cm.schema_path(name)))
 
 @router.get('/schemas/{name}')
 def get_device_schema(name: str, cm: CM):

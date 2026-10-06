@@ -83,6 +83,19 @@ cd app && npm run e2e                      # build, then the browser tests (Play
   Validating is not enough for the analyser (or a reader): what builds the path must be **our own value** (the constant from our list, the ID declared in the descriptor), not the URL's string that passed a check. Files served for a URL are resolved with `realpath` and must start with the folder's prefix (see `_file_in_bundle`), which also stops symbolic links.
   Error bodies do not echo the URL's text back. CodeQL's `py/path-injection` alerts are about exactly this; fix the flow, do not dismiss the alert.
 - **Secrets.** A schema property with `"secret": true` is masked (`********`) in GET responses and kept when the mask, or nothing, is sent back. Mark any new key/token/password property that way.
+- **Form field rules are written twice and must agree.** The form (`app/src/components/FormValidation.ts`) and the server (`validate_properties` in `python/web/documents.py`) apply the same rules to a descriptor's properties; the cases both must pass are in `python/tests/form_rules.json` (run by Vitest and by `test_web_api`). Change a rule in both places and add a case.
+
+  | Property | Rule (message) |
+  |---|---|
+  | `required: true` | not null / not empty ("Required"). Optional properties may be `null` (unset) |
+  | `string` | with `enum`, or an `items` lookup: one of the values ("Not one of the allowed values"); a URL lookup is not checked |
+  | `number`, `int` | `min` / `max` inclusive, **including 0** ("Minimum N", "Maximum N"); `int` has no fraction ("Whole numbers only") |
+  | `date` | `YYYY-MM-DD`, a real day ("Expected a date (YYYY-MM-DD)") |
+  | `location` | `{latitude -90..90, longitude -180..180}` |
+  | `schema` | a string; the form also checks it is one of the available plugins/datasources |
+  | `header` | no value, never validated |
+
+  The server's 422 body lists `errors: [{ path: [name], message }]`. Use PrimeVue components for every control the form renders (`DatePicker`, `InputNumber`, `Select`, ...).
 - **Plugins and datasources can add API routes:** export an `APIRouter` and name it in the `"router"` entry of the `*-info.json`.
 - **Web app.** All backend calls go through `ApiClient` (`apiJson`/`apiPut`); do not call `fetch` directly, since it sends the session cookie, signs in when the server asks, and surfaces the server's message.
 - **The browser stores nothing but the theme** (`localStorage`, key `theme-...`); everything else lives on the server, which is trusted. Never put a token, a session, or any other state in `localStorage`, `sessionStorage`, or a script-readable cookie (CodeQL flags it as clear-text storage of sensitive information, and it is not needed).

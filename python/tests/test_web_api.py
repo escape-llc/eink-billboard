@@ -12,7 +12,7 @@ from ..model.configuration_manager import ConfigurationManager, _internal_save
 from ..model.service_container import ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..web.app import WebSettings, create_app
-from ..web.documents import SECRET_MASK
+from ..web.documents import SECRET_MASK, validate_properties
 from ..web.sessions import SessionStore
 
 def _error_shape(test: unittest.TestCase, resp, status: int):
@@ -117,6 +117,42 @@ class TestSettings(WebApiTestBase):
 			resp = self.client.get(f"/api/schemas/{name}")
 			self.assertEqual(resp.status_code, 200)
 			self.assertIn("schema", resp.json())
+
+class TestValidateProperties(unittest.TestCase):
+	def test_rules_shared_with_the_form(self):
+		path = os.path.join(os.path.dirname(__file__), "form_rules.json")
+		with open(path, "r", encoding="utf-8") as f:
+			cases = json.load(f)["cases"]
+		self.assertGreater(len(cases), 10)
+		for case in cases:
+			with self.subTest(case["name"]):
+				errors = validate_properties({ "f": case["value"] }, [case["field"]])
+				self.assertEqual(errors[0]["message"] if errors else None, case["error"])
+				if errors:
+					self.assertEqual(errors[0]["path"], ["f"])
+
+	def test_missing_required_is_reported_and_headers_are_skipped(self):
+		props = [{ "name": "a", "type": "string", "required": True }, { "name": "h", "type": "header", "label": "H" }]
+		self.assertEqual(validate_properties({}, props), [{ "path": ["a"], "message": "Required" }])
+
+	def test_items_lookup_limits_the_values(self):
+		props = [{ "name": "tf", "type": "string", "lookup": "fmt", "required": True }]
+		lookups = { "fmt": { "items": [{ "name": "24h", "value": "24h" }, { "name": "12h", "value": "12h" }] } }
+		self.assertEqual(validate_properties({ "tf": "12h" }, props, lookups), [])
+		self.assertEqual(validate_properties({ "tf": "9h" }, props, lookups)[0]["message"], "Not one of the allowed values")
+		# a URL lookup cannot be checked here
+		self.assertEqual(validate_properties({ "tf": "anything" }, props, { "fmt": { "url": "/x" } }), [])
+
+class TestSettingsValidation(WebApiTestBase):
+	def test_put_out_of_range_and_unknown_choice_are_422_with_the_field_path(self):
+		doc = self.client.get("/api/settings/theme").json()
+		doc["hue"] = 400
+		body = _error_shape(self, self.client.put("/api/settings/theme", json=doc), 422)
+		self.assertEqual(body["errors"][0], { "path": ["hue"], "message": "Maximum 360" })
+		doc = self.client.get("/api/settings/system").json()
+		doc["timeFormat"] = "9h"
+		body = _error_shape(self, self.client.put("/api/settings/system", json=doc), 422)
+		self.assertEqual(body["errors"][0]["path"], ["timeFormat"])
 
 class TestPluginsAndDatasources(WebApiTestBase):
 	def test_lists(self):
