@@ -259,17 +259,18 @@ onMounted(() => {
 		downloadToRef(schemaThemeUrl, schemaTheme)
 		downloadToRef(schemaDisplayUrl, schemaDisplay)
 		downloadToRef(schemaSystemUrl, schemaSystem)
-		// TODO account for these not being persisted
+		// a settings file that was never saved is a 404; fetchSettings then starts from the schema's `default`
 		downloadToRef(settingsSystemUrl, settingsSystem)
 		downloadToRef(settingsDisplayUrl, settingsDisplay)
 		downloadToRef(settingsThemeUrl, settingsTheme)
 	})
 })
 
-watch(selectedPlugin, (nv,ov) => {
-	console.log("selectedPlugin", nv, ov)
+// a plugin or data source with no settings block, or an empty one, has nothing to edit
+const hasSettings = (item: any): boolean => (item?.settings?.schema?.properties?.length ?? 0) > 0
+watch(selectedPlugin, (nv) => {
 	if(nv) {
-		if(nv.settings.schema.properties.length > 0) {
+		if(hasSettings(nv)) {
 			schemaPlugin.value = nv.settings
 			fetchSettings(settingsPluginUrl.value, settingsPlugin, nv)
 		}
@@ -279,14 +280,14 @@ watch(selectedPlugin, (nv,ov) => {
 		}
 	}
 })
-watch(selectedDatasource, (nv,ov) => {
-	console.log("selectedDatasource", nv, ov)
+watch(selectedDatasource, (nv) => {
 	if(nv) {
-		schemaDatasource.value = nv.settings
-		if(nv.settings.schema.properties.length > 0) {
+		if(hasSettings(nv)) {
+			schemaDatasource.value = nv.settings
 			fetchSettings(settingsDatasourceUrl.value, settingsDatasource, nv)
 		}
 		else {
+			schemaDatasource.value = undefined
 			settingsDatasource.value = undefined
 		}
 	}

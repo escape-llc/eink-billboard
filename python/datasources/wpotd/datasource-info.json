@@ -42,7 +42,8 @@
 					"required": false,
 					"default": null,
 					"label": "Custom Date",
-					"description": "Custom date for the Picture of the Day."
+					"description": "Custom date for the Picture of the Day. Not used when the date is randomized.",
+					"visibleIf": { "field": "randomizeDate", "eq": false }
 				}
 			]
 		},

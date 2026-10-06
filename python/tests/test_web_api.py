@@ -14,6 +14,7 @@ from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..web.app import WebSettings, create_app
 from ..web.documents import SECRET_MASK, validate_properties
 from ..web.sessions import SessionStore
+from ..web.visibility import evaluate, find_problems, hidden_names, null_hidden
 
 def _error_shape(test: unittest.TestCase, resp, status: int):
 	test.assertEqual(resp.status_code, status, resp.text)
@@ -142,6 +143,68 @@ class TestValidateProperties(unittest.TestCase):
 		self.assertEqual(validate_properties({ "tf": "9h" }, props, lookups)[0]["message"], "Not one of the allowed values")
 		# a URL lookup cannot be checked here
 		self.assertEqual(validate_properties({ "tf": "anything" }, props, { "fmt": { "url": "/x" } }), [])
+
+class TestVisibility(unittest.TestCase):
+	def test_rules_shared_with_the_form(self):
+		path = os.path.join(os.path.dirname(__file__), "form_visibility.json")
+		with open(path, "r", encoding="utf-8") as f:
+			cases = json.load(f)["cases"]
+		self.assertGreater(len(cases), 10)
+		for case in cases:
+			with self.subTest(case["name"]):
+				self.assertEqual(evaluate(case["predicate"], case["values"]), case["visible"])
+
+	PROPS = [
+		{ "name": "randomizeDate", "type": "boolean" },
+		{ "name": "customDate", "type": "date", "required": True, "visibleIf": { "field": "randomizeDate", "eq": False } },
+	]
+
+	def test_hidden_properties_are_not_validated_and_are_stored_as_null(self):
+		doc = { "randomizeDate": True, "customDate": "2026-01-01" }
+		self.assertEqual(hidden_names(self.PROPS, doc), { "customDate" })
+		self.assertEqual(null_hidden(doc, self.PROPS), { "randomizeDate": True, "customDate": None })
+		self.assertEqual(validate_properties(null_hidden(doc, self.PROPS), self.PROPS), [])
+		# visible again: required applies
+		shown = null_hidden({ "randomizeDate": False }, self.PROPS)
+		self.assertEqual(validate_properties(shown, self.PROPS), [{ "path": ["customDate"], "message": "Required" }])
+
+	def test_find_problems(self):
+		self.assertEqual(find_problems(self.PROPS), [])
+		self.assertIn("unknown field 'nope'", find_problems([{ "name": "a", "visibleIf": { "field": "nope", "eq": 1 } }])[0])
+		self.assertIn("needs eq, ne, in or set", find_problems([{ "name": "a", "visibleIf": { "field": "a" } }])[0])
+		cyc = [{ "name": "a", "visibleIf": { "field": "b", "set": True } }, { "name": "b", "visibleIf": { "field": "a", "set": True } }]
+		self.assertTrue(any("cycle" in m for m in find_problems(cyc)))
+
+class TestDescriptors(unittest.TestCase):
+	"""Every descriptor in the repository (not the test storage) must have well-formed `visibleIf` rules."""
+	@staticmethod
+	def _property_lists(node, where):
+		if isinstance(node, dict):
+			props = node.get("properties")
+			if isinstance(props, list) and all(isinstance(p, dict) and "name" in p for p in props):
+				yield where, props
+			for k, v in node.items():
+				yield from TestDescriptors._property_lists(v, f"{where}/{k}")
+		elif isinstance(node, list):
+			for i, v in enumerate(node):
+				yield from TestDescriptors._property_lists(v, f"{where}[{i}]")
+
+	def test_visible_if_rules_are_well_formed(self):
+		import glob
+		root = os.path.dirname(os.path.dirname(__file__))
+		files = glob.glob(os.path.join(root, "storage", "schemas", "*.json")) \
+			+ glob.glob(os.path.join(root, "plugins", "*", "*-info.json")) \
+			+ glob.glob(os.path.join(root, "datasources", "*", "*-info.json"))
+		self.assertGreater(len(files), 5)
+		checked = 0
+		for path in files:
+			with open(path, "r", encoding="utf-8") as f:
+				doc = json.load(f)
+			for where, props in self._property_lists(doc, os.path.relpath(path, root)):
+				checked += 1
+				with self.subTest(where):
+					self.assertEqual(find_problems(props), [])
+		self.assertGreater(checked, 5)
 
 class TestSettingsValidation(WebApiTestBase):
 	def test_put_out_of_range_and_unknown_choice_are_422_with_the_field_path(self):

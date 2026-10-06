@@ -22,6 +22,18 @@ PLACEHOLDERS = { "__E2E_IMAGES__": os.path.join(ROOT, "python", "tests", "images
 # the only place a storage may be built: the folder is deleted first, so it must not be able to name anything else
 SCRATCH = os.path.join(ROOT, ".e2e-storage")
 
+def _add_visibility_fields(target: str) -> None:
+	"""Two synthetic properties on the display schema, so the browser tests can see `visibleIf` work on a real settings page."""
+	schema_file = os.path.join(target, "schemas", "display.json")
+	with open(schema_file, "r", encoding="utf-8") as f:
+		schema = json.load(f)
+	schema["schema"]["properties"] += [
+		{ "name": "e2eAdvanced", "type": "boolean", "label": "E2E Advanced", "required": False },
+		{ "name": "e2eDetail", "type": "string", "label": "E2E Detail", "required": True, "visibleIf": { "field": "e2eAdvanced", "eq": True } },
+	]
+	with open(schema_file, "w", encoding="utf-8", newline="\n") as f:
+		json.dump(schema, f, indent=2)
+
 def build(target: str) -> str:
 	target = os.path.realpath(target)
 	if not target.startswith(os.path.realpath(SCRATCH) + os.sep):
@@ -42,6 +54,7 @@ def build(target: str) -> str:
 				text = text.replace(placeholder, json.dumps(value)[1:-1])
 			with open(path, "w", encoding="utf-8", newline="\n") as f:
 				f.write(text)
+	_add_visibility_fields(target)
 	# the factory default is a Windows path (c:\Temp\mock), which on Linux becomes a folder with that literal name in the working directory
 	display_file = os.path.join(target, "settings", "display-settings.json")
 	with open(display_file, "r", encoding="utf-8") as f:
