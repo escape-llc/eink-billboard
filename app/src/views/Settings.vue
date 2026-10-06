@@ -308,6 +308,9 @@ const handleValidate = (e: ValidateEventData) => {
 }
 const submitForm = (data:any) => {
 	console.log("submitForm", data)
+	if(data.handled) {
+		return
+	}
 	if(data.error) {
 		toast.add({severity:'error', summary: 'Error', detail: `Failed to save settings: ${data.error.message || 'Unknown error'}`, life: 5000});
 	}

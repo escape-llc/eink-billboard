@@ -18,17 +18,26 @@
 					</InputGroup>
 				</template>
 			</Toolbar>
+			<Message v-if="conflict" severity="warn" :closable="false" class="mt-1">
+				<div class="flex align-items-center gap-2 flex-wrap">
+					<span>{{ conflict.message }}</span>
+					<Button size="small" label="Reload" icon="pi pi-refresh" severity="secondary" @click="reload" />
+					<Button size="small" label="Overwrite" icon="pi pi-upload" severity="danger" @click="overwrite" />
+				</div>
+			</Message>
 			<slot name="header-end"></slot>
 		</template>
 	</BasicForm>
 </template>
 <script setup lang="ts">
-import { apiPut } from "./ApiClient"
-import { ref, watch, nextTick } from "vue"
+import { apiJson, apiPut, ApiError } from "./ApiClient"
+import { ref, watch, nextTick, onMounted, onBeforeUnmount } from "vue"
+import { onBeforeRouteLeave } from "vue-router"
+import { useConfirm } from "primevue/useconfirm"
 import BasicForm from "./BasicForm.vue"
 import type { ValidateEventData } from "./BasicForm.vue"
 import type { FormDef } from "./FormDefs"
-import { InputGroup, Button, Toolbar } from 'primevue';
+import { InputGroup, Button, Toolbar, Message } from 'primevue';
 
 export interface PropsType {
 	title?: string
@@ -41,6 +50,8 @@ export type SubmitEventData = {
 	result: unknown|null
 	invalid: unknown|null
 	error: unknown|null
+	/** the form has shown the problem itself (a conflict message); do not also toast it */
+	handled?: boolean
 }
 export interface EmitsType {
 	(e: 'validate', data: ValidateEventData): void
@@ -55,12 +66,13 @@ const form = ref<FormDef>()
 const bf = ref<InstanceType<typeof BasicForm>>()
 const initialValues = ref()
 const submitDisabled = ref(true)
+const conflict = ref<{ message: string, rev: string|undefined }|null>(null)
+let lastPost: any = undefined
 let _rev:string|undefined = undefined
 let _id:string|undefined = undefined
 let _schema:string|undefined = undefined
 
 watch(() => props.settings, (nv) => {
-	console.log("settings", nv)
 	if(nv) {
 		_rev = nv._rev
 		_id = nv._id
@@ -79,7 +91,6 @@ watch(() => props.settings, (nv) => {
 	}
 }, { immediate: true })
 watch(() => props.schema, (nv) => {
-	console.log("schema", nv)
 	if(nv) {
 		try {
 			form.value = nv
@@ -96,12 +107,81 @@ watch(() => props.schema, (nv) => {
 	}
 }, { immediate: true })
 const handleValidate = (ved: ValidateEventData) => {
-	console.log("validate", ved)
 	submitDisabled.value = !ved.result.success
 	emits("validate", ved)
 }
+function applySettings(nv: any) {
+	_rev = nv._rev
+	_id = nv._id
+	_schema = nv._schema
+	initialValues.value = nv
+	emits("load-settings", nv)
+}
+function send(post: any) {
+	lastPost = post
+	conflict.value = null
+	apiPut(props.settingsUrl, post)
+	.then(jv => {
+		if(jv.success) {
+			_rev = jv.rev
+		}
+		emits("submit", { result: jv, invalid: null, error: null })
+	})
+	.catch(ex => {
+		if(ex instanceof ApiError && ex.status === 409) {
+			// somebody else saved first: let the user choose between their copy and ours
+			conflict.value = { message: ex.message, rev: typeof ex.body?.rev === "string" ? ex.body.rev : undefined }
+			emits("submit", { result: null, invalid: null, error: ex, handled: true })
+		}
+		else if(ex instanceof ApiError && ex.status === 422 && Array.isArray(ex.body?.errors)) {
+			// each problem goes on its field
+			bf.value?.setServerErrors(ex.body.errors)
+			emits("submit", { result: null, invalid: null, error: ex })
+		}
+		else {
+			console.error("submitForm.unhandled", ex)
+			emits("submit", { result: null, invalid: null, error: ex })
+		}
+	})
+}
+/** Drop the edits and show what the server has now. */
+const reload = () => {
+	apiJson(props.settingsUrl)
+	.then(doc => {
+		conflict.value = null
+		applySettings(doc)
+	})
+	.catch(ex => emits("submit", { result: null, invalid: null, error: ex }))
+}
+/** Save the edits over what the server has now. */
+const overwrite = () => {
+	if(!lastPost || !conflict.value?.rev) return
+	send({ ...lastPost, _rev: conflict.value.rev })
+}
+const confirm = useConfirm()
+const leaving = (): boolean|Promise<boolean> => {
+	if(!bf.value?.isDirty) return true
+	return new Promise(resolve => {
+		confirm.require({
+			header: "Unsaved changes",
+			message: "Leave this page and discard your changes?",
+			icon: "pi pi-exclamation-triangle",
+			acceptLabel: "Discard",
+			rejectLabel: "Stay",
+			accept: () => resolve(true),
+			reject: () => resolve(false),
+		})
+	})
+}
+onBeforeRouteLeave(leaving)
+const warnBeforeClose = (e: BeforeUnloadEvent) => {
+	if(bf.value?.isDirty) {
+		e.preventDefault()
+	}
+}
+onMounted(() => window.addEventListener("beforeunload", warnBeforeClose))
+onBeforeUnmount(() => window.removeEventListener("beforeunload", warnBeforeClose))
 const submitForm = (data:any) => {
-	console.log("submitForm", data)
 	if(data.data.valid) {
 		// result.data has only the validated fields
 		const post = structuredClone(data.result.data)
@@ -114,18 +194,7 @@ const submitForm = (data:any) => {
 		if(_schema) {
 			post._schema = _schema
 		}
-		apiPut(props.settingsUrl, post)
-		.then(jv => {
-			console.log("submitForm.result", jv)
-			if(jv.success) {
-				_rev = jv.rev
-			}
-			emits("submit", { result: jv, invalid: null, error: null })
-		})
-		.catch(ex => {
-			console.error("submitForm.unhandled", ex)
-			emits("submit", { result: null, invalid: null, error: ex })
-		})
+		send(post)
 	}
 	else {
 		console.warn("submitForm.invalid", data)
