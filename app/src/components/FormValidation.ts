@@ -1,5 +1,7 @@
 import z from "zod"
 import type { PropertiesDef } from "./FormDefs"
+import { messages } from "./FormMessages"
+import { hiddenNames, type ValueSource } from "./FormVisibility"
 
 /** A property as the form holds it: the descriptor plus what the form resolved for it (`list` of a lookup, `children` of a `schema` field). */
 export type FormField = PropertiesDef & {
@@ -12,7 +14,7 @@ export type FormField = PropertiesDef & {
 z.config({
 	customError: (issue) => {
 		if (issue.code === "invalid_type" && (issue.input === null || issue.input === undefined)) {
-			return "Required"
+			return messages.required
 		}
 		return undefined
 	}
@@ -36,14 +38,14 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 	switch (px.type) {
 		case "string": {
 			let base: z.ZodTypeAny = z.string()
-			if (required) base = (base as z.ZodString).min(1, { error: "Required" })
+			if (required) base = (base as z.ZodString).min(1, { error: messages.required })
 			if (px.enum && px.enum.length > 0) {
 				const allowed = px.enum
-				base = base.refine(oneOf(allowed), { error: "Not one of the allowed values" })
+				base = base.refine(oneOf(allowed), { error: messages.notAllowed })
 			}
 			else if (px.list && px.list.length > 0) {
 				const allowed = px.list.map(x => x.value)
-				base = base.refine(oneOf(allowed), { error: "Not one of the allowed values" })
+				base = base.refine(oneOf(allowed), { error: messages.notAllowed })
 			}
 			return required ? base : z.preprocess(emptyToNull, base.nullable())
 		}
@@ -51,44 +53,51 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 			return z.boolean()
 		case "number":
 		case "int": {
-			let base = px.type === "int" ? z.number().int({ error: "Whole numbers only" }) : z.number()
-			if (px.min !== undefined) base = base.min(px.min, { error: `Minimum ${px.min}` })
-			if (px.max !== undefined) base = base.max(px.max, { error: `Maximum ${px.max}` })
+			let base = px.type === "int" ? z.number().int({ error: messages.wholeNumbers }) : z.number()
+			if (px.min !== undefined) base = base.min(px.min, { error: messages.minimum(px.min) })
+			if (px.max !== undefined) base = base.max(px.max, { error: messages.maximum(px.max) })
 			return optionalUnless(required, base)
 		}
 		case "location": {
 			const base = z.object({
-				latitude: z.number().min(-90, { error: "Latitude is -90 to 90" }).max(90, { error: "Latitude is -90 to 90" }),
-				longitude: z.number().min(-180, { error: "Longitude is -180 to 180" }).max(180, { error: "Longitude is -180 to 180" })
+				latitude: z.number().min(-90, { error: messages.latitude }).max(90, { error: messages.latitude }),
+				longitude: z.number().min(-180, { error: messages.longitude }).max(180, { error: messages.longitude })
 			})
 			return optionalUnless(required, base)
 		}
 		case "schema": {
 			let base: z.ZodTypeAny = z.string()
-			if (required) base = (base as z.ZodString).min(1, { error: "Required" })
+			if (required) base = (base as z.ZodString).min(1, { error: messages.required })
 			if (px.list && px.list.length > 0) {
-				base = base.refine(oneOf(px.list.map(x => x.value)), { error: "Not one of the available choices" })
+				base = base.refine(oneOf(px.list.map(x => x.value)), { error: messages.notAvailable })
 			}
 			return required ? base : z.preprocess(emptyToNull, base.nullable())
 		}
 		case "date": {
-			const iso = z.iso.date({ error: (issue) => (issue.input === null || issue.input === undefined ? "Required" : "Expected a date (YYYY-MM-DD)") })
+			const iso = z.iso.date({ error: (issue) => (issue.input === null || issue.input === undefined ? messages.required : messages.date) })
 			return required ? z.preprocess(emptyToNull, iso) : z.preprocess(emptyToNull, iso.nullable())
 		}
 		default: {
 			console.warn("no validation for type, using 'string'", px)
 			const base = z.string()
-			return (px as { required?: boolean }).required === true ? base.min(1, { error: "Required" }) : base
+			return (px as { required?: boolean }).required === true ? base.min(1, { error: messages.required }) : base
 		}
 	}
 }
 
-/** The rules of every field in the list, children of `schema` fields included, keyed by field name. */
-export function fieldRules(fields: FormField[], into: Record<string, z.ZodTypeAny> = {}): Record<string, z.ZodTypeAny> {
-	for (const px of fields) {
-		const sx = schemaFor(px)
-		if (sx) into[px.name] = sx
-		if (px.children) fieldRules(px.children, into)
+/**
+ * The rules of every field in the list, children of `schema` fields included, keyed by field name.
+ * With `values`, fields hidden by `visibleIf` for those values are left out: a hidden field is not applicable.
+ */
+export function fieldRules(fields: FormField[], into: Record<string, z.ZodTypeAny> = {}, values?: ValueSource): Record<string, z.ZodTypeAny> {
+	const hidden = values ? hiddenNames(fields, values) : new Set<string>()
+	const walk = (list: FormField[]) => {
+		for (const px of list) {
+			const sx = hidden.has(px.name) ? undefined : schemaFor(px)
+			if (sx) into[px.name] = sx
+			if (px.children) walk(px.children)
+		}
 	}
+	walk(fields)
 	return into
 }

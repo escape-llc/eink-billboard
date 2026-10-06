@@ -94,7 +94,11 @@ cd app && npm run e2e                      # build, then the browser tests (Play
   | `location` | `{latitude -90..90, longitude -180..180}` |
   | `schema` | a string; the form also checks it is one of the available plugins/datasources |
   | `header` | no value, never validated |
+| `description` | shown under the field as help text (any property) |
 
+  **Conditional visibility.** A property may carry `visibleIf`, a predicate over the other fields' values (`app/src/components/FormVisibility.ts`, `python/web/visibility.py`, cases in `python/tests/form_visibility.json`):
+  `{ "field": "x", "eq" | "ne" | "in" | "set": ... }`, combined with `all` / `any` / `not`. Names are the form's field names (children of a `schema` field share them); unset (missing, `null`, `""`) reads as `null`.
+  A hidden field is not applicable: it is not validated (a hidden `required` does not block) and is **saved as `null`**, by the form and again by the server. `test_web_api` checks every descriptor's `visibleIf` for unknown fields and cycles.
   The server's 422 body lists `errors: [{ path: [name], message }]`. Use PrimeVue components for every control the form renders (`DatePicker`, `InputNumber`, `Select`, ...).
 - **Plugins and datasources can add API routes:** export an `APIRouter` and name it in the `"router"` entry of the `*-info.json`.
 - **Web app.** All backend calls go through `ApiClient` (`apiJson`/`apiPut`); do not call `fetch` directly, since it sends the session cookie, signs in when the server asks, and surfaces the server's message.

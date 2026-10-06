@@ -39,10 +39,12 @@ import { ref, toRaw, nextTick, watch, inject, computed } from "vue"
 import z from "zod"
 import BasicFormField from './BasicFormField.vue'
 import { fieldRules, type FormField } from "./FormValidation"
+import { hiddenNames } from "./FormVisibility"
 import type { LookupValue, FormDef, SchemaType } from "./FormDefs"
 
 const form = ref()
-let currentResolver: z.ZodTypeAny|undefined = undefined;
+// the rules depend on the values (a hidden field is not validated), so they are built per validation
+let currentResolver: ((values: Record<string, any>) => z.ZodTypeAny)|undefined = undefined;
 
 type AddToSchemaType = (resv: Record<string, z.ZodTypeAny>) => void
 type AddInitialValuesType = () => Record<string, any>
@@ -90,6 +92,9 @@ watch(() => props.initialValues, (nv) => {
 			const addv = props.addInitialValues()
 			ox = Object.assign(ox, addv) // ensure new object reference to trigger form update
 		}
+		// a value the document does not have yet starts at the descriptor's default (a new playlist track, say)
+		const dflts = props.form?.schema ? applyDefaults(formProperties(props.form.schema), ox) : []
+		dflts.forEach(([name, value]) => { ox[name] = value })
 		localValues.value = ox
 		ensureInitializeForm(props.form?.schema as SchemaType, localValues.value)
 	}
@@ -217,28 +222,34 @@ function lookupUrl(target: any): void {
 	apiJson(finalUrl).then(json => {
 		//console.log("lookupUrl", json, target)
 		nextTick().then(_ => {
-			target.list = json
+			target.list = withCurrentValue(json, target.name)
 		})
-		// TODO add an entry corresponding to current value if missing
 	})
 	.catch(ex => {
 		console.error("lookupUrl", ex)
 		nextTick().then(_ => {
-			target.list = [{name:ex.message,value:ex.message}]
+			target.list = withCurrentValue([{name:ex.message,value:ex.message}], target.name)
 		})
-		// TODO add an entry corresponding to current value if missing
 	})
 }
-function createResolver(fields: FormField[]): z.ZodTypeAny {
-	const resv: Record<string, z.ZodTypeAny> = {}
-	if(props.beforeFieldsSchema) {
-		props.beforeFieldsSchema(resv)
+/** A stored value the list does not offer (renamed, or the list failed to load) must still show, not silently look unset. */
+function withCurrentValue(list: LookupValue[], name: string): LookupValue[] {
+	const current = localValues.value?.[name]
+	if(current === undefined || current === null || current === "" || list.some(lx => lx.value === current)) return list
+	return [...list, { name: String(current), value: current }]
+}
+function createResolver(fields: FormField[]): (values: Record<string, any>) => z.ZodTypeAny {
+	return (values) => {
+		const resv: Record<string, z.ZodTypeAny> = {}
+		if(props.beforeFieldsSchema) {
+			props.beforeFieldsSchema(resv)
+		}
+		fieldRules(fields, resv, values)
+		if(props.afterFieldsSchema) {
+			props.afterFieldsSchema(resv)
+		}
+		return z.object(resv)
 	}
-	fieldRules(fields, resv)
-	if(props.afterFieldsSchema) {
-		props.afterFieldsSchema(resv)
-	}
-	return z.object(resv)
 }
 const serverErrors: Record<string, { message: string, value: string }> = {}
 let lastSubmitted: Record<string, any> = {}
@@ -259,7 +270,7 @@ const setServerErrors = (errors: { path?: unknown[], message?: string }[]): numb
 const resolver = ({ values }: { values: Record<string, any> }) => {
 	const errors:Record<PropertyKey,any> = {};
 	if(!currentResolver) return { values, errors };
-	const result = currentResolver.safeParse(values);
+	const result = currentResolver(values).safeParse(values);
 	if(!result.success) {
 		result.error.issues.forEach(issue => {
 			const field = issue.path[0];
@@ -286,7 +297,12 @@ const resolver = ({ values }: { values: Record<string, any> }) => {
 }
 const handleSubmit = (data:any) => {
 	lastSubmitted = data.values ?? {}
-	const result = currentResolver?.safeParse(data.values);
+	const result = currentResolver?.(data.values)?.safeParse(data.values);
+	if(result?.success) {
+		// a hidden field is not applicable: it is saved as null
+		const saved = result.data as Record<string, unknown>
+		hiddenNames(localProperties.value, data.values).forEach(name => { saved[name] = null })
+	}
 	emits('submit', { result, data });
 }
 const submit = () => {
@@ -295,11 +311,21 @@ const submit = () => {
 const reset = () => {
 	form.value?.reset();
 }
+const flatNames = (fields: FormField[]): string[] => fields.flatMap(f => [...(f.type === "header" ? [] : [f.name]), ...flatNames(f.children ?? [])])
+/** The `default` of each field (null and absent defaults carry no information), for values the form does not have yet. */
+const applyDefaults = (fields: FormField[], values: Record<string, any> = {}): [string, unknown][] =>
+	fields.flatMap(f => [
+		...(f.type !== "header" && "default" in f && (f as any).default !== undefined && (f as any).default !== null && !(f.name in values) ? [[f.name, (f as any).default] as [string, unknown]] : []),
+		...applyDefaults(f.children ?? [], values)
+	])
 const handleFormFieldEvent = (data:any) => {
 	if(data.type === "schema-change") {
 		const field = localProperties.value.find((f:any) => f.name === data.field.name)
 		if(field) {
+			// the previous choice's values must not be saved with the new one
+			flatNames(field.children ?? []).forEach(name => form.value?.setFieldValue(name, null))
 			field.children = formProperties(data.selected.schema.schema)
+			applyDefaults(field.children).forEach(([name, value]) => form.value?.setFieldValue(name, value))
 			currentResolver = createResolver(localProperties.value)
 			startLookups(data.selected.schema.schema, field.children)
 			nextTick().then(_ => {

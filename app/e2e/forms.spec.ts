@@ -17,3 +17,36 @@ test("a boolean field is one toggle, not a toggle followed by a text box", async
 	await expect(rotate.locator("input[type=text]")).toHaveCount(0)
 	watch.expectNone()
 })
+
+test("a field shown only when another is on: hidden until then, required while shown, saved as null when hidden again", async ({ page, request }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "Display" }).click()
+	const detail = page.getByPlaceholder("E2E Detail")
+	const save = page.getByRole("tabpanel").locator("button:has(.pi-check)").first()
+	const toggle = row(page, "E2E Advanced").locator(".p-toggleswitch")
+	await expect(toggle).toBeVisible()
+	await expect(detail).toHaveCount(0)
+
+	await toggle.click()
+	await expect(detail).toBeVisible()
+	// shown and required, so empty is invalid and the form does not save
+	await detail.focus()
+	await detail.blur()
+	await expect(page.getByText("Required")).toBeVisible()
+	await detail.fill("some detail")
+	await expect(save).toBeEnabled()
+	await save.click()
+	await expect(page.getByText("Settings saved successfully")).toBeVisible()
+	expect((await (await request.get("/api/settings/display")).json()).e2eDetail).toBe("some detail")
+
+	// hidden again: no longer required, and what it held is not kept
+	await toggle.click()
+	await expect(detail).toHaveCount(0)
+	await expect(save).toBeEnabled()
+	await save.click()
+	const display = async () => (await request.get("/api/settings/display")).json()
+	await expect.poll(async () => (await display()).e2eAdvanced).toBe(false)
+	expect((await display()).e2eDetail).toBeNull()
+	watch.expectNone()
+})

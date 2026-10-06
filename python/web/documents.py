@@ -12,6 +12,7 @@ from typing import Any, Iterable
 
 from ..model.configuration_manager import ConfigurationObject, HASH_KEY, ID_KEY
 from .errors import ApiError
+from .visibility import hidden_names, null_hidden
 
 logger = logging.getLogger(__name__)
 
@@ -102,15 +103,17 @@ def _check_value(prop: dict, value: Any, lookups: dict) -> str|None:
 def validate_properties(document: dict, properties: Iterable[dict]|None, lookups: dict|None = None) -> list[dict]:
 	"""
 	Check the values the schema declares against the same rules the form applies: type, `required`, `enum` / `items` lookup membership,
-	`min` / `max`, `int`, `date` and `location`. Unknown properties are kept untouched.
+	`min` / `max`, `int`, `date` and `location`. Properties hidden by `visibleIf` are skipped. Unknown properties are kept untouched.
 	`null` (and "" for strings and dates) means unset: valid unless the property is `required`.
 	Returns a list of `{ "path": [name], "message": str }`; empty when valid.
 	"""
 	errors: list[dict] = []
 	lookups = lookups or {}
-	for prop in properties or []:
+	properties = list(properties or [])
+	hidden = hidden_names(properties, document)
+	for prop in properties:
 		name = prop.get("name") if isinstance(prop, dict) else None
-		if not name or prop.get("type") == "header":
+		if not name or prop.get("type") == "header" or name in hidden:
 			continue
 		value = document.get(name)
 		if value is None or value == "":
@@ -155,6 +158,7 @@ def put_document(id: str, body: dict[str, Any], cob: ConfigurationObject, proper
 	document = { k: v for k, v in body.items() if k not in (HASH_KEY, ID_KEY) }
 	_, stored = cob.get()
 	document = restore_secrets(document, stored, secrets)
+	document = null_hidden(document, properties or [])
 	errors = validate_properties(document, properties, lookups)
 	if errors:
 		raise ApiError(422, "Settings validation failed", id, errors=errors)

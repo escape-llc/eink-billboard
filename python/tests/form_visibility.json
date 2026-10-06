@@ -1,0 +1,228 @@
+{
+	"comment": "Cases both FormVisibility.ts and python/web/visibility.py must agree on.",
+	"cases": [
+		{
+			"name": "no predicate",
+			"predicate": null,
+			"values": {},
+			"visible": true
+		},
+		{
+			"name": "eq false, value false",
+			"predicate": {
+				"field": "r",
+				"eq": false
+			},
+			"values": {
+				"r": false
+			},
+			"visible": true
+		},
+		{
+			"name": "eq false, value true",
+			"predicate": {
+				"field": "r",
+				"eq": false
+			},
+			"values": {
+				"r": true
+			},
+			"visible": false
+		},
+		{
+			"name": "eq false, unset is not false",
+			"predicate": {
+				"field": "r",
+				"eq": false
+			},
+			"values": {},
+			"visible": false
+		},
+		{
+			"name": "eq null matches unset",
+			"predicate": {
+				"field": "r",
+				"eq": null
+			},
+			"values": {
+				"r": ""
+			},
+			"visible": true
+		},
+		{
+			"name": "eq is strict about type",
+			"predicate": {
+				"field": "r",
+				"eq": 1
+			},
+			"values": {
+				"r": true
+			},
+			"visible": false
+		},
+		{
+			"name": "ne",
+			"predicate": {
+				"field": "r",
+				"ne": "a"
+			},
+			"values": {
+				"r": "b"
+			},
+			"visible": true
+		},
+		{
+			"name": "ne, equal",
+			"predicate": {
+				"field": "r",
+				"ne": "a"
+			},
+			"values": {
+				"r": "a"
+			},
+			"visible": false
+		},
+		{
+			"name": "in, member",
+			"predicate": {
+				"field": "r",
+				"in": [
+					"a",
+					"b"
+				]
+			},
+			"values": {
+				"r": "b"
+			},
+			"visible": true
+		},
+		{
+			"name": "in, not a member",
+			"predicate": {
+				"field": "r",
+				"in": [
+					"a",
+					"b"
+				]
+			},
+			"values": {
+				"r": "c"
+			},
+			"visible": false
+		},
+		{
+			"name": "set true, has value",
+			"predicate": {
+				"field": "r",
+				"set": true
+			},
+			"values": {
+				"r": "x"
+			},
+			"visible": true
+		},
+		{
+			"name": "set true, empty string",
+			"predicate": {
+				"field": "r",
+				"set": true
+			},
+			"values": {
+				"r": ""
+			},
+			"visible": false
+		},
+		{
+			"name": "set false, null",
+			"predicate": {
+				"field": "r",
+				"set": false
+			},
+			"values": {
+				"r": null
+			},
+			"visible": true
+		},
+		{
+			"name": "all, one fails",
+			"predicate": {
+				"all": [
+					{
+						"field": "a",
+						"eq": 1
+					},
+					{
+						"field": "b",
+						"eq": 2
+					}
+				]
+			},
+			"values": {
+				"a": 1,
+				"b": 3
+			},
+			"visible": false
+		},
+		{
+			"name": "all, both hold",
+			"predicate": {
+				"all": [
+					{
+						"field": "a",
+						"eq": 1
+					},
+					{
+						"field": "b",
+						"eq": 2
+					}
+				]
+			},
+			"values": {
+				"a": 1,
+				"b": 2
+			},
+			"visible": true
+		},
+		{
+			"name": "any, one holds",
+			"predicate": {
+				"any": [
+					{
+						"field": "a",
+						"eq": 1
+					},
+					{
+						"field": "b",
+						"eq": 2
+					}
+				]
+			},
+			"values": {
+				"a": 0,
+				"b": 2
+			},
+			"visible": true
+		},
+		{
+			"name": "not",
+			"predicate": {
+				"not": {
+					"field": "a",
+					"set": true
+				}
+			},
+			"values": {
+				"a": "x"
+			},
+			"visible": false
+		},
+		{
+			"name": "unknown predicate stays visible",
+			"predicate": {
+				"bogus": 1
+			},
+			"values": {},
+			"visible": true
+		}
+	]
+}
