@@ -2,8 +2,7 @@ import json
 from typing import Literal, ReadOnly, TypedDict
 import uuid
 
-from .schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks
-from ..model.schedule_manager import SCHEMA_PLAYLIST, SCHEMA_TASKS
+from .schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks, SCHEMA_PLAYLIST, SCHEMA_TASKS
 type LoaderType = Playlist|TimerTasks
 
 # MUST be a literal
@@ -20,6 +19,8 @@ class ScheduleLoader:
 	def loadFile(path: str, name: str) -> ScheduleLoaderDict:
 		with open(path, 'r', encoding='utf-8') as f:
 			data = json.load(f)
+		if not isinstance(data, dict):
+			raise ValueError(f"Schedule file '{path}' is not a JSON object.")
 		schema = data.get("_schema", None)
 		if schema is None:
 			raise ValueError(f"Schedule file '{path}' is missing _schema field.")

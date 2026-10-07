@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import asyncio
-from concurrent.futures import Future
+from concurrent.futures import Future, InvalidStateError
 from datetime import datetime, timedelta
 import threading
 import logging
@@ -59,29 +59,41 @@ class TimerThreadService(IProvideTimer):
 			raise ValueError("deltatime cannot be negative")
 		if token is None:
 			raise ValueError("token cannot be None")
+		# The timer thread and cancel() race: the future may be resolved only once, and a cancelled timer must never deliver.
+		# Both paths hold the lock for check + resolve (+ delivery), so whichever comes first wins completely.
+		lock = threading.RLock()
+		cancelled = threading.Event()
 		def __timer_expired(fut: Future, sink: MessageSink|None, token:str, state: T):
-			# CRITICAL: Check if the future is already cancelled or finished
-			if fut.cancelled() or fut.done():
+			with lock:
+				if cancelled.is_set() or fut.done():
 					self.logger.debug(f"'{token}' Timer expired but future is already done/cancelled.")
 					return
-			self.logger.debug(f"'{token}' Timer expired {deltatime}, state {state}")
-			msg = TimerExpired(self.timebase.current_time(), token, state)
-			# resolve the Future before sending to sink
-			try:
-				fut.set_result(msg)
-			except Exception as ex:
-				self.logger.error(f"'{token}' Failed to set result: {ex}")
-			try:
-				if sink is not None:
-					sink.accept(msg)
-			except Exception as ex:
-				self.logger.error(f"'{token}' Failed to send message to sink: {ex}")
+				self.logger.debug(f"'{token}' Timer expired {deltatime}, state {state}")
+				msg = TimerExpired(self.timebase.current_time(), token, state)
+				# resolve the Future before sending to sink
+				try:
+					fut.set_result(msg)
+				except InvalidStateError:
+					self.logger.debug(f"'{token}' Timer was cancelled while expiring.")
+					return
+				except Exception as ex:
+					self.logger.error(f"'{token}' Failed to set result: {ex}")
+					return
+				try:
+					if sink is not None:
+						sink.accept(msg)
+				except Exception as ex:
+					self.logger.error(f"'{token}' Failed to send message to sink: {ex}")
 		fut = Future()
 		timer = threading.Timer(self.duration(deltatime), __timer_expired, args=(fut, sink, token, state))
 		def __cancel_all():
 			self.logger.debug(f"'{token}' Cancel requested")
 			timer.cancel()
-			if not fut.done():
-				fut.set_result(None)
+			with lock:
+				cancelled.set()
+				try:
+					fut.set_result(None)
+				except InvalidStateError:
+					pass
 		timer.start()
 		return (fut, __cancel_all)

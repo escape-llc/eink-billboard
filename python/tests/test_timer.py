@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import time
 import unittest
 
 from ..model.time_of_day import SystemTimeOfDay
@@ -109,6 +110,34 @@ class TestTimerThreadService(unittest.TestCase):
 		timer_future.result(timeout=2 * SLEEP_INTERVAL)
 		self.assertTrue(timer_future.done())
 		self.assertIsNone(timer_future.result())
+
+class TestTimerCancelRace(unittest.TestCase):
+	def test_cancel_arriving_during_expiry_never_delivers(self):
+		"""The timer thread has checked fut.done() and is building the message when cancel() arrives."""
+		from unittest import mock
+		from ..task import timer as timer_module
+		sink = TestSink()
+		service = TimerThreadService(SystemTimeOfDay())
+		holder: dict = {}
+		real = timer_module.TimerExpired
+		def racing_expired(*args, **kwargs):
+			holder["cancel"]()
+			return real(*args, **kwargs)
+		with mock.patch.object(timer_module, "TimerExpired", racing_expired):
+			(fut, cancel) = service.create_timer(timedelta(seconds=0.05), sink, "token", "state")
+			holder["cancel"] = cancel
+			self.assertIsNone(fut.result(timeout=2))
+			time.sleep(0.2)
+		self.assertFalse(sink.received)
+		self.assertIsNone(fut.result())
+	def test_cancel_after_expiry_is_harmless(self):
+		sink = TestSink()
+		service = TimerThreadService(SystemTimeOfDay())
+		(fut, cancel) = service.create_timer(timedelta(seconds=0.02), sink, "token", "state")
+		self.assertIsInstance(fut.result(timeout=2), TimerExpired)
+		cancel()
+		self.assertTrue(sink.received)
+		self.assertIsInstance(fut.result(), TimerExpired)
 
 if __name__ == "__main__":
 	unittest.main()
