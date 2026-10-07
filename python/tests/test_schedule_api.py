@@ -158,6 +158,17 @@ class TestTasks(ScheduleApiBase):
 		self.assertEqual(item["task"]["content"], { **CONTENT, "slideMax": 7 })
 		self.assertEqual(item["task"]["plugin_name"], "slide-show")
 
+	def test_patching_title_or_enabled_does_not_revalidate_the_content(self):
+		# a task whose stored content is incomplete can still be renamed or paused; touching `task` checks it
+		path = os.path.join(self.storage, "schedules", "doc-a.json")
+		raw = self.stored()
+		del raw["items"][0]["task"]["content"]["slideMinutes"]
+		with open(path, "w", encoding="utf-8") as f:
+			json.dump(raw, f)
+		resp = self.client.patch(f"{BASE}/doc-a/items/a1", json={ "title": "Still renamable", "enabled": False, "_rev": self.rev_of_item("a1") })
+		self.assertEqual(resp.status_code, 200, resp.text)
+		_error_shape(self, self.client.patch(f"{BASE}/doc-a/items/a1", json={ "task": { "content": { "slideMax": 2 } }, "_rev": resp.json()["rev"] }), 422)
+
 	def test_patch_cannot_remove_required_parts_or_change_the_id(self):
 		rev = self.rev_of_item("a1")
 		for patch in ({ "trigger": None }, { "task": None }, { "title": None }, { "enabled": None }, { "task": { "plugin_name": None } }, { "id": "other" }):

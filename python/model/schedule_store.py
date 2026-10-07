@@ -332,9 +332,11 @@ class ScheduleStore:
 			if "trigger" in patch:
 				merged["trigger"] = copy.deepcopy(patch["trigger"])	# a trigger is replaced whole, not merged
 			return merged
-		return self._change_item(doc_id, item_id, rev, apply, validate_result=True)
+		# the plugin and its content are only checked when the patch touches them: renaming or pausing a task whose stored
+		# content is already incomplete must still work
+		return self._change_item(doc_id, item_id, rev, apply, validate_result=True, validate_task="task" in patch)
 
-	def _change_item(self, doc_id: str, item_id: str, rev: Any, make: Callable[[dict], dict], validate_result: bool = False) -> dict:
+	def _change_item(self, doc_id: str, item_id: str, rev: Any, make: Callable[[dict], dict], validate_result: bool = False, validate_task: bool = True) -> dict:
 		path = self._find(doc_id)
 		with self._lock_for(path):
 			raw = self._read(path)
@@ -343,7 +345,10 @@ class ScheduleStore:
 			self._check_rev(current[HASH_KEY], rev)
 			new = make(raw["items"][idx])
 			if validate_result:
-				self._validated_item({ k: v for k, v in new.items() if k != HASH_KEY })
+				candidate = { k: v for k, v in new.items() if k != HASH_KEY }
+				errors = check_item_shape(candidate) or (self._validate_item(candidate) if validate_task else [])
+				if errors:
+					raise Invalid(errors)
 			items = list(raw["items"])
 			items[idx] = new
 			self._write(path, { **raw, "items": items })
