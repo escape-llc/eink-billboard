@@ -39,11 +39,16 @@ class InterstitialAsync(PluginAsync):
 			raise RuntimeError(f"dataSource '{dataSourceName}' is not available")
 		if isinstance(dataSource, MediaItemAsync) and isinstance(dataSource, MediaRenderAsync):
 			dsec = context.create_datasource_context(dataSource)
-			state = await dataSource.open_async(dsec, cast(Mapping[str,Any],settings))
-			if state is None:
-				raise RuntimeError(f"{dataSourceName}: No media items found for slide show")
-			item = state
-			mrr = await dataSource.render_async(dsec, cast(Mapping[str,Any],settings), item)
+			try:
+				state = await dataSource.open_async(dsec, cast(Mapping[str,Any],settings))
+				if state is None:
+					raise RuntimeError(f"{dataSourceName}: No media items found for interstitial")
+				item = state
+				mrr = await dataSource.render_async(dsec, cast(Mapping[str,Any],settings), item)
+			except Exception as e:
+				# say which item failed; the caller decides what a failed task means
+				self.logger.error(f"{self.id} '{track.title}' failed ({type(e).__name__}: {e})", exc_info=True)
+				raise
 			if mrr is not None:
 				# send priority display message
 				slideMinutes = settings.get("slideMinutes", 1)
