@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Any, cast
 import unittest
 import os
 import json
@@ -75,6 +75,17 @@ class TestScheduleManager(unittest.TestCase):
 			with self.assertRaises(ValueError):
 				sm.validate(cast(ScheduleManagerDict, {}))
 
+
+class TestNoTimerTasks(unittest.TestCase):
+	def test_no_timer_documents_is_valid_but_no_playlists_still_is_not(self):
+		import tempfile
+		from ..model.schedule import Playlist
+		with tempfile.TemporaryDirectory() as tmp:
+			sm = ScheduleManager(root_path=tmp)
+			playlist = cast(Any, { "info": Playlist("p", "P", []), "name": "p.json", "path": "p.json", "type": "x" })
+			sm.validate(cast(ScheduleManagerDict, { "tasks": [], "playlists": [playlist] }))
+			with self.assertRaises(ValueError):
+				sm.validate(cast(ScheduleManagerDict, { "tasks": [], "playlists": [] }))
 
 class TestLoadIgnoresJunk(unittest.TestCase):
 	def _good(self) -> dict:

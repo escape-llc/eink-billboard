@@ -52,7 +52,8 @@ class ScheduleManager:
 		# TODO validate schedule.get("tasks",[])
 		tasks = schedule.get("tasks", [])
 		if len(tasks) == 0:
-			raise ValueError("No tasks found in schedule")
+			# nothing scheduled is a valid state (every task document may have been deleted): the timer layer idles
+			logger.warning("No timer task documents found in the schedules.")
 		playlists = schedule.get("playlists", [])
 		if len(playlists) == 0:
 			raise ValueError("No playlists found in schedule")

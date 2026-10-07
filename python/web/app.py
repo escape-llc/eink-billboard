@@ -45,7 +45,7 @@ def create_app(web: WebSettings, root_container: IServiceProvider|None = None, r
 			allow_origins=[web.cors_origin],
 			# the web app signs in with a cookie, so a cross-origin development page must be allowed to send it
 			allow_credentials=True,
-			allow_methods=["GET", "PUT", "POST", "DELETE"],
+			allow_methods=["GET", "PUT", "PATCH", "POST", "DELETE"],
 			allow_headers=["Content-Type", "Authorization"],
 		)
 

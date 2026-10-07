@@ -5,11 +5,13 @@ import zoneinfo
 from datetime import datetime, timedelta, tzinfo
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Body, Query
 
 from ...model.configuration_manager import HASH_KEY, create_hash
 from ...model.schedule import TimerTasks, daily_sequence, day_start, normalize, render_task_schedule_at
+from ...model.schedule_store import Ambiguous, Conflict, Invalid, NotFound, ScheduleStore, ScheduleStoreError
 from ..deps import CM, TOD
+from ..documents import validate_properties
 from ..errors import ApiError
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,9 @@ def _load_schedules(cm) -> dict:
 def _with_rev(info) -> dict:
 	dx = info.to_dict()
 	dx[HASH_KEY] = create_hash(dx)
+	if isinstance(info, TimerTasks):
+		# each task carries its own revision, which is what a change to just that task must echo
+		dx["items"] = [{ **x, HASH_KEY: create_hash(x) } for x in dx["items"]]
 	return dx
 
 @router.get('/playlist/list')
@@ -124,3 +129,107 @@ def render_tasks_schedule(
 		"not_render": notrender_list,
 		"invalid": invalid_list
 	}
+
+
+# --- incremental changes to the timer tasks: whole documents and single tasks (see model/schedule_store.py)
+
+def _instance_properties(item: dict) -> tuple[list[dict], dict]:
+	"""The `instanceSettings` properties and lookups a plugin or datasource declares for a task's `content`."""
+	schema = ((item["info"].get("instanceSettings") or {}).get("schema")) or {}
+	return schema.get("properties") or [], schema.get("lookups") or {}
+
+def _item_validator(cm):
+	"""What the store cannot know: the plugin exists and `task.content` follows its settings (and its data source's)."""
+	plugins = {p["info"].get("id"): p for p in cm.enum_plugins()}
+	datasources = {d["info"].get("id"): d for d in cm.enum_datasources()}
+	def validate(item: dict) -> list[dict]:
+		task = item.get("task") or {}
+		plugin = plugins.get(task.get("plugin_name"))
+		if plugin is None:
+			return [{ "path": ["task", "plugin_name"], "message": "Unknown plugin" }]
+		content = task.get("content") or {}
+		props, lookups = _instance_properties(plugin)
+		errors = validate_properties(content, props, lookups)
+		for prop in props:
+			chosen = content.get(prop.get("name")) if prop.get("type") == "schema" else None
+			if isinstance(chosen, str) and chosen:
+				source = datasources.get(chosen)
+				if source is None:
+					errors.append({ "path": [prop["name"]], "message": "Not one of the allowed values" })
+				else:
+					sprops, slookups = _instance_properties(source)
+					errors.extend(validate_properties(content, sprops, slookups))
+		return [{ "path": ["task", "content", *e["path"]], "message": e["message"] } for e in errors]
+	return validate
+
+def _store(cm) -> ScheduleStore:
+	return ScheduleStore(cm.schedule_manager(), _item_validator(cm))
+
+def _call(doc_id: str|None, fn):
+	"""Run a store operation and report its errors in the API's uniform shape. The ids are ours, never the request's text."""
+	try:
+		return fn()
+	except NotFound as e:
+		raise ApiError(404, "Unknown schedule." if e.what == "schedule" else "Unknown task.", None)
+	except Ambiguous:
+		raise ApiError(409, "More than one stored schedule has this id; fix the files first.", None)
+	except Conflict as e:
+		raise ApiError(409, "Revision mismatch: it changed since it was loaded.", doc_id, rev=e.rev)
+	except Invalid as e:
+		raise ApiError(422, "Schedule validation failed", doc_id, errors=e.errors)
+	except ScheduleStoreError as e:
+		raise ApiError(400, "The change could not be made.", doc_id)
+	except (OSError, ValueError, json.JSONDecodeError) as e:
+		logger.error(f"schedule change failed: {e}", exc_info=True)
+		raise ApiError(500, "The schedule could not be changed; see the server log.", doc_id)
+
+def _rev_of(body: Any) -> Any:
+	return body.get(HASH_KEY) if isinstance(body, dict) else None
+
+@router.post('/timer', status_code=201)
+def timer_create(cm: CM, body: dict[str, Any] = Body(...)):
+	doc = _call(None, lambda: _store(cm).create_document(body))
+	return { "success": True, "message": "Success", "id": doc["id"], "rev": doc[HASH_KEY], "schedule": doc }
+
+@router.get('/timer/{doc_id}')
+def timer_get(doc_id: str, cm: CM):
+	return { "success": True, "schedule": _call(None, lambda: _store(cm).get_document(doc_id)) }
+
+@router.put('/timer/{doc_id}')
+def timer_put(doc_id: str, cm: CM, body: dict[str, Any] = Body(...)):
+	doc = _call(doc_id, lambda: _store(cm).replace_document(doc_id, body, _rev_of(body)))
+	return { "success": True, "message": "Success", "id": doc["id"], "rev": doc[HASH_KEY], "schedule": doc }
+
+@router.patch('/timer/{doc_id}')
+def timer_rename(doc_id: str, cm: CM, body: dict[str, Any] = Body(...)):
+	doc = _call(doc_id, lambda: _store(cm).rename_document(doc_id, body, _rev_of(body)))
+	return { "success": True, "message": "Success", "id": doc["id"], "rev": doc[HASH_KEY], "schedule": doc }
+
+@router.delete('/timer/{doc_id}')
+def timer_delete(doc_id: str, cm: CM, rev: str = Query(...)):
+	_call(doc_id, lambda: _store(cm).delete_document(doc_id, rev))
+	return { "success": True, "message": "Success", "id": None }
+
+@router.get('/timer/{doc_id}/items/{item_id}')
+def timer_item_get(doc_id: str, item_id: str, cm: CM):
+	return { "success": True, "task": _call(None, lambda: _store(cm).get_item(doc_id, item_id)) }
+
+@router.post('/timer/{doc_id}/items', status_code=201)
+def timer_item_add(doc_id: str, cm: CM, body: dict[str, Any] = Body(...)):
+	item = _call(doc_id, lambda: _store(cm).add_item(doc_id, body))
+	return { "success": True, "message": "Success", "id": item["id"], "rev": item[HASH_KEY], "schedule_rev": item["schedule_rev"], "task": item }
+
+@router.put('/timer/{doc_id}/items/{item_id}')
+def timer_item_put(doc_id: str, item_id: str, cm: CM, body: dict[str, Any] = Body(...)):
+	item = _call(doc_id, lambda: _store(cm).replace_item(doc_id, item_id, body))
+	return { "success": True, "message": "Success", "id": item["id"], "rev": item[HASH_KEY], "schedule_rev": item["schedule_rev"], "task": item }
+
+@router.patch('/timer/{doc_id}/items/{item_id}')
+def timer_item_patch(doc_id: str, item_id: str, cm: CM, body: dict[str, Any] = Body(...)):
+	item = _call(doc_id, lambda: _store(cm).patch_item(doc_id, item_id, body))
+	return { "success": True, "message": "Success", "id": item["id"], "rev": item[HASH_KEY], "schedule_rev": item["schedule_rev"], "task": item }
+
+@router.delete('/timer/{doc_id}/items/{item_id}')
+def timer_item_delete(doc_id: str, item_id: str, cm: CM, rev: str = Query(...)):
+	doc = _call(doc_id, lambda: _store(cm).delete_item(doc_id, item_id, rev))
+	return { "success": True, "message": "Success", "id": item_id, "schedule_rev": doc[HASH_KEY] }
