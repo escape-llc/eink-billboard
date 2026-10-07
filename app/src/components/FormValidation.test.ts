@@ -89,10 +89,14 @@ describe("fieldRules", () => {
 })
 
 // the cases the server's validate_properties is tested against too (python/tests/test_web_api.py)
+// JSON cannot hold NaN or Infinity, so the file writes them as { "$number": "NaN" }
+const decode = (v: unknown): unknown =>
+	v !== null && typeof v === "object" && "$number" in v ? Number((v as { $number: string }).$number) : v
+
 describe("shared rules (form_rules.json)", () => {
 	for (const c of rules.cases) {
 		it(c.name, () => {
-			expect(check(c.field as unknown as FormField, c.value)).toBe(c.error)
+			expect(check(c.field as unknown as FormField, decode(c.value))).toBe(c.error)
 		})
 	}
 })
