@@ -30,7 +30,7 @@ test.describe("every page renders from the seeded storage, without errors", () =
 	test("schedule shows the timer tasks of the week", async ({ page }) => {
 		const watch = watchProblems(page)
 		await page.goto("/#/schedule")
-		// the enabled task fires every quarter hour; the paused one is on a few days
+		// the enabled task fires every quarter hour; the paused one is not rendered (the timer layer would not run it either)
 		await expect(page.getByText(/Quarter-hour clock/).first()).toBeVisible()
 		for (const day of ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]) {
 			await expect(page.getByText(day, { exact: false }).first()).toBeVisible()
