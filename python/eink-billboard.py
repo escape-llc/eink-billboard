@@ -14,6 +14,7 @@ import yaml
 from .model.configuration_watcher import ConfigurationWatcher
 from .model.configuration_manager_eviction_sink import ConfigurationManagerEvictionSink
 from .model.service_container import ServiceContainer
+from .task.fanout_sink import FanoutSink
 from .model.time_of_day import ConfiguredTimeOfDay, TimeOfDay
 from .model.configuration_manager import ConfigurationManager
 
@@ -67,7 +68,8 @@ def run_application(args: argparse.Namespace) -> None:
 		_, system = cm.settings_manager().open("system").get()
 		return system.get("timezoneName") if system else None
 	time_base = ConfiguredTimeOfDay(system_timezone_name)
-	watcher_sink = ConfigurationManagerEvictionSink(cm)
+	# the cache is evicted first, so that whoever hears of a change next reads the new file; the application is added once it exists
+	watcher_sink = FanoutSink(ConfigurationManagerEvictionSink(cm))
 	config_watcher = ConfigurationWatcher(time_base, watcher_sink, cm.STORAGE_PATH)
 	# plugins and datasources may contribute API routers
 	routers = {}
@@ -80,6 +82,7 @@ def run_application(args: argparse.Namespace) -> None:
 	# start the application layer
 	sink = TelemetrySink()
 	xapp: Application = Application(APPNAME, sink)
+	watcher_sink.add(xapp)
 	try:
 		xapp.start()
 		force_reset: bool = False

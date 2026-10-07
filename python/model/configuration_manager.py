@@ -566,6 +566,13 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			self._objectMap[moniker] = obj
 			return (True, obj)
 
+	AREAS = { "schedules": "schedules", "settings": "settings", "schemas": "schemas", "plugins": "plugins", "datasources": "datasources" }
+	def area_of(self, path: str|bytes) -> str:
+		"""Which part of the storage root a path is in (`schedules`, `settings`, ...), or `other` (including anything outside it)."""
+		rel = os.path.relpath(os.fsdecode(path), self.STORAGE_PATH)
+		first = rel.replace("\\", "/").split("/", 1)[0]
+		return self.AREAS.get(first, "other") if not rel.startswith("..") else "other"
+
 	def watch(self, type: str, moniker: str) -> None:
 		"""Evicts the ConfigurationObject for the given moniker from the cache."""
 		logger.info(f"ConfigurationManager.watch: type={type} moniker={moniker}")

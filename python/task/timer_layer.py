@@ -1,4 +1,5 @@
 import asyncio
+import json
 from concurrent.futures import CancelledError, Future
 from datetime import datetime, timedelta
 import logging
@@ -15,7 +16,8 @@ from ..plugins.plugin_base import PluginAsync, PluginExecutionContext
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool
 from ..task.basic_task import DispatcherTask
 from ..task.display_messages import DisplaySettings
-from ..task.messages import AsyncTaskCompleted, AsyncTaskCompleted, BasicMessage, QuitMessage, Telemetry
+from ..task.coalescer import Coalescer
+from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage, ReloadSchedules, Telemetry
 from ..task.protocols import IProvideTimer, IRequireShutdown, MessageSink
 from ..task.configure_event import ConfigureEvent
 from ..task.playlist_layer import NextTrack, StartPlayback
@@ -46,6 +48,8 @@ class TimerLayer(DispatcherTask):
 	LATE_GRACE = timedelta(minutes=5)
 	# after the layer task failed, wait this long (real seconds) before starting it again
 	RESTART_DELAY_SECONDS = 30.0
+	# a burst of schedule file changes (an editor saving several tasks) is one reload, this long after the last change
+	RELOAD_DELAY_SECONDS = 2.0
 	def __init__(self, name, router: MessageRouter):
 		super().__init__(name)
 		if router is None:
@@ -64,6 +68,7 @@ class TimerLayer(DispatcherTask):
 		self.state = 'uninitialized'
 		self.startup_done = False
 		self._restart_timer: threading.Timer|None = None
+		self._reload = Coalescer(self.RELOAD_DELAY_SECONDS, self._request_reload)
 		self.logger = logging.getLogger(__name__)
 	def _evaluate_plugin(self, track:TimerTaskItem) -> EvaluatePluginDict:
 		if self.cm is None:
@@ -164,7 +169,8 @@ class TimerLayer(DispatcherTask):
 			self.logger.error(f"Cannot start playback, state is '{self.state}'")
 			return
 		if len(self.tasks) == 0:
-			self.logger.error(f"No tasks available to run.")
+			# nothing scheduled is valid (every timer task document may have been deleted); a later reload can bring tasks
+			self.logger.info(f"No timer task documents: nothing is scheduled.")
 			return
 		if self.timer is None:
 			self.logger.error(f"Timer service is not available.")
@@ -293,7 +299,8 @@ class TimerLayer(DispatcherTask):
 			self.logger.info(f"Waiting for plugin task to complete...")
 			msg.donev.wait(timeout=2.0)
 			return
-		if msg.token == "layer_task":
+		# only the layer task this message is about: a reload may have started its replacement already
+		if msg.token == "layer_task" and (self.layer_task is None or self.layer_task[1] is msg.donev):
 			self.layer_task = None
 		if msg.fut.cancelled():
 			self.logger.info(f"Plugin task was cancelled.")
@@ -318,6 +325,44 @@ class TimerLayer(DispatcherTask):
 			# the layer task only ends by being cancelled; if it returned, start it again
 			self.logger.warning(f"Layer task ended unexpectedly, restarting.")
 			self._schedule_restart(msg.timestamp)
+	def _configuration_changed(self, msg: ConfigurationChanged):
+		if msg.area == "schedules" and self.cm is not None and self.timebase is not None and not self.is_stopped():
+			self._reload.trigger()
+	def _request_reload(self):
+		"""On the coalescer's thread: hand the work to the task's own thread."""
+		if self.is_stopped() or self.timebase is None:
+			return
+		try:
+			self.accept(ReloadSchedules(self.timebase.current_time()))
+		except ValueError:
+			self.logger.debug(f"'{self.name}' stopped before the reload.")
+	@staticmethod
+	def _signature(tasks: list[ScheduleLoaderDict]) -> str:
+		return json.dumps([t["info"].to_dict() for t in tasks if t.get("info") is not None], sort_keys=True, default=str)
+	def _reload_schedules(self, msg: ReloadSchedules):
+		"""Re-read the schedules and re-plan. Startup tasks do not run again. A schedule that does not load keeps the one in use."""
+		if self.cm is None or self.timebase is None or self.state in ('uninitialized', 'stopped'):
+			return
+		try:
+			sm = self.cm.schedule_manager()
+			schedule_info = sm.load()
+			sm.validate(schedule_info)
+		except Exception as e:
+			self.logger.warning(f"'{self.name}' the changed schedules do not load, keeping the ones in use: {e}")
+			self._error_with_telemetry(f"The changed schedules do not load: {e}", msg.timestamp, log=False)
+			return
+		new_tasks = schedule_info.get("tasks", [])
+		if self._signature(new_tasks) == self._signature(self.tasks):
+			self.logger.info(f"'{self.name}' schedules changed, timer tasks are the same.")
+			return
+		self.logger.info(f"'{self.name}' timer tasks changed, re-planning.")
+		if self._restart_timer is not None:
+			self._restart_timer.cancel()
+			self._restart_timer = None
+		self._layer_stop()
+		self.tasks = new_tasks
+		self.state = 'loaded'
+		self.accept(StartPlayback(self.timebase.current_time()))
 	def _schedule_restart(self, timestamp: datetime):
 		"""Send StartPlayback to ourselves after RESTART_DELAY_SECONDS (real time), unless we have been stopped meanwhile."""
 		def restart():
@@ -385,6 +430,7 @@ class TimerLayer(DispatcherTask):
 		return scheduled
 	def quitMsg(self, msg: QuitMessage):
 		self.logger.info(f"'{self.name}' quitting playback.")
+		self._reload.cancel()
 		if self._restart_timer is not None:
 			self._restart_timer.cancel()
 			self._restart_timer = None

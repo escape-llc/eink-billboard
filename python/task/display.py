@@ -10,7 +10,7 @@ from ..display.display_base import DisplayBase
 from ..model.configuration_manager import ConfigurationManager
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..task.basic_task import DispatcherTask
-from ..task.messages import AsyncTaskCompleted, BasicMessage, QuitMessage
+from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage
 from ..task.configure_event import ConfigureEvent
 from ..task.protocols import IProvideTimer
 from ..task.protocols import CreateTimerResult, IProvideTimer
@@ -56,6 +56,10 @@ class Display(DispatcherTask):
 			donev.wait(timeout=2.0)
 		else:
 			self.logger.info(f"task completed.")
+	def _configuration_changed(self, msg: ConfigurationChanged):
+		# the display settings are read when the display starts; reconfiguring it live is not supported yet
+		if msg.area in ("settings", "schemas"):
+			self.logger.info(f"'{self.name}' configuration changed ({msg.area}); display settings are applied at the next start.")
 	def quitMsg(self, msg: QuitMessage):
 		# every step runs even if an earlier one (or the configuration) failed: the pool and the display must always be shut down
 		try:

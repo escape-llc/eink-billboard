@@ -1,7 +1,7 @@
 import threading
 from datetime import datetime
 
-from .messages import StartEvent, StartOptions, StopEvent, QuitMessage
+from .messages import ConfigurationChanged, ConfigurationWatcherEvent, StartEvent, StartOptions, StopEvent, QuitMessage
 from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
 from .protocols import MessageSink, IProvideTimer
 from .display import Display
@@ -38,6 +38,13 @@ class Application(DispatcherTask):
 		except Exception as e:
 			self.logger.error(f"Failed to start '{self.name}': {e}", exc_info=True)
 			self.app_stopped.set()
+	def _configuration_watcher_event(self, msg: ConfigurationWatcherEvent):
+		"""The watcher saw a file change: tell every task where (the cache was already evicted by the sink before this one)."""
+		if self.router is None or self.cm is None:
+			return
+		area = self.cm.area_of(msg.path)
+		self.logger.info(f"'{self.name}' configuration changed: {area} ({msg.type})")
+		self.router.send("configuration", ConfigurationChanged(msg.timestamp, area, msg.type, msg.path))
 	def _stop_event(self, msg: StopEvent):
 		try:
 			self._handleStop(msg.timestamp)
@@ -119,6 +126,8 @@ class Application(DispatcherTask):
 		self.router.addRoute(Route("playlist-layer", [self.playlist_layer]))
 		self.router.addRoute(Route("timer-layer", [self.timer_layer]))
 		self.router.addRoute(Route("display-settings", [self, self.playlist_layer, self.timer_layer]))
+		# every task hears about changes to the configuration files
+		self.router.addRoute(Route("configuration", [self.display, self.playlist_layer, self.timer_layer]))
 		if self.sink is not None:
 			self.router.addRoute(Route('telemetry', [self.sink]))
 		# STEP 1 configure the Display task
