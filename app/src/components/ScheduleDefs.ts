@@ -10,7 +10,7 @@ export type PluginDef = {
 }
 
 export const PLAYLIST_SCHEMA = "urn:inky:storage:schedule:playlist:1"
-export const TIMED_SCHEDULE_SCHEMA = "urn:inky:storage:schedule:timed:1"
+export const TIMED_SCHEDULE_SCHEMA = "urn:inky:storage:schedule:tasks:1"
 export type PlaylistItem = {
 	id: string;
 	type: string;

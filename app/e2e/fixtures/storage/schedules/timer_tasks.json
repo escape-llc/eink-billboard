@@ -10,7 +10,7 @@
 			"task": {
 				"plugin_name": "interstitial",
 				"content": {
-					"durationMinutes": 1,
+					"slideMinutes": 1,
 					"dataSource": "clock",
 					"clockFace": "Gradient Clock",
 					"primaryColor": "#db3246",
@@ -47,9 +47,10 @@
 			"enabled": false,
 			"title": "Paused year progress",
 			"task": {
-				"plugin_name": "year_progress",
+				"plugin_name": "interstitial",
 				"content": {
-					"durationMinutes": 5
+					"slideMinutes": 5,
+					"dataSource": "year_progress"
 				}
 			},
 			"trigger": {

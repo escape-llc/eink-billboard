@@ -117,6 +117,24 @@ export function apiPut<T = any>(url: string, data: unknown): Promise<T> {
 	})
 }
 
+function apiSend<T>(method: string, url: string, data?: unknown): Promise<T> {
+	return apiJson<T>(url, data === undefined
+		? { method }
+		: { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) })
+}
+
+export function apiPost<T = any>(url: string, data: unknown): Promise<T> {
+	return apiSend<T>("POST", url, data)
+}
+
+export function apiPatch<T = any>(url: string, data: unknown): Promise<T> {
+	return apiSend<T>("PATCH", url, data)
+}
+
+export function apiDelete<T = any>(url: string): Promise<T> {
+	return apiSend<T>("DELETE", url)
+}
+
 /** End the session on the server and drop the cookie. */
 export async function signOut(): Promise<void> {
 	await fetch(SESSION_URL, { method: "DELETE", credentials: "include" })

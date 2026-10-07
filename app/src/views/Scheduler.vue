@@ -4,8 +4,8 @@
 		<template #start>
 			<div style="font-size:150%">Scheduler</div>
 		</template>
-		<template #center>
-			<Select v-model:="eventList" />
+		<template #end>
+			<Button size="small" label="New task" icon="pi pi-plus" :disabled="pluginList.length === 0" @click="handleNew" />
 		</template>
 	</Toolbar>
 	<AlCalendar style="width:100%" class="calendar" :dateRange="dateRange" :timeRange="timeRange" :eventList="eventList">
@@ -34,10 +34,18 @@
 			</div>
 		</template>
 	</AlCalendar>
-	<Dialog v-model:visible="dialogOpen" model header="Edit Item" style="width:60%; font-size:90%">
+	<Dialog v-model:visible="dialogOpen" modal :header="editTarget?.id ? 'Edit task' : 'New task'" style="width:60%; font-size:90%">
+		<Message v-if="conflict" severity="warn" :closable="false" class="mb-2">
+			<div class="flex align-items-center gap-2">
+				<span>{{ conflict.message }}</span>
+				<Button size="small" label="Reload" icon="pi pi-refresh" severity="secondary" @click="reloadTask" />
+				<Button v-if="conflict.rev" size="small" label="Overwrite" icon="pi pi-upload" severity="danger" @click="overwriteTask" />
+			</div>
+		</Message>
+		<Message v-for="(problem, index) in serverProblems" :key="index" severity="error" size="small" variant="simple">{{ problem }}</Message>
 		<BasicForm v-if="selectedPlugin" ref="bf" :form="selectedPlugin.instanceSettings" :initialValues="editModel.content" :baseUrl="API_URL"
 			:beforeFieldsSchema="beforeFieldsSchema" :addInitialValues="addInitialValues"
-			@validate="onValidated"
+			@validate="onValidated" @submit="submitForm"
 			class="form">
 			<template #header>
 				<Toolbar style="width:100%" class="p-1 mt-2">
@@ -46,8 +54,8 @@
 					</template>
 					<template #end>
 						<InputGroup>
-							<Button size="small" icon="pi pi-check" severity="success" :disabled="!editModelValid" @click="handleSubmit" />
-							<Button size="small" icon="pi pi-times" severity="danger" @click="handleReset" />
+							<Button size="small" icon="pi pi-check" severity="success" aria-label="Save" :disabled="!editModelValid || saving" @click="handleSubmit" />
+							<Button size="small" icon="pi pi-times" severity="danger" aria-label="Reset" @click="handleReset" />
 						</InputGroup>
 					</template>
 				</Toolbar>
@@ -56,6 +64,12 @@
 				<h3 class="mb-0">{{ slotProps.label }}</h3>
 			</template>
 			<template #before-fields>
+				<InputGroup v-if="!editTarget?.id && documents.length > 1">
+					<InputGroupAddon>
+						<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" style="flex-shrink:0;flex-grow:1">Schedule</label>
+					</InputGroupAddon>
+					<Select :options="documents" optionLabel="name" optionValue="id" v-model="newTaskDocument" />
+				</InputGroup>
 				<InputGroup>
 					<InputGroupAddon>
 						<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" fluid style="flex-shrink:0;flex-grow:1">Title</label>
@@ -92,16 +106,27 @@
 					severity="error" size="small" variant="simple">{{ pluginErrorMessage }}</Message>
 			</template>
 		</BasicForm>
-		<div class="flex gap-2 pt-2" style="justify-self:flex-end">
+		<div class="flex gap-2 pt-2 justify-content-between">
+			<Button v-if="editTarget?.id" type="button" label="Delete" icon="pi pi-trash" severity="danger" variant="text" @click="deleteOpen = true"></Button>
+			<span v-else></span>
+			<div class="flex gap-2">
 				<Button type="button" label="Cancel" severity="secondary" @click="dialogOpen = false"></Button>
-				<Button type="button" label="Save" @click="dialogOpen = false"></Button>
+				<Button type="button" label="Save" :disabled="!editModelValid || saving" @click="handleSubmit"></Button>
+			</div>
+		</div>
+	</Dialog>
+	<Dialog v-model:visible="deleteOpen" modal header="Delete task?" style="width:24rem">
+		<p class="mt-0">"{{ editModel.title }}" will be removed from the schedule.</p>
+		<div class="flex gap-2 justify-content-end">
+			<Button type="button" label="Keep" severity="secondary" @click="deleteOpen = false"></Button>
+			<Button type="button" label="Delete" severity="danger" :disabled="saving" @click="deleteTask"></Button>
 		</div>
 	</Dialog>
 	</div>
 </template>
 <script setup lang="ts">
-import { apiJson } from "../components/ApiClient"
-import { InputGroup, InputGroupAddon, Button, Dialog, Toolbar, Select, Checkbox, InputText, Message } from "primevue"
+import { ApiError, apiDelete, apiJson, apiPost, apiPut } from "../components/ApiClient"
+import { InputGroup, InputGroupAddon, Button, Dialog, Toolbar, Select, Checkbox, InputText, Message, useToast } from "primevue"
 import FormField from '@primevue/forms/formfield';
 import AlCalendar from "../components/AlCalendar.vue"
 import type { DateRange, TimeRange, EventInfo } from "../components/AlCalendar.vue"
@@ -123,6 +148,18 @@ const timeRange = ref<TimeRange>({start: 0, end: 1440, interval:30 })
 const eventList = ref<EventInfo[]>([])
 const dialogOpen = ref(false)
 const currentEvent = ref()
+const toast = useToast()
+const TIMER_URL = `${import.meta.env.VITE_API_URL}api/schedule/timer`
+// the stored documents of timer tasks (a task is added to one of them)
+const documents = ref<{ id: string, name: string }[]>([])
+const newTaskDocument = ref<string|undefined>(undefined)
+// what the dialog edits: a stored task (id) of a document, with the revision it was loaded at; id null is a new task
+const editTarget = ref<{ schedule: string, id: string|null, rev: string|undefined }|null>(null)
+const conflict = ref<{ message: string, rev: string|undefined }|null>(null)
+const serverProblems = ref<string[]>([])
+const saving = ref(false)
+const deleteOpen = ref(false)
+let lastBody: Record<string, any>|undefined = undefined
 
 type DropdownOption = {
 	id: string,
@@ -184,7 +221,7 @@ provide("settingsPluginsList", pluginList)
 provide("settingsDataSourcesList", dataSources)
 
 
-onMounted(() => {
+function loadTimeline(): Promise<void> {
 	const renderUrl = `${API_URL}api/schedule/tasks/render`
 	const listPluginsUrl = `${API_URL}api/plugins/list`
 	const listDatasourcesUrl = `${API_URL}api/datasources/list`
@@ -192,12 +229,13 @@ onMounted(() => {
 		apiJson(renderUrl),
 		apiJson(listPluginsUrl),
 		apiJson(listDatasourcesUrl),
+		apiJson(`${TIMER_URL}/list`),
 	]
-	Promise.all(pxs).then(rxs => {
-		console.log("yay", rxs)
+	return Promise.all(pxs).then(rxs => {
 		const json = rxs[0]
 		pluginList.value = rxs[1]
 		dataSources.value = rxs[2]
+		documents.value = (rxs[3].timed ?? []).map((d: any) => ({ id: d.id, name: d.name }))
 		if(json.success) {
 			json.start_ts = new Date(json.start_ts)
 			json.end_ts = new Date(json.end_ts)
@@ -205,9 +243,7 @@ onMounted(() => {
 			json.render.forEach((rx: any) => {
 				rx.start = new Date(rx.scheduled_time)
 				rx.end = new Date(rx.start.getTime() + 30*60*1000)
-//				console.log("item", rx)
 				const sref = derefSchedule(json.schedules, rx.schedule, rx.id)
-//				console.log("ref", ref)
 				const ei = {
 					start: rx.start,
 					title: "my event",
@@ -219,7 +255,8 @@ onMounted(() => {
 					if(sref.task.content.slideMinutes) {
 						ei.duration = sref.task.content.slideMinutes
 					}
-					ei.data = sref
+					// the document id travels with the task: that is what a change is addressed to
+					ei.data = { ...sref, schedule: rx.schedule }
 				}
 				events.push(ei)
 			})
@@ -228,8 +265,10 @@ onMounted(() => {
 	})
 	.catch(ex => {
 		console.error("render.unhandled", ex)
+		toast.add({severity:'error', summary: 'Error', detail: `Failed to load the schedule: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
-})
+}
+onMounted(() => { loadTimeline() })
 const beforeFieldsSchema = (resv: Record<string, z.ZodTypeAny>) => {
 	resv['title'] = z.string().min(1, "Title is required")
 	resv['enabled'] = z.boolean()
@@ -276,30 +315,155 @@ const onValidated = ({ result, values }: ValidateEventData) => {
 		}
 	}
 }
+function resetMessages() {
+	conflict.value = null
+	serverProblems.value = []
+}
+const stageTask = (evx: any) => ({
+	id: evx.id,
+	title: evx.title,
+	enabled: evx.enabled,
+	trigger: evx.trigger,
+	plugin_name: evx.task.plugin_name,
+	content: evx.task.content
+})
 const handleEventClick = (_event: any, day: any, event: any) => {
 	console.log("handleEventClick", day, event)
-	if(pluginList.value.length > 0) {
-		console.log("edit item", pluginList.value)
-		dialogOpen.value = true
-		currentEvent.value = event
-		const target = pluginList.value.find(px => px.id === event.event.data.task.plugin_name)
+	const data = event.event.data
+	if(pluginList.value.length > 0 && data) {
+		const target = pluginList.value.find(px => px.id === data.task.plugin_name)
 		if(target) {
+			resetMessages()
+			currentEvent.value = event
+			editTarget.value = { schedule: data.schedule, id: data.id, rev: data._rev }
+			dialogOpen.value = true
 			form.value = structuredClone(toRaw(target.instanceSettings))
 			nextTick().then(_ => {
-				//initialValues.value = structuredClone(toRaw(event.event.data.task.content))
-				const evx = structuredClone(toRaw(event.event.data))
-				console.log("ready2edit", evx)
-				const stage = {
-					id: evx.id,
-					title: evx.title,
-					enabled: evx.enabled,
-					trigger: evx.trigger,
-					plugin_name: evx.task.plugin_name,
-					content: evx.task.content
-				}
-				editModel.value = stage
+				editModel.value = stageTask(structuredClone(toRaw(data)))
 			})
 		}
+		else {
+			toast.add({severity:'warn', summary: 'Unknown plugin', detail: `This task uses a plugin that is not installed.`, life: 5000});
+		}
+	}
+}
+const DEFAULT_TRIGGER = {
+	on_startup: false,
+	day: { type: "dayofweek", days: [0, 1, 2, 3, 4, 5, 6] },
+	time: { type: "specific", hour: 9, minute: 0 }
+}
+const handleNew = () => {
+	const first = pluginList.value[0]
+	if(!first) return
+	resetMessages()
+	currentEvent.value = undefined
+	newTaskDocument.value = documents.value[0]?.id
+	editTarget.value = { schedule: "", id: null, rev: undefined }
+	editModel.value = { title: "", enabled: true, trigger: structuredClone(DEFAULT_TRIGGER), plugin_name: first.id, content: {} }
+	dialogOpen.value = true
+}
+const taskUrl = (schedule: string, id: string) => `${TIMER_URL}/${encodeURIComponent(schedule)}/items/${encodeURIComponent(id)}`
+/** The documents hold the tasks: a first task needs one to exist. */
+async function ensureDocument(): Promise<string> {
+	if(newTaskDocument.value) return newTaskDocument.value
+	const created = await apiPost(TIMER_URL, { name: "Timer tasks" })
+	return created.id
+}
+/** Send the task; `rev` is the revision it was loaded at (a stale one is a 409, which the dialog lets the person resolve). */
+async function saveTask(body: Record<string, any>, rev: string|undefined) {
+	const target = editTarget.value
+	if(!target) return
+	saving.value = true
+	resetMessages()
+	lastBody = body
+	try {
+		if(target.id) {
+			await apiPut(taskUrl(target.schedule, target.id), { ...body, _rev: rev })
+		}
+		else {
+			await apiPost(`${TIMER_URL}/${encodeURIComponent(await ensureDocument())}/items`, body)
+		}
+		toast.add({severity:'success', summary: 'Success', detail: 'Task saved', life: 3000});
+		dialogOpen.value = false
+		await loadTimeline()
+	}
+	catch(ex: any) {
+		if(ex instanceof ApiError && ex.status === 409) {
+			conflict.value = { message: ex.message, rev: typeof ex.body?.rev === "string" ? ex.body.rev : undefined }
+		}
+		else if(ex instanceof ApiError && ex.status === 422 && Array.isArray(ex.body?.errors)) {
+			// a plugin field's problem shows on that field; the rest (title, trigger, plugin) is listed above the form
+			const fieldErrors: { path: unknown[], message: string }[] = []
+			const others: string[] = []
+			for(const err of ex.body.errors as { path?: unknown[], message?: string }[]) {
+				const path = err.path ?? []
+				if(path[0] === "task" && path[1] === "content" && typeof path[2] === "string") {
+					fieldErrors.push({ path: [path[2]], message: err.message ?? "" })
+				}
+				else {
+					others.push(`${path.join(" / ")}${path.length ? ": " : ""}${err.message ?? ""}`)
+				}
+			}
+			const shown = fieldErrors.length > 0 ? (bf.value?.setServerErrors(fieldErrors) ?? 0) : 0
+			serverProblems.value = shown < fieldErrors.length || others.length > 0 ? [...others, ...(shown < fieldErrors.length ? [ex.message] : [])] : []
+		}
+		else {
+			toast.add({severity:'error', summary: 'Error', detail: `Failed to save the task: ${ex.message || 'Unknown error'}`, life: 5000});
+		}
+	}
+	finally {
+		saving.value = false
+	}
+}
+const submitForm = ({ result }: { result?: { success: boolean, data?: Record<string, any> } }) => {
+	if(!result?.success || !result.data || !editTarget.value) return
+	// the fields the page adds around the plugin's own (see beforeFieldsSchema) are the task's; the rest is its content
+	const { title, enabled, plugin_name, trigger, ...content } = result.data
+	saveTask({ title, enabled, trigger, task: { plugin_name, content } }, editTarget.value.rev)
+}
+/** Someone else changed the task: take their version (the edits are dropped). */
+async function reloadTask() {
+	const target = editTarget.value
+	if(!target?.id) return
+	try {
+		const rx = await apiJson(taskUrl(target.schedule, target.id))
+		editTarget.value = { ...target, rev: rx.task._rev }
+		resetMessages()
+		editModel.value = stageTask(rx.task)
+	}
+	catch(ex: any) {
+		toast.add({severity:'error', summary: 'Error', detail: `Failed to reload the task: ${ex.message || 'Unknown error'}`, life: 5000});
+		dialogOpen.value = false
+		await loadTimeline()
+	}
+}
+/** Keep my version: send it again at the revision the server has now. */
+function overwriteTask() {
+	if(!lastBody || !conflict.value?.rev) return
+	saveTask(lastBody, conflict.value.rev)
+}
+async function deleteTask() {
+	const target = editTarget.value
+	if(!target?.id || !target.rev) return
+	saving.value = true
+	try {
+		await apiDelete(`${taskUrl(target.schedule, target.id)}?rev=${encodeURIComponent(target.rev)}`)
+		toast.add({severity:'success', summary: 'Success', detail: 'Task deleted', life: 3000});
+		deleteOpen.value = false
+		dialogOpen.value = false
+		await loadTimeline()
+	}
+	catch(ex: any) {
+		deleteOpen.value = false
+		if(ex instanceof ApiError && ex.status === 409) {
+			conflict.value = { message: "The task changed since it was loaded; reload it before deleting.", rev: undefined }
+		}
+		else {
+			toast.add({severity:'error', summary: 'Error', detail: `Failed to delete the task: ${ex.message || 'Unknown error'}`, life: 5000});
+		}
+	}
+	finally {
+		saving.value = false
 	}
 }
 const handleReset = () => {
