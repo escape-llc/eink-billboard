@@ -1,12 +1,12 @@
 <template>
-	<div class="scheduler-container">
+	<div class="scheduler-container" :style="{ '--time-column-rows': slotTotal, '--date-row-columns': daysInRange.length }">
 		<div class="day-header-container grid-horizontal">
-			<template v-for="day in daysInRange">
+			<template v-for="day in daysInRange" :key="day.key">
 				<slot name="dayheader" :day="day">
 					<div :style="{'grid-column': day.column, 'grid-row': day.row }">
 						<div>
-							<span>{{ day.date.getDate() }}</span>
-							<span>{{ new Intl.DateTimeFormat("en-US", {weekday:'short'}).format(day.date) }}</span>
+							<span>{{ day.dayOfMonth }}</span>
+							<span>{{ weekdayName(day.weekday) }}</span>
 						</div>
 					</div>
 				</slot>
@@ -14,24 +14,24 @@
 		</div>
 		<div class="events-panel-scroll" style="align-self: stretch;">
 			<div class="events-panel grid-horizontal grid-vertical">
-				<template v-for="time in timesInRange">
+				<template v-for="time in timesInRange" :key="time.index">
 					<slot name="timeheader" :time="time">
 						<div :style="{'grid-row':time.row,'grid-column':time.column}">
 							<div>
-								<span>{{ new Intl.DateTimeFormat("en-US", {timeZone:"GMT",hour12: false, hour:'2-digit'}).format(time.date) }}</span>
-								<span>{{ new Intl.DateTimeFormat("en-US", {hour12: false, minute:'2-digit'}).format(time.date).padStart(2, '0') }}</span>
+								<span>{{ twoDigits(time.hour) }}</span>
+								<span>{{ twoDigits(time.minute) }}</span>
 							</div>
 						</div>
 					</slot>
 				</template>
-				<template v-for="(day,ix) in daysInRange">
+				<template v-for="(day,ix) in daysInRange" :key="day.key">
 					<div class="event-grid-track grid-vertical" :style="{'grid-column': ix + 2, 'grid-row': '1 / span var(--time-column-rows)'}">
-						<template v-for="time in timesInRange">
+						<template v-for="time in timesInRange" :key="time.index">
 							<div class="event-grid-track-cell" :style="{'grid-row':time.row,'grid-column':`${time.column}`}"></div>
 						</template>
 					</div>
 					<div class="event-track grid-vertical" style="background: transparent" :style="{'grid-column': ix + 2, 'grid-row': '1 / span var(--time-column-rows)'}">
-						<template v-for="event in filterEvents(day)">
+						<template v-for="event in eventsOf(day.key)" :key="`${event.index}-${event.continued}`">
 							<slot name="event" :day="day" :event="event">
 								<div class="default-event" :style="{'grid-row': `${event.row} / span ${event.span}`}">
 									<div>{{ event.event.title }}</div>
@@ -45,113 +45,103 @@
 	</div>
 </template>
 <script lang="ts" setup>
-import { computed, watch } from "vue"
-import { DateBuilder, MS_PER_DAY } from "./DateUtils"
+import { computed, onBeforeUnmount, ref } from "vue"
+import { dayInfo, daysFrom, place, segments, slotCount, timeSlots, zonedParts, type TimeRange } from "./CalendarTime"
 
-export type DateRange = {
-	start: Date
-	end: Date
-}
-export type TimeRange = {
-	start: number;
-	end: number;
-	interval: number;
-}
+export type { TimeRange }
 export type DailyInfo = {
+	/** `YYYY-MM-DD` */
+	key: string
+	/** a Date whose local fields are this calendar day */
 	date: Date
+	/** 0 = Sunday */
+	weekday: number
+	dayOfMonth: number
+	/** it is today in the calendar's time zone (kept current while the page is open) */
+	today: boolean
+	index: number
+	column: number
+	row: number
+}
+export type TimeSlotInfo = {
+	/** minutes since midnight */
+	minutes: number
+	hour: number
+	minute: number
 	index: number
 	column: number
 	row: number
 }
 export type EventCellInfo = {
 	date: Date
+	/** when the event starts (the whole event, also on the day it continues) */
 	start: Date
-	end: Date
 	index: number
 	column: number
 	row: number
 	span: number
+	/** this part continues an event that began on the day before */
+	continued: boolean
 	event: EventInfo
 }
 export interface EventInfo {
 	start: Date
+	/** minutes */
 	duration: number
 	title: string
 	data?: unknown
 }
 export type PropsType = {
-	dateRange: DateRange
+	/** the first day shown, `YYYY-MM-DD` */
+	firstDay: string
+	dayCount: number
+	/** the zone the days and times are read in (an IANA name or a fixed offset such as `+05:30`); the browser's when not given */
+	timeZone?: string
 	timeRange: TimeRange
 	eventList: EventInfo[]
 }
-const timeSlots = computed(() => {
-	const ts = props.timeRange;
-	return Math.round((ts.end - ts.start)/ts.interval);
-})
-function filterEvents(day: DailyInfo): EventCellInfo[] {
-	const filtered:EventCellInfo[] = [];
-	let index = 0
-	console.log("filterEvents", day);
-	props.eventList.forEach(ev => {
-		const start = new DateBuilder(ev.start).midnight().date()
-//		console.log("filterEvents", ev, start, start.getTime(), day.date.getTime());
-		if(start.getTime() === day.date.getTime()) {
-			const end = new DateBuilder(ev.start).minutes(ev.duration).date()
-			const offset_sec = (ev.start.getTime() - day.date.getTime())/1000
-			const offset_min = offset_sec/60;
-			const row = Math.round(offset_min/props.timeRange.interval)
-//			console.log("filterEvents.hit", ev.start, end, offset_min, props.timeRange.interval, row)
-			filtered.push({
-				date: start,
-				start: ev.start,
-				end: end,
-				column: 1,
-				row: Math.min(timeSlots.value, Math.max(1, row + 1)),
-				span: Math.max(1, Math.round(ev.duration/props.timeRange.interval)),
-				index, event: ev
-			})
-			index += 1
+const props = defineProps<PropsType>()
+
+// the weekday names are one formatter, made once (the labels are static text per weekday)
+const WEEKDAYS = (() => {
+	const format = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" })
+	return Array.from({ length: 7 }, (_, weekday) => format.format(new Date(Date.UTC(2023, 0, 1 + weekday))))
+})()
+const weekdayName = (weekday: number) => WEEKDAYS[weekday] ?? ""
+const twoDigits = (value: number) => String(value).padStart(2, "0")
+
+// "today" moves on while the page is open
+const clock = ref(new Date())
+const ticker = setInterval(() => { clock.value = new Date() }, 30_000)
+onBeforeUnmount(() => clearInterval(ticker))
+const todayKey = computed(() => zonedParts(clock.value, props.timeZone).key)
+
+const slotTotal = computed(() => slotCount(props.timeRange))
+const timesInRange = computed<TimeSlotInfo[]>(() => timeSlots(props.timeRange).map(slot => ({ ...slot, column: 1 })))
+const daysInRange = computed<DailyInfo[]>(() => daysFrom(props.firstDay, props.dayCount).map((key, index) => ({
+	key, ...dayInfo(key), today: key === todayKey.value, index, column: index + 2, row: 1
+})))
+
+// each event is drawn on every day it touches, in the slot its start falls in
+const cellsByDay = computed(() => {
+	const days = new Map<string, EventCellInfo[]>()
+	props.eventList.forEach((event, index) => {
+		const { key, minutes } = zonedParts(event.start, props.timeZone)
+		for(const segment of segments(key, minutes, event.duration)) {
+			const spot = place(segment, props.timeRange)
+			if(!spot) continue
+			const cell: EventCellInfo = {
+				date: dayInfo(segment.day).date, start: event.start, index, column: 1,
+				row: spot.row, span: spot.span, continued: segment.continued, event
+			}
+			const list = days.get(segment.day)
+			if(list) list.push(cell)
+			else days.set(segment.day, [cell])
 		}
 	})
-	filtered.length && console.log("filterEvents", filtered);
-	return filtered;
-}
-const props = defineProps<PropsType>()
-const timesInRange = computed(() => {
-	let offset = 0
-	let index = 0
-	let row = 1
-	const days: DailyInfo[] = [];
-	while(offset < props.timeRange.end) {
-		let current = new DateBuilder(new Date(0)).minutes(props.timeRange.start + offset).date()
-		days.push({date: new Date(current.getTime()), index, column: 1, row })
-		offset += props.timeRange.interval
-		index += 1
-		row += 1
-	}
-	return days;
+	return days
 })
-const daysInRange = computed(() => {
-	let start = new DateBuilder(props.dateRange.start).midnight().date();
-	let end = new DateBuilder(props.dateRange.end).midnight().date();
-	console.log("daysInRange", start, end);
-	const days: DailyInfo[] = [];
-	let index = 0;
-	let column = 2;
-	while(start.getTime() <= end.getTime()) {
-		days.push({date: new Date(start.getTime()), index, column, row: 1 })
-		start.setTime(start.getTime() + MS_PER_DAY);
-		index += 1;
-		column += 1;
-	}
-	console.log("daysInRange", days);
-	return days;
-})
-watch(props.dateRange, (nv,ov) => {
-	console.log("dateRange", nv, ov);
-	if(nv) {
-	}
-})
+const eventsOf = (key: string): EventCellInfo[] => cellsByDay.value.get(key) ?? []
 </script>
 <style scoped>
 .scheduler-container {

@@ -431,6 +431,14 @@ class TestScheduleRender(WebApiTestBase):
 		self.assertEqual({r["id"] for r in doc["render"]}, {"on"})
 		self.assertNotIn("off", [x["id"] for x in doc["not_render"]])
 
+	def test_the_response_names_the_zone_the_times_are_in(self):
+		self._write_tasks([self._item("a", self._at(9, 0))])
+		self._set_timezone("Asia/Kolkata")
+		doc = self.client.get("/api/schedule/tasks/render", params={ "start": "2026-01-05", "days": 1 }).json()
+		self.assertEqual(doc["timezone"], "Asia/Kolkata")
+		self.assertTrue(doc["start_ts"].endswith("+05:30"))
+		self.assertTrue(doc["render"][0]["scheduled_time"].endswith("+05:30"))
+
 	def test_weekday_numbering_matches_the_ui(self):
 		# 2026-01-04 is a Sunday: day 0
 		self._write_tasks([self._item("sun", self._at(9, 0, [0])), self._item("mon", self._at(9, 0, [1]))])
