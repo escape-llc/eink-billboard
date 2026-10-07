@@ -1,11 +1,24 @@
 import logging
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 import numpy as np
 import math
 from PIL import Image, ImageColor, ImageDraw, ImageFont
 
 from ...model.configuration_manager import StaticConfigurationManager
-from ..data_source import DataSource, DataSourceExecutionContext, MediaItemAsync, MediaRenderAsync, MediaRenderResult
+from ..data_source import DataSource, DataSourceExecutionContext, MediaItemAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
+
+def _parse_color(value: Any, default: tuple[int, int, int], name: str) -> tuple[int, int, int]:
+	"""Accept '#rrggbb' / CSS names, or an (r, g, b) tuple/list (what JSON gives); unset means `default`."""
+	if value is None or value == "":
+		return default
+	if isinstance(value, (tuple, list)):
+		if len(value) < 3 or not all(isinstance(c, int) and 0 <= c <= 255 for c in value[:3]):
+			raise ValueError(f"{name} is not a valid color: {value!r}")
+		return (value[0], value[1], value[2])
+	try:
+		return cast(tuple[int, int, int], ImageColor.getcolor(str(value), "RGB"))
+	except ValueError:
+		raise ValueError(f"{name} is not a valid color: {value!r}") from None
 
 class ClockAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 	"""
@@ -16,8 +29,8 @@ class ClockAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 		self.logger = logging.getLogger(__name__)
 	async def open_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any]) -> Any:
 		clock_face = params.get("clockFace", "Gradient Clock")
-		primary_color = ImageColor.getcolor(params.get('primaryColor') or (255,255,255), "RGB")
-		secondary_color = ImageColor.getcolor(params.get('secondaryColor') or (0,0,0), "RGB")
+		primary_color = _parse_color(params.get('primaryColor'), (255,255,255), "primaryColor")
+		secondary_color = _parse_color(params.get('secondaryColor'), (0,0,0), "secondaryColor")
 		return {
 			"clock_face": clock_face,
 			"primary_color": primary_color,
@@ -26,7 +39,7 @@ class ClockAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 	async def render_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any], state:Any) -> MediaRenderResult | None:
 		img: Image.Image|None = None
 		try:
-			dimensions = dsec.dimensions
+			dimensions = target_dimensions(dsec)
 			clock_face = state.get("clock_face", None)
 			primary_color = state.get("primary_color", None)
 			secondary_color = state.get("secondary_color", None)
@@ -42,8 +55,8 @@ class ClockAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 			elif clock_face == "Word Clock":
 				stm = dsec.provider.required(StaticConfigurationManager)
 				img = Clock.draw_word_clock(dimensions, dsec.timestamp, stm, primary_color, secondary_color)
-		except Exception as e:
-			self.logger.error(f"Failed to draw clock image: {str(e)}")
+		except Exception:
+			self.logger.exception("Failed to draw clock image")
 		return None if img is None else MediaRenderResult(image=img, title=f"{dsec.timestamp.strftime('%H:%M:%S')}")
 
 class Clock:
@@ -394,7 +407,8 @@ class Clock:
 				[[7,5],[7,6],[7,7],[7,8],[7,9],[7,10]], # ELEVEN
 				[[8,5],[8,6],[8,7],[8,8],[8,9],[8,10]], # TWELVE
 		]
-		if minute > 33:
+		if minute >= 33:
+				# same boundary as "TO" above: from :33 on it is "... to <next hour>"
 				letters.extend(hours[hour])
 		else:
 				letters.extend(hours[hour - 1])

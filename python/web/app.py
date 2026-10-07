@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from fastapi import APIRouter, Depends, FastAPI
+from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
@@ -32,7 +33,7 @@ def create_app(web: WebSettings, root_container: IServiceProvider|None = None, r
 	because the services only exist once the Application task has started.
 	`routers` are the extra API routers plugins and datasources contribute; they are mounted under /api.
 	"""
-	app = FastAPI(title="eInk Billboard", docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json")
+	app = FastAPI(title="eInk Billboard", docs_url=None, redoc_url=None, openapi_url=None)
 	app.state.root_container = root_container
 	app.state.api_token = web.api_token
 	app.state.sessions = SessionStore()
@@ -54,6 +55,14 @@ def create_app(web: WebSettings, root_container: IServiceProvider|None = None, r
 	for name, router in (routers or {}).items():
 		api.include_router(router)
 		logger.info(f"Registered router: {name}")
+	@api.get("/openapi.json", include_in_schema=False)
+	def openapi_document():
+		return app.openapi()
+
+	@api.get("/docs", include_in_schema=False)
+	def swagger_ui():
+		return get_swagger_ui_html(openapi_url="/api/openapi.json", title="eInk Billboard - API")
+
 	app.include_router(api)
 	# not behind the token check: signing in is how you get past it
 	app.include_router(session.router, prefix="/api")

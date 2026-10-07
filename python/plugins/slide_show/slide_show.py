@@ -52,13 +52,22 @@ class SlideShowAsync(PluginAsync):
 			slideMax = settings.get("slideMax", 0)
 			count = 0
 			startlen = len(state) if slideMax == 0 else slideMax
+			failures = 0
+			last_error: Exception|None = None
 			try:
 				while len(state) > 0 and (slideMax == 0 or count < slideMax):
 					self.logger.info(f"{self.id} playing '{track.title}' {count + 1}/{startlen}")
 					item = state[0]
-					mrr = await dataSource.render_async(dsec, cast(Mapping[str,Any], settings), item)
-					count += 1
 					state.pop(0)
+					try:
+						mrr = await dataSource.render_async(dsec, cast(Mapping[str,Any], settings), item)
+					except Exception as e:
+						# one dead item (URL, file, ...) must not abort the whole show; a failed item is not a slide
+						failures += 1
+						last_error = e
+						self.logger.error(f"{self.id} '{track.title}' item failed ({type(e).__name__}: {e}); {len(state)} remaining", exc_info=True)
+						continue
+					count += 1
 					if mrr is not None:
 						router.send("display", DisplayImage(context.timestamp, mrr.title if mrr.title is not None else track.title, mrr.image))
 						await timer.sleep(timedelta(minutes=slideMinutes))
@@ -66,6 +75,8 @@ class SlideShowAsync(PluginAsync):
 				self.logger.info(f"{self.id} cancelled {len(state)} remaining")
 				# TODO save state for next time?
 				raise
+			if failures > 0 and count == 0:
+				raise RuntimeError(f"{dataSourceName}: All {failures} slide show items failed; last error: {last_error}")
 		pass
 	async def task_async(self, context: PluginExecutionContext, track: TrackType, done: threading.Event) -> BasicMessage|None:
 		self.logger.info(f"{self.id} start '{track.title}'")

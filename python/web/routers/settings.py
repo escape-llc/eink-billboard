@@ -1,5 +1,6 @@
 """Settings documents and their schemas: device-wide (system/display/theme), per plugin and per datasource."""
 import logging
+import os
 from typing import Any
 
 from fastapi import APIRouter, Body
@@ -38,7 +39,9 @@ def _find_item(items: list[CollectInfoDict], item_id: str, kind: str) -> tuple[s
 	raise ApiError(404, f"Unknown {kind}.", None)
 
 def _settings_properties(item: CollectInfoDict) -> list[dict]:
-	return item["info"].get("settings", {}).get("schema", {}).get("properties", [])
+	# a descriptor may hold `"settings": null` (or no schema): that is a plugin without settings, not an error
+	settings = item["info"].get("settings") or {}
+	return (settings.get("schema") or {}).get("properties") or []
 
 @router.get('/settings/{name}')
 def get_device_settings(name: str, cm: CM):
@@ -57,10 +60,10 @@ def put_device_settings(name: str, cm: CM, body: dict[str, Any] = Body(...)):
 def get_device_schema(name: str, cm: CM):
 	name = _device_name(name)
 	path = cm.schema_path(name)
-	try:
-		return FileResponse(path, media_type="application/json")
-	except FileNotFoundError:
+	# FileResponse does not raise for a missing file when it is built, only later while sending, which would be a 500
+	if not os.path.isfile(path):
 		raise ApiError(404, "File not found.", f"{name}-schema")
+	return FileResponse(path, media_type="application/json")
 
 @router.get('/plugins/list')
 def plugins_list(cm: CM):
