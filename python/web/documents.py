@@ -6,6 +6,7 @@ and requires the same `_rev` on the way back in; a stale `_rev` is a 409 conflic
 """
 import json
 import logging
+import math
 import re
 from datetime import date
 from typing import Any, Iterable
@@ -15,6 +16,9 @@ from .errors import ApiError
 from .visibility import hidden_names, null_hidden
 
 logger = logging.getLogger(__name__)
+
+NOT_FINITE = "Must be a finite number"
+ENTER_THE_KEY = "Enter the key"
 
 # What clients see instead of a stored secret. Sending it back unchanged means "keep the stored value".
 SECRET_MASK = "********"
@@ -34,12 +38,36 @@ def redact(document: dict, secrets: set[str]) -> dict:
 	return out
 
 def restore_secrets(document: dict, stored: dict|None, secrets: set[str]) -> dict:
-	"""A copy of the incoming document where masked or omitted secrets are replaced by the stored values."""
+	"""
+	A copy of the incoming document where masked or omitted secrets are replaced by the stored values.
+	A mask with no stored value to restore is left as it is: `unrestored_masks` reports it, so the literal mask is never stored as a secret.
+	"""
 	out = dict(document)
 	for name in secrets:
 		if out.get(name, SECRET_MASK) == SECRET_MASK and stored is not None and name in stored:
 			out[name] = stored[name]
 	return out
+
+def unrestored_masks(document: dict, secrets: set[str]) -> list[dict]:
+	"""Errors for secrets that still hold the literal mask after `restore_secrets` (nothing stored to keep): the user must type the value."""
+	return [{ "path": [name], "message": ENTER_THE_KEY } for name in sorted(secrets) if document.get(name) == SECRET_MASK]
+
+def find_non_finite(value: Any, path: list[str]|None = None) -> list[dict]:
+	"""
+	Errors for every NaN or infinity anywhere in the value (unknown keys and nested lists/objects included).
+	Python's JSON parser accepts them (NaN, Infinity, 1e999) but they cannot be sent back out, so a stored one would break every later GET.
+	"""
+	path = path or []
+	if isinstance(value, float) and not math.isfinite(value):
+		return [{ "path": path, "message": NOT_FINITE }]
+	found: list[dict] = []
+	if isinstance(value, dict):
+		for k, v in value.items():
+			found += find_non_finite(v, path + [str(k)])
+	elif isinstance(value, list):
+		for i, v in enumerate(value):
+			found += find_non_finite(v, path + [str(i)])
+	return found
 
 def _is_number(v) -> bool:
 	return isinstance(v, (int, float)) and not isinstance(v, bool)
@@ -84,6 +112,8 @@ def _check_value(prop: dict, value: Any, lookups: dict) -> str|None:
 	elif ptype in ("number", "int"):
 		if not _is_number(value):
 			return f"Expected {ptype}"
+		if isinstance(value, float) and not math.isfinite(value):
+			return NOT_FINITE
 		if ptype == "int" and isinstance(value, float) and not value.is_integer():
 			return "Whole numbers only"
 		if prop.get("min") is not None and value < prop["min"]:
@@ -159,7 +189,9 @@ def put_document(id: str, body: dict[str, Any], cob: ConfigurationObject, proper
 	_, stored = cob.get()
 	document = restore_secrets(document, stored, secrets)
 	document = null_hidden(document, properties or [])
-	errors = validate_properties(document, properties, lookups)
+	errors = find_non_finite(document) + unrestored_masks(document, secrets)
+	reported = { tuple(e["path"]) for e in errors }
+	errors += [e for e in validate_properties(document, properties, lookups) if tuple(e["path"]) not in reported]
 	if errors:
 		raise ApiError(422, "Settings validation failed", id, errors=errors)
 	committed, new_rev = cob.save(rev, document)

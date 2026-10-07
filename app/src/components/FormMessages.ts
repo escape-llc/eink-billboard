@@ -4,6 +4,7 @@ export const messages = {
 	notAllowed: "Not one of the allowed values",
 	notAvailable: "Not one of the available choices",
 	wholeNumbers: "Whole numbers only",
+	finite: "Must be a finite number",
 	minimum: (n: number) => `Minimum ${n}`,
 	maximum: (n: number) => `Maximum ${n}`,
 	latitude: "Latitude is -90 to 90",

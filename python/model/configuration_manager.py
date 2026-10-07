@@ -120,7 +120,8 @@ class ConfigurationObject:
 	changes via the provided callables. Methods are protected by a
 	per-instance reentrant lock to make operations thread-safe.
 	"""
-	def __init__(self, moniker: str, loader: LoadFunc, saver: SaveFunc):
+	def __init__(self, moniker: str, loader: LoadFunc, saver: SaveFunc, verify_on_save: bool = False):
+		"""`verify_on_save`: `save()` re-reads the content with the loader and compares against that, not the cache (for stores others can edit, like files)."""
 		if moniker == None:
 			raise ValueError("moniker cannot be None")
 		if loader == None:
@@ -132,6 +133,7 @@ class ConfigurationObject:
 		self._hash: str|None = None
 		self._loader = loader
 		self._saver = saver
+		self._verify_on_save = verify_on_save
 		# Use RLock so the same thread can re-enter safely if needed
 		self._lock = threading.RLock()
 	def __enter__(self):
@@ -148,7 +150,9 @@ class ConfigurationObject:
 			return (self._hash, self._content.copy() if self._content is not None else None)
 	def save(self, hash: str|None, content: dict) -> SaveResult:
 		with self._lock:
-			if self._content is None:
+			if self._content is None or self._verify_on_save:
+				# an outside edit is only evicted after the watcher's debounce: for files, trust the disk and never the cache,
+				# so a stale cache can not commit over an edit made in that window
 				self._content = self._loader(self.moniker)
 				self._hash = create_hash(self._content) if self._content is not None else None
 			if self._hash != hash:
@@ -166,7 +170,7 @@ class ConfigurationObject:
 
 class FileConfiguration(ConfigurationObject):
 	def __init__(self, moniker):
-		super().__init__(moniker, _internal_load, _internal_save)
+		super().__init__(moniker, _internal_load, _internal_save, verify_on_save=True)
 
 class FileDeletableConfiguration(FileConfiguration):
 	def __init__(self, moniker):
@@ -240,17 +244,27 @@ class PluginConfigurationManager:
 		if not os.path.exists(self.ROOT_PATH):
 			raise ValueError(f"Directory {self.ROOT_PATH} does not exist.")
 		plugin_state_file = os.path.join(self.ROOT_PATH, "state.json")
-		_internal_save(plugin_state_file, state)
+		# through the cached object, so a reader that holds it does not keep serving the old state
+		cob = self._cof.obtain(plugin_state_file, FileDeletableConfiguration)[1]
+		with cob:
+			_internal_save(plugin_state_file, state)
+			cob.evict()
 	def delete_state(self):
 		if not os.path.exists(self.ROOT_PATH):
 			return
 		plugin_state_file = os.path.join(self.ROOT_PATH, "state.json")
+		cob = self._cof.obtain(plugin_state_file, FileDeletableConfiguration)[1]
+		if isinstance(cob, FileDeletableConfiguration):
+			# removes the file (if any) and the cached content together
+			cob.delete()
+			return
 		if not os.path.isfile(plugin_state_file):
 			return
 		try:
 			os.remove(plugin_state_file)
 		except Exception as e:
 			logger.error(f"Error deleting file '{plugin_state_file}': {e}")
+		cob.evict()
 	def open(self) -> ConfigurationObject:
 		"""Loads the settings for a given plugin from its JSON file."""
 		plugin_settings_file = self.settings_path()
@@ -425,6 +439,11 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			self._reset_storage()
 			self._reset_plugins()
 			self._reset_datasources()
+			cached = list(self._objectMap.values())
+		# the files were replaced under the cached objects: none of them may keep serving what it loaded before.
+		# Outside the manager's lock, like `watch`, because evicting waits for each object's own lock
+		for ox in cached:
+			ox.evict()
 
 	def _reset_storage(self):
 		"""Copy the NVE storage tree to the STORAGE_PATH. Deploy settings to the STORAGE_PATH."""
@@ -552,11 +571,14 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		logger.info(f"ConfigurationManager.watch: type={type} moniker={moniker}")
 		if moniker == None:
 			return
+		# Lock order: the manager's lock is only held to look the object up. Evicting waits for the object's own lock,
+		# which `save()` holds across an fsync, and must not stall `obtain()` of every other moniker meanwhile.
+		# Nothing takes the manager's lock while holding an object's lock, so no cycle is possible.
 		with self._lock:
 			ox = self._objectMap.get(moniker, None)
-			if ox is not None:
-				logger.info(f"ConfigurationManager.watch: evicting moniker={moniker}")
-				ox.evict()
+		if ox is not None:
+			logger.info(f"ConfigurationManager.watch: evicting moniker={moniker}")
+			ox.evict()
 
 	def schema_path(self, schema_name: str) -> str:
 		"""Returns the path to the JSON schema file for the given schema_name."""
@@ -610,8 +632,15 @@ class ConfigurationManager(ConfigurationObjectFactory):
 				info_file = os.path.join(item_path, info_file_name)
 				if os.path.isfile(info_file):
 					logger.debug(f"collect info: {info_file}")
-					with open(info_file) as f:
-						item_info: ItemInfoDict = json.load(f)
+					try:
+						with open(info_file) as f:
+							item_info: ItemInfoDict = json.load(f)
+					except Exception as e:
+						logger.error(f"Cannot read descriptor '{info_file}' (folder '{item}'), skipping it: {e}")
+						continue
+					if not isinstance(item_info, dict):
+						logger.error(f"Descriptor '{info_file}' (folder '{item}') is not a JSON object, skipping it.")
+						continue
 					item_list.append({ "info": item_info, "path": item_path })
 		return item_list
 
@@ -640,8 +669,9 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			module = importlib.import_module(info_module)
 			item_class = getattr(module, info_class, None)
 			return item_class
-		except ImportError as e:
-			logger.error(f"Failed to import module '{info_module}': {e}")
+		except Exception as e:
+			# a module that fails for any reason (syntax error, import-time exception) costs only that plugin
+			logger.error(f"Failed to load '{info_id}' (module '{info_module}'): {e}")
 			return None
 
 	def create_plugin(self, info: CollectInfoDict) -> Any|None:
@@ -661,9 +691,13 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		"""Take the result of enum_plugins() and instantiate the plugin objects."""
 		plugin_map = {}
 		for info in infos:
-			plugin = self.create_plugin(info)
 			info_info = info["info"]
 			plugin_id = info_info.get("id")
+			try:
+				plugin = self.create_plugin(info)
+			except Exception as e:
+				logger.error(f"Failed to create plugin '{plugin_id}', skipping it: {e}", exc_info=True)
+				continue
 			if plugin:
 				plugin_map[plugin_id] = plugin
 			pass
@@ -686,9 +720,13 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		"""Take the result of enum_datasources() and instantiate the datasource objects."""
 		datasource_map = {}
 		for info in infos:
-			datasource = self.create_datasource(info)
 			info_info = info["info"]
 			info_id = info_info.get("id")
+			try:
+				datasource = self.create_datasource(info)
+			except Exception as e:
+				logger.error(f"Failed to create datasource '{info_id}', skipping it: {e}", exc_info=True)
+				continue
 			if datasource:
 				# Create an instance of the item class and add it to the dictionary
 				datasource_map[info_id] = datasource

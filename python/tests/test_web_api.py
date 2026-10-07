@@ -23,6 +23,12 @@ def _error_shape(test: unittest.TestCase, resp, status: int):
 	test.assertIsInstance(body["message"], str)
 	return body
 
+def decode_case_value(value):
+	"""JSON files cannot hold NaN or Infinity: form_rules.json writes them as `{ "$number": "NaN" }` (FormValidation.test.ts decodes the same marker)."""
+	if isinstance(value, dict) and "$number" in value:
+		return float(value["$number"])
+	return value
+
 class WebApiTestBase(unittest.TestCase):
 	"""Each test works on a private copy of the test storage, so writes never touch the original."""
 	token: str|None = None
@@ -127,7 +133,7 @@ class TestValidateProperties(unittest.TestCase):
 		self.assertGreater(len(cases), 10)
 		for case in cases:
 			with self.subTest(case["name"]):
-				errors = validate_properties({ "f": case["value"] }, [case["field"]])
+				errors = validate_properties({ "f": decode_case_value(case["value"]) }, [case["field"]])
 				self.assertEqual(errors[0]["message"] if errors else None, case["error"])
 				if errors:
 					self.assertEqual(errors[0]["path"], ["f"])
@@ -217,6 +223,34 @@ class TestSettingsValidation(WebApiTestBase):
 		body = _error_shape(self, self.client.put("/api/settings/system", json=doc), 422)
 		self.assertEqual(body["errors"][0]["path"], ["timeFormat"])
 
+class TestNonFiniteNumbers(WebApiTestBase):
+	"""Starlette's JSON parser accepts NaN, Infinity and 1e999; a stored NaN made every later GET a 500 (JSONResponse refuses it)."""
+	RAW = '{"theme": "complementary", "hue": %s, "saturation": 80, "lightness": 50}'
+
+	def _put_raw(self, text: str):
+		return self.client.put("/api/settings/theme", content=text.encode(), headers={ "content-type": "application/json" })
+
+	def test_declared_number_rejects_non_finite(self):
+		before = self.client.get("/api/settings/theme").json()
+		for literal in ("NaN", "Infinity", "-Infinity", "1e999"):
+			with self.subTest(literal):
+				body = _error_shape(self, self._put_raw(self.RAW % literal), 422)
+				self.assertEqual(body["errors"][0], { "path": ["hue"], "message": "Must be a finite number" })
+		# nothing was stored, so the settings are still readable
+		after = self.client.get("/api/settings/theme")
+		self.assertEqual(after.status_code, 200, after.text)
+		self.assertEqual(after.json()["_rev"], before["_rev"])
+
+	def test_unknown_and_nested_keys_reject_non_finite(self):
+		doc = self.client.get("/api/settings/theme").json()
+		text = json.dumps(doc)[:-1] + ', "extra": NaN, "deep": {"list": [1, Infinity]}}'
+		body = _error_shape(self, self._put_raw(text), 422)
+		paths = [e["path"] for e in body["errors"]]
+		self.assertIn(["extra"], paths)
+		self.assertIn(["deep", "list", "1"], paths)
+		self.assertTrue(all(e["message"] == "Must be a finite number" for e in body["errors"]))
+		self.assertEqual(self.client.get("/api/settings/theme").status_code, 200)
+
 class TestPluginsAndDatasources(WebApiTestBase):
 	def test_lists(self):
 		plugins = self.client.get("/api/plugins/list").json()
@@ -294,6 +328,39 @@ class TestPluginsAndDatasources(WebApiTestBase):
 			self.assertEqual(json.load(f)["apiKey"], "sk-test-2")
 		self.assertEqual(self.client.get(url).json()["apiKey"], SECRET_MASK)
 
+class TestSecretMaskOnFirstSave(WebApiTestBase):
+	URL = "/api/datasources/openai-image/settings"
+
+	def _no_stored_settings(self):
+		settings_file = self.write_datasource_settings("openai-image", {})
+		os.remove(settings_file)
+		cob = self.cm.find(settings_file)
+		if cob is not None:
+			cob.evict()
+		return settings_file
+
+	def test_the_literal_mask_is_not_stored_as_a_secret(self):
+		settings_file = self._no_stored_settings()
+		body = _error_shape(self, self.client.put(self.URL, json={ "apiKey": SECRET_MASK }), 422)
+		self.assertEqual(body["errors"][0], { "path": ["apiKey"], "message": "Enter the key" })
+		self.assertFalse(os.path.exists(settings_file))
+
+	def test_the_literal_mask_is_refused_when_the_stored_settings_have_no_key(self):
+		self.write_datasource_settings("openai-image", { "other": 1 })
+		doc = self.client.get(self.URL).json()
+		doc["apiKey"] = SECRET_MASK
+		_error_shape(self, self.client.put(self.URL, json=doc), 422)
+
+	def test_a_first_save_with_a_real_key_is_stored(self):
+		self._no_stored_settings()
+		self.assertEqual(self.client.put(self.URL, json={ "apiKey": "sk-new" }).status_code, 200)
+
+class TestSchemaFile(WebApiTestBase):
+	def test_a_missing_schema_file_is_the_uniform_404(self):
+		os.remove(os.path.join(self.storage, "schemas", "theme.json"))
+		body = _error_shape(self, self.client.get("/api/schemas/theme"), 404)
+		self.assertIn("id", body)
+
 class TestLookups(WebApiTestBase):
 	def test_lookups(self):
 		tz = self.client.get("/api/lookups/timezone").json()
@@ -360,6 +427,22 @@ class TestToken(WebApiTestBase):
 		_error_shape(self, self.client.put("/api/settings/system", json={}), 401)
 		ok = self.client.get("/api/settings/system", headers={"Authorization": "Bearer t0ken"})
 		self.assertEqual(ok.status_code, 200)
+
+	def test_docs_need_the_token_too(self):
+		for url in ("/api/docs", "/api/openapi.json"):
+			with self.subTest(url):
+				_error_shape(self, self.client.get(url), 401)
+				self.assertEqual(self.client.get(url, headers={ "Authorization": "Bearer t0ken" }).status_code, 200)
+
+	def test_docs_open_with_a_session_cookie(self):
+		self.assertEqual(self.client.post("/api/session", headers={ "Authorization": "Bearer t0ken" }).status_code, 200)
+		self.assertEqual(self.client.get("/api/openapi.json").status_code, 200)
+		self.assertEqual(self.client.get("/api/docs").status_code, 200)
+
+class TestDocsWithoutAToken(WebApiTestBase):
+	def test_docs_stay_open(self):
+		self.assertEqual(self.client.get("/api/docs").status_code, 200)
+		self.assertIn("paths", self.client.get("/api/openapi.json").json())
 
 class TestSessions(WebApiTestBase):
 	"""The web app signs in once and the server remembers it; the browser holds only an HttpOnly cookie."""
