@@ -55,13 +55,6 @@ def build(target: str) -> str:
 			with open(path, "w", encoding="utf-8", newline="\n") as f:
 				f.write(text)
 	_add_visibility_fields(target)
-	# the factory default is a Windows path (c:\Temp\mock), which on Linux becomes a folder with that literal name in the working directory
-	display_file = os.path.join(target, "settings", "display-settings.json")
-	with open(display_file, "r", encoding="utf-8") as f:
-		display = json.load(f)
-	display["mock.outputFolder"] = os.path.join(target, "mock-output")
-	with open(display_file, "w", encoding="utf-8", newline="\n") as f:
-		json.dump(display, f, indent=2)
 	return target
 
 if __name__ == "__main__":
