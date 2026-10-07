@@ -45,6 +45,14 @@ def schedule_timed_list(cm: CM):
 	tasks = [_with_rev(x["info"]) for x in _load_schedules(cm).get("tasks", []) if x.get("info") is not None]
 	return { "success": True, "timed": tasks }
 
+def _zone_name(tz: tzinfo|None, at: datetime) -> str|None:
+	"""What a browser can use as a time zone name: the IANA key, else the fixed offset (`+05:30`) in force at `at`."""
+	key = getattr(tz, "key", None)
+	if isinstance(key, str):
+		return key
+	offset = at.strftime("%z")
+	return f"{offset[:3]}:{offset[3:5]}" if len(offset) >= 5 else None
+
 def _system_timezone(cm, default: tzinfo|None) -> tzinfo|None:
 	_, system = cm.settings_manager().open("system").get()
 	name = system.get("timezoneName") if system else None
@@ -124,6 +132,7 @@ def render_tasks_schedule(
 		"start_ts": start_ts.isoformat(),
 		"end_ts": end_ts.isoformat(),
 		"days": days,
+		"timezone": _zone_name(tz, start_ts),
 		"schedules": schedule_map,
 		"render": render_list,
 		"not_render": notrender_list,

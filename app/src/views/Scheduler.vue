@@ -8,29 +8,31 @@
 			<Button size="small" label="New task" icon="pi pi-plus" :disabled="pluginList.length === 0" @click="handleNew" />
 		</template>
 	</Toolbar>
-	<AlCalendar style="width:100%" class="calendar" :dateRange="dateRange" :timeRange="timeRange" :eventList="eventList">
+	<AlCalendar style="width:100%" class="calendar" :firstDay="firstDay" :dayCount="dayCount" :timeZone="timeZone" :timeRange="timeRange" :eventList="eventList">
 		<template #dayheader="{ day }">
 			<div class="day-header" :style="{'grid-column': day.column, 'grid-row': day.row }"
-				:class="{'day-header-weekend': day.date.getDay() === 0 || day.date.getDay() === 6, 'day-header-today': isToday(day.date) }">
+				:class="{'day-header-weekend': day.weekday === 0 || day.weekday === 6, 'day-header-today': day.today }">
 				<div>
-					<span class="day-header-day">{{ day.date.getDate() }}</span>
-					<span class="day-header-dow">{{ new Intl.DateTimeFormat("en-US", {weekday:'short'}).format(day.date) }}</span>
+					<span class="day-header-day">{{ day.dayOfMonth }}</span>
+					<span class="day-header-dow">{{ WEEKDAYS[day.weekday] }}</span>
 				</div>
 			</div>
 		</template>
 		<template #timeheader="{ time }">
 			<div class="time-header" :style="{'grid-row':time.row,'grid-column':time.column}">
 				<div>
-					<span v-if="time.date.getMinutes() === 0" class="time-header-hour">{{ new Intl.DateTimeFormat("en-US", {timeZone:"GMT",hour12: false, hour:'2-digit'}).format(time.date) }}</span>
-					<span class="time-header-minute">{{ new Intl.DateTimeFormat("en-US", {hour12: false, minute:'2-digit'}).format(time.date).padStart(2, '0') }}</span>
+					<span v-if="time.minute === 0" class="time-header-hour">{{ String(time.hour).padStart(2, '0') }}</span>
+					<span class="time-header-minute">{{ String(time.minute).padStart(2, '0') }}</span>
 				</div>
 			</div>
 		</template>
 		<template #event="{ day, event }">
-			<div class="event"
+			<div class="event" role="button" tabindex="0" :aria-label="`Edit ${event.event.title}`"
 				:style="{'grid-row': `${event.row} / span ${event.span}`, 'background-color': derefColor(event), 'border-left': `5px solid color-mix(in srgb, ${sidebarColor(event)} 80%, #333 20%)`}"
-				@click="handleEventClick($event, day, event)">
-				<div class="event-title">{{ event.event.title }}</div>
+				@click="handleEventClick($event, day, event)"
+				@keydown.enter.prevent="handleEventClick($event, day, event)"
+				@keydown.space.prevent="handleEventClick($event, day, event)">
+				<div class="event-title">{{ event.continued ? "↳ " : "" }}{{ event.event.title }}</div>
 			</div>
 		</template>
 	</AlCalendar>
@@ -129,9 +131,9 @@ import { ApiError, apiDelete, apiJson, apiPost, apiPut } from "../components/Api
 import { InputGroup, InputGroupAddon, Button, Dialog, Toolbar, Select, Checkbox, InputText, Message, useToast } from "primevue"
 import FormField from '@primevue/forms/formfield';
 import AlCalendar from "../components/AlCalendar.vue"
-import type { DateRange, TimeRange, EventInfo } from "../components/AlCalendar.vue"
-import { MS_PER_DAY } from "../components/DateUtils"
-import { ref, onMounted, nextTick, toRaw, provide, computed } from "vue"
+import type { TimeRange, EventInfo } from "../components/AlCalendar.vue"
+import { zonedParts } from "../components/CalendarTime"
+import { ref, onMounted, onBeforeUnmount, nextTick, toRaw, provide, computed } from "vue"
 import BasicForm, { type ValidateEventData } from "../components/BasicForm.vue"
 import type { FormDef } from "../components/FormDefs"
 import type { PluginDef } from "../components/ScheduleDefs"
@@ -142,8 +144,14 @@ import z from "zod";
 const bf = ref<InstanceType<typeof BasicForm>>()
 const fieldNameWidth = "10rem";
 const form = ref<FormDef>()
-const now = new Date()
-const dateRange = ref<DateRange>({ start:new Date(now), end:new Date(now.getTime() + 6*MS_PER_DAY) })
+// the week shown, in the zone the device's schedule runs in: both come from the server's answer (until it arrives, today here)
+const firstDay = ref(zonedParts(new Date()).key)
+const dayCount = ref(7)
+const timeZone = ref<string|undefined>(undefined)
+const WEEKDAYS = (() => {
+	const format = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" })
+	return Array.from({ length: 7 }, (_, weekday) => format.format(new Date(Date.UTC(2023, 0, 1 + weekday))))
+})()
 const timeRange = ref<TimeRange>({start: 0, end: 1440, interval:30 })
 const eventList = ref<EventInfo[]>([])
 const dialogOpen = ref(false)
@@ -175,13 +183,6 @@ const pluginErrorMessage = ref<string|undefined>(undefined)
 const selectedPlugin = computed(() => pluginList.value.find(p => p.id === editModel.value.plugin_name) || null)
 const pluginOptions = computed<DropdownOption[]>(() => pluginList.value.map(p => ({ id: p.id, name: p.name })))
 
-function isToday(someDate:Date):boolean {
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  const dateToCompare = new Date(someDate);
-  dateToCompare.setHours(0, 0, 0, 0);
-  return dateToCompare.getTime() === today.getTime();
-}
 function derefSchedule(schedules:Record<string,any>, sid:string, id:string) {
 	if(sid in schedules) {
 		const schedule = schedules[sid]
@@ -237,12 +238,14 @@ function loadTimeline(): Promise<void> {
 		dataSources.value = rxs[2]
 		documents.value = (rxs[3].timed ?? []).map((d: any) => ({ id: d.id, name: d.name }))
 		if(json.success) {
-			json.start_ts = new Date(json.start_ts)
-			json.end_ts = new Date(json.end_ts)
+			// the response's first day is "today" in the device's zone (its ISO time is written in that zone)
+			timeZone.value = typeof json.timezone === "string" ? json.timezone : undefined
+			firstDay.value = String(json.start_ts).slice(0, 10)
+			dayCount.value = json.days
+			loadedDay = zonedParts(new Date(), timeZone.value).key
 			const events:EventInfo[] = []
 			json.render.forEach((rx: any) => {
 				rx.start = new Date(rx.scheduled_time)
-				rx.end = new Date(rx.start.getTime() + 30*60*1000)
 				const sref = derefSchedule(json.schedules, rx.schedule, rx.id)
 				const ei = {
 					start: rx.start,
@@ -268,7 +271,16 @@ function loadTimeline(): Promise<void> {
 		toast.add({severity:'error', summary: 'Error', detail: `Failed to load the schedule: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
 }
-onMounted(() => { loadTimeline() })
+// a page left open past midnight (in the device's zone) shows the new week
+let loadedDay = ""
+let dayWatch: ReturnType<typeof setInterval>|undefined = undefined
+onMounted(() => {
+	loadTimeline()
+	dayWatch = setInterval(() => {
+		if(loadedDay && zonedParts(new Date(), timeZone.value).key !== loadedDay) loadTimeline()
+	}, 60_000)
+})
+onBeforeUnmount(() => clearInterval(dayWatch))
 const beforeFieldsSchema = (resv: Record<string, z.ZodTypeAny>) => {
 	resv['title'] = z.string().min(1, "Title is required")
 	resv['enabled'] = z.boolean()
@@ -282,11 +294,9 @@ const addInitialValues = () => {
 		plugin_name: editModel.value.plugin_name || "",
 		trigger: editModel.value.trigger || {},
 	}
-	console.log("addInitialValues", ox)
 	return ox
 }
-const onValidated = ({ result, values }: ValidateEventData) => {
-	console.log("onValidated", result, values)
+const onValidated = ({ result }: ValidateEventData) => {
 	if(result.success) {
 		editModelValid.value = true
 		isTitleValid.value = true
@@ -327,8 +337,7 @@ const stageTask = (evx: any) => ({
 	plugin_name: evx.task.plugin_name,
 	content: evx.task.content
 })
-const handleEventClick = (_event: any, day: any, event: any) => {
-	console.log("handleEventClick", day, event)
+const handleEventClick = (_event: any, _day: any, event: any) => {
 	const data = event.event.data
 	if(pluginList.value.length > 0 && data) {
 		const target = pluginList.value.find(px => px.id === data.task.plugin_name)
