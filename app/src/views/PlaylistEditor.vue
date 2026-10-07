@@ -5,10 +5,26 @@
 				<div style="font-size:150%">Playlists</div>
 			</template>
 			<template #end>
-				<div class="mr-3 text-xl">{{ playlistName }}</div>
-				<Button title="Add Track" icon="pi pi-plus" size="small" @click="addTrack" />
+				<div class="flex align-items-center gap-1">
+					<Select :key="selectKey" :options="playlists" optionLabel="name" optionValue="id" :modelValue="currentId" placeholder="No playlist" style="min-width:14rem"
+						aria-label="Playlist" @update:modelValue="(id: string) => guard(() => openPlaylist(id))" />
+					<Button title="New playlist" aria-label="New playlist" icon="pi pi-plus-circle" size="small" severity="secondary" @click="guard(startNew)" />
+					<Button title="Rename playlist" aria-label="Rename playlist" icon="pi pi-pencil" size="small" severity="secondary" :disabled="!currentId" @click="startRename" />
+					<Button title="Delete playlist" aria-label="Delete playlist" icon="pi pi-trash" size="small" severity="danger" variant="outlined" :disabled="!currentId" @click="deleteOpen = true" />
+					<Button title="Add Track" aria-label="Add track" icon="pi pi-plus" size="small" :disabled="!currentId" @click="addTrack" />
+					<Button title="Save playlist" aria-label="Save playlist" icon="pi pi-save" size="small" severity="success" :disabled="!currentId || !dirty || saving" @click="savePlaylist(docRev)" />
+				</div>
 			</template>
 		</Toolbar>
+		<Message v-if="dirty" severity="info" size="small" variant="simple" class="mt-1">Unsaved changes to "{{ playlistName }}".</Message>
+		<Message v-if="conflict" severity="warn" :closable="false" class="mt-1">
+			<div class="flex align-items-center gap-2">
+				<span>{{ conflict.message }}</span>
+				<Button size="small" label="Reload" icon="pi pi-refresh" severity="secondary" @click="reloadPlaylist" />
+				<Button v-if="conflict.rev" size="small" label="Overwrite" icon="pi pi-upload" severity="danger" @click="savePlaylist(conflict.rev)" />
+			</div>
+		</Message>
+		<Message v-for="(problem, index) in serverProblems" :key="index" severity="error" size="small" variant="simple">{{ problem }}</Message>
 
 		<div class="layout">
 			<div class="track-list">
@@ -20,15 +36,16 @@
 								<div>{{ pluginName(t.plugin_name) || 'Unknown Plugin' }}</div>
 							</div>
 							<div class="actions">
-								<!--
-								<Button icon="pi pi-pencil" size="small" class="p-button-text" @click.stop="editTrack(idx)" />
-								-->
-								<Button icon="pi pi-trash" size="small" severity="danger" class="p-button-text"
+								<Button icon="pi pi-arrow-up" aria-label="Move up" size="small" class="p-button-text" :disabled="idx === 0" @click.stop="moveTrack(idx, -1)" />
+								<Button icon="pi pi-arrow-down" aria-label="Move down" size="small" class="p-button-text" :disabled="idx === tracks.length - 1" @click.stop="moveTrack(idx, 1)" />
+								<Button icon="pi pi-trash" aria-label="Remove track" size="small" severity="danger" class="p-button-text"
 									@click.stop="removeTrack(idx)" />
 							</div>
 						</div>
 					</li>
 				</ul>
+				<p v-if="currentId && tracks.length === 0" class="m-1">No tracks yet.</p>
+				<p v-if="!currentId" class="m-1">Create a playlist to add tracks.</p>
 			</div>
 
 			<div class="track-editor">
@@ -42,8 +59,8 @@
 								</template>
 								<template #end>
 									<InputGroup>
-										<Button size="small" icon="pi pi-check" severity="success" :disabled="submitDisabled" @click="handleSubmit" />
-										<Button size="small" icon="pi pi-times" severity="danger" @click="handleReset" />
+										<Button size="small" icon="pi pi-check" severity="success" aria-label="Apply track" title="Apply to the playlist (then save it)" :disabled="submitDisabled" @click="handleSubmit" />
+										<Button size="small" icon="pi pi-times" severity="danger" aria-label="Reset track" @click="handleReset" />
 									</InputGroup>
 								</template>
 							</Toolbar>
@@ -73,16 +90,40 @@
 				</div>
 			</div>
 		</div>
+
+		<Dialog v-model:visible="nameOpen" modal :header="nameDialogRename ? 'Rename playlist' : 'New playlist'" style="width:24rem">
+			<InputText v-model="nameValue" aria-label="Playlist name" fluid autofocus @keyup.enter="confirmName" />
+			<div class="flex gap-2 justify-content-end pt-2">
+				<Button type="button" label="Cancel" severity="secondary" @click="nameOpen = false"></Button>
+				<Button type="button" label="OK" :disabled="!nameValue.trim() || saving" @click="confirmName"></Button>
+			</div>
+		</Dialog>
+		<Dialog v-model:visible="deleteOpen" modal header="Delete playlist?" style="width:24rem">
+			<p class="mt-0">"{{ playlistName }}" and its tracks will be removed.</p>
+			<div class="flex gap-2 justify-content-end">
+				<Button type="button" label="Keep" severity="secondary" @click="deleteOpen = false"></Button>
+				<Button type="button" label="Delete" severity="danger" :disabled="saving" @click="deletePlaylist"></Button>
+			</div>
+		</Dialog>
+		<Dialog v-model:visible="discardOpen" modal header="Discard unsaved changes?" style="width:24rem" @hide="onDiscardHide">
+			<p class="mt-0">The changes to "{{ playlistName }}" were not saved.</p>
+			<div class="flex gap-2 justify-content-end">
+				<Button type="button" label="Keep editing" severity="secondary" @click="discardOpen = false"></Button>
+				<Button type="button" label="Discard" severity="danger" @click="confirmDiscard"></Button>
+			</div>
+		</Dialog>
 	</div>
 </template>
 
 <script setup lang="ts">
-import { apiJson } from "../components/ApiClient"
+import { ApiError, apiDelete, apiJson, apiPatch, apiPost, apiPut } from "../components/ApiClient"
 import { ref, reactive, computed, onMounted, provide } from 'vue'
-import { InputGroup, InputGroupAddon, Toolbar, Button, Select, InputText } from 'primevue'
+import { InputGroup, InputGroupAddon, Toolbar, Button, Select, InputText, Dialog, Message, useToast } from 'primevue'
 import BasicForm, { type ValidateEventData } from '../components/BasicForm.vue'
-import type { PlaylistItem, PlaylistSchedule, PluginDef } from '../components/ScheduleDefs'
+import type { PlaylistItem, PluginDef } from '../components/ScheduleDefs'
 const API_URL = import.meta.env.VITE_API_URL
+const PLAYLIST_URL = `${API_URL}api/schedule/playlist`
+const toast = useToast()
 const bf = ref<InstanceType<typeof BasicForm>>()
 const submitDisabled = ref(true)
 const fieldNameWidth = "10rem";
@@ -95,11 +136,26 @@ provide("settingsDataSourcesList", dataSources)
 const listPluginsUrl = `${API_URL}api/plugins/list`
 const listDatasourcesUrl = `${API_URL}api/datasources/list`
 
-let _rev:string|undefined = undefined
 const pluginList = ref<PluginDef[]>([])
-const tracks = ref<PlaylistItem[]>([])
-const selectedIndex = ref<number | null>(null)
+// every stored playlist (a playlist is a self-contained document), and the one being edited: its working copy is saved whole
+const playlists = ref<{ id: string, name: string }[]>([])
+const currentId = ref<string|undefined>(undefined)
 const playlistName = ref<string>()
+const docRev = ref<string|undefined>(undefined)
+const tracks = ref<PlaylistItem[]>([])
+const dirty = ref(false)
+const saving = ref(false)
+const conflict = ref<{ message: string, rev: string|undefined }|null>(null)
+const serverProblems = ref<string[]>([])
+const selectedIndex = ref<number | null>(null)
+const nameOpen = ref(false)
+const nameDialogRename = ref(false)
+const nameValue = ref("")
+const deleteOpen = ref(false)
+const discardOpen = ref(false)
+let pendingAction: (() => void)|undefined = undefined
+// the playlist select shows what was picked, even when the change is refused: a new key makes it show the playlist again
+const selectKey = ref(0)
 
 // editing model separate from the track until Apply
 const editModel = reactive<Record<string,any>>({} as any) // start with empty model, populate on track select
@@ -108,47 +164,22 @@ const selectedTrack = computed(() => (selectedIndex.value !== null ? tracks.valu
 const selectedPlugin = computed(() => pluginList.value.find(p => p.id === editModel.plugin_name) || null)
 const pluginOptions = computed(() => pluginList.value.map(p => ({ id: p.id, name: p.name })))
 
-function uid(prefix = 't') { return `${prefix}_${Math.random().toString(36).slice(2, 9)}` }
+// a track that is not saved yet has an id of ours; the server gives it its own
+const NEW_PREFIX = "new-"
+function uid() { return `${NEW_PREFIX}${Math.random().toString(36).slice(2, 9)}` }
 
 const handleValidate = (e: ValidateEventData) => {
-	console.log("validate", e)
 	submitDisabled.value = !e.result.success
 }
+/** Apply: the form's fields (only the selected plugin's) are the track's content; title and plugin are the editor's. */
 const submitForm = (data:any) => {
-	console.log("submitForm", data)
-	if(data.result.success) {
-		const post = structuredClone(data.result.data)
-		if(_rev) {
-			post._rev = _rev
-		}
-		/*
-		fetch(settingsUrl, {
-			method: "PUT",
-			headers: {
-				"Content-Type": "application/json"
-			},
-			body: JSON.stringify(post)
-		})
-		.then(rx => {
-			if(!rx.ok) {
-				throw new Error(`Error ${rx.status}: ${rx.statusText}`)
-			}
-			return rx.json()
-		})
-		.then(jv => {
-			console.log("submitForm.result", jv)
-			if(jv.success) {
-				_rev = jv.rev
-			}
-		})
-		.catch(ex => {
-			console.error("submitForm.unhandled", ex)
-		})
-		*/
-	}
-	else {
-		console.warn("submitForm.invalid", data)
-	}
+	if(!data.result?.success || selectedIndex.value === null) return
+	const index = selectedIndex.value
+	const old = tracks.value[index]
+	if(!old) return
+	tracks.value[index] = { ...old, title: editModel.title, plugin_name: editModel.plugin_name, type: "PlaylistSchedule", content: structuredClone(data.result.data) }
+	dirty.value = true
+	serverProblems.value = []
 }
 const handleReset = () => {
 	cancelEdit()
@@ -163,26 +194,39 @@ function pluginName(id?: string) {
 	const p = pluginList.value.find(x => x.id === id)
 	return p ? p.name : null
 }
+function resetMessages() {
+	conflict.value = null
+	serverProblems.value = []
+}
 
-// track operations
+// track operations: they change the working copy; Save sends the playlist
 function addTrack() {
-	const defaultPlugin = pluginList.value[0]?.id ?? 'plugin_0'
-	const t: PlaylistItem = { id: uid('trk'), plugin_name: defaultPlugin, type:"PlaylistSchedule", title: "Untitled", content: {} }
-	// populate default properties
-	const p = pluginList.value.find(x => x.id === defaultPlugin)
-	if (p) t.content = defaultPropertiesFromPlugin(p)
-	tracks.value.push(t)
+	const first = pluginList.value[0]
+	if(!first) return
+	tracks.value.push({ id: uid(), plugin_name: first.id, type: "PlaylistSchedule", title: "Untitled", content: {} })
+	dirty.value = true
 	selectTrack(tracks.value.length - 1)
 }
 
 function removeTrack(idx: number) {
 	if (idx < 0 || idx >= tracks.value.length) return
 	tracks.value.splice(idx, 1)
+	dirty.value = true
 	if (selectedIndex.value === idx) {
 		selectedIndex.value = null
 	} else if (selectedIndex.value !== null && selectedIndex.value > idx) {
 		selectedIndex.value!--
 	}
+}
+
+function moveTrack(idx: number, by: number) {
+	const to = idx + by
+	if (to < 0 || to >= tracks.value.length) return
+	const moved = tracks.value.splice(idx, 1)
+	tracks.value.splice(to, 0, ...moved)
+	dirty.value = true
+	if (selectedIndex.value === idx) selectedIndex.value = to
+	else if (selectedIndex.value === to) selectedIndex.value = idx
 }
 
 function selectTrack(idx: number) {
@@ -197,36 +241,20 @@ function selectTrack(idx: number) {
 	}
 }
 
-
-
 function cancelEdit() {
 	if (selectedIndex.value !== null) selectTrack(selectedIndex.value)
 	else {
 		editModel.id = undefined
 		editModel.plugin_name = undefined
-		//editModel.type = "PlaylistSchedule"
 		editModel.title = undefined
 		editModel.content = {}
 	}
-}
-
-
-function defaultPropertiesFromPlugin(p: PluginDef) {
-	const props: Record<string, any> = {}
-	for (const prop of p.properties) {
-		// simple defaults based on type
-		if (prop.type === 'number') props[prop.name] = 1
-		else if (prop.type === 'boolean') props[prop.name] = false
-		else props[prop.name] = ''
-	}
-	return props
 }
 
 function initProviders() {
 	const px0 = apiJson(listPluginsUrl)
 	const px1 = apiJson(listDatasourcesUrl)
 	const px3 = px0.then(json => {
-		console.log("plugins", json)
 		plugins.value = structuredClone(json)
 		pluginList.value = structuredClone(json)
 	})
@@ -234,51 +262,206 @@ function initProviders() {
 		console.error("fetch.pl.unhandled", ex)
 		plugins.value = []
 		pluginList.value = []
-//		toast.add({severity:'error', summary: 'Error', detail: `Failed to load plugins list: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
 	const px4 = px1.then(json2 => {
-		console.log("datasources", json2)
 		dataSources.value = json2
 	})
 	.catch(ex => {
 		console.error("fetch.ds.unhandled", ex)
 		dataSources.value = []
-//		toast.add({severity:'error', summary: 'Error', detail: `Failed to load data sources list: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
 	return Promise.all([px3, px4])
 }
-const playlistListUrl = `${API_URL}api/schedule/playlist/list`
-let allPlaylists: PlaylistSchedule[] = []
-function loadSchedules() {
-	apiJson(playlistListUrl).then(json => {
-		console.log("playlists", json)
-		// ensure it doesnt get reactive
-		allPlaylists = structuredClone(json.playlists)
-		if(allPlaylists.length > 0) {
-			const tx = allPlaylists[0]
-			if(tx) {
-				playlistName.value = tx.name
-				tracks.value = structuredClone(tx.items)
-			}
-			else {
-				playlistName.value = undefined
-				tracks.value = []
-			}
+
+// --- the playlists
+/** Put a stored playlist into the working copy. */
+function adopt(doc: any, keepSelection = false) {
+	currentId.value = doc.id
+	playlistName.value = doc.name
+	docRev.value = doc._rev
+	tracks.value = structuredClone(doc.items)
+	dirty.value = false
+	resetMessages()
+	const keep = keepSelection ? selectedIndex.value : null
+	selectedIndex.value = null
+	if(keep !== null && keep < tracks.value.length) selectTrack(keep)
+}
+async function loadPlaylists(selectId?: string) {
+	try {
+		const json = await apiJson(`${PLAYLIST_URL}/list`)
+		const all: any[] = json.playlists ?? []
+		playlists.value = all.map(p => ({ id: p.id, name: p.name }))
+		const target = all.find(p => p.id === selectId) ?? all[0]
+		if(target) {
+			adopt(target)
 		}
 		else {
+			currentId.value = undefined
 			playlistName.value = undefined
+			docRev.value = undefined
 			tracks.value = []
+			selectedIndex.value = null
+			dirty.value = false
 		}
-	}).catch(err => {
+	}
+	catch(err: any) {
 		console.error('Error fetching playlists:', err)
-		playlistName.value = undefined
-		tracks.value = []
-	})
+		toast.add({severity:'error', summary: 'Error', detail: `Failed to load the playlists: ${err.message || 'Unknown error'}`, life: 5000});
+	}
+}
+async function openPlaylist(id: string) {
+	await loadPlaylists(id)
+}
+/** Run an action that drops the working copy; ask first when it has changes that were not saved. */
+function guard(action: () => void) {
+	if(dirty.value) {
+		pendingAction = action
+		discardOpen.value = true
+	}
+	else {
+		action()
+	}
+}
+function onDiscardHide() {
+	pendingAction = undefined
+	selectKey.value++
+}
+function confirmDiscard() {
+	discardOpen.value = false
+	dirty.value = false
+	const action = pendingAction
+	pendingAction = undefined
+	action?.()
+}
+function startNew() {
+	nameDialogRename.value = false
+	nameValue.value = ""
+	nameOpen.value = true
+}
+function startRename() {
+	nameDialogRename.value = true
+	nameValue.value = playlistName.value ?? ""
+	nameOpen.value = true
+}
+async function confirmName() {
+	const name = nameValue.value.trim()
+	if(!name) return
+	saving.value = true
+	try {
+		if(nameDialogRename.value && currentId.value) {
+			const rx = await apiPatch(`${PLAYLIST_URL}/${encodeURIComponent(currentId.value)}`, { name, _rev: docRev.value })
+			// only the name changed in the store: the unsaved edits stay, on top of the new revision
+			playlistName.value = rx.schedule.name
+			docRev.value = rx.rev
+			playlists.value = playlists.value.map(p => p.id === currentId.value ? { id: p.id, name: rx.schedule.name } : p)
+		}
+		else {
+			const rx = await apiPost(PLAYLIST_URL, { name, items: [] })
+			nameOpen.value = false
+			await loadPlaylists(rx.id)
+		}
+		nameOpen.value = false
+	}
+	catch(ex: any) {
+		if(ex instanceof ApiError && ex.status === 409) {
+			nameOpen.value = false
+			conflict.value = { message: "The playlist changed since it was loaded.", rev: undefined }
+		}
+		else {
+			toast.add({severity:'error', summary: 'Error', detail: `Failed: ${ex.message || 'Unknown error'}`, life: 5000});
+		}
+	}
+	finally {
+		saving.value = false
+	}
+}
+async function deletePlaylist() {
+	if(!currentId.value || !docRev.value) return
+	saving.value = true
+	try {
+		await apiDelete(`${PLAYLIST_URL}/${encodeURIComponent(currentId.value)}?rev=${encodeURIComponent(docRev.value)}`)
+		toast.add({severity:'success', summary: 'Success', detail: 'Playlist deleted', life: 3000});
+		deleteOpen.value = false
+		dirty.value = false
+		await loadPlaylists()
+	}
+	catch(ex: any) {
+		deleteOpen.value = false
+		if(ex instanceof ApiError && ex.status === 409) {
+			conflict.value = { message: "The playlist changed since it was loaded; reload it before deleting.", rev: undefined }
+		}
+		else {
+			toast.add({severity:'error', summary: 'Error', detail: `Failed to delete the playlist: ${ex.message || 'Unknown error'}`, life: 5000});
+		}
+	}
+	finally {
+		saving.value = false
+	}
+}
+/** The stored form of the working copy: new tracks have no id yet, nothing else of ours goes along. */
+function documentBody(rev: string|undefined) {
+	return {
+		name: playlistName.value,
+		_rev: rev,
+		items: tracks.value.map(t => {
+			const { _rev, ...track } = t as PlaylistItem & { _rev?: string }
+			return String(track.id).startsWith(NEW_PREFIX) ? (({ id, ...rest }) => rest)(track) : track
+		})
+	}
+}
+/** Save the whole playlist; `rev` is the revision it was loaded at (a stale one is a 409 the person can resolve). */
+async function savePlaylist(rev: string|undefined) {
+	if(!currentId.value) return
+	saving.value = true
+	resetMessages()
+	try {
+		const rx = await apiPut(`${PLAYLIST_URL}/${encodeURIComponent(currentId.value)}`, documentBody(rev))
+		toast.add({severity:'success', summary: 'Success', detail: 'Playlist saved', life: 3000});
+		adopt(rx.schedule, true)
+	}
+	catch(ex: any) {
+		if(ex instanceof ApiError && ex.status === 409) {
+			conflict.value = { message: ex.message, rev: typeof ex.body?.rev === "string" ? ex.body.rev : undefined }
+		}
+		else if(ex instanceof ApiError && ex.status === 422 && Array.isArray(ex.body?.errors)) {
+			showServerErrors(ex.body.errors, ex.message)
+		}
+		else {
+			toast.add({severity:'error', summary: 'Error', detail: `Failed to save the playlist: ${ex.message || 'Unknown error'}`, life: 5000});
+		}
+	}
+	finally {
+		saving.value = false
+	}
+}
+/** A problem in a field of the selected track shows on that field; everything else is listed, naming its track. */
+function showServerErrors(errors: { path?: unknown[], message?: string }[], fallback: string) {
+	const onField: { path: unknown[], message: string }[] = []
+	const listed: string[] = []
+	for(const err of errors) {
+		const path = err.path ?? []
+		const index = path[0] === "items" ? Number(path[1]) : NaN
+		const track = Number.isInteger(index) ? tracks.value[index] : undefined
+		if(track && index === selectedIndex.value && path[2] === "content" && typeof path[3] === "string") {
+			onField.push({ path: [path[3]], message: err.message ?? "" })
+		}
+		else {
+			const where = track ? `Track "${track.title}": ` : ""
+			listed.push(`${where}${path.slice(2).join(" / ")}${path.length > 2 ? ": " : ""}${err.message ?? fallback}`)
+		}
+	}
+	const shown = onField.length > 0 ? (bf.value?.setServerErrors(onField) ?? 0) : 0
+	if(shown < onField.length) listed.push(fallback)
+	serverProblems.value = listed
+}
+/** Someone else changed the playlist: take their version (the unsaved edits are dropped). */
+async function reloadPlaylist() {
+	await loadPlaylists(currentId.value)
 }
 onMounted(() => {
 	initProviders()
 	.then(_ => {
-		loadSchedules()
+		loadPlaylists()
 	})
 	.catch(ex => {
 		console.error("initProviders.unhandled", ex)

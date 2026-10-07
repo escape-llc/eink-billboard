@@ -8,8 +8,8 @@ from typing import Any
 from fastapi import APIRouter, Body, Query
 
 from ...model.configuration_manager import HASH_KEY, create_hash
-from ...model.schedule import TimerTasks, daily_sequence, day_start, normalize, render_task_schedule_at
-from ...model.schedule_store import Ambiguous, Conflict, Invalid, NotFound, ScheduleStore, ScheduleStoreError
+from ...model.schedule import Playlist, TimerTasks, daily_sequence, day_start, normalize, render_task_schedule_at
+from ...model.schedule_store import PLAYLISTS, TASKS, Ambiguous, Conflict, Invalid, Kind, NotFound, ScheduleStore, ScheduleStoreError
 from ..deps import CM, TOD
 from ..documents import validate_properties
 from ..errors import ApiError
@@ -30,8 +30,8 @@ def _load_schedules(cm) -> dict:
 def _with_rev(info) -> dict:
 	dx = info.to_dict()
 	dx[HASH_KEY] = create_hash(dx)
-	if isinstance(info, TimerTasks):
-		# each task carries its own revision, which is what a change to just that task must echo
+	if isinstance(info, (TimerTasks, Playlist)):
+		# each task or track carries its own revision, which is what a change to just that task must echo
 		dx["items"] = [{ **x, HASH_KEY: create_hash(x) } for x in dx["items"]]
 	return dx
 
@@ -138,32 +138,39 @@ def _instance_properties(item: dict) -> tuple[list[dict], dict]:
 	schema = ((item["info"].get("instanceSettings") or {}).get("schema")) or {}
 	return schema.get("properties") or [], schema.get("lookups") or {}
 
-def _item_validator(cm):
-	"""What the store cannot know: the plugin exists and `task.content` follows its settings (and its data source's)."""
+def _plugin_content_errors(plugins: dict, datasources: dict, plugin_name: Any, content: dict, path: list) -> list[dict]:
+	"""The plugin exists and `content` follows its settings (and its data source's); `path` is where `plugin_name` and `content` live in the item (`["task"]` for a timer task, none for a track)."""
+	plugin = plugins.get(plugin_name)
+	if plugin is None:
+		return [{ "path": [*path, "plugin_name"], "message": "Unknown plugin" }]
+	props, lookups = _instance_properties(plugin)
+	errors = validate_properties(content, props, lookups)
+	for prop in props:
+		chosen = content.get(prop.get("name")) if prop.get("type") == "schema" else None
+		if isinstance(chosen, str) and chosen:
+			source = datasources.get(chosen)
+			if source is None:
+				errors.append({ "path": [prop["name"]], "message": "Not one of the allowed values" })
+			else:
+				sprops, slookups = _instance_properties(source)
+				errors.extend(validate_properties(content, sprops, slookups))
+	return [{ "path": [*path, "content", *e["path"]], "message": e["message"] } for e in errors]
+
+def _item_validator(cm, kind: Kind = TASKS):
+	"""What the store cannot know: the plugin exists and its `content` is valid. A timer task keeps them under `task`, a playlist track at the top."""
 	plugins = {p["info"].get("id"): p for p in cm.enum_plugins()}
 	datasources = {d["info"].get("id"): d for d in cm.enum_datasources()}
-	def validate(item: dict) -> list[dict]:
-		task = item.get("task") or {}
-		plugin = plugins.get(task.get("plugin_name"))
-		if plugin is None:
-			return [{ "path": ["task", "plugin_name"], "message": "Unknown plugin" }]
-		content = task.get("content") or {}
-		props, lookups = _instance_properties(plugin)
-		errors = validate_properties(content, props, lookups)
-		for prop in props:
-			chosen = content.get(prop.get("name")) if prop.get("type") == "schema" else None
-			if isinstance(chosen, str) and chosen:
-				source = datasources.get(chosen)
-				if source is None:
-					errors.append({ "path": [prop["name"]], "message": "Not one of the allowed values" })
-				else:
-					sprops, slookups = _instance_properties(source)
-					errors.extend(validate_properties(content, sprops, slookups))
-		return [{ "path": ["task", "content", *e["path"]], "message": e["message"] } for e in errors]
-	return validate
+	if kind is TASKS:
+		def validate_task(item: dict) -> list[dict]:
+			task = item.get("task") or {}
+			return _plugin_content_errors(plugins, datasources, task.get("plugin_name"), task.get("content") or {}, ["task"])
+		return validate_task
+	def validate_track(item: dict) -> list[dict]:
+		return _plugin_content_errors(plugins, datasources, item.get("plugin_name"), item.get("content") or {}, [])
+	return validate_track
 
-def _store(cm) -> ScheduleStore:
-	return ScheduleStore(cm.schedule_manager(), _item_validator(cm))
+def _store(cm, kind: Kind = TASKS) -> ScheduleStore:
+	return ScheduleStore(cm.schedule_manager(), _item_validator(cm, kind), kind)
 
 def _call(doc_id: str|None, fn):
 	"""Run a store operation and report its errors in the API's uniform shape. The ids are ours, never the request's text."""
@@ -233,3 +240,30 @@ def timer_item_patch(doc_id: str, item_id: str, cm: CM, body: dict[str, Any] = B
 def timer_item_delete(doc_id: str, item_id: str, cm: CM, rev: str = Query(...)):
 	doc = _call(doc_id, lambda: _store(cm).delete_item(doc_id, item_id, rev))
 	return { "success": True, "message": "Success", "id": item_id, "schedule_rev": doc[HASH_KEY] }
+
+
+# --- playlists are self-contained documents: saved whole (the tracks and their order), no single-track routes
+
+def _saved(doc: dict) -> dict:
+	return { "success": True, "message": "Success", "id": doc["id"], "rev": doc[HASH_KEY], "schedule": doc }
+
+@router.post('/playlist', status_code=201)
+def playlist_create(cm: CM, body: dict[str, Any] = Body(...)):
+	return _saved(_call(None, lambda: _store(cm, PLAYLISTS).create_document(body)))
+
+@router.get('/playlist/{doc_id}')
+def playlist_get(doc_id: str, cm: CM):
+	return { "success": True, "schedule": _call(None, lambda: _store(cm, PLAYLISTS).get_document(doc_id)) }
+
+@router.put('/playlist/{doc_id}')
+def playlist_put(doc_id: str, cm: CM, body: dict[str, Any] = Body(...)):
+	return _saved(_call(doc_id, lambda: _store(cm, PLAYLISTS).replace_document(doc_id, body, _rev_of(body))))
+
+@router.patch('/playlist/{doc_id}')
+def playlist_rename(doc_id: str, cm: CM, body: dict[str, Any] = Body(...)):
+	return _saved(_call(doc_id, lambda: _store(cm, PLAYLISTS).rename_document(doc_id, body, _rev_of(body))))
+
+@router.delete('/playlist/{doc_id}')
+def playlist_delete(doc_id: str, cm: CM, rev: str = Query(...)):
+	_call(doc_id, lambda: _store(cm, PLAYLISTS).delete_document(doc_id, rev))
+	return { "success": True, "message": "Success", "id": None }

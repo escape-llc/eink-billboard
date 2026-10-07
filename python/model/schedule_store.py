@@ -15,10 +15,11 @@ import logging
 import os
 import threading
 import uuid
+from dataclasses import dataclass
 from typing import Any, Callable
 
 from .configuration_manager import HASH_KEY, _internal_save, create_hash
-from .schedule import SCHEMA_TASKS, TimerTasks, validate_trigger
+from .schedule import SCHEMA_PLAYLIST, SCHEMA_TASKS, Playlist, TimerTasks, validate_trigger
 from .schedule_loader import ScheduleLoader
 from .schedule_manager import ScheduleManager
 
@@ -55,8 +56,8 @@ ItemValidator = Callable[[dict], list[dict]]
 def _no_extra_validation(item: dict) -> list[dict]:
 	return []
 
-def document_rev(raw: dict) -> str:
-	return create_hash(ScheduleLoader.parseTimerTasks(raw).to_dict())
+def document_rev(raw: dict, kind: "Kind|None" = None) -> str:
+	return create_hash((kind or TASKS).parse(raw).to_dict())
 
 def _error(path: list[str], message: str) -> dict:
 	return { "path": path, "message": message }
@@ -97,6 +98,55 @@ def check_item_shape(item: Any, *, partial: bool = False) -> list[dict]:
 		errors.append(_error(["task"], "Required"))
 	return errors
 
+PLAYLIST_ITEM_KEYS = ("id", "type", "title", "plugin_name", "content")
+PLAYLIST_ITEM_TYPE = "PlaylistSchedule"
+
+def check_track_shape(item: Any, *, partial: bool = False) -> list[dict]:
+	"""Our own rules for the shape of a playlist track (`partial` for a merge patch)."""
+	if not isinstance(item, dict):
+		return [_error([], "Expected an object")]
+	errors: list[dict] = []
+	for key in item:
+		if key not in PLAYLIST_ITEM_KEYS and key != HASH_KEY:
+			errors.append(_error([str(key)], "Unknown property"))
+	if "type" in item and item["type"] != PLAYLIST_ITEM_TYPE:
+		errors.append(_error(["type"], "Unknown track type"))
+	if "title" in item and not isinstance(item["title"], str):
+		errors.append(_error(["title"], "Expected text"))
+	if "plugin_name" in item and not (isinstance(item["plugin_name"], str) and item["plugin_name"]):
+		errors.append(_error(["plugin_name"], "Required"))
+	elif "plugin_name" not in item and not partial:
+		errors.append(_error(["plugin_name"], "Required"))
+	if "content" in item and not isinstance(item["content"], dict):
+		errors.append(_error(["content"], "Expected an object"))
+	elif "content" not in item and not partial:
+		errors.append(_error(["content"], "Required"))
+	return errors
+
+def _finish_task(item: dict) -> dict:
+	item.setdefault("title", "")
+	item.setdefault("enabled", True)
+	return item
+
+def _finish_track(item: dict) -> dict:
+	item.setdefault("title", "")
+	item["type"] = PLAYLIST_ITEM_TYPE
+	return item
+
+@dataclass(frozen=True)
+class Kind:
+	"""What differs between the stored kinds of schedule documents. Timer tasks are changed one task at a time; a playlist is saved whole."""
+	name: str
+	schema: str
+	entries_key: str		# the key of ScheduleManager.load()
+	document_class: type
+	parse: Callable[[dict], Any]
+	check_shape: Callable[..., list[dict]]
+	finish: Callable[[dict], dict]	# defaults for an item that was accepted
+
+TASKS = Kind("tasks", SCHEMA_TASKS, "tasks", TimerTasks, ScheduleLoader.parseTimerTasks, check_item_shape, _finish_task)
+PLAYLISTS = Kind("playlist", SCHEMA_PLAYLIST, "playlists", Playlist, ScheduleLoader.parsePlaylist, check_track_shape, _finish_track)
+
 def merge_patch(target: Any, patch: Any) -> Any:
 	"""RFC 7396 JSON Merge Patch: objects merge, `null` removes a key, anything else (a list included) replaces."""
 	if not isinstance(patch, dict):
@@ -114,7 +164,8 @@ class ScheduleStore:
 	_locks: dict[str, threading.RLock] = {}
 	_locks_guard = threading.Lock()
 
-	def __init__(self, manager: ScheduleManager, validate_item: ItemValidator = _no_extra_validation):
+	def __init__(self, manager: ScheduleManager, validate_item: ItemValidator = _no_extra_validation, kind: Kind = TASKS):
+		self._kind = kind
 		self._manager = manager
 		self._root = manager.ROOT_PATH
 		self._validate_item = validate_item
@@ -131,14 +182,14 @@ class ScheduleStore:
 	# --- reading
 
 	def _entries(self) -> list[dict]:
-		return self._manager.load()["tasks"]
+		return self._manager.load()[self._kind.entries_key]
 
 	def _find(self, doc_id: str) -> str:
 		"""The path of the file whose declared id is `doc_id`. The id from the URL only selects; the path is the scanned entry's."""
 		paths = []
 		for entry in self._entries():
 			info = entry.get("info")
-			if isinstance(info, TimerTasks) and info.id == doc_id:
+			if isinstance(info, self._kind.document_class) and info.id == doc_id:
 				paths.append(entry["path"])
 		if not paths:
 			raise NotFound("schedule")
@@ -166,9 +217,8 @@ class ScheduleStore:
 		idx = self._index(raw, item_id)
 		return self._present_item(raw, raw["items"][idx])
 
-	@staticmethod
-	def _parsed(raw: dict) -> dict:
-		return ScheduleLoader.parseTimerTasks(raw).to_dict()
+	def _parsed(self, raw: dict) -> dict:
+		return self._kind.parse(raw).to_dict()
 
 	def _present(self, raw: dict) -> dict:
 		doc = self._parsed(raw)
@@ -177,8 +227,8 @@ class ScheduleStore:
 		return doc
 
 	def _present_item(self, raw: dict, item: dict) -> dict:
-		parsed = ScheduleLoader.parseTimerTasks({ **raw, "items": [item] }).items[0].to_dict()
-		return { **parsed, HASH_KEY: create_hash(parsed), "schedule": raw.get("id"), "schedule_rev": document_rev(raw) }
+		parsed = self._kind.parse({ **raw, "items": [item] }).items[0].to_dict()
+		return { **parsed, HASH_KEY: create_hash(parsed), "schedule": raw.get("id"), "schedule_rev": document_rev(raw, self._kind) }
 
 	@staticmethod
 	def _index(raw: dict, item_id: str) -> int:
@@ -190,12 +240,12 @@ class ScheduleStore:
 	# --- writing
 
 	def _write(self, path: str, raw: dict) -> None:
-		raw["_schema"] = SCHEMA_TASKS
-		ScheduleLoader.parseTimerTasks(raw)	# what is saved must load again
+		raw["_schema"] = self._kind.schema
+		self._kind.parse(raw)	# what is saved must load again
 		_internal_save(path, raw)
 
 	def _validated_item(self, item: dict, *, partial: bool = False) -> dict:
-		errors = check_item_shape(item, partial=partial)
+		errors = self._kind.check_shape(item, partial=partial)
 		if not errors:
 			errors = self._validate_item(item)
 		if errors:
@@ -209,12 +259,12 @@ class ScheduleStore:
 		seen: set[str] = set()
 		errors: list[dict] = []
 		for index, entry in enumerate(items):
-			problems = check_item_shape(entry)
+			problems = self._kind.check_shape(entry)
 			if not problems:
 				problems = self._validate_item(entry)
 			errors.extend(_error(["items", str(index), *p["path"]], p["message"]) for p in problems)
 			if isinstance(entry, dict):
-				entry = {k: v for k, v in entry.items() if k != HASH_KEY}
+				entry = self._kind.finish({k: v for k, v in entry.items() if k != HASH_KEY})
 				entry.setdefault("id", str(uuid.uuid4()))
 				if entry["id"] in seen:
 					errors.append(_error(["items", str(index), "id"], "Duplicate id"))
@@ -234,11 +284,11 @@ class ScheduleStore:
 		if errors:
 			raise Invalid(errors)
 		items = self._check_items(body.get("items", []))
-		doc_id = f"tasks-{uuid.uuid4().hex}"
+		doc_id = f"{self._kind.name}-{uuid.uuid4().hex}"
 		# the file name is ours too; nothing from the request builds a path
 		path = os.path.join(self._root, f"{doc_id}.json")
 		with self._lock_for(path):
-			self._write(path, { "id": doc_id, "name": name.strip(), "_schema": SCHEMA_TASKS, "items": items })
+			self._write(path, { "id": doc_id, "name": name.strip(), "_schema": self._kind.schema, "items": items })
 			return self._present(self._read(path))
 
 	def _check_rev(self, current: str, rev: Any) -> None:
@@ -260,7 +310,7 @@ class ScheduleStore:
 		path = self._find(doc_id)
 		with self._lock_for(path):
 			raw = self._read(path)
-			self._check_rev(document_rev(raw), rev)
+			self._check_rev(document_rev(raw, self._kind), rev)
 			self._write(path, { **raw, "name": name.strip(), "items": items })
 			return self._present(self._read(path))
 
@@ -273,7 +323,7 @@ class ScheduleStore:
 		path = self._find(doc_id)
 		with self._lock_for(path):
 			raw = self._read(path)
-			self._check_rev(document_rev(raw), rev)
+			self._check_rev(document_rev(raw, self._kind), rev)
 			self._write(path, { **raw, "name": body["name"].strip() })
 			return self._present(self._read(path))
 
@@ -281,10 +331,15 @@ class ScheduleStore:
 		path = self._find(doc_id)
 		with self._lock_for(path):
 			raw = self._read(path)
-			self._check_rev(document_rev(raw), rev)
+			self._check_rev(document_rev(raw, self._kind), rev)
 			os.remove(path)
 
+	def _tasks_only(self) -> None:
+		if self._kind is not TASKS:
+			raise ScheduleStoreError("single-item changes are only for timer tasks")
+
 	def add_item(self, doc_id: str, body: dict) -> dict:
+		self._tasks_only()
 		item = self._validated_item(body)
 		if "id" in item:
 			raise Invalid([_error(["id"], "Ids are generated by the server")])
@@ -299,6 +354,7 @@ class ScheduleStore:
 			return self._present_item(self._read(path), item)
 
 	def replace_item(self, doc_id: str, item_id: str, body: dict) -> dict:
+		self._tasks_only()
 		rev = body.get(HASH_KEY) if isinstance(body, dict) else None
 		item = self._validated_item(body)
 		if item.get("id", item_id) != item_id:
@@ -310,6 +366,7 @@ class ScheduleStore:
 		return self._change_item(doc_id, item_id, rev, lambda old: new)
 
 	def patch_item(self, doc_id: str, item_id: str, patch: dict) -> dict:
+		self._tasks_only()
 		rev = patch.get(HASH_KEY) if isinstance(patch, dict) else None
 		if not isinstance(patch, dict):
 			raise Invalid([_error([], "Expected an object")])
@@ -355,6 +412,7 @@ class ScheduleStore:
 			return self._present_item(self._read(path), new)
 
 	def delete_item(self, doc_id: str, item_id: str, rev: Any) -> dict:
+		self._tasks_only()
 		path = self._find(doc_id)
 		with self._lock_for(path):
 			raw = self._read(path)
