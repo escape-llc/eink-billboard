@@ -3,12 +3,14 @@ from asyncio import CancelledError
 from concurrent.futures import Future
 from dataclasses import dataclass
 from datetime import datetime
+import json
 import logging
 import threading
 from typing import Any, Mapping, NotRequired, ReadOnly, TypedDict, cast
 
 from .display_messages import DisplaySettings
-from .messages import AsyncTaskCompleted, BasicMessage, QuitMessage, Telemetry
+from .coalescer import Coalescer
+from .messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage, ReloadSchedules, Telemetry
 from .configure_event import ConfigureEvent
 from .message_router import MessageRouter
 from .protocols import IProvideTimer, MessageSink
@@ -63,6 +65,8 @@ class PlaylistLayer(DispatcherTask):
 	# a pass in which no track succeeded waits before the next pass: doubling from the first value up to the second
 	BACKOFF_INITIAL_SECONDS = 1.0
 	BACKOFF_MAX_SECONDS = 60.0
+	# a burst of schedule file changes (an editor saving several tracks) is one reload, this long after the last change
+	RELOAD_DELAY_SECONDS = 2.0
 	def __init__(self, name, router: MessageRouter):
 		super().__init__(name)
 		if router is None:
@@ -81,6 +85,7 @@ class PlaylistLayer(DispatcherTask):
 		self.state = 'uninitialized'
 		self._backoff = 0.0
 		self._restart_timer: threading.Timer|None = None
+		self._reload = Coalescer(self.RELOAD_DELAY_SECONDS, self._request_reload)
 		self.logger = logging.getLogger(__name__)
 	def _evaluate_plugin(self, track: PlaylistSchedule) -> EvaluatePluginDict:
 		if self.cm is None:
@@ -284,6 +289,43 @@ class PlaylistLayer(DispatcherTask):
 		except ValueError:
 			# the task stopped in the meantime
 			self.logger.debug(f"'{self.name}' stopped before the restart.")
+	def _configuration_changed(self, msg: ConfigurationChanged):
+		if msg.area == "schedules" and self.cm is not None and self.timebase is not None and not self.is_stopped():
+			self._reload.trigger()
+	def _request_reload(self):
+		"""On the coalescer's thread: hand the work to the task's own thread."""
+		if self.is_stopped() or self.timebase is None:
+			return
+		try:
+			self.accept(ReloadSchedules(self.timebase.current_time()))
+		except ValueError:
+			self.logger.debug(f"'{self.name}' stopped before the reload.")
+	@staticmethod
+	def _signature(playlists: list[ScheduleLoaderDict]) -> str:
+		return json.dumps([p["info"].to_dict() for p in playlists if p.get("info") is not None], sort_keys=True, default=str)
+	def _reload_schedules(self, msg: ReloadSchedules):
+		"""Re-read the schedules and start the playlists again from the top. A schedule that does not load keeps the one in use."""
+		if self.cm is None or self.timebase is None or self.state == 'uninitialized':
+			return
+		try:
+			sm = self.cm.schedule_manager()
+			schedule_info = sm.load()
+			sm.validate(schedule_info)
+		except Exception as e:
+			self.logger.warning(f"'{self.name}' the changed schedules do not load, keeping the ones in use: {e}")
+			self._error_with_telemetry(f"The changed schedules do not load: {e}", msg.timestamp)
+			return
+		new_playlists = schedule_info.get("playlists", [])
+		if self._signature(new_playlists) == self._signature(self.playlists):
+			self.logger.info(f"'{self.name}' schedules changed, playlists are the same.")
+			return
+		self.logger.info(f"'{self.name}' playlists changed, starting them again.")
+		self._cancel_restart()
+		self._task_stop()
+		self.playlists = new_playlists
+		self._backoff = 0.0
+		self.state = 'loaded'
+		self.accept(StartPlayback(self.timebase.current_time()))
 	def _cancel_restart(self):
 		timer = self._restart_timer
 		self._restart_timer = None
@@ -339,6 +381,7 @@ class PlaylistLayer(DispatcherTask):
 		self.dimensions = (msg.width, msg.height)
 	def quitMsg(self, msg: QuitMessage):
 		self.logger.info(f"'{self.name}' quitting playback.")
+		self._reload.cancel()
 		self._cancel_restart()
 		try:
 			if self.layer_task is not None:

@@ -225,11 +225,12 @@ class TestLayerFailure(unittest.TestCase):
 		layer, accepted, telemetry, restarted = self._layer()
 		fut: Future = Future()
 		fut.set_exception(RuntimeError("kaboom"))
-		layer.layer_task = (fut, threading.Event())
+		donev = threading.Event()
+		layer.layer_task = (fut, donev)
 		layer.state = "playing"
 		ts = datetime(2024, 1, 1, 8, 0, tzinfo=NY)
 		with self.assertLogs("python.task.timer_layer", level="ERROR") as logs:
-			layer._async_task_completed(AsyncTaskCompleted(ts, "layer_task", fut, threading.Event()))
+			layer._async_task_completed(AsyncTaskCompleted(ts, "layer_task", fut, donev))
 		self.assertTrue(any("kaboom" in line for line in logs.output), logs.output)
 		self.assertIsNone(layer.layer_task)
 		errors = [m for m in telemetry.messages if isinstance(m, Telemetry) and m.values.get("state") == "error"]
@@ -242,9 +243,19 @@ class TestLayerFailure(unittest.TestCase):
 		layer, accepted, _, restarted = self._layer()
 		fut: Future = Future()
 		fut.cancel()
-		layer.layer_task = (fut, threading.Event())
-		layer._async_task_completed(AsyncTaskCompleted(datetime(2024, 1, 1, 8, 0, tzinfo=NY), "layer_task", fut, threading.Event()))
+		donev = threading.Event()
+		layer.layer_task = (fut, donev)
+		layer._async_task_completed(AsyncTaskCompleted(datetime(2024, 1, 1, 8, 0, tzinfo=NY), "layer_task", fut, donev))
 		self.assertIsNone(layer.layer_task)
+
+	def test_a_finished_old_layer_task_does_not_clear_its_replacement(self):
+		layer, accepted, _, restarted = self._layer()
+		old: Future = Future()
+		old.cancel()
+		replacement = (Future(), threading.Event())
+		layer.layer_task = replacement
+		layer._async_task_completed(AsyncTaskCompleted(datetime(2024, 1, 1, 8, 0, tzinfo=NY), "layer_task", old, threading.Event()))
+		self.assertIs(layer.layer_task, replacement)
 		self.assertFalse(restarted.wait(0.3))
 		self.assertEqual(accepted, [])
 

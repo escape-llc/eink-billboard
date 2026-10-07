@@ -88,6 +88,21 @@ class ConfigurationWatcherEvent(BasicMessage):
 	path: str
 
 @dataclass(frozen=True, slots=True)
+class ConfigurationChanged(BasicMessage):
+	"""
+	Sent by the application to every task when something under the storage root changed (after the watcher's debounce).
+	`area` is where: schedules, settings, schemas, plugins, datasources or other; `type` and `path` are the watcher's.
+	"""
+	area: str
+	type: str
+	path: str
+
+@dataclass(frozen=True, slots=True)
+class ReloadSchedules(BasicMessage):
+	"""A layer's own request (after it coalesced a burst of ConfigurationChanged) to re-read the schedules and re-plan."""
+	pass
+
+@dataclass(frozen=True, slots=True)
 class TimerExpired[T](BasicMessage):
 	token: str
 	state: T
