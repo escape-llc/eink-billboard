@@ -311,13 +311,17 @@ const submit = () => {
 const reset = () => {
 	form.value?.reset();
 }
-const flatNames = (fields: FormField[]): string[] => fields.flatMap(f => [...(f.type === "header" ? [] : [f.name]), ...flatNames(f.children ?? [])])
+// function declarations, not consts: the `immediate` watches above run during setup, before a const here would be initialized
+function flatNames(fields: FormField[]): string[] {
+	return fields.flatMap(f => [...(f.type === "header" ? [] : [f.name]), ...flatNames(f.children ?? [])])
+}
 /** The `default` of each field (null and absent defaults carry no information), for values the form does not have yet. */
-const applyDefaults = (fields: FormField[], values: Record<string, any> = {}): [string, unknown][] =>
-	fields.flatMap(f => [
+function applyDefaults(fields: FormField[], values: Record<string, any> = {}): [string, unknown][] {
+	return fields.flatMap(f => [
 		...(f.type !== "header" && "default" in f && (f as any).default !== undefined && (f as any).default !== null && !(f.name in values) ? [[f.name, (f as any).default] as [string, unknown]] : []),
 		...applyDefaults(f.children ?? [], values)
 	])
+}
 const handleFormFieldEvent = (data:any) => {
 	if(data.type === "schema-change") {
 		const field = localProperties.value.find((f:any) => f.name === data.field.name)

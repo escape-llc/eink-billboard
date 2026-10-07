@@ -50,3 +50,21 @@ test("a field shown only when another is on: hidden until then, required while s
 	expect((await display()).e2eDetail).toBeNull()
 	watch.expectNone()
 })
+
+test("the playlist track form renders the plugin's fields and follows a change of plugin", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/playlist")
+	await page.getByText("Morning slides").first().click()
+	const editor = page.locator(".track-editor")
+	// a form that failed to build would be an empty card
+	await expect(editor.locator("label", { hasText: "Title" })).toBeVisible()
+	await expect(editor.locator("label", { hasText: "Max Slides" })).toBeVisible()
+	await expect(editor.getByRole("spinbutton").first()).toBeVisible()
+
+	// the plugin is the form's own field list: another plugin brings its own fields
+	await editor.locator(".p-select").filter({ hasText: "Slide Show" }).first().click()
+	await page.getByRole("option").filter({ hasText: "Interstitial Overlay" }).first().click()
+	await expect(editor.locator("label", { hasText: "Max Slides" })).toHaveCount(0)
+	await expect(editor.locator("label", { hasText: "Slide Duration" })).toBeVisible()
+	watch.expectNone()
+})
