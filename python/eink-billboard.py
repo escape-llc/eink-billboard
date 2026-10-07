@@ -24,6 +24,8 @@ from .web.app import WebSettings, create_app
 
 APPNAME: str = "EInk Billboard"
 TOKEN_ENV = "EINK_API_TOKEN"
+# the default bundle is found relative to this file (not the working directory), so it works from any folder
+DEFAULT_APP_PATH: str = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "dist"))
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +41,13 @@ def parse_args(argv: list[str]|None = None) -> argparse.Namespace:
 	parser.add_argument('--dev', action='store_true', help='Run in development mode')
 	parser.add_argument('--host', default="0.0.0.0", help='Change listening interface')
 	parser.add_argument('--port', type=int, help='Listening port; default 8080 in development mode, 80 otherwise')
-	parser.add_argument('--app', default="../app/dist", help='Path to web app bundle')
-	parser.add_argument('--storage', help='Path to storage folder; relative to location of the PY file!')
+	parser.add_argument('--app', default=DEFAULT_APP_PATH, help='Path to web app bundle; a relative path is relative to the current working directory (default: app/dist of this repository)')
+	parser.add_argument('--storage', help='Path to storage folder; a relative path is relative to the current working directory')
 	parser.add_argument('--cors', help='Activate CORS and set the allowed host URL')
 	parser.add_argument('--token', help=f'Require this Bearer token on /api requests (default: the {TOKEN_ENV} environment variable)')
-	return parser.parse_args(argv)
+	args = parser.parse_args(argv)
+	args.app = os.path.abspath(args.app)
+	return args
 
 def run_application(args: argparse.Namespace) -> None:
 	import uvicorn

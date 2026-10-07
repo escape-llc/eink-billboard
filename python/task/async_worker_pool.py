@@ -9,6 +9,8 @@ from typing import Any, Callable
 from ..task.protocols import IRequireShutdown
 
 class AsyncWorkerPool(IRequireShutdown):
+	# a loop blocked in a synchronous call never sees the stop request: do not wait for it forever
+	SHUTDOWN_JOIN_TIMEOUT = 5.0
 	def __init__(self):
 		self.loop = asyncio.new_event_loop()
 		self._loop_ready = threading.Event()
@@ -51,8 +53,16 @@ class AsyncWorkerPool(IRequireShutdown):
 		self.logger.info("[Shutdown] Start.")
 		# mark shutdown to refuse further submissions
 		self._shutdown = True
+		if not self.thread.is_alive():
+			# never started, or already stopped
+			if not self.loop.is_running():
+				self.loop.close()
+			return
 		self.loop.call_soon_threadsafe(self.loop.stop)
-		self.thread.join()
+		self.thread.join(timeout=self.SHUTDOWN_JOIN_TIMEOUT)
+		if self.thread.is_alive():
+			self.logger.error(f"[Shutdown] The pool thread did not stop within {self.SHUTDOWN_JOIN_TIMEOUT:g}s; abandoning it.")
+			return
 
 		pending = asyncio.all_tasks(self.loop)
 		if pending:

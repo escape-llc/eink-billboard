@@ -135,19 +135,35 @@ class Application(DispatcherTask):
 		self.display.start()
 		self.playlist_layer.start()
 		self.timer_layer.start()
+	JOIN_TIMEOUT_SECONDS = 15.0
+	def _join_task(self, name: str, task: threading.Thread|None):
+		"""Joins a task thread; a thread that never started (or fails to join) must not stop the cleanup of the others."""
+		if task is None:
+			return
+		if task.ident is None:
+			self.logger.info(f"{name} was never started")
+			return
+		try:
+			task.join(timeout=self.JOIN_TIMEOUT_SECONDS)
+			if task.is_alive():
+				self.logger.warning(f"{name} did not stop within {self.JOIN_TIMEOUT_SECONDS:g}s")
+			else:
+				self.logger.info(f"{name} stopped")
+		except Exception as e:
+			self.logger.error(f"Failed to join {name}: {e}", exc_info=True)
 	def _handleStop(self, timestamp: datetime):
-		if self.timer_layer is not None and self.timer_layer.is_alive():
-			self.timer_layer.accept(QuitMessage(timestamp))
-		if self.playlist_layer is not None and self.playlist_layer.is_alive():
-			self.playlist_layer.accept(QuitMessage(timestamp))
-		if self.playlist_layer is not None:
-			self.playlist_layer.join()
-			self.logger.info("PlaylistLayer stopped");
-		if self.timer_layer is not None:
-			self.timer_layer.join()
-			self.logger.info("TimerLayer stopped");
+		for task in (self.timer_layer, self.playlist_layer):
+			if task is not None and task.is_alive():
+				try:
+					task.accept(QuitMessage(timestamp))
+				except Exception as e:
+					self.logger.error(f"Failed to send Quit to '{task.name}': {e}")
+		self._join_task("PlaylistLayer", self.playlist_layer)
+		self._join_task("TimerLayer", self.timer_layer)
 		if self.display is not None:
 			if self.display.is_alive():
-				self.display.accept(QuitMessage(timestamp))
-			self.display.join()
-			self.logger.info("Display stopped");
+				try:
+					self.display.accept(QuitMessage(timestamp))
+				except Exception as e:
+					self.logger.error(f"Failed to send Quit to '{self.display.name}': {e}")
+			self._join_task("Display", self.display)
