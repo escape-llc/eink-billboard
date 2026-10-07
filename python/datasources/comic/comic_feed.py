@@ -3,9 +3,9 @@ from PIL import Image, ImageDraw, ImageFont
 
 from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
 from ...task.async_http_worker_pool import client_var
-from ...utils.image_utils import stream_to_buffer
+from ...utils.image_utils import stream_to_buffer, to_rgb
 from .comic_parser import get_items_async
-from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult
+from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 
 def _wrap_text(text, font, width):
 	lines = []
@@ -18,7 +18,9 @@ def _wrap_text(text, font, width):
 	return len(lines), '\n'.join(lines)
 
 def _compose_image(bytes:IO[bytes], item:dict, caption_font, width, height):
-	with Image.open(bytes) as img:
+	with Image.open(bytes) as opened:
+		# transparent comics go onto white paper, not black (and paste() below takes no mask)
+		img = to_rgb(opened)
 		background = Image.new("RGB", (width, height), "white")
 		draw = ImageDraw.Draw(background)
 		top_padding, bottom_padding = 0, 0
@@ -34,8 +36,14 @@ def _compose_image(bytes:IO[bytes], item:dict, caption_font, width, height):
 				draw.multiline_text((width // 2, height), wrapped_text, font=caption_font, fill="black", anchor="md")
 				bottom_padding = caption_font.getbbox(wrapped_text)[3] * lines + 1
 
-		scale = min(width / img.width, (height - top_padding - bottom_padding) / img.height)
-		new_size = (int(img.width * scale), int(img.height * scale))
+		available = height - top_padding - bottom_padding
+		if available < max(1, height // 4):
+			# a long caption (SMBC hovertext) on a small/portrait display would leave no room for the comic: drop the caption, not the comic
+			background = Image.new("RGB", (width, height), "white")
+			top_padding = bottom_padding = 0
+			available = height
+		scale = min(width / img.width, available / img.height)
+		new_size = (max(1, int(img.width * scale)), max(1, int(img.height * scale)))
 		img = img.resize(new_size, Image.Resampling.LANCZOS)
 
 		y_middle = (height - img.height) // 2
@@ -68,12 +76,10 @@ class ComicFeedAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		_, display_settings = display_cob.get()
 		if display_settings is None:
 			raise ValueError("display settings is None")
-		dimensions = context.dimensions
-		is_caption = params.get("titleCaption") == "true"
+		# titleCaption is a boolean setting (older documents may hold the string "true")
+		is_caption = params.get("titleCaption") in (True, "true")
 		caption_font_size = params.get("fontSize", 16)
-		if display_settings.get("orientation") == "vertical":
-			dimensions = dimensions[::-1]
-		width, height = dimensions
+		width, height = target_dimensions(context, display_settings)
 		caption_font = stm.get_font("Jost", font_size=int(caption_font_size)) if is_caption else None
 		img = await self._download_and_compose_image(item, caption_font, width, height)
 		return MediaRenderResult(image=img, title=item.get("title", "Comic"))
