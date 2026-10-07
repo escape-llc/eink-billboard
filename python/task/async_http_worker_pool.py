@@ -14,9 +14,13 @@ client_var: ContextVar[httpx.AsyncClient] = ContextVar("http_client")
 # use one context var for each resource
 
 class AsyncHttpWorkerPool(IRequireShutdown):
+	# bounded waits: a pool that cannot start or stop must say so instead of hanging its caller
+	START_TIMEOUT_SECONDS = 10.0
+	SHUTDOWN_JOIN_TIMEOUT_SECONDS = 5.0
 	def __init__(self):
 		self.loop = asyncio.new_event_loop()
 		self._loop_ready = threading.Event()
+		self._start_error: BaseException|None = None
 		self._is_active = False # Tracks if we are accepting work
 		self.thread = threading.Thread(target=self._run_loop, daemon=True)
 		self.client = None
@@ -24,14 +28,25 @@ class AsyncHttpWorkerPool(IRequireShutdown):
 
 	def _run_loop(self):
 		asyncio.set_event_loop(self.loop)
-		self.client = httpx.AsyncClient(max_redirects=5)
+		try:
+			self.client = httpx.AsyncClient(max_redirects=5)
+		except BaseException as e:
+			# start() is waiting on _loop_ready: tell it why the loop will never run
+			self._start_error = e
+			self._loop_ready.set()
+			return
 		self.loop.call_soon(self._loop_ready.set)
 		self.loop.run_forever()
 
-	def start(self):
-		"""Initializes the background loop."""
+	def start(self, timeout: float|None = None):
+		"""Initializes the background loop; raises RuntimeError if it does not come up."""
+		wait = timeout if timeout is not None else self.START_TIMEOUT_SECONDS
 		self.thread.start()
-		self._loop_ready.wait()
+		if not self._loop_ready.wait(wait):
+			raise RuntimeError(f"AsyncHttpWorkerPool did not start within {wait:g}s.")
+		if self._start_error is not None:
+			self.loop.close()
+			raise RuntimeError(f"AsyncHttpWorkerPool failed to start: {self._start_error}") from self._start_error
 		self._is_active = True # Now safe to submit
 		self.logger.info("[Pool] Ready.")
 
@@ -64,14 +79,22 @@ class AsyncHttpWorkerPool(IRequireShutdown):
 			return
 		self._is_active = False # Immediately block further submits
 		self.logger.info("[Shutdown] Closing pool...")
-		# 1. Close client and stop loop via the loop's own thread
+		# 1. Close client and stop loop via the loop's own thread; the loop is stopped whatever happens to the client
 		async def cleanup():
-			if self.client:
-				await self.client.aclose()
-			self.loop.stop()
+			try:
+				if self.client:
+					await self.client.aclose()
+			except Exception as e:
+				self.logger.error(f"[Shutdown] Closing the HTTP client failed: {e}", exc_info=True)
+			finally:
+				self.loop.stop()
 		asyncio.run_coroutine_threadsafe(cleanup(), self.loop)
-		# 2. Join the background thread
-		self.thread.join()
+		# 2. Join the background thread (bounded: a loop blocked in a synchronous call never reaches cleanup)
+		self.thread.join(timeout=self.SHUTDOWN_JOIN_TIMEOUT_SECONDS)
+		if self.thread.is_alive():
+			self.logger.error(f"[Shutdown] The pool thread did not stop within {self.SHUTDOWN_JOIN_TIMEOUT_SECONDS:g}s; abandoning it.")
+			self.loop.call_soon_threadsafe(self.loop.stop)
+			return
 		# 3. Handle remaining tasks
 		pending = asyncio.all_tasks(self.loop)
 		if pending:

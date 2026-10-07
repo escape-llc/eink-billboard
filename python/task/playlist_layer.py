@@ -80,6 +80,7 @@ class PlaylistLayer(DispatcherTask):
 		self.shutdownlist: list[IRequireShutdown] = []
 		self.state = 'uninitialized'
 		self._backoff = 0.0
+		self._restart_timer: threading.Timer|None = None
 		self.logger = logging.getLogger(__name__)
 	def _evaluate_plugin(self, track: PlaylistSchedule) -> EvaluatePluginDict:
 		if self.cm is None:
@@ -159,9 +160,10 @@ class PlaylistLayer(DispatcherTask):
 						self.logger.error(f"Plugin '{track.plugin_name}' for track '{track.title}' is not available, skipping track.")
 						continue
 					try:
-						donev = threading.Event()
+						# the per-track event is its own: `donev` is the layer task's, set in the finally below, and waited on by _task_stop
+						track_done = threading.Event()
 						ctx = PluginExecutionContext(isp, self.dimensions, tod.current_time())
-						msg = await plugin.task_async(ctx, track, donev)
+						msg = await plugin.task_async(ctx, track, track_done)
 						self.logger.info(f"Plugin '{plugin.name}' for track '{track.title}' completed with message: {msg}")
 						succeeded += 1
 						self._backoff = 0.0
@@ -179,7 +181,7 @@ class PlaylistLayer(DispatcherTask):
 						self._error_with_telemetry(f"Error invoke start with plugin '{plugin.name}' track '{track.title}': {e}", tod.current_time())
 			if succeeded == 0:
 				# nothing played (every track failed, or there were none); do not let the next pass start at once
-				self._backoff = self.BACKOFF_INITIAL_SECONDS if self._backoff <= 0 else min(self._backoff * 2, self.BACKOFF_MAX_SECONDS)
+				self._next_backoff()
 				self.logger.warning(f"'{self.name}' no track succeeded in this pass, waiting {self._backoff:g}s before the next one.")
 				await asyncio.sleep(self._backoff)
 			return None
@@ -190,6 +192,10 @@ class PlaylistLayer(DispatcherTask):
 		finally:
 			donev.set()
 			self.logger.info(f"'{self.name}' Layer task ended.")
+	def _next_backoff(self) -> float:
+		"""Doubles the wait before the next pass, from BACKOFF_INITIAL_SECONDS up to BACKOFF_MAX_SECONDS."""
+		self._backoff = self.BACKOFF_INITIAL_SECONDS if self._backoff <= 0 else min(self._backoff * 2, self.BACKOFF_MAX_SECONDS)
+		return self._backoff
 	def _task_stop(self):
 		if self.layer_task is None:
 			return
@@ -227,7 +233,16 @@ class PlaylistLayer(DispatcherTask):
 			msg.donev.wait(timeout=2.0)
 		else:
 			self.logger.info(f"Layer task completed.")
-			rmsg = msg.fut.result()
+			if msg.fut.cancelled():
+				# stopped on purpose (_task_stop); whoever cancelled it decides what happens next
+				self.logger.info(f"Layer task was cancelled.")
+				self._clear_layer_task(msg.token, msg.donev)
+				return
+			try:
+				rmsg = msg.fut.result()
+			except Exception as e:
+				self._layer_task_failed(msg, e)
+				return
 			self.logger.info(f"Layer task result: {rmsg}")
 			if rmsg is not None:
 				# handle any messages returned by the layer task if needed
@@ -244,9 +259,36 @@ class PlaylistLayer(DispatcherTask):
 				}
 				self.router.send("telemetry", Telemetry(msg.timestamp, "playlist_layer", cast(Mapping[str,Any], telemetry)))
 				self.accept(StartPlayback(msg.timestamp))
-		if msg.token == "layer_task":
+		self._clear_layer_task(msg.token, msg.donev)
+	# (token, donev) and not the message: a one-argument method annotated with a message class is registered as that message's handler
+	def _clear_layer_task(self, token: str, donev: threading.Event):
+		if token == "layer_task" and (self.layer_task is None or self.layer_task[1] is donev):
 			self.layer_task = None
-		pass
+	def _layer_task_failed(self, msg: AsyncTaskCompleted, e: BaseException):
+		"""The layer coroutine raised (outside the per-track handling): report it and start the pass again after a backoff, so it cannot spin."""
+		self._clear_layer_task(msg.token, msg.donev)
+		self.state = 'stopped'
+		self._error_with_telemetry(f"Layer task failed: {e}", msg.timestamp)
+		delay = self._next_backoff()
+		self.logger.warning(f"'{self.name}' restarting playback in {delay:g}s.")
+		self._cancel_restart()
+		timer = threading.Timer(delay, self._restart_playback, args=(msg.timestamp,))
+		timer.daemon = True
+		self._restart_timer = timer
+		timer.start()
+	def _restart_playback(self, timestamp: datetime):
+		if self.is_stopped():
+			return
+		try:
+			self.accept(StartPlayback(self.timebase.current_time() if self.timebase is not None else timestamp))
+		except ValueError:
+			# the task stopped in the meantime
+			self.logger.debug(f"'{self.name}' stopped before the restart.")
+	def _cancel_restart(self):
+		timer = self._restart_timer
+		self._restart_timer = None
+		if timer is not None:
+			timer.cancel()
 	def _configure_event(self, msg: ConfigureEvent):
 		self.cm = msg.content.cm
 		try:
@@ -297,6 +339,7 @@ class PlaylistLayer(DispatcherTask):
 		self.dimensions = (msg.width, msg.height)
 	def quitMsg(self, msg: QuitMessage):
 		self.logger.info(f"'{self.name}' quitting playback.")
+		self._cancel_restart()
 		try:
 			if self.layer_task is not None:
 				try:

@@ -5,6 +5,7 @@ from typing import List
 
 from .protocols import MessageSink
 from .messages import BasicMessage
+from .basic_task import TaskStoppedError
 
 class Route:
 	def __init__(self, name:str, receivers:List[MessageSink]):
@@ -28,7 +29,8 @@ class MessageRouter:
 				for kx in rroute.receivers:
 					try:
 						kx.accept(msg)
-					except ShutDown:
-						pass
+					except (ShutDown, TaskStoppedError):
+						# the receiver has stopped (normal during shutdown): nothing to deliver to
+						self.logger.debug(f"send: receiver of '{route}' is stopped, message dropped: {type(msg).__name__}")
 					except Exception as e:
 						self.logger.error(f"send.unexpected: {str(e)}")

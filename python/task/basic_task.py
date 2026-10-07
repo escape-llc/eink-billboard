@@ -6,6 +6,9 @@ from typing import Any, Callable, Type
 from .messages import BasicMessage, QuitMessage
 from .protocols import MessageSink
 
+class TaskStoppedError(ValueError):
+	"""A message was sent to a task that has already stopped (a ValueError, as `accept` always raised)."""
+
 class CoreTask(threading.Thread, MessageSink):
 	"""
 	Core threading and message-queue logic shared by task implementations.
@@ -41,7 +44,7 @@ class CoreTask(threading.Thread, MessageSink):
 				self.stopped.set()
 			except Exception as e:
 				self.msg_queue.task_done()
-				self.logger.error(f"'{self.name} unhandled", e)
+				self.logger.error(f"'{self.name}' unhandled: {e}", exc_info=True)
 		self.logger.info(f"'{self.name}' end {self.msg_queue.qsize()}.")
 
 	def quitMsg(self, msg: QuitMessage):
@@ -54,7 +57,7 @@ class CoreTask(threading.Thread, MessageSink):
 
 	def accept(self, msg: BasicMessage):
 		if self.msg_queue.is_shutdown:
-			raise ValueError("Cannot send message to stopped task.")
+			raise TaskStoppedError("Cannot send message to stopped task.")
 		self.msg_queue.put(msg)
 		if isinstance(msg, QuitMessage):
 			self.msg_queue.shutdown()
@@ -139,56 +142,3 @@ class DispatcherTask(CoreTask):
 		else:
 			# Treat missing handler as an error
 			self.logger.error(f"'{self.name}' no handler for message type: {type(msg)}")
-
-import functools
-
-def register_by_type(registry_key_type):
-	"""Tags the method with a type key for the constructor to find."""
-	def decorator(func):
-		# Attach metadata to the function for registration
-		func._registry_key = registry_key_type
-		
-		@functools.wraps(func)
-		def wrapper(self, lookup_dict, *args, **kwargs):
-			# args[0:] correspond to original args[2:]
-			modified_args = list(args)
-			for ix in range(len(modified_args)):
-				val = modified_args[ix]
-				# Replace based on type lookup from the config dict
-				modified_args[ix] = lookup_dict.get(type(val), None)
-			
-			return func(self, lookup_dict, *modified_args, **kwargs)
-		return wrapper
-	return decorator
-
-class MyClass:
-	def __init__(self):
-		self.registry = {}
-		# Scan class for decorated methods to populate the local registry
-		for attr_name in dir(self):
-			attr = getattr(self, attr_name)
-			# Check if the wrapper's underlying function was tagged
-			if hasattr(attr, '__wrapped__'):
-				original_func = attr.__wrapped__
-				if hasattr(original_func, '_registry_key'):
-					key = original_func._registry_key
-					# Store the BOUND method (already has 'self')
-					self.registry[key] = attr
-
-	@register_by_type(str)
-	def process_str(self, config, val_a, val_b):
-		print(f"String logic executed: {val_a}, {val_b}")
-
-	@register_by_type(int)
-	def process_int(self, config, val_a, val_b):
-		print(f"Int logic executed: {val_a}, {val_b}")
-
-# --- Usage ---
-obj = MyClass()
-config = {str: "REPLACED", int: 777}
-
-obj.process_str(config, "original_a", "original_b")
-# Output: String logic executed: REPLACED, REPLACED
-
-obj.process_int(config, 0, 1.5) 
-# Output: Int logic executed: 777, None (1.5 is float, not in config)

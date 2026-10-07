@@ -1,5 +1,5 @@
 import asyncio
-from concurrent.futures import CancelledError, Future
+from concurrent.futures import Future, TimeoutError as FutureTimeoutError
 import logging
 import threading
 from typing import Any, Mapping, cast
@@ -21,6 +21,10 @@ from ..utils.image_compositor import ImageCompositor
 from ..utils.image_utils import apply_image_enhancement, change_orientation, resize_image
 
 class Display(DispatcherTask):
+	# how long the dispatcher waits for the pool loop to take a frame before it drops the frame
+	RESULT_TIMEOUT_SECONDS = 30.0
+	# pause after an unexpected error in a loop, so a persistent error cannot spin
+	ERROR_BACKOFF_SECONDS = 1.0
 	def __init__(self, name, router:MessageRouter):
 		super().__init__(name)
 		if router is None:
@@ -40,7 +44,7 @@ class Display(DispatcherTask):
 		self.priorityq: asyncio.Queue[PriorityImage] | None = None
 		self.task_commit: tuple[Future, threading.Event] | None = None
 		self.task_priority: tuple[Future, threading.Event] | None = None
-		self.fut_render: tuple[Future, threading.Event] | None = None
+		self.task_render: tuple[Future, threading.Event] | None = None
 		self.logger = logging.getLogger(__name__)
 
 	def _stop_task(self, task:tuple[Future, threading.Event]):
@@ -53,29 +57,37 @@ class Display(DispatcherTask):
 		else:
 			self.logger.info(f"task completed.")
 	def quitMsg(self, msg: QuitMessage):
+		# every step runs even if an earlier one (or the configuration) failed: the pool and the display must always be shut down
 		try:
-			if self.task_commit is not None:
-				self._stop_task(self.task_commit)
-				self.task_commit = None
-			if self.task_priority is not None:
-				self._stop_task(self.task_priority)
-				self.task_priority = None
-			if self.task_render is not None:
-				self._stop_task(self.task_render)
-				self.task_render = None
-			if self.task_pool is not None:
-				self.task_pool.shutdown()
-				self.task_pool = None
-				self.commitq = None
-				self.priorityq = None
-			if self.display is not None:
-				self.display.shutdown()
+			try:
+				for attr in ("task_commit", "task_priority", "task_render"):
+					task = getattr(self, attr)
+					if task is not None:
+						setattr(self, attr, None)
+						try:
+							self._stop_task(task)
+						except Exception as e:
+							self.logger.error(f"shutdown.stop_task {attr}: {e}", exc_info=True)
+			finally:
+				try:
+					if self.task_pool is not None:
+						pool, self.task_pool = self.task_pool, None
+						self.commitq = None
+						self.priorityq = None
+						pool.shutdown()
+				except Exception as e:
+					self.logger.error(f"shutdown.pool: {e}", exc_info=True)
+				finally:
+					try:
+						if self.display is not None:
+							self.display.shutdown()
+					except Exception as e:
+						self.logger.error(f"shutdown.display: {e}", exc_info=True)
 		except Exception as e:
-			self.logger.error(f"shutdown.unhandled {str(e)}")
+			self.logger.error(f"shutdown.unhandled {str(e)}", exc_info=True)
 		finally:
 			self.display = None
 			super().quitMsg(msg)
-		pass
 	def _configure_event(self, msg: ConfigureEvent):
 		try:
 			self.cm = msg.content.cm
@@ -105,13 +117,13 @@ class Display(DispatcherTask):
 			msg.notify()
 			self.router.send("display-settings", DisplaySettings(msg.timestamp, display_type, self.resolution[0], self.resolution[1], []))
 		except Exception as e:
-			self.logger.error(f"configure.unhandled: {str(e)}")
+			self.logger.error(f"configure.unhandled: {str(e)}", exc_info=True)
 			msg.notify(True, e)
 	def _start_tasks(self, display: DisplayBase, compositor: ImageCompositor, timebase: TimeOfDay, display_settings: Mapping[str,Any]) -> None:
 		self.task_pool = AsyncWorkerPool()
 		self.task_pool.start()
 		task_future = self.task_pool.submit(self._task_create_queues(), None)
-		self.commitq, renderq, self.priorityq = task_future.result()
+		self.commitq, renderq, self.priorityq = task_future.result(timeout=self.RESULT_TIMEOUT_SECONDS)
 
 		donev = threading.Event()
 		def commit_callback(fut):
@@ -158,7 +170,8 @@ class Display(DispatcherTask):
 						break
 					except Exception as e:
 						self.logger.error(f"commit_timer.unhandled: {str(e)}")
-		except CancelledError:
+						await asyncio.sleep(self.ERROR_BACKOFF_SECONDS)
+		except asyncio.CancelledError:
 			self.logger.info("commit timer task cancelled")
 			raise
 		finally:
@@ -170,6 +183,7 @@ class Display(DispatcherTask):
 			while True:
 				try:
 					_ = await taskq.get()
+					taskq.task_done()
 					package = compsitor.commit()
 					if package is None:
 						self.logger.debug(f"Compositor no changes detected")
@@ -180,14 +194,15 @@ class Display(DispatcherTask):
 
 					displayImageCount += 1
 					self.logger.info(f"Compositor v:{package.version} '{the_title}' ({displayImageCount})")
-					display.render(the_image, displayImageCount, the_title)
-					taskq.task_done()
+					# render() is synchronous and slow (an e-ink refresh takes seconds): keep it off the loop; awaiting it keeps it one at a time
+					await asyncio.to_thread(display.render, the_image, displayImageCount, the_title)
 					self.logger.debug(f"Start blanking period")
 					await asyncio.sleep(60.0)
 					self.logger.debug(f"End blanking period")
 				except Exception as e:
-					self.logger.error(f"_task_render_and_display.unhandled: {str(e)}")
-		except CancelledError:
+					self.logger.error(f"_task_render_and_display.unhandled: {str(e)}", exc_info=True)
+					await asyncio.sleep(self.ERROR_BACKOFF_SECONDS)
+		except asyncio.CancelledError:
 			self.logger.info("render and display task cancelled")
 			raise
 		finally:
@@ -210,12 +225,22 @@ class Display(DispatcherTask):
 					self.compsitor.set_layer_priority(None)
 					await commitq.put(BasicMessage(msg.timestamp))
 				except Exception as e:
-					self.logger.error(f"priority_image.unhandled: {str(e)}")
-		except CancelledError:
+					self.logger.error(f"priority_image.unhandled: {str(e)}", exc_info=True)
+					await asyncio.sleep(self.ERROR_BACKOFF_SECONDS)
+		except asyncio.CancelledError:
 			self.logger.info("priority image task cancelled")
 			raise
 		finally:
 			donev.set()
+	def _wait_for(self, fut: Future, what: str) -> bool:
+		"""Waits (bounded) for the pool loop to take the frame; on a timeout the frame is dropped so the dispatcher (and Quit) stays responsive."""
+		try:
+			fut.result(timeout=self.RESULT_TIMEOUT_SECONDS)
+			return True
+		except FutureTimeoutError:
+			fut.cancel()
+			self.logger.error(f"{what} timed out after {self.RESULT_TIMEOUT_SECONDS:g}s waiting for the display loop; frame dropped.")
+			return False
 	def _priority_image(self, msg: PriorityImage):
 		try:
 			if self.cm is None:
@@ -236,10 +261,9 @@ class Display(DispatcherTask):
 			self.logger.info(f"Priority '{msg.title}' ({msg.duration})")
 
 			fut  = self.task_pool.submit(self._task_priority_layer(self.priorityq, msg), None)
-			fut.result();
+			self._wait_for(fut, f"priority '{msg.title}'")
 		except Exception as e:
-			self.logger.error("priorityimage.unhandled", e)
-			pass
+			self.logger.error(f"priorityimage.unhandled: {e}", exc_info=True)
 	def _display_image(self, msg: DisplayImage):
 		try:
 			if self.cm is None:
@@ -264,13 +288,12 @@ class Display(DispatcherTask):
 				image = resize_image(image, self.resolution)
 				di = msg if image == msg.img else ComputedImage(msg.timestamp, msg.title, image, msg)
 				fut  = self.task_pool.submit(self._task_background_layer(self.commitq, self.compsitor, di), None)
-				fut.result();
+				self._wait_for(fut, f"display '{msg.title}'")
 			else:
 				fut  = self.task_pool.submit(self._task_background_layer(self.commitq, self.compsitor, msg), None)
-				fut.result();
+				self._wait_for(fut, f"display '{msg.title}'")
 		except Exception as e:
-			self.logger.error("displayimage.unhandled", e)
-			pass
+			self.logger.error(f"displayimage.unhandled: {e}", exc_info=True)
 	def _async_task_completed(self, msg: AsyncTaskCompleted):
 		if not msg.fut.done():
 			self.logger.info(f"{msg.token} task still running, cancel...")
@@ -279,7 +302,14 @@ class Display(DispatcherTask):
 			msg.donev.wait(timeout=2.0)
 		else:
 			self.logger.info(f"{msg.token} task completed.")
-			rmsg = msg.fut.result()
+			rmsg = None
+			if msg.fut.cancelled():
+				self.logger.info(f"{msg.token} task was cancelled.")
+			else:
+				try:
+					rmsg = msg.fut.result()
+				except Exception as e:
+					self.logger.error(f"{msg.token} task failed: {e}", exc_info=True)
 			self.logger.info(f"{msg.token} task result: {rmsg}")
 			if rmsg is not None:
 				# handle message returned by the task
