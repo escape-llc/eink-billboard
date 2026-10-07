@@ -68,7 +68,7 @@
 					@submit="submitForm"
 					>
 					<template #tb-center>
-						<Select :options="plugins" v-model="selectedPlugin" style="width:20rem">
+						<Select :options="plugins" optionLabel="id" v-model="selectedPlugin" style="width:20rem">
 							<template #value="slotProps">
 								<div v-if="slotProps.value">{{ slotProps.value.id }} ({{ slotProps.value.version }})</div>
 							</template>
@@ -113,7 +113,7 @@
 					@submit="submitForm"
 					>
 					<template #tb-center>
-						<Select :options="dataSources" v-model="selectedDatasource" style="width:20rem">
+						<Select :options="dataSources" optionLabel="id" v-model="selectedDatasource" style="width:20rem">
 							<template #value="slotProps">
 								<div v-if="slotProps.value">{{ slotProps.value.id }} ({{ slotProps.value.version }})</div>
 							</template>

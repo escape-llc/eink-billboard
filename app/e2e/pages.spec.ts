@@ -72,3 +72,18 @@ test.describe("every page renders from the seeded storage, without errors", () =
 		watch.expectNone()
 	})
 })
+
+test("the plugin and datasource selectors show names, not [object Object]", async ({ page }) => {
+	await stubMapTiles(page)
+	const watch = watchProblems(page)
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "Data Sources" }).click()
+	const select = page.getByRole("tabpanel").locator(".p-select").first()
+	await select.click()
+	// options are identified by their name, not by the string form of the object
+	await page.getByRole("option", { name: /openai-image/ }).click()
+	await expect(select).toContainText("openai-image")
+	await expect(select).not.toContainText("[object Object]")
+	await expect(select.getByRole("combobox")).toHaveAttribute("aria-label", "openai-image")
+	watch.expectNone()
+})
