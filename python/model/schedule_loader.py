@@ -2,8 +2,7 @@ import json
 from typing import Literal, ReadOnly, TypedDict
 import uuid
 
-from .schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks
-from ..model.schedule_manager import SCHEMA_PLAYLIST, SCHEMA_TASKS
+from .schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, SCHEMA_PLAYLIST, SCHEMA_TASKS, TimerTaskItem, TimerTaskTask, TimerTasks
 type LoaderType = Playlist|TimerTasks
 
 # MUST be a literal
