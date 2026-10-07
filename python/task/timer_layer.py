@@ -1,12 +1,13 @@
-from concurrent.futures import Future
-from datetime import datetime
+import asyncio
+from concurrent.futures import CancelledError, Future
+from datetime import datetime, timedelta
 import logging
 import threading
 from typing import Any, Any, Mapping, NotRequired, ReadOnly, TypedDict, cast
 
 from ..datasources.data_source import DataSourceManager
 from ..model.configuration_manager import CollectInfoDict, ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
-from ..model.schedule import RenderScheduleDict, TimerTaskItem, Playlist, render_task_schedule_at
+from ..model.schedule import TimerTaskItem, Playlist, generate_schedule, instant, next_day_start
 from ..model.schedule_loader import ScheduleLoaderDict
 from ..model.service_container import IServiceProvider, ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
@@ -40,6 +41,11 @@ class TelemetryDict(TypedDict):
 	schedule_ts: ReadOnly[datetime|None]
 
 class TimerLayer(DispatcherTask):
+	# An entry that is reached later than its time (an earlier task was still running) is run late when it is at most
+	# this late at that moment, in order; one that is later than that is skipped with a warning.
+	LATE_GRACE = timedelta(minutes=5)
+	# after the layer task failed, wait this long (real seconds) before starting it again
+	RESTART_DELAY_SECONDS = 30.0
 	def __init__(self, name, router: MessageRouter):
 		super().__init__(name)
 		if router is None:
@@ -56,6 +62,8 @@ class TimerLayer(DispatcherTask):
 		self.shutdownlist: list[IRequireShutdown] = []
 		self.timebase: TimeOfDay|None = None
 		self.state = 'uninitialized'
+		self.startup_done = False
+		self._restart_timer: threading.Timer|None = None
 		self.logger = logging.getLogger(__name__)
 	def _evaluate_plugin(self, track:TimerTaskItem) -> EvaluatePluginDict:
 		if self.cm is None:
@@ -102,6 +110,7 @@ class TimerLayer(DispatcherTask):
 		return root
 	def _configure_event(self, msg: ConfigureEvent):
 		self.cm = msg.content.cm
+		self.startup_done = False
 		try:
 			# validate the schedule before allocating resources
 			sm = self.cm.schedule_manager()
@@ -161,99 +170,93 @@ class TimerLayer(DispatcherTask):
 			self.logger.error(f"Timer service is not available.")
 			return
 		self._run_layer_task(self.tasks, msg.timestamp)
+	async def _run_task_item(self, isp: IServiceProvider, tod: TimeOfDay, item: TimerTaskItem, kind: str, index: int, playlist: Playlist|None, sched_ts: datetime|None):
+		"""Run one task item's plugin and report telemetry. Failures are reported, never raised (the layer keeps going)."""
+		plugin_eval = self._evaluate_plugin(item)
+		plugin = cast(PluginAsync|None, plugin_eval.get("plugin", None))
+		if plugin is None:
+			self.logger.error(f"Cannot start {kind} task, plugin '{item.task.plugin_name}' for task '{item.title}' is not available.")
+			return
+		try:
+			self.logger.info(f"Starting {kind} task '{item.title}' using plugin '{item.task.plugin_name}'.")
+			# this task's own event: the one passed to the layer task is the layer's, and is set when the layer ends
+			task_done = threading.Event()
+			context = PluginExecutionContext(isp, self.dimensions, tod.current_time())
+			plugin_result = await plugin.task_async(context, item, task_done)
+			self.state = 'playing'
+			self.logger.info(f"{kind.capitalize()} task '{item.title}' completed with result: {plugin_result}")
+			telemetry: TelemetryDict = {
+				"state": self.state,
+				"current_playlist": playlist,
+				"current_track": item,
+				"current_track_index": index,
+				"schedule_ts": sched_ts
+			}
+			self.router.send("telemetry", Telemetry(tod.current_time(), "timer_layer", cast(Mapping[str,Any], telemetry)))
+		except Exception as e:
+			self.state = 'error'
+			self._error_with_telemetry(f"Error during {kind} task '{item.title}': {e}", tod.current_time())
 	async def _layer_task(self, isp: IServiceProvider, tasks: list[ScheduleLoaderDict], donev: threading.Event) -> BasicMessage|None:
+		"""
+		Runs until it is cancelled: the startup tasks once, then each local day's schedule in turn.
+		When a day's entries are exhausted it waits for the next midnight and renders that day. Entries are run in time order;
+		one that was missed while an earlier task ran is run late if it is within LATE_GRACE, else skipped with a warning.
+		"""
 		try:
 			tod = isp.required(TimeOfDay)
 			timer = isp.required(IProvideTimer)
 			enabled_task_items = self._get_enabled_tasks(tasks)
-			# startup tasks loop
+			# the day to render first starts now, before the startup tasks (which may take a while)
+			cursor = tod.current_time()
+			# startup tasks loop, once per start-up (a restart after an error does not repeat them)
 			initial_playlist:Playlist|None = self._startup_playlist(enabled_task_items)
-			if initial_playlist is None:
+			if self.startup_done:
+				pass
+			elif initial_playlist is None:
 				self.logger.info(f"No startup playlist.")
 			else:
+				self.startup_done = True
 				for index, item in enumerate(initial_playlist.items):
-					track = cast(TimerTaskItem, item)
-					plugin_eval = self._evaluate_plugin(track)
-					plugin:PluginAsync = cast(PluginAsync, plugin_eval.get("plugin", None))
-					if plugin is None:
-						self.logger.error(f"Cannot start startup task, plugin '{track.task.plugin_name}' for task '{track.task.title}' is not available.")
-						continue
-					try:
-						self.logger.info(f"Starting startup task '{track.title}' using plugin '{track.task.plugin_name}'.")
-						donev = threading.Event()
-						context = PluginExecutionContext(isp, self.dimensions, tod.current_time())
-						plugin_result = await plugin.task_async(context, track, donev)
-						self.state = 'playing'
-						telemetry = {
+					await self._run_task_item(isp, tod, cast(TimerTaskItem, item), "startup", index, initial_playlist, None)
+			self.startup_done = True
+			# daily loop
+			while True:
+				rendered_schedule = self._next_scheduled_playlist(cursor, enabled_task_items)
+				for sched_ts, task_item in rendered_schedule:
+					now = tod.current_time()
+					delta = timedelta(seconds=instant(sched_ts) - instant(now))
+					if delta.total_seconds() > 0:
+						matching = [x for ts, x in rendered_schedule if instant(ts) == instant(sched_ts)]
+						self.logger.info(f"Waiting for {len(matching)} scheduled task(s) at {sched_ts} (in {delta}).")
+						self.state = 'waiting'
+						telemetry2 = {
 							"state": self.state,
-							"current_playlist": initial_playlist,
-							"current_track": track,
-							"current_track_index": index,
-							"schedule_ts": None
+							"schedule_ts": sched_ts,
+							"now": now,
+							"delta": delta,
 						}
-						self.logger.info(f"Startup task '{track.title}' completed with result: {plugin_result}")
-						self.router.send("telemetry", Telemetry(tod.current_time(), "timer_layer", telemetry))
-					except Exception as e:
-						self.state = 'error'
-						self._error_with_telemetry(f"Error during startup task '{track.title}': {e}", tod.current_time())
-				pass
-			# timer tasks loop
-			reftime = tod.current_time()
-			rendered_schedule = self._next_scheduled_playlist(reftime, enabled_task_items)
-			for sched in rendered_schedule:
-				sched_ts = datetime.fromisoformat(sched["scheduled_time"])
+						self.router.send("telemetry", Telemetry(now, "timer_layer", cast(Mapping[str,Any], telemetry2)))
+						await timer.sleep(delta)
+						self.logger.info(f"Scheduled task time reached: {sched_ts}, actual: {tod.current_time()}.")
+					elif -delta > self.LATE_GRACE:
+						self.logger.warning(f"Skipping scheduled task '{task_item.title}' ({task_item.id}) at {sched_ts}: it is {-delta} late, more than {self.LATE_GRACE}.")
+						continue
+					else:
+						self.logger.info(f"Running scheduled task '{task_item.title}' ({task_item.id}) {-delta} late.")
+					await self._run_task_item(isp, tod, task_item, "scheduled", -1, None, sched_ts)
+				# this day is done: continue with the next local day, starting at its midnight
+				cursor = next_day_start(cursor)
 				now = tod.current_time()
-				delta =  sched_ts - now
-				if delta.total_seconds() < 0:
-					self.logger.warning(f"Skipping past scheduled task '{sched['id']}' at {sched_ts} (scheduled time is in the past).")
-					continue
-				matching_items = [item for item in rendered_schedule if item["scheduled_time"] == sched["scheduled_time"]]
-				self.logger.info(f"Waiting for {len(matching_items)} scheduled task(s) at {sched_ts} (in {delta}).")
-				self.state = 'waiting'
-				telemetry2 = {
-					"state": self.state,
-					"schedule_ts": sched_ts,
-					"now": now,
-					"delta": delta,
-				}
-				self.router.send("telemetry", Telemetry(now, "timer_layer", cast(Mapping[str,Any], telemetry2)))
-				await timer.sleep(delta)
-				actual = tod.current_time()
-				self.logger.info(f"Scheduled task time reached: {sched_ts}, actual: {actual}. Starting {len(matching_items)} task(s).")
-				# find the corresponding task items for this schedule timestamp
-				for match in matching_items:
-					task_item = next((t for t in enabled_task_items if t.id == match["id"]), None)
-					if task_item is None:
-						self.logger.error(f"No task item found for scheduled task id '{match['id']}' at {sched_ts}.")
-						continue
-					plugin_eval = self._evaluate_plugin(task_item)
-					plugin:PluginAsync = cast(PluginAsync, plugin_eval.get("plugin", None))
-					if plugin is None:
-						self.logger.error(f"Cannot start scheduled task, plugin '{task_item.task.plugin_name}' for task '{task_item.task.title}' is not available.")
-						continue
-					try:
-						self.logger.info(f"Starting scheduled task '{task_item.title}' using plugin '{task_item.task.plugin_name}'.")
-						donev = threading.Event()
-						context = PluginExecutionContext(isp, self.dimensions, tod.current_time())
-						plugin_result = await plugin.task_async(context, task_item, donev)
-						self.state = 'playing'
-						self.logger.info(f"Scheduled task '{task_item.title}' completed with result: {plugin_result}")
-						telemetry: TelemetryDict = {
-							"state": self.state,
-							"current_playlist": None,
-							"current_track": task_item,
-							"current_track_index": -1,
-							"schedule_ts": sched_ts
-						}
-						self.router.send("telemetry", Telemetry(tod.current_time(), "timer_layer", cast(Mapping[str,Any], telemetry)))
-					except Exception as e:
-						self.state = 'error'
-						self._error_with_telemetry(f"Error during scheduled task '{task_item.title}': {e}", tod.current_time())
-				pass
-			return None
+				delta = timedelta(seconds=instant(cursor) - instant(now))
+				if delta.total_seconds() > 0:
+					self.logger.info(f"No more scheduled tasks for the day, waiting for {cursor} (in {delta}).")
+					self.state = 'waiting'
+					await timer.sleep(delta)
+				else:
+					# catching up after a long task or a clock jump: still give other tasks (and cancellation) a turn
+					await asyncio.sleep(0)
 		finally:
 			donev.set()
-		pass
 	def _run_layer_task(self, tasks: list[ScheduleLoaderDict], timestamp: datetime):
 		if self.task_pool is None:
 			self.logger.error(f"No task pool available to invoke plugin start.")
@@ -289,21 +292,51 @@ class TimerLayer(DispatcherTask):
 			msg.fut.cancel()
 			self.logger.info(f"Waiting for plugin task to complete...")
 			msg.donev.wait(timeout=2.0)
-		else:
-			self.logger.info(f"Plugin task completed.")
-			rmsg = msg.fut.result()
-			self.logger.info(f"Plugin task result: {rmsg}")
-			if rmsg is not None:
-				# handle any messages returned by the plugin task if needed
-				self.accept(rmsg)
-			else:
-				self.logger.info(f"Plugin task returned no message, forcing NextTrack.")
-				self.accept(NextTrack(msg.timestamp))
+			return
 		if msg.token == "layer_task":
 			self.layer_task = None
-		pass
-	def _error_with_telemetry(self, emsg:str, msg_ts:datetime):
-		self.logger.error(emsg, exc_info=True)
+		if msg.fut.cancelled():
+			self.logger.info(f"Plugin task was cancelled.")
+			return
+		try:
+			rmsg = msg.fut.result()
+		except CancelledError:
+			self.logger.info(f"Plugin task was cancelled.")
+			return
+		except Exception as e:
+			# the layer task died; keep the display alive by starting it again after a pause
+			self.state = 'error'
+			self.logger.error(f"Layer task failed: {type(e).__name__}: {e}", exc_info=(type(e), e, e.__traceback__))
+			self._error_with_telemetry(f"Layer task failed: {e}", msg.timestamp, log=False)
+			self._schedule_restart(msg.timestamp)
+			return
+		self.logger.info(f"Plugin task result: {rmsg}")
+		if rmsg is not None:
+			# handle any messages returned by the plugin task if needed
+			self.accept(rmsg)
+		elif msg.token == "layer_task":
+			# the layer task only ends by being cancelled; if it returned, start it again
+			self.logger.warning(f"Layer task ended unexpectedly, restarting.")
+			self._schedule_restart(msg.timestamp)
+	def _schedule_restart(self, timestamp: datetime):
+		"""Send StartPlayback to ourselves after RESTART_DELAY_SECONDS (real time), unless we have been stopped meanwhile."""
+		def restart():
+			if self.is_stopped():
+				return
+			try:
+				self.state = 'loaded'
+				self.accept(StartPlayback(self.timebase.current_time() if self.timebase is not None else timestamp))
+			except Exception as e:
+				self.logger.error(f"'{self.name}' restart failed: {e}")
+		if self._restart_timer is not None:
+			self._restart_timer.cancel()
+		self.state = 'loaded'
+		self._restart_timer = threading.Timer(self.RESTART_DELAY_SECONDS, restart)
+		self._restart_timer.daemon = True
+		self._restart_timer.start()
+	def _error_with_telemetry(self, emsg:str, msg_ts:datetime, log: bool = True):
+		if log:
+			self.logger.error(emsg, exc_info=True)
 		self.router.send("telemetry", Telemetry(msg_ts, "timer_layer", cast(Mapping[str,Any], {
 			"state": "error",
 			"message": emsg,
@@ -334,18 +367,27 @@ class TimerLayer(DispatcherTask):
 			return None
 		startup_playlist = Playlist("startup", "Startup Tasks", items=startup_task_items)
 		return startup_playlist
-	def _next_scheduled_playlist(self, now: datetime, enabled_task_items: list[TimerTaskItem]) -> list[RenderScheduleDict]:
-		scheduled: list[RenderScheduleDict] = []
+	def _next_scheduled_playlist(self, now: datetime, enabled_task_items: list[TimerTaskItem]) -> list[tuple[datetime, TimerTaskItem]]:
+		"""The (time, item) entries of `now`'s local day from `now` on, in time order. Items with a malformed trigger are skipped with a warning."""
+		scheduled: list[tuple[datetime, TimerTaskItem]] = []
 		for item in enabled_task_items:
+			problems = item.validate_trigger()
+			if problems:
+				self.logger.warning(f"Skipping task '{item.title}' ({item.id}) while computing the schedule: {'; '.join(problems)}")
+				continue
 			try:
-				tdid = render_task_schedule_at(now, item, "schedule", scheduled)
+				for trigger_ts in generate_schedule(now, item.trigger, include_now=True):
+					scheduled.append((trigger_ts, item))
 			except Exception as e:
-				self.logger.debug(f"Skipping task '{getattr(item, 'name', None)}' while computing next schedule: {e}")
-		# Sort by datetime
-		scheduled.sort(key=lambda pair: pair["scheduled_time"])
+				self.logger.warning(f"Skipping task '{item.title}' ({item.id}) while computing the schedule: {e}")
+		# by absolute time (a stable sort keeps the schedule order for entries at the same time)
+		scheduled.sort(key=lambda pair: instant(pair[0]))
 		return scheduled
 	def quitMsg(self, msg: QuitMessage):
 		self.logger.info(f"'{self.name}' quitting playback.")
+		if self._restart_timer is not None:
+			self._restart_timer.cancel()
+			self._restart_timer = None
 		try:
 			try:
 				self._layer_stop()

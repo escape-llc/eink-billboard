@@ -404,6 +404,82 @@ class TestSchedule(WebApiTestBase):
 		for params in ({"days": 0}, {"days": 100000}, {"days": "x"}, {"start": "not-a-date"}):
 			_error_shape(self, self.client.get("/api/schedule/tasks/render", params=params), 422)
 
+class TestScheduleRender(WebApiTestBase):
+	"""The render endpoint over schedules the test writes itself (the CI storage has no other timer tasks to rely on)."""
+	def _item(self, ident: str, trigger, enabled: bool = True) -> dict:
+		return { "id": ident, "enabled": enabled, "title": f"Title {ident}", "task": { "plugin_name": "p", "content": {} }, "trigger": trigger }
+
+	def _write_tasks(self, items: list[dict]) -> None:
+		folder = os.path.join(self.storage, "schedules")
+		for name in os.listdir(folder):
+			os.remove(os.path.join(folder, name))
+		with open(os.path.join(folder, "tasks.json"), "w", encoding="utf-8") as f:
+			json.dump({ "_schema": "urn:inky:storage:schedule:tasks:1", "id": "rt", "name": "Render", "items": items }, f)
+
+	def _set_timezone(self, name: str) -> None:
+		doc = self.client.get("/api/settings/system").json()
+		doc["timezoneName"] = name
+		resp = self.client.put("/api/settings/system", json=doc)
+		self.assertEqual(resp.status_code, 200, resp.text)
+
+	def _at(self, hour: int, minute: int, days=None) -> dict:
+		return { "on_startup": False, "day": { "type": "dayofweek", "days": days if days is not None else [0,1,2,3,4,5,6] }, "time": { "type": "specific", "hour": hour, "minute": minute } }
+
+	def test_disabled_items_are_not_rendered(self):
+		self._write_tasks([self._item("on", self._at(9, 0)), self._item("off", self._at(10, 0), enabled=False)])
+		doc = self.client.get("/api/schedule/tasks/render", params={ "start": "2026-01-05", "days": 2 }).json()
+		self.assertEqual({r["id"] for r in doc["render"]}, {"on"})
+		self.assertNotIn("off", [x["id"] for x in doc["not_render"]])
+
+	def test_weekday_numbering_matches_the_ui(self):
+		# 2026-01-04 is a Sunday: day 0
+		self._write_tasks([self._item("sun", self._at(9, 0, [0])), self._item("mon", self._at(9, 0, [1]))])
+		doc = self.client.get("/api/schedule/tasks/render", params={ "start": "2026-01-04", "days": 2 }).json()
+		got = {(r["id"], r["scheduled_time"][:10]) for r in doc["render"]}
+		self.assertEqual(got, {("sun", "2026-01-04"), ("mon", "2026-01-05")})
+
+	def test_one_bad_trigger_is_reported_and_the_rest_render(self):
+		bad_hours = { "on_startup": False, "day": { "type": "dayofweek", "days": [0,1,2,3,4,5,6] }, "time": { "type": "hourofday", "hours": [25], "minutes": [0] } }
+		bad_minutes = { "on_startup": False, "day": { "type": "dayofweek", "days": [0,1,2,3,4,5,6] }, "time": { "type": "hourofday", "hours": [9], "minutes": [60] } }
+		bad_days = { "on_startup": False, "day": { "type": "dayofweek", "days": "monday" }, "time": { "type": "specific", "hour": 1, "minute": 0 } }
+		no_day = { "on_startup": False, "time": { "type": "specific", "hour": 1, "minute": 0 } }
+		self._write_tasks([
+			self._item("good", self._at(9, 0)), self._item("h", bad_hours), self._item("m", bad_minutes),
+			self._item("d", bad_days), self._item("nd", no_day), self._item("junk", "nonsense")  # type: ignore
+		])
+		with self.assertLogs("python.web.routers.schedule", level="WARNING"):
+			resp = self.client.get("/api/schedule/tasks/render", params={ "start": "2026-01-05", "days": 1 })
+		self.assertEqual(resp.status_code, 200, resp.text)
+		doc = resp.json()
+		self.assertEqual({r["id"] for r in doc["render"]}, {"good"})
+		self.assertEqual({x["id"] for x in doc["invalid"]}, {"h", "m", "d", "nd", "junk"})
+		for x in doc["invalid"]:
+			self.assertTrue(x["message"])
+			self.assertEqual(x["schedule"], "rt")
+
+	def test_dst_gap_time_is_not_printed_with_a_bogus_offset(self):
+		self._set_timezone("America/New_York")
+		self._write_tasks([self._item("gap", self._at(2, 30))])
+		doc = self.client.get("/api/schedule/tasks/render", params={ "start": "2024-03-10", "days": 2 }).json()
+		times = [r["scheduled_time"] for r in doc["render"]]
+		self.assertEqual(times, ["2024-03-10T03:30:00-04:00", "2024-03-11T02:30:00-04:00"])
+		self.assertEqual(doc["start_ts"], "2024-03-10T00:00:00-05:00")
+		self.assertEqual(doc["end_ts"], "2024-03-12T00:00:00-04:00")
+
+	def test_start_with_an_offset_is_converted_to_the_system_zone(self):
+		self._set_timezone("America/New_York")
+		self._write_tasks([self._item("a", self._at(9, 0))])
+		# 01:00 UTC on the 11th is 21:00 on the 10th in New York
+		doc = self.client.get("/api/schedule/tasks/render", params={ "start": "2024-03-11T01:00:00+00:00", "days": 1 }).json()
+		self.assertEqual(doc["start_ts"], "2024-03-10T00:00:00-05:00")
+		self.assertTrue(doc["render"][0]["scheduled_time"].startswith("2024-03-10T09:00:00"))
+
+	def test_out_of_range_start_is_422_not_500(self):
+		self._write_tasks([self._item("a", self._at(9, 0))])
+		for start in ("9999-12-31", "9999-12-31T23:59:59+00:00", "0001-01-01", "0001-01-01T00:00:00-12:00"):
+			resp = self.client.get("/api/schedule/tasks/render", params={ "start": start, "days": 62 })
+			_error_shape(self, resp, 422)
+
 class TestErrorsAndAuth(WebApiTestBase):
 	def test_unknown_api_path_is_json_404(self):
 		_error_shape(self, self.client.get("/api/nope"), 404)

@@ -1,5 +1,6 @@
 from typing import Any, Generator, Literal, Sequence, TypeVar, Protocol, TypedDict, runtime_checkable
-from datetime import datetime, timedelta
+import calendar
+from datetime import datetime, timedelta, timezone
 
 SCHEMA_PLAYLIST = "urn:inky:storage:schedule:playlist:1"
 SCHEMA_TASKS = "urn:inky:storage:schedule:tasks:1"
@@ -91,9 +92,96 @@ class TriggerDict(TypedDict):
 	time: TimeTriggers
 	day: DayTriggers
 
+def _is_int(value: Any) -> bool:
+	return isinstance(value, int) and not isinstance(value, bool)
+
+def _int_list(value: Any, low: int, high: int, name: str, problems: list[str], allowed_extra: tuple[int, ...] = ()) -> None:
+	if not isinstance(value, list):
+		problems.append(f"{name} must be a list of whole numbers")
+		return
+	for entry in value:
+		if not _is_int(entry) or not (low <= entry <= high or entry in allowed_extra):
+			problems.append(f"{name} has an invalid entry (expected {low} to {high})")
+			return
+
+def validate_trigger(trigger: Any) -> list[str]:
+	"""
+	Check a trigger's shape and ranges without evaluating it. Returns the problems found, empty when it is usable.
+	The messages are our own text and never echo the stored values, so they are safe to show to the client.
+	"""
+	problems: list[str] = []
+	if not isinstance(trigger, dict):
+		return ["trigger must be an object"]
+	day = trigger.get("day", None)
+	time = trigger.get("time", None)
+	if not isinstance(day, dict):
+		problems.append("trigger needs a 'day' object")
+	else:
+		match day.get("type", None):
+			case "dayofweek":
+				_int_list(day.get("days", None), 0, 6, "day.days (0=Sunday)", problems)
+			case "dayofmonth":
+				_int_list(day.get("days", None), 1, 31, "day.days", problems, allowed_extra=(-1,))
+			case "dayandmonth":
+				dday, month = day.get("day", None), day.get("month", None)
+				if not _is_int(dday) or not 1 <= dday <= 31:
+					problems.append("day.day must be a whole number from 1 to 31")
+				if not _is_int(month) or not 1 <= month <= 12:
+					problems.append("day.month must be a whole number from 1 to 12")
+			case _:
+				problems.append("day.type must be dayofweek, dayofmonth or dayandmonth")
+	if not isinstance(time, dict):
+		problems.append("trigger needs a 'time' object")
+	else:
+		match time.get("type", None):
+			case "hourly":
+				_int_list(time.get("minutes", [0]), 0, 59, "time.minutes", problems)
+				if "hours" in time:
+					_int_list(time.get("hours"), 0, 23, "time.hours", problems)
+			case "hourofday":
+				_int_list(time.get("hours", []), 0, 23, "time.hours", problems)
+				_int_list(time.get("minutes", [0]), 0, 59, "time.minutes", problems)
+			case "specific":
+				hour, minute = time.get("hour", 0), time.get("minute", 0)
+				if not _is_int(hour) or not 0 <= hour <= 23:
+					problems.append("time.hour must be a whole number from 0 to 23")
+				if not _is_int(minute) or not 0 <= minute <= 59:
+					problems.append("time.minute must be a whole number from 0 to 59")
+			case _:
+				problems.append("time.type must be hourly, hourofday or specific")
+	return problems
+
+def normalize(value: datetime) -> datetime:
+	"""
+	Make a wall-clock time a valid instant in its zone. A time that does not exist (inside a spring-forward gap)
+	is moved forward by the length of the gap, and gets the offset that is really in force then.
+	Naive datetimes (no zone) and times that exist are returned unchanged.
+	"""
+	if value.tzinfo is None:
+		return value
+	return value.astimezone(timezone.utc).astimezone(value.tzinfo)
+
+def instant(value: datetime) -> float:
+	"""The absolute time as POSIX seconds. Compare and sort with this: aware datetimes in one zone compare by wall clock, which is wrong across a DST change."""
+	return value.timestamp()
+
+def day_start(value: datetime) -> datetime:
+	"""Midnight of the local day of `value` (the first valid instant of that day)."""
+	return normalize(value.replace(hour=0, minute=0, second=0, microsecond=0, fold=0))
+
+def next_day_start(value: datetime) -> datetime:
+	"""Midnight that begins the local day after `value`'s, by wall-clock arithmetic (so 23 and 25 hour days are handled)."""
+	return normalize(value.replace(hour=0, minute=0, second=0, microsecond=0, fold=0) + timedelta(days=1))
+
+def _wall(now: datetime, hour: int, minute: int) -> datetime:
+	return normalize(now.replace(hour=hour, minute=minute, second=0, microsecond=0, fold=0))
+
 def generate_trigger_time(now: datetime, time: TimeTriggers, include_now: bool = False) -> Generator[datetime, None, None]:
 	"""
 	Yield the datetimes that match the given time trigger configuration based on the target time.
+	The times are built from the wall clock of `now`'s day and are never earlier than `now` (an instant comparison).
+	Times that do not exist on a DST day are normalised (02:30 in a spring-forward gap becomes 03:30), each instant is yielded once,
+	and the result is in time order. A repeated hour on a fall-back day fires on its first pass only.
 
 	:param now: Target time to evaluate the trigger against
 	:type now: datetime
@@ -105,41 +193,36 @@ def generate_trigger_time(now: datetime, time: TimeTriggers, include_now: bool =
 	time_type = time.get("type", None)
 	if time_type is None:
 		raise ValueError("Time Trigger must contain 'type' field")
+	candidates: list[datetime] = []
 	match time_type:
 		case "hourly":
 			minutes = time.get("minutes", [0])
-			for hour in range(now.hour, 24):
+			for hour in range(0, 24):
 				for minute in minutes:
-					next_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-					if next_time < now:
-						continue
-					elif next_time == now and not include_now:
-						continue
-					yield next_time
+					candidates.append(_wall(now, hour, minute))
 		case "hourofday":
 			hours = time.get("hours", [])
 			minutes = time.get("minutes", [0])
 			for hour in hours:
 				for minute in minutes:
-					next_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-					if next_time < now:
-						continue
-					elif next_time == now and not include_now:
-						continue
-					yield next_time
+					candidates.append(_wall(now, hour, minute))
 		case "specific":
-			hour = time.get("hour", 0)
-			minute = time.get("minute", 0)
-			next_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-			if next_time < now:
-				pass
-			elif next_time == now and include_now:
-				yield next_time
-			elif next_time > now:
-				yield next_time
-		case None:
-			pass
-	pass
+			candidates.append(_wall(now, time.get("hour", 0), time.get("minute", 0)))
+	now_ts = instant(now)
+	seen: set[float] = set()
+	for candidate in sorted(candidates, key=instant):
+		ts = instant(candidate)
+		if ts in seen:
+			continue
+		seen.add(ts)
+		if ts < now_ts or (ts == now_ts and not include_now):
+			continue
+		yield candidate
+
+def weekday_sunday_zero(value: datetime) -> int:
+	"""Day of week numbered as the web app stores it: 0 = Sunday ... 6 = Saturday (datetime.weekday() has Monday as 0)."""
+	return (value.weekday() + 1) % 7
+
 def generate_schedule(now: datetime, trigger: TriggerDict, include_now: bool = False) -> Generator[datetime, None, None]:
 	"""
 	Run through the trigger and generate the next trigger time(s) based on the current time.
@@ -147,7 +230,8 @@ def generate_schedule(now: datetime, trigger: TriggerDict, include_now: bool = F
 	This generator may yield multiple times if the trigger matches multiple times in the future (e.g. hourly trigger).
 	The "day" key in the trigger determines the type of trigger and how to evaluate it against the current time.
 	If the day trigger matches the current time, then the "time" key is evaluated to generate the next trigger time(s) for that day.
-	
+	Days follow the web app: "dayofweek" is 0=Sunday..6=Saturday, "dayofmonth" is 1..31 or -1 for the last day of the month.
+
 	:param now: Target time to evaluate the trigger against
 	:type now: datetime
 	:param trigger: Trigger description dict, must contain "day" and "time" keys with appropriate sub-keys for trigger evaluation
@@ -167,11 +251,12 @@ def generate_schedule(now: datetime, trigger: TriggerDict, include_now: bool = F
 	match day_type:
 		case "dayofweek":
 			days = day.get("days", [])
-			if now.weekday() in days:
+			if weekday_sunday_zero(now) in days:
 				yield from generate_trigger_time(now, time, include_now=include_now)
 		case "dayofmonth":
 			days = day.get("days", [])
-			if now.day in days:
+			last_day = calendar.monthrange(now.year, now.month)[1]
+			if now.day in days or (-1 in days and now.day == last_day):
 				yield from generate_trigger_time(now, time, include_now=include_now)
 		case "dayandmonth":
 			dday = day.get("day", None)
@@ -182,9 +267,10 @@ def generate_schedule(now: datetime, trigger: TriggerDict, include_now: bool = F
 			pass
 	pass
 def daily_sequence(start_date: datetime, n_days: int) -> Generator[datetime, None, None]:
-	start_ts = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+	"""Midnight of each of `n_days` local days from the day of `start_date`, counted on the wall clock (a day may be 23 or 25 hours long)."""
+	base = start_date.replace(hour=0, minute=0, second=0, microsecond=0, fold=0)
 	for ix in range(n_days):
-		yield start_ts + timedelta(days=ix)
+		yield normalize(base + timedelta(days=ix))
 
 class TimerTaskTask:
 	def __init__(self, plugin_name: str, content: dict):
@@ -222,12 +308,15 @@ class TimerTaskItem(ScheduleItemBase):
 	@property
 	def title(self) -> str:
 		return self._title
+	def validate_trigger(self) -> list[str]:
+		"""The problems with this item's trigger; empty when it can be evaluated."""
+		return validate_trigger(self.trigger)
 	def to_dict(self) -> dict[str,Any]:
 		retv = {
 			"id": self._id,
 			"enabled": self.enabled,
 			"title": self.title,
-			"trigger": self.trigger.copy(),
+			"trigger": self.trigger.copy() if isinstance(self.trigger, dict) else self.trigger,
 			"task": self.task.to_dict()
 		}
 		return retv

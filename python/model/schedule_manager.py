@@ -28,10 +28,19 @@ class ScheduleManager:
 			keys: "playlists", "tasks"
 		"""
 		item_list:list[ScheduleLoaderDict] = []
-		for schedule in os.listdir(self.ROOT_PATH):
-			logger.debug(f"Found file: {schedule}")
+		for schedule in sorted(os.listdir(self.ROOT_PATH)):
 			schedule_path = os.path.join(self.ROOT_PATH, schedule)
-			info = ScheduleLoader.loadFile(schedule_path, schedule)
+			# only regular *.json files are schedules: not .gitkeep, .DS_Store, .tmp-* leftovers of an atomic save, or folders
+			if schedule.startswith(".") or not schedule.lower().endswith(".json") or not os.path.isfile(schedule_path):
+				logger.debug(f"Ignoring non-schedule entry: {schedule}")
+				continue
+			logger.debug(f"Found file: {schedule}")
+			try:
+				info = ScheduleLoader.loadFile(schedule_path, schedule)
+			except Exception as e:
+				# one bad file must not take down every list endpoint and the layer start-up
+				logger.warning(f"Skipping schedule file '{schedule}': {type(e).__name__}: {e}")
+				continue
 			item_list.append(info)
 		playlist_list = [item for item in item_list if item.get("type") == SCHEMA_PLAYLIST]
 		tasks_list = [item for item in item_list if item.get("type") == SCHEMA_TASKS]

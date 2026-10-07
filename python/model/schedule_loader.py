@@ -19,6 +19,8 @@ class ScheduleLoader:
 	def loadFile(path: str, name: str) -> ScheduleLoaderDict:
 		with open(path, 'r', encoding='utf-8') as f:
 			data = json.load(f)
+		if not isinstance(data, dict):
+			raise ValueError(f"Schedule file '{path}' is not a JSON object.")
 		schema = data.get("_schema", None)
 		if schema is None:
 			raise ValueError(f"Schedule file '{path}' is missing _schema field.")
