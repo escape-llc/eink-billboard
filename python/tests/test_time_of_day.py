@@ -38,3 +38,23 @@ class TestSystemTimeOfDay(unittest.TestCase):
 
 if __name__ == "__main__":
 	unittest.main()
+
+class TestConfiguredTimeOfDay(unittest.TestCase):
+	def test_uses_the_named_zone(self):
+		from ..model.time_of_day import ConfiguredTimeOfDay
+		now = ConfiguredTimeOfDay(lambda: "Asia/Tokyo").current_time()
+		self.assertEqual(now.utcoffset().total_seconds(), 9 * 3600)
+
+	def test_follows_a_change_without_restart(self):
+		from ..model.time_of_day import ConfiguredTimeOfDay
+		name = ["Asia/Tokyo"]
+		tod = ConfiguredTimeOfDay(lambda: name[0])
+		self.assertEqual(tod.current_time().utcoffset().total_seconds(), 9 * 3600)
+		name[0] = "UTC"
+		self.assertEqual(tod.current_time().utcoffset().total_seconds(), 0)
+
+	def test_unknown_or_failing_source_falls_back_to_the_machine_zone(self):
+		from ..model.time_of_day import ConfiguredTimeOfDay
+		self.assertIsNotNone(ConfiguredTimeOfDay(lambda: "Not/AZone").current_time().tzinfo)
+		def boom(): raise RuntimeError("x")
+		self.assertIsNotNone(ConfiguredTimeOfDay(boom).current_time().tzinfo)

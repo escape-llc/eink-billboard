@@ -14,7 +14,7 @@ import yaml
 from .model.configuration_watcher import ConfigurationWatcher
 from .model.configuration_manager_eviction_sink import ConfigurationManagerEvictionSink
 from .model.service_container import ServiceContainer
-from .model.time_of_day import SystemTimeOfDay, TimeOfDay
+from .model.time_of_day import ConfiguredTimeOfDay, TimeOfDay
 from .model.configuration_manager import ConfigurationManager
 
 from .task.telemetry_sink import TelemetrySink
@@ -63,8 +63,10 @@ def run_application(args: argparse.Namespace) -> None:
 		logger.warning(f"The API is open to the network without a token; set --token or {TOKEN_ENV} to require one.")
 
 	cm = ConfigurationManager(storage_path=storage)
-	# TODO get system settings timezone and use it in SystemTimeOfDay
-	time_base = SystemTimeOfDay()
+	def system_timezone_name() -> str|None:
+		_, system = cm.settings_manager().open("system").get()
+		return system.get("timezoneName") if system else None
+	time_base = ConfiguredTimeOfDay(system_timezone_name)
 	watcher_sink = ConfigurationManagerEvictionSink(cm)
 	config_watcher = ConfigurationWatcher(time_base, watcher_sink, cm.STORAGE_PATH)
 	# plugins and datasources may contribute API routers

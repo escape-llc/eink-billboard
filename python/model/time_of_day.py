@@ -1,7 +1,8 @@
 
 from datetime import datetime, timezone, tzinfo
+import logging
 import os
-from typing import Protocol, runtime_checkable
+from typing import Callable, Protocol, runtime_checkable
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 @runtime_checkable
@@ -65,3 +66,20 @@ class SystemTimeOfDay(TimeOfDay):
 		return datetime.now().astimezone()
 	def current_time_utc(self) -> datetime:
 		return datetime.now(timezone.utc)
+
+class ConfiguredTimeOfDay(SystemTimeOfDay):
+	"""
+	The wall clock in the zone named by the system settings (`timezoneName`), read on every call so a change in the
+	settings applies without a restart. A missing or unknown name falls back to the machine's zone.
+	`name_source` returns the configured name (or None); it must not raise.
+	"""
+	def __init__(self, name_source: Callable[[], str|None]):
+		super().__init__()
+		self._name_source = name_source
+	def current_time(self) -> datetime:
+		try:
+			self._tz = _zone_from_name(self._name_source())
+		except Exception as e:
+			logging.getLogger(__name__).warning(f"Could not read the system timezone setting: {e}")
+			self._tz = None
+		return super().current_time()
