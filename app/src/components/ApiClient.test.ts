@@ -47,10 +47,13 @@ describe("ApiClient requests", () => {
 	let apiFetch: typeof import("./ApiClient").apiFetch
 	let apiJson: typeof import("./ApiClient").apiJson
 	let apiPut: typeof import("./ApiClient").apiPut
+	let apiPost: typeof import("./ApiClient").apiPost
+	let apiPatch: typeof import("./ApiClient").apiPatch
+	let apiDelete: typeof import("./ApiClient").apiDelete
 	let signOut: typeof import("./ApiClient").signOut
 	beforeEach(async () => {
 		vi.resetModules()
-		;({ ApiError, apiFetch, apiJson, apiPut, signOut } = await import("./ApiClient"))
+		;({ ApiError, apiFetch, apiJson, apiPut, apiPost, apiPatch, apiDelete, signOut } = await import("./ApiClient"))
 		localStorage.clear()
 		sessionStorage.clear()
 		fetchMock = vi.fn()
@@ -102,6 +105,28 @@ describe("ApiClient requests", () => {
 		expect(init.method).toBe("PUT")
 		expect(new Headers(init.headers).get("Content-Type")).toBe("application/json")
 		expect(JSON.parse(init.body as string)).toEqual({ _rev: "r2", locale: "fr-FR" })
+	})
+
+	it("apiPost and apiPatch send JSON, apiDelete sends no body", async () => {
+		fetchMock.mockImplementation(async () => jsonResponse({ success: true }))
+		await apiPost("/api/schedule/timer", { name: "n" })
+		await apiPatch("/api/schedule/timer/d/items/i", { title: "t", _rev: "r" })
+		await apiDelete("/api/schedule/timer/d/items/i?rev=r")
+		const [post, patch, del] = fetchMock.mock.calls as [string, RequestInit][]
+		expect([post[1].method, patch[1].method, del[1].method]).toEqual(["POST", "PATCH", "DELETE"])
+		expect(JSON.parse(post[1].body as string)).toEqual({ name: "n" })
+		expect(JSON.parse(patch[1].body as string)).toEqual({ _rev: "r", title: "t" })
+		expect(new Headers(post[1].headers).get("Content-Type")).toBe("application/json")
+		expect(del[1].body).toBeUndefined()
+		expect(del[0]).toBe("/api/schedule/timer/d/items/i?rev=r")
+	})
+
+	it("a 409 from apiPatch keeps the server's body (the current rev)", async () => {
+		fetchMock.mockResolvedValue(jsonResponse({ success: false, message: "Revision mismatch", rev: "now" }, 409))
+		const error = await apiPatch("/x", {}).catch(e => e)
+		expect(error).toBeInstanceOf(ApiError)
+		expect((error as { status: number, body: { rev: string } }).status).toBe(409)
+		expect((error as { body: { rev: string } }).body.rev).toBe("now")
 	})
 
 	describe("when the server answers 401 (an API token is required)", () => {
