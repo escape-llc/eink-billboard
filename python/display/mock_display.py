@@ -1,5 +1,6 @@
 import os
 import re
+import tempfile
 import logging
 from datetime import datetime
 from typing import cast
@@ -18,10 +19,28 @@ def truncate_utf8(text: str, max_bytes: int) -> str:
 	"""Cuts text to at most max_bytes of UTF-8 without splitting a character."""
 	return text.encode("utf-8")[:max_bytes].decode("utf-8", errors="ignore")
 
+DEFAULT_OUTPUT_FOLDER = "eink-billboard-mock"
+_WINDOWS_DRIVE_PATH = re.compile(r"^[A-Za-z]:[\\/]")
+
+def resolve_output_folder(configured: str|None) -> str:
+	"""
+	Where the mock display writes (it exists to capture images for tests and for a person to look at): an absolute setting as is,
+	a relative or empty one inside the system temp directory (never the server's working directory).
+	A Windows drive path (c:\\Temp\\mock, the old factory default) is not a path on other systems, where it would become
+	a folder with that literal name, so it falls back to the default there.
+	"""
+	value = (configured or "").strip()
+	if os.name != "nt" and _WINDOWS_DRIVE_PATH.match(value):
+		value = ""
+	if not value:
+		value = DEFAULT_OUTPUT_FOLDER
+	return os.path.normpath(os.path.join(tempfile.gettempdir(), value))
+
 class MockDisplay(DisplayBase):
 	def __init__(self, name: str):
 		super().__init__(name)
 		self.display_settings = None
+		self.output_folder: str|None = None
 		self.logger = logging.getLogger(__name__)
 
 	def initialize(self, cm: ConfigurationManager) -> tuple[int, int]:
@@ -31,8 +50,8 @@ class MockDisplay(DisplayBase):
 		_, self.display_settings = display_cob.get()
 		if self.display_settings is None:
 			raise ValueError("display settings not found in configuration")
-		if not self.display_settings.get("mock.outputFolder", None):
-			raise ValueError("the mock display needs a 'mock.outputFolder' setting")
+		self.output_folder = resolve_output_folder(self.display_settings.get("mock.outputFolder", None))
+		self.logger.info(f"mock output folder: {self.output_folder}")
 		resolution = cast(tuple[int, int], self.display_settings.get("mock.resolution", [800,480]))
 		return resolution
 
@@ -52,9 +71,9 @@ class MockDisplay(DisplayBase):
 			self.logger.error("No display_settings loaded")
 			return
 		clean_folder = cast(bool,self.display_settings.get("mock.cleanOutputFolder", False))
-		output_dir = cast(str|None,self.display_settings.get("mock.outputFolder", None))
+		output_dir = self.output_folder
 		if not output_dir:
-			self.logger.error("mock.outputFolder is not defined")
+			self.logger.error("The mock display was not initialized")
 			return
 		if not os.path.exists(output_dir):
 			try:

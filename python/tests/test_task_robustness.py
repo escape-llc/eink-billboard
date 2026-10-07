@@ -508,13 +508,50 @@ class MockDisplayTests(unittest.TestCase):
 	def _display(self, folder, clean: bool = False) -> MockDisplay:
 		md = MockDisplay("mock")
 		md.display_settings = {"mock.outputFolder": folder, "mock.cleanOutputFolder": clean}
+		md.output_folder = folder
 		return md
 
-	def test_initialize_without_output_folder_is_a_clear_error(self):
+	def _initialized(self, **settings) -> MockDisplay:
 		md = MockDisplay("mock")
-		with self.assertRaises(ValueError) as cm:
-			md.initialize(fake_cm(**{"mock.resolution": [8, 8]}))
-		self.assertIn("outputFolder", str(cm.exception))
+		md.initialize(fake_cm(**{"mock.resolution": [8, 8], **settings}))
+		return md
+
+	def test_empty_output_folder_is_inside_the_system_temp_directory(self):
+		expected = os.path.join(tempfile.gettempdir(), "eink-billboard-mock")
+		self.assertEqual(self._initialized().output_folder, expected)
+		self.assertEqual(self._initialized(**{"mock.outputFolder": "  "}).output_folder, expected)
+
+	def test_relative_output_folder_is_inside_the_system_temp_directory(self):
+		self.assertEqual(self._initialized(**{"mock.outputFolder": "frames"}).output_folder, os.path.join(tempfile.gettempdir(), "frames"))
+
+	def test_absolute_output_folder_is_used_as_is(self):
+		with tempfile.TemporaryDirectory() as other:
+			self.assertEqual(self._initialized(**{"mock.outputFolder": other}).output_folder, os.path.normpath(other))
+
+	@unittest.skipIf(os.name == "nt", "a Windows drive path is a real path on Windows")
+	def test_windows_drive_path_is_not_a_literal_folder_name_elsewhere(self):
+		md = self._initialized(**{"mock.outputFolder": "c:\\Temp\\mock"})
+		self.assertEqual(md.output_folder, os.path.join(tempfile.gettempdir(), "eink-billboard-mock"))
+
+	def test_render_writes_only_inside_the_resolved_folder(self):
+		from PIL import Image
+		with tempfile.TemporaryDirectory() as out, tempfile.TemporaryDirectory() as cwd:
+			before = os.getcwd()
+			os.chdir(cwd)
+			try:
+				md = self._initialized(**{"mock.outputFolder": os.path.join(out, "frames")})
+				md.render(Image.new("RGB", (8, 8)), 1, "t")
+			finally:
+				os.chdir(before)
+			self.assertEqual(len(os.listdir(os.path.join(out, "frames"))), 1)
+			self.assertEqual(os.listdir(cwd), [])
+
+	def test_factory_default_is_platform_neutral(self):
+		import json
+		path = os.path.join(os.path.dirname(__file__), "..", "storage", "schemas", "display.json")
+		with open(path, encoding="utf-8") as f:
+			folder = json.load(f)["default"]["mock.outputFolder"]
+		self.assertEqual(folder, "eink-billboard-mock")
 
 	def test_clean_only_removes_files_the_display_created(self):
 		with tempfile.TemporaryDirectory() as tmp:

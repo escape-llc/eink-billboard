@@ -97,7 +97,7 @@
 		"imageSettings-contrast": 1.0,
 		"imageSettings-brightness": 1.0,
 		"imageSettings-sharpness": 1.0,
-		"mock.outputFolder": "c:\\Temp\\mock",
+		"mock.outputFolder": "eink-billboard-mock",
 		"mock.resolution": [800,480]
 	}
 }
