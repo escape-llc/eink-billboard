@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+import logging
 from typing import Any, Mapping, Protocol, runtime_checkable
 from PIL import Image
 
@@ -81,6 +82,35 @@ class MediaRenderAsync(Protocol):
 	"""Ability to render media from the source's state (element for a MediaList) asynchronously."""
 	async def render_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any], state:Any) -> MediaRenderResult | None:
 		...
+
+def target_dimensions(dsec: DataSourceExecutionContext, display_settings: Mapping[str, Any]|None = None) -> tuple[int, int]:
+	"""
+	The (width, height) a datasource must render at.
+
+	`dsec.dimensions` is the raw device resolution (e.g. 800x480). For a portrait display the Display task rotates every image
+	90 degrees and then centre-crops to the device ratio, so a datasource has to produce the *swapped* size (480x800): an image
+	at the device size would be rotated and then cropped. Every datasource that renders at a size uses this; nothing else swaps.
+
+	`display_settings` is the "display" settings document; when omitted it is read from the provider (landscape if unavailable).
+	"""
+	width, height = dsec.dimensions
+	if display_settings is None:
+		display_settings = _read_display_settings(dsec)
+	orientation = display_settings.get("orientation", "landscape") if display_settings is not None else "landscape"
+	return (height, width) if orientation == "portrait" else (width, height)
+
+def _read_display_settings(dsec: DataSourceExecutionContext) -> Mapping[str, Any]|None:
+	# imported here: configuration_manager imports this module
+	from ..model.configuration_manager import SettingsConfigurationManager
+	try:
+		scm = dsec.provider.get_service(SettingsConfigurationManager)
+		if scm is None:
+			return None
+		_, display_settings = scm.open("display").get()
+		return display_settings
+	except Exception as e:
+		logging.getLogger(__name__).warning(f"Display settings unavailable, assuming landscape: {e}")
+		return None
 
 class DataSourceManager:
 	"""

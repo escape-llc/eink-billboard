@@ -10,11 +10,15 @@ export type FormField = PropertiesDef & {
 	children?: FormField[]
 }
 
-// a null/undefined where a value is required reads "Required" rather than zod's type message
+// a null/undefined where a value is required reads "Required" rather than zod's type message;
+// NaN and the infinities are numbers zod refuses as the wrong type, which the server words as "Must be a finite number"
 z.config({
 	customError: (issue) => {
 		if (issue.code === "invalid_type" && (issue.input === null || issue.input === undefined)) {
 			return messages.required
+		}
+		if (issue.code === "invalid_type" && issue.expected === "number" && typeof issue.input === "number") {
+			return messages.finite
 		}
 		return undefined
 	}

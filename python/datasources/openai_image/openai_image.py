@@ -2,6 +2,7 @@ from typing import Any, Mapping
 from PIL import Image
 from openai import BadRequestError
 import logging
+import re
 from io import BytesIO
 import base64
 import openai
@@ -13,6 +14,24 @@ from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync
 DEFAULT_IMAGE_MODEL = "dall-e-3"
 DEFAULT_IMAGE_QUALITY = "standard"
 IMAGE_MODELS = ["dall-e-3", "dall-e-2", "gpt-image-1"]
+
+# OpenAI error texts can quote (part of) the API key: never let one reach a log or a result
+_KEY_PATTERN = re.compile(r"sk-[A-Za-z0-9_\-]+")
+
+def redact_secrets(text: str, api_key: str|None = None) -> str:
+	if api_key:
+		text = text.replace(api_key, "sk-***")
+	return _KEY_PATTERN.sub("sk-***", text)
+
+def _bad_request_message(bre: BadRequestError) -> str:
+	body = bre.body
+	if isinstance(body, dict):
+		message = body.get("message")
+		if message:
+			return str(message)
+	elif isinstance(body, str) and body:
+		return body
+	return bre.message
 
 class OpenAIAsync(DataSource, MediaListAsync, MediaRenderAsync):
 	def __init__(self, id: str, name: str):
@@ -46,29 +65,31 @@ class OpenAIAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		image = await self._dispatch_image(dsec, state.get('api_key'), state.get('image_model'), state.get('image_quality'), state.get('text_prompt'), state.get('randomize_prompt'), state.get('orientation'))
 		return None if image is None else MediaRenderResult(image=image, title=f"OpenAI Image: {state.get('text_prompt', 'Untitled')}")
 	async def _dispatch_image(self, context: DataSourceExecutionContext, api_key, image_model, image_quality, text_prompt, randomize_prompt, orientation) -> Image.Image | None:
-		image = None
 		try:
-			ai_client = openai.AsyncOpenAI(api_key = api_key, timeout=60, max_retries=3)
-			if randomize_prompt:
-				text_prompt = await OpenAIAsync.fetch_image_prompt(self.logger, ai_client, text_prompt)
+			# the client owns a connection pool: close it when done
+			async with openai.AsyncOpenAI(api_key = api_key, timeout=60, max_retries=3) as ai_client:
+				if randomize_prompt:
+					text_prompt = await OpenAIAsync.fetch_image_prompt(self.logger, ai_client, text_prompt)
 
-			image = await OpenAIAsync.fetch_image(
-				self.logger,
-				ai_client,
-				text_prompt,
-				model=image_model,
-				quality=image_quality,
-				orientation=orientation
-			)
-			return image
+				return await OpenAIAsync.fetch_image(
+					self.logger,
+					ai_client,
+					text_prompt,
+					model=image_model,
+					quality=image_quality,
+					orientation=orientation
+				)
 		except BadRequestError as bre:
-			self.logger.error(f"Open AI Bad Request: {bre.body.get("message")}")
-			raise RuntimeError(f"Open AI Bad Request: {bre.body.get("message")}")
+			message = redact_secrets(_bad_request_message(bre), api_key)
+			self.logger.error(f"Open AI Bad Request: {message}")
+			raise RuntimeError(f"Open AI Bad Request: {message}") from None
 		except Exception as e:
-			self.logger.error(f"Failed to make Open AI request: {str(e)}")
-			raise RuntimeError(f"Open AI request failure: {str(e)}")
+			message = redact_secrets(str(e), api_key)
+			self.logger.error(f"Failed to make Open AI request: {message}")
+			# `from None`: the original exception text (and traceback chain) can hold the key
+			raise RuntimeError(f"Open AI request failure: {message}") from None
 	@staticmethod
-	async def fetch_image(logger, ai_client, prompt, model="dall-e-3", quality="standard", orientation="horizontal"):
+	async def fetch_image(logger, ai_client, prompt, model="dall-e-3", quality="standard", orientation="landscape"):
 		logger.info(f"fetch_image prompt: {prompt}, model: {model}, quality: {quality}")
 		prompt += (
 			". The image should fully occupy the entire canvas without any frames, "
@@ -79,16 +100,18 @@ class OpenAIAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			"and visual appeal. Avoid excessive detail or complex gradients, ensuring "
 			"the design works well with flat, vibrant colors."
 		)
+		# the display schema has "landscape"/"portrait" ("horizontal" is accepted as landscape); anything but portrait is wide
+		wide = orientation != "portrait"
 		args = {
 			"model": model,
 			"prompt": prompt,
 			"size": "1024x1024",
 		}
 		if model == "dall-e-3":
-			args["size"] = "1792x1024" if orientation == "horizontal" else "1024x1792"
+			args["size"] = "1792x1024" if wide else "1024x1792"
 			args["quality"] = quality
 		elif model == "gpt-image-1":
-			args["size"] = "1536x1024" if orientation == "horizontal" else "1024x1536"
+			args["size"] = "1536x1024" if wide else "1024x1536"
 			args["quality"] = quality
 
 		response = await ai_client.images.generate(**args)

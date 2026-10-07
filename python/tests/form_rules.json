@@ -1,5 +1,5 @@
 {
-	"comment": "Cases both the form (FormValidation.ts) and the server (documents.validate_properties) must agree on. error is the message of the first problem, or null.",
+	"comment": "Cases both the form (FormValidation.ts) and the server (documents.validate_properties) must agree on. error is the message of the first problem, or null. A value written {\"$number\": \"NaN\"} (or Infinity, -Infinity) stands for that number, which JSON cannot hold; both test runners decode it.",
 	"cases": [
 		{
 			"name": "string required, empty",
@@ -322,6 +322,72 @@
 			},
 			"value": true,
 			"error": null
+		},
+		{
+			"name": "number NaN is not finite",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "number"
+			},
+			"value": {
+				"$number": "NaN"
+			},
+			"error": "Must be a finite number"
+		},
+		{
+			"name": "number Infinity is not finite",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "number"
+			},
+			"value": {
+				"$number": "Infinity"
+			},
+			"error": "Must be a finite number"
+		},
+		{
+			"name": "number -Infinity is not finite",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "number"
+			},
+			"value": {
+				"$number": "-Infinity"
+			},
+			"error": "Must be a finite number"
+		},
+		{
+			"name": "int NaN is not finite",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": true,
+				"type": "int"
+			},
+			"value": {
+				"$number": "NaN"
+			},
+			"error": "Must be a finite number"
+		},
+		{
+			"name": "optional number with max, Infinity is not finite",
+			"field": {
+				"name": "f",
+				"label": "F",
+				"required": false,
+				"type": "number",
+				"max": 10
+			},
+			"value": {
+				"$number": "Infinity"
+			},
+			"error": "Must be a finite number"
 		}
 	]
 }

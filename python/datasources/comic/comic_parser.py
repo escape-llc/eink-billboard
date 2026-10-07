@@ -1,4 +1,5 @@
 import feedparser
+import logging
 import re
 
 from ...task.async_http_worker_pool import client_var
@@ -87,9 +88,17 @@ def parse_the_feed(comic_name: str, comic: dict, feed: feedparser.FeedParserDict
 	return items
 	pass
 
+logger = logging.getLogger(__name__)
+
 async def get_items_async(comic_name):
 	comic = COMICS[comic_name]
 	client = client_var.get()
 	resp = await client.get(comic["feed"], follow_redirects=True)
+	resp.raise_for_status()
 	feed = feedparser.parse(resp.text)
+	if not feed.entries:
+		# a site that answers 200 with an HTML page (cookie wall, bot check, moved feed) parses as an empty "bozo" feed
+		reason = "the response is not a feed" if feed.get("bozo") else "the feed has no entries"
+		logger.error(f"Comic '{comic_name}': {reason} ({comic['feed']}).")
+		return []
 	return parse_the_feed(comic_name, comic, feed)
