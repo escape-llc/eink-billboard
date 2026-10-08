@@ -42,7 +42,15 @@ jobs:
           exit 1
         fi
         printf '%s' "$TEST_STORAGE_B64" | base64 --decode > storage.zip
+        set +e
         unzip -q -o storage.zip -d ./python/tests/.storage
+        rc=$?
+        set -e
+        # unzip exits 1 for warnings (the archive is made on Windows, with backslash separators); 2 and up are real failures.
+        if [ "$rc" -gt 1 ]; then
+          echo "unzip failed with exit code $rc" >&2
+          exit 1
+        fi
 
     - name: Run unittests with coverage
       run: uv run coverage run -m unittest discover .
