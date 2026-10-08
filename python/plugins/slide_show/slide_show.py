@@ -88,3 +88,4 @@ class SlideShowAsync(PluginAsync):
 		finally:
 			self.logger.info(f"{self.id} done '{track.title}'")
 			done.set()
+		return None

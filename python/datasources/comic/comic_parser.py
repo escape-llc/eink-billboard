@@ -4,60 +4,67 @@ import re
 
 from ...task.async_http_worker_pool import client_var
 
+def _first(pattern: str, text: str) -> str:
+	"""The first group of the first match; a page without the match is a malformed entry (the caller skips it)."""
+	match = re.search(pattern, text)
+	if match is None:
+		raise ValueError(f"no match for {pattern!r}")
+	return match.group(1)
+
 COMICS = {
 	"XKCD": {
 		"feed": "https://xkcd.com/atom.xml",
 		"element": lambda entry: entry.description,
-		"url": lambda element: re.search(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element).group(1),
+		"url": lambda element: _first(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element),
 		"title": lambda entry: entry.title,
-		"caption": lambda element: re.search(r'<img[^>]+alt=["\"]([^"\"]+)["\"]', element).group(1),
+		"caption": lambda element: _first(r'<img[^>]+alt=["\"]([^"\"]+)["\"]', element),
 	},
 	"Cyanide & Happiness": {
 		"feed": "https://explosm-1311.appspot.com/",
 		"element": lambda entry: entry.description,
-		"url": lambda element: re.search(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element).group(1),
+		"url": lambda element: _first(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element),
 		"title": lambda entry: entry.title.split(" - ")[1].strip(),
 		"caption": lambda element: "",
 	},
 	"Saturday Morning Breakfast Cereal": {
 		"feed": "https://www.smbc-comics.com/comic/rss",
 		"element": lambda entry: entry.description,
-		"url": lambda element: re.search(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element).group(1),
+		"url": lambda element: _first(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element),
 		"title": lambda entry: entry.title.split("-")[1].strip(),
-		"caption": lambda element: re.search(r'Hovertext:<br />(.*?)</p>', element).group(1),
+		"caption": lambda element: _first(r'Hovertext:<br />(.*?)</p>', element),
 	},
 	"The Perry Bible Fellowship": {
 		"feed": "https://pbfcomics.com/feed/",
 		"element": lambda entry: entry.description,
-		"url": lambda element: re.search(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element).group(1),
+		"url": lambda element: _first(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element),
 		"title": lambda entry: entry.title,
-		"caption": lambda element: re.search(r'<img[^>]+alt=["\"]([^"\"]+)["\"]', element).group(1),
+		"caption": lambda element: _first(r'<img[^>]+alt=["\"]([^"\"]+)["\"]', element),
 	},
 	"Questionable Content": {
 		"feed": "https://www.questionablecontent.net/QCRSS.xml",
 		"element": lambda entry: entry.description,
-		"url": lambda element: re.search(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element).group(1),
+		"url": lambda element: _first(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element),
 		"title": lambda entry: entry.title,
 		"caption": lambda element: "",
 	},
 	"Poorly Drawn Lines": {
 		"feed": "https://poorlydrawnlines.com/feed/",
 		"element": lambda entry: entry.get('content', [{}])[0].get('value', ''),
-		"url": lambda element: re.search(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element).group(1),
+		"url": lambda element: _first(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element),
 		"title": lambda entry: entry.title,
 		"caption": lambda element: "",
 	},
 	"Dinosaur Comics": {
 		"feed": "https://www.qwantz.com/rssfeed.php",
 		"element": lambda entry: entry.description,
-		"url": lambda element: re.search(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element).group(1),
+		"url": lambda element: _first(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element),
 		"title": lambda entry: entry.title,
-		"caption": lambda element: re.search(r'title="(.*?)" />', element.replace('\n', '')).group(1),
+		"caption": lambda element: _first(r'title="(.*?)" />', element.replace('\n', '')),
 	},
 	"webcomic name": {
 		"feed": "https://webcomicname.com/rss",
 		"element": lambda entry: entry.description,
-		"url": lambda element: re.search(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element).group(1),
+		"url": lambda element: _first(r'<img[^>]+src=["\"]([^"\"]+)["\"]', element),
 		"title": lambda entry: "",
 		"caption": lambda element: "",
 	},

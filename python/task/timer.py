@@ -4,7 +4,7 @@ from concurrent.futures import Future, InvalidStateError
 from datetime import datetime, timedelta
 import threading
 import logging
-from typing import Callable
+from typing import Any, Callable
 
 from ..model.time_of_day import TimeOfDay
 from .protocols import CreateTimerResult, IProvideTimer, MessageSink
@@ -84,7 +84,7 @@ class TimerThreadService(IProvideTimer):
 						sink.accept(msg)
 				except Exception as ex:
 					self.logger.error(f"'{token}' Failed to send message to sink: {ex}")
-		fut = Future()
+		fut: Future[Any] = Future()
 		timer = threading.Timer(self.duration(deltatime), __timer_expired, args=(fut, sink, token, state))
 		def __cancel_all():
 			self.logger.debug(f"'{token}' Cancel requested")

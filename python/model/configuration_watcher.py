@@ -33,7 +33,7 @@ class MessageSinkHandler(FileSystemEventHandler):
 				# only forget the slot if a newer timer has not replaced this one
 				if self.timers.get(path) is timer:
 					del self.timers[path]
-			logger.debug(f"Sent event for {path} after delay")
+			logger.debug(f"Sent event for {os.fsdecode(path)} after delay")
 			self._sink.accept(ConfigurationWatcherEvent(self._tod.current_time(), event_type, path))
 		timer = threading.Timer(self.delay, __send_event)
 		timer.daemon = True

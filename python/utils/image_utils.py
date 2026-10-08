@@ -232,7 +232,7 @@ def render_chrome_headless_arglist(source_html_path: str, arglist: list[str], ti
 		]
 		command.extend(arglist)
 		if os_type == "Windows":
-			popen_kwargs: dict[str, Any] = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+			popen_kwargs: dict[str, Any] = {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP")}
 		else:
 			# own session/process group, so the whole tree can be killed
 			popen_kwargs = {"start_new_session": True}

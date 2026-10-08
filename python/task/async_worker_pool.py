@@ -3,7 +3,7 @@ import threading
 import logging
 import inspect
 from concurrent.futures import Future
-from types import CoroutineType
+from collections.abc import Coroutine
 from typing import Any, Callable
 
 from ..task.protocols import IRequireShutdown
@@ -29,7 +29,7 @@ class AsyncWorkerPool(IRequireShutdown):
 		self._loop_ready.wait()
 		self.logger.info("Started.")
 
-	def submit(self, coro: CoroutineType[Any,Any,Any], callback: Callable[[Future[Any]], object]|None = None) -> Future:
+	def submit(self, coro: Coroutine[Any, Any, Any], callback: Callable[[Future[Any]], object]|None = None) -> Future:
 		"""
 		Submits work. If callback is provided, it is attached to the future.
 		The callback receives the 'future' object as its only argument.

@@ -56,6 +56,8 @@ class Application(DispatcherTask):
 	def _display_settings(self, msg: DisplaySettings):
 		# STEP 3 configure scheduler (it also receives DisplaySettings)
 		self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
+		# set by the start event, which comes before this one
+		assert self.root_container is not None and self.cm is not None and self.playlist_layer is not None and self.timer_layer is not None
 		# populate root containers
 		plcontainer = ServiceContainer()
 		tlcontainer = ServiceContainer()

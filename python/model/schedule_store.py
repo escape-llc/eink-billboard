@@ -16,7 +16,7 @@ import os
 import threading
 import uuid
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from .configuration_manager import HASH_KEY, _internal_save, create_hash
 from .schedule import SCHEMA_PLAYLIST, SCHEMA_TASKS, Playlist, TimerTasks, validate_trigger
@@ -139,7 +139,7 @@ class Kind:
 	name: str
 	schema: str
 	entries_key: str		# the key of ScheduleManager.load()
-	document_class: type
+	document_class: type[Any]
 	parse: Callable[[dict], Any]
 	check_shape: Callable[..., list[dict]]
 	finish: Callable[[dict], dict]	# defaults for an item that was accepted
@@ -182,7 +182,7 @@ class ScheduleStore:
 	# --- reading
 
 	def _entries(self) -> list[dict]:
-		return self._manager.load()[self._kind.entries_key]
+		return cast(dict[str, list[dict]], self._manager.load())[self._kind.entries_key]
 
 	def _find(self, doc_id: str) -> str:
 		"""The path of the file whose declared id is `doc_id`. The id from the URL only selects; the path is the scanned entry's."""
@@ -283,6 +283,7 @@ class ScheduleStore:
 			errors.append(_error(["name"], "Required"))
 		if errors:
 			raise Invalid(errors)
+		assert isinstance(name, str)
 		items = self._check_items(body.get("items", []))
 		doc_id = f"{self._kind.name}-{uuid.uuid4().hex}"
 		# the file name is ours too; nothing from the request builds a path
@@ -306,6 +307,7 @@ class ScheduleStore:
 			errors.append(_error(["name"], "Required"))
 		if errors:
 			raise Invalid(errors)
+		assert isinstance(name, str)
 		items = self._check_items(body.get("items", []))
 		path = self._find(doc_id)
 		with self._lock_for(path):

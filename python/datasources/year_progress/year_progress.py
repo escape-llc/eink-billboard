@@ -35,7 +35,7 @@ def generate_image(schedule_ts:datetime, stm: StaticConfigurationManager, dimens
 	}
 	px = Path(os.path.dirname(__file__)).joinpath("render")
 	css = path_to_file_url(os.path.join(px.resolve(), "year_progress.css"))
-	rs = RenderSession(stm, px.resolve(), "year_progress.html", css)
+	rs = RenderSession(stm, str(px.resolve()), "year_progress.html", css)
 	image = rs.render(dimensions, template_params)
 	return image
 

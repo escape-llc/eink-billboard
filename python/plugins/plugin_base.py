@@ -7,7 +7,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from ..datasources.data_source import DataSource, DataSourceExecutionContext
 from ..model.service_container import IServiceProvider, ServiceContainer, ServiceContainer
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, StaticConfigurationManager
-from ..model.schedule import ScheduleItemBase, TimerTaskTask
+from ..model.schedule import ScheduleItemBase
 from ..task.messages import BasicMessage
 from ..utils.image_utils import render_html_arglist
 from ..utils.file_utils import path_to_file_url
@@ -91,7 +91,8 @@ class RenderSession:
 		return render_html_arglist(rendered_html, [f"--window-size={dimensions[0]},{dimensions[1]}"])
 	pass
 
-type TrackType = ScheduleItemBase | TimerTaskTask
+# the schedule item a plugin is given (a timer task's item, or a playlist track); TimerTaskTask is only its content
+type TrackType = ScheduleItemBase
 
 @runtime_checkable
 class PluginAsync(Protocol):

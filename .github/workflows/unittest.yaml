@@ -28,6 +28,9 @@ jobs:
     - name: Lint (syntax errors and undefined names)
       run: uv run ruff check
 
+    - name: Type check (mypy)
+      run: uv run mypy
+
     - name: Restore test .storage files
       # use the prepare-test-data.ps1 script for the secret string; decode and unzip it here.
       # The secret is passed through the environment, and an empty secret or a bad archive fails the job.

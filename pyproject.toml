@@ -26,6 +26,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "coverage>=7.13.0",
+    "mypy>=2.4.0",
     "ruff>=0.16.10",
 ]
 device = [
@@ -46,6 +47,11 @@ omit = [
     "*.css",
     "*/tests/*",
 ]
+
+[tool.mypy]
+# Type checks cover the Python sources and tests; third-party packages without type stubs are not checked.
+files = ["python"]
+ignore_missing_imports = true
 
 [tool.ruff]
 # Only the Python sources; the rest of the repo has no Python to lint.

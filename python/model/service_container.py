@@ -1,20 +1,20 @@
 from typing_extensions import Protocol
-from typing import TypeVar, Type, Optional, runtime_checkable
+from typing import Any, Callable, TypeVar, Optional, runtime_checkable
 import threading
 
 T = TypeVar('T')
 
 @runtime_checkable
 class IServiceProvider(Protocol):
-	def get_service(self, service_type: Type[T]) -> Optional[T]:
+	def get_service(self, service_type: Callable[..., T]) -> Optional[T]:
 		...
-	def required(self, service_type: Type[T]) -> T:
+	def required(self, service_type: Callable[..., T]) -> T:
 		"""
 		Return the requested service instance, raising ValueError if not available.
 		
 		:param self: Description
 		:param service_type: Description
-		:type service_type: Type[T]
+		:type service_type: Callable[..., T]
 		:return: Description
 		:rtype: T
 		"""
@@ -25,17 +25,17 @@ class IServiceProvider(Protocol):
 
 @runtime_checkable
 class IServiceContainer(IServiceProvider, Protocol):
-	def add_service(self, service_type: Type[T], service_instance: T) -> None:
+	def add_service(self, service_type: Callable[..., Any], service_instance: object) -> None:
 		...
 
 class ServiceContainer(IServiceContainer):
 	def __init__(self, parent: IServiceProvider | None = None):
-		self._services: dict[Type, object] = {}
+		self._services: dict[Callable[..., Any], object] = {}
 		self._parent = parent
 		# Reentrant lock to allow safe concurrent access to this container's registry
 		self._lock = threading.RLock()
 
-	def get_service(self, service_type: Type[T]) -> Optional[T]:
+	def get_service(self, service_type: Callable[..., T]) -> Optional[T]:
 		# First, check local registry under lock
 		with self._lock:
 			inst = self._services.get(service_type, None)
@@ -46,7 +46,7 @@ class ServiceContainer(IServiceContainer):
 			return self._parent.get_service(service_type)
 		return None
 
-	def add_service(self, service_type: Type[T], service_instance: T) -> None:
+	def add_service(self, service_type: Callable[..., Any], service_instance: object) -> None:
 		if service_instance is None:
 			raise ValueError("service_instance cannot be None.")
 		with self._lock:

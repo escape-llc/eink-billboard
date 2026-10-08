@@ -750,7 +750,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			if info_info.get("disabled", False):
 				logger.info(f"'{info_name}' (ID: {info_id}) is disabled; skipping load.")
 				continue
-			router_info = info_info.get("router", None)
+			router_info = cast(ItemInfoDict | None, info_info.get("router", None))
 			if router_info is None:
 				continue
 			router = self._resolve(info_path, router_info)
