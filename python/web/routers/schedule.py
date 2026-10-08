@@ -2,7 +2,7 @@
 import json
 import logging
 import zoneinfo
-from datetime import datetime, timedelta, tzinfo
+from datetime import date, datetime, timedelta, tzinfo
 from typing import Any
 
 from fastapi import APIRouter, Body, Query
@@ -67,15 +67,32 @@ def _system_timezone(cm, default: tzinfo|None) -> tzinfo|None:
 MIN_RENDER_YEAR = 1970
 MAX_RENDER_YEAR = 2100
 
-def _render_start(start: datetime|None, now: datetime, tz: tzinfo|None, days: int) -> datetime:
-	"""Midnight of the first day to render, in the system zone. A `start` with an offset is converted to that zone first."""
+def _parse_start(text: str|None) -> datetime|date|None:
+	"""
+	`start` is a calendar day (YYYY-MM-DD: it names a day, so no zone is needed) or an instant that carries its own offset or Z.
+	A time without an offset is refused: the server does not know which zone the caller meant.
+	"""
+	if text is None or text == "":
+		return None
+	try:
+		if len(text) == 10:
+			return date.fromisoformat(text)
+		parsed = datetime.fromisoformat(text)
+	except ValueError:
+		raise ApiError(422, "start must be a date (YYYY-MM-DD) or a time with an offset (2026-01-05T09:00:00+01:00 or ...Z).", "start")
+	if parsed.tzinfo is None:
+		raise ApiError(422, "start has a time but no offset: send a date (YYYY-MM-DD), or the time with an offset or Z.", "start")
+	return parsed
+
+def _render_start(start: datetime|date|None, now: datetime, tz: tzinfo|None, days: int) -> datetime:
+	"""Midnight of the first day to render, in the system zone. A `start` day is that day there; a `start` instant is converted to that zone first."""
 	try:
 		if start is not None and not MIN_RENDER_YEAR <= start.year <= MAX_RENDER_YEAR:
 			raise OverflowError("year")
 		if start is None:
 			start_ts = now.astimezone(tz)
-		elif start.tzinfo is None:
-			start_ts = start.replace(tzinfo=tz)
+		elif not isinstance(start, datetime):
+			start_ts = datetime(start.year, start.month, start.day, tzinfo=tz)
 		else:
 			start_ts = start.astimezone(tz)
 		start_ts = day_start(start_ts)
@@ -90,7 +107,7 @@ def _render_start(start: datetime|None, now: datetime, tz: tzinfo|None, days: in
 def render_tasks_schedule(
 	cm: CM,
 	tod: TOD,
-	start: datetime|None = Query(None, description="ISO date/time the range starts at; its day (in the system time zone) is used"),
+	start: str|None = Query(None, description="The first day: YYYY-MM-DD (that calendar day), or a time with an offset or Z (its day in the system time zone). A time without an offset is a 422."),
 	days: int = Query(7, ge=1, le=MAX_RENDER_DAYS),
 ):
 	"""
@@ -99,7 +116,7 @@ def render_tasks_schedule(
 	"""
 	now = tod.current_time()
 	tz = _system_timezone(cm, now.tzinfo)
-	start_ts = _render_start(start, now, tz, days)
+	start_ts = _render_start(_parse_start(start), now, tz, days)
 	end_ts = normalize(start_ts.replace(hour=0, minute=0, second=0, microsecond=0, fold=0) + timedelta(days=days))
 	schedule_map: dict[str, Any] = {}
 	render_list: list = []

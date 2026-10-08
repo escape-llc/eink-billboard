@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 import os
 import shutil
@@ -481,6 +482,24 @@ class TestScheduleRender(WebApiTestBase):
 		doc = self.client.get("/api/schedule/tasks/render", params={ "start": "2024-03-11T01:00:00+00:00", "days": 1 }).json()
 		self.assertEqual(doc["start_ts"], "2024-03-10T00:00:00-05:00")
 		self.assertTrue(doc["render"][0]["scheduled_time"].startswith("2024-03-10T09:00:00"))
+
+	def test_start_time_without_an_offset_is_422_but_a_day_needs_none(self):
+		self._set_timezone("America/New_York")
+		self._write_tasks([self._item("a", self._at(9, 0))])
+		for start in ("2024-03-10T09:00:00", "2024-03-10 09:00", "nonsense", "2024-03-1"):
+			with self.subTest(start):
+				_error_shape(self, self.client.get("/api/schedule/tasks/render", params={ "start": start, "days": 1 }), 422)
+		for start in ("2024-03-10", "2024-03-10T09:00:00-05:00", "2024-03-10T14:00:00Z"):
+			with self.subTest(start):
+				doc = self.client.get("/api/schedule/tasks/render", params={ "start": start, "days": 1 }).json()
+				self.assertEqual(doc["start_ts"], "2024-03-10T00:00:00-05:00")
+
+	def test_every_instant_in_the_render_response_has_an_offset(self):
+		self._set_timezone("America/New_York")
+		self._write_tasks([self._item("a", self._at(9, 0))])
+		doc = self.client.get("/api/schedule/tasks/render", params={ "start": "2024-03-09", "days": 3 }).json()
+		for text in [doc["start_ts"], doc["end_ts"], *[r["scheduled_time"] for r in doc["render"]]]:
+			self.assertIsNotNone(datetime.fromisoformat(text).utcoffset(), text)
 
 	def test_out_of_range_start_is_422_not_500(self):
 		self._write_tasks([self._item("a", self._at(9, 0))])
