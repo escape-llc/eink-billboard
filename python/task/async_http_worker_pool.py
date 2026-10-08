@@ -14,6 +14,8 @@ client_var: ContextVar[httpx.AsyncClient] = ContextVar("http_client")
 # use one context var for each resource
 
 class AsyncHttpWorkerPool(IRequireShutdown):
+	# what the HTTP client talks through: None is the network. The tests set one that answers from fixtures (python/tests/fake_internet.py).
+	default_transport: httpx.AsyncBaseTransport|None = None
 	# bounded waits: a pool that cannot start or stop must say so instead of hanging its caller
 	START_TIMEOUT_SECONDS = 10.0
 	SHUTDOWN_JOIN_TIMEOUT_SECONDS = 5.0
@@ -29,7 +31,7 @@ class AsyncHttpWorkerPool(IRequireShutdown):
 	def _run_loop(self):
 		asyncio.set_event_loop(self.loop)
 		try:
-			self.client = httpx.AsyncClient(max_redirects=5)
+			self.client = httpx.AsyncClient(max_redirects=5, transport=type(self).default_transport)
 		except BaseException as e:
 			# start() is waiting on _loop_ready: tell it why the loop will never run
 			self._start_error = e
