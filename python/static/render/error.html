@@ -1,0 +1,14 @@
+{% extends "plugin.html" %}
+
+{% block content %}
+<div class="error-container">
+	<div class="error-wrapper">
+		<div class="error-heading text-secondary-1">CANNOT SHOW THIS</div>
+		<div class="error-title text-primary">{{ title }}</div>
+		{% for line in lines %}
+		<div class="error-line text-secondary-2">{{ line }}</div>
+		{% endfor %}
+		<div class="error-hint text-primary">Check the settings in the web app</div>
+	</div>
+</div>
+{% endblock %}
