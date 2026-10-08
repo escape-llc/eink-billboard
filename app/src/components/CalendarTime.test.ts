@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { addDays, dayInfo, daysFrom, place, segments, slotCount, timeSlots, zonedParts } from "./CalendarTime"
+import { addDays, browserZoneDifference, dayInfo, daysFrom, place, segments, slotCount, timeSlots, zonedParts } from "./CalendarTime"
 
 const WHOLE_DAY = { start: 0, end: 1440, interval: 30 }
 
@@ -87,5 +87,25 @@ describe("an event across midnight", () => {
 	})
 	it("is cut off after a sane number of days", () => {
 		expect(segments("2026-11-03", 0, 1440 * 200)).toHaveLength(62)
+	})
+})
+
+describe("browserZoneDifference", () => {
+	const instant = new Date("2026-11-03T14:00:00Z")
+	it("says nothing when the zones agree or the device's zone is unknown", () => {
+		expect(browserZoneDifference("America/New_York", instant, "America/New_York")).toBeNull()
+		expect(browserZoneDifference("America/Toronto", instant, "America/New_York")).toBeNull()
+		expect(browserZoneDifference(undefined, instant, "Asia/Kolkata")).toBeNull()
+	})
+	it("says how far ahead or behind the browser is, in hours and minutes", () => {
+		expect(browserZoneDifference("America/New_York", instant, "Europe/Berlin")).toBe("6 h ahead")
+		expect(browserZoneDifference("Europe/Berlin", instant, "America/New_York")).toBe("6 h behind")
+		expect(browserZoneDifference("America/New_York", instant, "Asia/Kolkata")).toBe("10 h 30 min ahead")
+	})
+	it("uses the offsets in force at that moment (daylight-saving differs between hemispheres)", () => {
+		// 2026-07-01: New York is UTC-4, Sydney UTC+10
+		expect(browserZoneDifference("America/New_York", new Date("2026-07-01T00:00:00Z"), "Australia/Sydney")).toBe("14 h ahead")
+		// 2026-11-03: New York is UTC-5, Sydney UTC+11
+		expect(browserZoneDifference("America/New_York", instant, "Australia/Sydney")).toBe("16 h ahead")
 	})
 })

@@ -8,6 +8,7 @@
 			<Button size="small" label="New task" icon="pi pi-plus" :disabled="pluginList.length === 0" @click="handleNew" />
 		</template>
 	</Toolbar>
+	<Message v-if="zoneNote" severity="info" :closable="false" size="small" class="my-1" data-testid="zone-note">{{ zoneNote }}</Message>
 	<AlCalendar style="width:100%" class="calendar" :firstDay="firstDay" :dayCount="dayCount" :timeZone="timeZone" :timeRange="timeRange" :eventList="eventList">
 		<template #dayheader="{ day }">
 			<div class="day-header" :style="{'grid-column': day.column, 'grid-row': day.row }"
@@ -132,7 +133,7 @@ import { InputGroup, InputGroupAddon, Button, Dialog, Toolbar, Select, Checkbox,
 import FormField from '@primevue/forms/formfield';
 import AlCalendar from "../components/AlCalendar.vue"
 import type { TimeRange, EventInfo } from "../components/AlCalendar.vue"
-import { zonedParts } from "../components/CalendarTime"
+import { browserZoneDifference, zonedParts } from "../components/CalendarTime"
 import { ref, onMounted, onBeforeUnmount, nextTick, toRaw, provide, computed } from "vue"
 import BasicForm, { type ValidateEventData } from "../components/BasicForm.vue"
 import type { FormDef } from "../components/FormDefs"
@@ -145,6 +146,10 @@ const bf = ref<InstanceType<typeof BasicForm>>()
 const fieldNameWidth = "10rem";
 const form = ref<FormDef>()
 // the week shown, in the zone the device's schedule runs in: both come from the server's answer (until it arrives, today here)
+const zoneNote = computed(() => {
+	const difference = browserZoneDifference(timeZone.value, new Date())
+	return difference ? `Times are in the device's time zone (${timeZone.value}). Your browser is ${difference} of it.` : null
+})
 const firstDay = ref(zonedParts(new Date()).key)
 const dayCount = ref(7)
 const timeZone = ref<string|undefined>(undefined)

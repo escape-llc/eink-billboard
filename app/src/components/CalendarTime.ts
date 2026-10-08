@@ -36,6 +36,26 @@ export function zonedParts(instant: Date, timeZone?: string): { key: string, min
 	}
 }
 
+/** Minutes the clock in `timeZone` (the browser's when not given) is ahead of UTC at `instant`. */
+function offsetMinutes(instant: Date, timeZone?: string): number {
+	const parts = zonedParts(instant, timeZone)
+	return fromKey(parts.key).getTime() / 60000 + parts.minutes - Math.floor(instant.getTime() / 60000)
+}
+
+/**
+ * How far the browser's clock is from the device's at `instant`, as text ("3 h ahead", "5 h 30 min behind"), or null when they agree
+ * (or the device's zone is unknown). Nothing is converted: the timeline stays in the device's zone, this only says so.
+ */
+export function browserZoneDifference(deviceZone: string|undefined, instant: Date, browserZone?: string): string|null {
+	if(!deviceZone) return null
+	const difference = offsetMinutes(instant, browserZone) - offsetMinutes(instant, deviceZone)
+	if(difference === 0) return null
+	const absolute = Math.abs(difference)
+	const hours = Math.floor(absolute / 60), minutes = absolute % 60
+	const amount = [hours ? `${hours} h` : "", minutes ? `${minutes} min` : ""].filter(Boolean).join(" ")
+	return `${amount} ${difference > 0 ? "ahead" : "behind"}`
+}
+
 function fromKey(key: string): Date {
 	const [year, month, day] = key.split("-").map(Number)
 	return new Date(Date.UTC(year!, month! - 1, day!))
