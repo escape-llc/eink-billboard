@@ -393,6 +393,46 @@ class DisplayLoopTests(unittest.TestCase):
 		self.assertLess(time.monotonic() - t0, 1.0)
 		self.assertTrue(donev.is_set())
 
+	def test_an_image_identical_to_the_one_shown_is_not_drawn_again(self):
+		from ..task import display as display_module
+		colors = ["black", "black", "white", "white", "black"]
+		class Packages:
+			def __init__(self):
+				self.i = 0
+			def commit(self):
+				color = colors[self.i]
+				self.i += 1
+				class P:
+					version = 1
+					def render(self_):
+						return Image.new("RGB", (8, 8), color), "title"
+				return P()
+		d = Display("d", MessageRouter())
+		pool = AsyncWorkerPool()
+		pool.start()
+		d.task_pool = pool
+		disp = SlowDisplay(0.0)
+		donev = threading.Event()
+		real_sleep = asyncio.sleep
+		async def quick_sleep(delay, *a, **k):
+			await real_sleep(0)
+		q: dict[str, Any] = {}
+		async def setup():
+			q["q"] = asyncio.Queue()
+			for _ in colors:
+				await q["q"].put(BasicMessage(now()))
+		pool.submit(setup()).result(2)
+		with patch.object(display_module.asyncio, "sleep", quick_sleep):
+			fut = pool.submit(d._task_render_and_display(q["q"], Packages(), disp, None, donev))
+			deadline = time.monotonic() + 3
+			while time.monotonic() < deadline and not q["q"].empty():
+				time.sleep(0.01)
+			time.sleep(0.2)
+		d.task_render = (fut, donev)
+		d.quitMsg(QuitMessage(now()))
+		# black, (black again: skipped), white, (white again: skipped), black
+		self.assertEqual(disp.rendered, 3)
+
 	def test_blocked_pool_does_not_freeze_display_image(self):
 		d = Display("d", MessageRouter())
 		d.RESULT_TIMEOUT_SECONDS = 0.2

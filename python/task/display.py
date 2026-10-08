@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 from concurrent.futures import Future, TimeoutError as FutureTimeoutError
 import logging
 import threading
@@ -184,6 +185,8 @@ class Display(DispatcherTask):
 		try:
 			rotate: bool = display_settings.get("rotate180", False) if display_settings is not None else False
 			displayImageCount: int = 0
+			# what the panel shows now: an image that comes out identical is not drawn again (an e-ink refresh takes seconds and wears the panel)
+			shown: bytes|None = None
 			while True:
 				try:
 					_ = await taskq.get()
@@ -195,11 +198,16 @@ class Display(DispatcherTask):
 					the_image, the_title = package.render()
 					if rotate: the_image = the_image.rotate(180)
 					the_image = apply_image_enhancement(the_image, display_settings)
+					digest = hashlib.sha256(the_image.tobytes() + repr(the_image.size).encode()).digest()
+					if digest == shown:
+						self.logger.info(f"Compositor v:{package.version} '{the_title}' looks the same as what is shown, not drawing it again")
+						continue
 
 					displayImageCount += 1
 					self.logger.info(f"Compositor v:{package.version} '{the_title}' ({displayImageCount})")
 					# render() is synchronous and slow (an e-ink refresh takes seconds): keep it off the loop; awaiting it keeps it one at a time
 					await asyncio.to_thread(display.render, the_image, displayImageCount, the_title)
+					shown = digest
 					self.logger.debug(f"Start blanking period")
 					await asyncio.sleep(60.0)
 					self.logger.debug(f"End blanking period")

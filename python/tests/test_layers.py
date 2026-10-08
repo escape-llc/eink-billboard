@@ -1,4 +1,6 @@
 from collections.abc import Callable
+from unittest import mock
+from PIL import Image
 from datetime import datetime
 import os
 from threading import Event
@@ -179,45 +181,39 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.layer._start_playback(StartPlayback(datetime.now()))
 		self.assertEqual(self.layer.state, 'loaded')
 
-	def test_failing_pass_backs_off_and_resets(self):
+	def test_a_failing_pass_holds_each_slot_instead_of_spinning(self):
 		import asyncio, time
 		class Boom:
 			def __init__(self, id, name):
 				self.id, self.name = id, name
 			async def task_async(self, ctx, track, donev):
 				raise RuntimeError("boom")
-		class Fine:
-			def __init__(self, id, name):
-				self.id, self.name = id, name
-			async def task_async(self, ctx, track, donev):
-				return None
 		layer = self.layer
-		layer.BACKOFF_INITIAL_SECONDS = 0.2
-		layer.BACKOFF_MAX_SECONDS = 0.4
+		layer.ERROR_SLOT_MINUTES = 0.2
 		layer.MAX_STRIKES = 100  # this test is about the wait; the strikes have their own tests
+		layer.router.send = lambda *a, **k: None  # type: ignore
 		track = PlaylistSchedule("p1", "t1", "Title", PlaylistScheduleData({}))
 		playlists = cast(list[ScheduleLoaderDict], [{"info": Playlist("pl1", "Main", items=[track]), "name": "x", "path": "/x", "type": SCHEMA_PLAYLIST}])
-		plugin_cls = [Boom]
-		layer._evaluate_plugin = lambda t: {"plugin": plugin_cls[0]("p1", "Plugin"), "track": t}  # type: ignore
+		layer._evaluate_plugin = lambda t: {"plugin": Boom("p1", "Plugin"), "track": t}  # type: ignore
 		root = ServiceContainer()
 		root.add_service(TimeOfDay, layer.timebase)
-		def one_pass() -> float:
+		with mock.patch("python.task.playlist_layer.render_error_image", return_value=Image.new("RGB", (8, 8))):
 			start = time.monotonic()
 			asyncio.run(layer._layer_task(root, playlists, Event()))
-			return time.monotonic() - start
-		self.assertGreaterEqual(one_pass(), 0.2)
-		self.assertGreaterEqual(one_pass(), 0.4)
-		self.assertGreaterEqual(one_pass(), 0.4)
-		self.assertLessEqual(layer._backoff, 0.4)
-		plugin_cls[0] = Fine
-		self.assertLess(one_pass(), 0.2)
-		self.assertEqual(layer._backoff, 0.0)
+		# 0.2 minutes of model time at 60x is 0.2 s
+		self.assertGreaterEqual(time.monotonic() - start, 0.15)
 
 	def _strike_setup(self, plugin_factory, track_count=1):
 		"""A layer whose tracks all run `plugin_factory`'s plugin; returns (layer, playlists, services, calls)."""
 		layer = self.layer
 		layer.BACKOFF_INITIAL_SECONDS = 0.01
 		layer.BACKOFF_MAX_SECONDS = 0.01
+		layer.ERROR_SLOT_MINUTES = 0.0001
+		self.sent: list = []
+		layer.router.send = lambda route, msg: self.sent.append((route, msg))  # type: ignore
+		patcher = mock.patch("python.task.playlist_layer.render_error_image", side_effect=lambda stm, dims, title, lines: Image.new("RGB", (8, 8)))
+		self.render_error = patcher.start()
+		self.addCleanup(patcher.stop)
 		calls: list[str] = []
 		def make(id, name):
 			plugin = plugin_factory(id, name)
@@ -290,6 +286,38 @@ class PlaylistLayerTests(unittest.TestCase):
 		for _ in range(3):
 			self.assertIsNone(self._run_pass(layer, playlists, root))
 		self.assertEqual(calls, ["t0", "t1", "t1", "t1"])
+
+	def test_a_failed_slot_shows_an_error_page_and_a_struck_out_one_keeps_showing_it(self):
+		class Hard:
+			def __init__(self, id, name):
+				self.id, self.name = id, name
+			async def task_async(self, ctx, track, donev):
+				self.calls.append(track.id)
+				raise PermanentError("the folder is gone")
+		layer, playlists, root, calls = self._strike_setup(Hard, track_count=2)
+		self.assertIsInstance(self._run_pass(layer, playlists, root), LayerFaulted)
+		self.assertEqual(calls, ["t0", "t1"])
+		shown = [(m.title, kind) for kind, m in self.sent if kind == "display" for m in [m]]
+		self.assertEqual([t for t, _ in shown], ["Error: Track 0", "Error: Track 1", "Error: playback stopped"])
+		# the page is told what failed and why, in our own words
+		first = self.render_error.call_args_list[0].args
+		self.assertEqual((first[2], first[3]), ("Track 0", ["the folder is gone"]))
+		# a later pass does not run the plugin again, but each slot still says why
+		self.sent.clear()
+		self.assertIsInstance(self._run_pass(layer, playlists, root), LayerFaulted)
+		self.assertEqual(calls, ["t0", "t1"])
+		self.assertEqual(len([1 for kind, _ in self.sent if kind == "display"]), 3)
+
+	def test_the_error_page_never_carries_the_exceptions_text(self):
+		class Leaky:
+			def __init__(self, id, name):
+				self.id, self.name = id, name
+			async def task_async(self, ctx, track, donev):
+				raise ConnectionError("https://api.example/x?key=SECRET")
+		layer, playlists, root, calls = self._strike_setup(Leaky)
+		self._run_pass(layer, playlists, root)
+		lines = self.render_error.call_args_list[0].args[3]
+		self.assertEqual(lines, ["ConnectionError"])
 
 	def test_missing_required_settings_strike_out_without_running_the_plugin(self):
 		class Never:

@@ -122,6 +122,49 @@ def new_layer() -> TimerLayer:
 	layer.dimensions = (800, 480)
 	return layer
 
+class TestFailedTask(unittest.TestCase):
+	def _run(self, plugin, item: TimerTaskItem):
+		from unittest import mock
+		from PIL import Image
+		from ..task.display_messages import PriorityImage
+		layer = new_layer()
+		sent: list = []
+		layer.router.send = lambda route, msg: sent.append((route, msg))  # type: ignore
+		layer._evaluate_plugin = lambda t: { "plugin": plugin, "track": t }  # type: ignore
+		clock = FakeClock(datetime(2024, 1, 1, 9, 0, tzinfo=NY))
+		isp = ServiceContainer()
+		isp.add_service(TimeOfDay, clock)
+		with mock.patch("python.task.timer_layer.render_error_image", side_effect=lambda stm, dims, title, lines: Image.new("RGB", (8, 8))) as render:
+			asyncio.run(layer._run_task_item(isp, clock, item, "scheduled", 0, None, None))
+		return sent, render, PriorityImage
+
+	def test_a_failing_task_shows_an_error_page_for_its_slide_time(self):
+		class Boom:
+			async def task_async(self, context, track, donev):
+				raise ConnectionError("https://api.example/x?key=SECRET")
+		item = TimerTaskItem("a", "Weather", True, TimerTaskTask("p", { "slideMinutes": 5 }), cast(TriggerDict, at(9, 0)))
+		sent, render, PriorityImage = self._run(Boom(), item)
+		displays = [m for route, m in sent if route == "display"]
+		self.assertEqual(len(displays), 1)
+		self.assertIsInstance(displays[0], PriorityImage)
+		self.assertEqual((displays[0].title, displays[0].duration), ("Error: Weather", timedelta(minutes=5)))
+		# the page says the exception's type, never its text (a URL may carry a key)
+		self.assertEqual(render.call_args.args[2:], ("Weather", ["ConnectionError"]))
+
+	def test_a_task_without_slide_minutes_shows_it_for_one_minute(self):
+		class Boom:
+			async def task_async(self, context, track, donev):
+				raise RuntimeError("x")
+		sent, _, _ = self._run(Boom(), make_item("a", at(9, 0)))
+		self.assertEqual([m.duration for route, m in sent if route == "display"], [timedelta(minutes=1)])
+
+	def test_a_task_that_works_shows_no_error_page(self):
+		class Fine:
+			async def task_async(self, context, track, donev):
+				return None
+		sent, _, _ = self._run(Fine(), make_item("a", at(9, 0)))
+		self.assertEqual([r for r, _ in sent if r == "display"], [])
+
 class TestLayerDays(unittest.TestCase):
 	def test_rearms_for_the_following_days(self):
 		start = datetime(2024, 1, 1, 8, 0, tzinfo=NY)

@@ -1,0 +1,36 @@
+.error-container {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-family: "Jost";
+	height: 100%;
+	width: 100%;
+}
+.error-wrapper {
+	width: 90%;
+	text-align: center;
+}
+.error-heading {
+	font-size: min(7dvh, 6vw);
+	font-weight: bold;
+	letter-spacing: 0.1em;
+	margin-bottom: 4dvh;
+	line-height: 1;
+}
+.error-title {
+	font-size: min(12dvh, 9vw);
+	font-weight: bold;
+	line-height: 1.1;
+	margin-bottom: 4dvh;
+	overflow-wrap: anywhere;
+}
+.error-line {
+	font-size: min(6dvh, 5vw);
+	line-height: 1.3;
+	overflow-wrap: anywhere;
+}
+.error-hint {
+	font-size: min(4dvh, 3.5vw);
+	margin-top: 6dvh;
+	line-height: 1;
+}

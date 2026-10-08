@@ -2,13 +2,13 @@ import asyncio
 from asyncio import CancelledError
 from concurrent.futures import Future
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import logging
 import threading
 from typing import Any, Mapping, NotRequired, ReadOnly, TypedDict, cast
 
-from .display_messages import DisplaySettings
+from .display_messages import DisplayImage, DisplaySettings
 from .coalescer import Coalescer
 from .messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage, ReloadSchedules, Telemetry
 from .configure_event import ConfigureEvent
@@ -26,6 +26,7 @@ from ..web.documents import plugin_content_errors
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool
 from ..task.timer import IProvideTimer, TimerThreadService
 from ..task.protocols import IRequireShutdown
+from ..utils.error_image import render_error_image, safe_reason
 
 @dataclass(frozen=True, slots=True)
 class LayerControlMessage(BasicMessage):
@@ -74,6 +75,8 @@ class PlaylistLayer(DispatcherTask):
 	RELOAD_DELAY_SECONDS = 2.0
 	# a track whose plugin fails this many times in a row (a transient failure each) is skipped from then on; a permanent failure is skipped at once
 	MAX_STRIKES = 3
+	# a failed slot shows its error page for as long as the track would have shown its slides (its `slideMinutes`, or this)
+	ERROR_SLOT_MINUTES = 15
 	# these cannot be fixed by trying again (the plugin or its setup is wrong): one strike is out
 	PERMANENT_ERRORS = (PermanentError, ImportError, TypeError, AttributeError)
 	def __init__(self, name, router: MessageRouter):
@@ -95,6 +98,8 @@ class PlaylistLayer(DispatcherTask):
 		self._backoff = 0.0
 		# consecutive failures per track, keyed by (playlist index, track index); a track at MAX_STRIKES is struck out
 		self._strikes: dict[tuple[int, int], int] = {}
+		# why each failed track failed, for its error page (our own words or an exception's type name, never the exception's text)
+		self._reasons: dict[tuple[int, int], str] = {}
 		self._restart_timer: threading.Timer|None = None
 		self._reload = Coalescer(self.RELOAD_DELAY_SECONDS, self._request_reload)
 		self.logger = logging.getLogger(__name__)
@@ -140,11 +145,32 @@ class PlaylistLayer(DispatcherTask):
 		"""Count a failure against the track (all strikes at once when permanent); True when it is now struck out."""
 		count = self.MAX_STRIKES if permanent else self._strikes.get(key, 0) + 1
 		self._strikes[key] = count
+		self._reasons[key] = safe_reason(e)
 		if count >= self.MAX_STRIKES:
 			self._error_with_telemetry(f"Track '{track.title}' struck out and is skipped until the configuration changes: {e}", ts)
 			return True
 		self._error_with_telemetry(f"Track '{track.title}' failed (strike {count} of {self.MAX_STRIKES}): {e}", ts)
 		return False
+	def _slot_minutes(self, track: PlaylistSchedule) -> float:
+		data = track.content.data if track.content is not None else {}
+		minutes = data.get("slideMinutes") if isinstance(data, dict) else None
+		return float(minutes) if isinstance(minutes, (int, float)) and minutes > 0 else float(self.ERROR_SLOT_MINUTES)
+	async def _show_error(self, track: PlaylistSchedule, key: tuple[int, int], ts: datetime) -> None:
+		"""The slot of a track that failed shows an error page, for the time the track would have taken. The display skips it when the panel already shows it."""
+		stm = self.cm.static_manager() if self.cm is not None else None
+		image = await asyncio.to_thread(render_error_image, stm, self.dimensions, track.title, [self._reasons.get(key, "Failed")])
+		self.router.send("display", DisplayImage(ts, f"Error: {track.title}", image))
+		if self.timer is None:
+			await asyncio.sleep(self.BACKOFF_INITIAL_SECONDS)
+		else:
+			await self.timer.sleep(timedelta(minutes=self._slot_minutes(track)))
+	async def _show_faulted(self, playlists: list[ScheduleLoaderDict], ts: datetime) -> None:
+		"""Every track has struck out: one page that says playback is stopped, and which tracks said why."""
+		stm = self.cm.static_manager() if self.cm is not None else None
+		lines = [f"{cast(PlaylistSchedule, item).title}: {self._reasons.get((pi, ti), 'Failed')}"
+			for pi, pl in enumerate(playlists) for ti, item in enumerate(cast(Playlist, pl.get("info")).items)][:6]
+		image = await asyncio.to_thread(render_error_image, stm, self.dimensions, "Playback stopped", lines)
+		self.router.send("display", DisplayImage(ts, "Error: playback stopped", image))
 	def _struck_out(self, key: tuple[int, int]) -> bool:
 		return self._strikes.get(key, 0) >= self.MAX_STRIKES
 	def _create_container(self) -> ServiceContainer:
@@ -187,6 +213,7 @@ class PlaylistLayer(DispatcherTask):
 			tod = isp.required(TimeOfDay)
 			succeeded = 0
 			tracks = 0
+			held = 0
 			plugins = {p["info"].get("id"): p for p in (self.plugin_info or [])}
 			datasources = {d["info"].get("id"): d for d in (self.cm.enum_datasources() if self.cm is not None else [])}
 			for plindex, plinfo in enumerate(playlists):
@@ -197,16 +224,23 @@ class PlaylistLayer(DispatcherTask):
 					key = (plindex, tkindex)
 					tracks += 1
 					if self._struck_out(key):
+						# not run again, but its slot still says why
+						held += 1
+						await self._show_error(track, key, tod.current_time())
 						continue
 					self.logger.info(f"Track '{track.title}' with plugin '{track.plugin_name}' and content {track.content}")
 					plugin_eval = self._evaluate_plugin(track)
 					plugin:PluginAsync = cast(PluginAsync, plugin_eval.get("plugin", None))
 					if plugin is None:
-						self._strike(key, track, ValueError(plugin_eval.get("error", f"Plugin '{track.plugin_name}' is not available")), tod.current_time(), True)
+						self._strike(key, track, PermanentError(f"Plugin '{track.plugin_name}' is not available"), tod.current_time(), True)
+						held += 1
+						await self._show_error(track, key, tod.current_time())
 						continue
 					problem = self._settings_problem(track, plugins, datasources)
 					if problem is not None:
-						self._strike(key, track, PermanentError(f"The settings are not valid ({problem})"), tod.current_time(), True)
+						self._strike(key, track, PermanentError(f"Settings: {problem}"), tod.current_time(), True)
+						held += 1
+						await self._show_error(track, key, tod.current_time())
 						continue
 					try:
 						# the per-track event is its own: `donev` is the layer task's, set in the finally below, and waited on by _task_stop
@@ -216,6 +250,7 @@ class PlaylistLayer(DispatcherTask):
 						self.logger.info(f"Plugin '{plugin.name}' for track '{track.title}' completed with message: {msg}")
 						succeeded += 1
 						self._strikes.pop(key, None)
+						self._reasons.pop(key, None)
 						self._backoff = 0.0
 						self.state = 'playing'
 						telemetry: TelemetryDict = {
@@ -232,10 +267,13 @@ class PlaylistLayer(DispatcherTask):
 						self.state = "error"
 						if self._strike(key, track, e, tod.current_time(), isinstance(e, self.PERMANENT_ERRORS)):
 							self.logger.error(f"Track '{track.title}' ({plugin.name}) struck out.")
+						held += 1
+						await self._show_error(track, key, tod.current_time())
 			if tracks > 0 and all(self._struck_out((pi, ti)) for pi, pl in enumerate(playlists) for ti, _ in enumerate(cast(Playlist, pl.get("info")).items)):
+				await self._show_faulted(playlists, tod.current_time())
 				return LayerFaulted(tod.current_time())
-			if succeeded == 0:
-				# nothing played (every track failed, or there were none); do not let the next pass start at once
+			if succeeded == 0 and held == 0:
+				# nothing played and no slot was held (there were no tracks); do not let the next pass start at once
 				self._next_backoff()
 				self.logger.warning(f"'{self.name}' no track succeeded in this pass, waiting {self._backoff:g}s before the next one.")
 				await asyncio.sleep(self._backoff)
