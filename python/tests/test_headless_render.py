@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 import unittest
 import logging
@@ -6,10 +7,14 @@ import logging
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pathvalidate import sanitize_filename
 
-from ..utils.image_utils import render_html_arglist
+from ..utils.image_utils import render_html_arglist, os_type, WIN_CHROME_HEADLESS, LINUX_CHROME_HEADLESS
 
 logger = logging.getLogger(__name__)
 
+CHROME = WIN_CHROME_HEADLESS if os_type == "Windows" else LINUX_CHROME_HEADLESS
+HAVE_CHROME = shutil.which(CHROME) is not None
+
+@unittest.skipUnless(HAVE_CHROME, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")
 class TestHeadlessRender(unittest.TestCase):
 	def save_image(self, image, title):
 		test_file_path = os.path.abspath(__file__)
