@@ -11,7 +11,7 @@ from ...model.configuration_manager import HASH_KEY, create_hash
 from ...model.schedule import Playlist, TimerTasks, daily_sequence, day_start, normalize, render_task_schedule_at
 from ...model.schedule_store import PLAYLISTS, TASKS, Ambiguous, Conflict, Invalid, Kind, NotFound, ScheduleStore, ScheduleStoreError
 from ..deps import CM, TOD
-from ..documents import validate_properties
+from ..documents import plugin_content_errors
 from ..errors import ApiError
 
 logger = logging.getLogger(__name__)
@@ -159,29 +159,6 @@ def render_tasks_schedule(
 
 # --- incremental changes to the timer tasks: whole documents and single tasks (see model/schedule_store.py)
 
-def _instance_properties(item: dict) -> tuple[list[dict], dict]:
-	"""The `instanceSettings` properties and lookups a plugin or datasource declares for a task's `content`."""
-	schema = ((item["info"].get("instanceSettings") or {}).get("schema")) or {}
-	return schema.get("properties") or [], schema.get("lookups") or {}
-
-def _plugin_content_errors(plugins: dict, datasources: dict, plugin_name: Any, content: dict, path: list) -> list[dict]:
-	"""The plugin exists and `content` follows its settings (and its data source's); `path` is where `plugin_name` and `content` live in the item (`["task"]` for a timer task, none for a track)."""
-	plugin = plugins.get(plugin_name)
-	if plugin is None:
-		return [{ "path": [*path, "plugin_name"], "message": "Unknown plugin" }]
-	props, lookups = _instance_properties(plugin)
-	errors = validate_properties(content, props, lookups)
-	for prop in props:
-		chosen = content.get(prop.get("name")) if prop.get("type") == "schema" else None
-		if isinstance(chosen, str) and chosen:
-			source = datasources.get(chosen)
-			if source is None:
-				errors.append({ "path": [prop["name"]], "message": "Not one of the allowed values" })
-			else:
-				sprops, slookups = _instance_properties(source)
-				errors.extend(validate_properties(content, sprops, slookups))
-	return [{ "path": [*path, "content", *e["path"]], "message": e["message"] } for e in errors]
-
 def _item_validator(cm, kind: Kind = TASKS):
 	"""What the store cannot know: the plugin exists and its `content` is valid. A timer task keeps them under `task`, a playlist track at the top."""
 	plugins = {p["info"].get("id"): p for p in cm.enum_plugins()}
@@ -189,10 +166,10 @@ def _item_validator(cm, kind: Kind = TASKS):
 	if kind is TASKS:
 		def validate_task(item: dict) -> list[dict]:
 			task = item.get("task") or {}
-			return _plugin_content_errors(plugins, datasources, task.get("plugin_name"), task.get("content") or {}, ["task"])
+			return plugin_content_errors(plugins, datasources, task.get("plugin_name"), task.get("content") or {}, ["task"])
 		return validate_task
 	def validate_track(item: dict) -> list[dict]:
-		return _plugin_content_errors(plugins, datasources, item.get("plugin_name"), item.get("content") or {}, [])
+		return plugin_content_errors(plugins, datasources, item.get("plugin_name"), item.get("content") or {}, [])
 	return validate_track
 
 def _store(cm, kind: Kind = TASKS) -> ScheduleStore:

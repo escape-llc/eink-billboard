@@ -12,13 +12,13 @@ from ..model.configuration_manager import CollectInfoDict
 from ..model.schedule import Playlist, PlaylistSchedule, PlaylistScheduleData, TimerTaskItem, TimerTaskTask, TimerTasks, TriggerDict, SCHEMA_PLAYLIST, SCHEMA_TASKS
 from ..model.service_container import ServiceContainer
 from ..model.time_of_day import TimeOfDay
-from ..plugins.plugin_base import PluginAsync, PluginExecutionContext, TrackType
+from ..plugins.plugin_base import PermanentError, PluginAsync, PluginExecutionContext, TrackType
 from ..task.display_messages import DisplaySettings
 from ..task.timer import IProvideTimer
 from ..task.messages import BasicMessage, QuitMessage, Telemetry
 from ..task.protocols import MessageSink
 from ..task.configure_event import ConfigureEvent, ConfigureOptions
-from ..task.playlist_layer import PlaylistLayer, StartPlayback
+from ..task.playlist_layer import LayerFaulted, PlaylistLayer, StartPlayback
 from ..task.message_router import MessageRouter, Route
 from ..task.timer_layer import TimerLayer
 from ..task.protocols import IProvideTimer, IRequireShutdown, MessageSink
@@ -194,6 +194,7 @@ class PlaylistLayerTests(unittest.TestCase):
 		layer = self.layer
 		layer.BACKOFF_INITIAL_SECONDS = 0.2
 		layer.BACKOFF_MAX_SECONDS = 0.4
+		layer.MAX_STRIKES = 100  # this test is about the wait; the strikes have their own tests
 		track = PlaylistSchedule("p1", "t1", "Title", PlaylistScheduleData({}))
 		playlists = cast(list[ScheduleLoaderDict], [{"info": Playlist("pl1", "Main", items=[track]), "name": "x", "path": "/x", "type": SCHEMA_PLAYLIST}])
 		plugin_cls = [Boom]
@@ -211,6 +212,112 @@ class PlaylistLayerTests(unittest.TestCase):
 		plugin_cls[0] = Fine
 		self.assertLess(one_pass(), 0.2)
 		self.assertEqual(layer._backoff, 0.0)
+
+	def _strike_setup(self, plugin_factory, track_count=1):
+		"""A layer whose tracks all run `plugin_factory`'s plugin; returns (layer, playlists, services, calls)."""
+		layer = self.layer
+		layer.BACKOFF_INITIAL_SECONDS = 0.01
+		layer.BACKOFF_MAX_SECONDS = 0.01
+		calls: list[str] = []
+		def make(id, name):
+			plugin = plugin_factory(id, name)
+			plugin.calls = calls
+			return plugin
+		tracks = [PlaylistSchedule("p1", f"t{i}", f"Track {i}", PlaylistScheduleData({})) for i in range(track_count)]
+		playlists = cast(list[ScheduleLoaderDict], [{"info": Playlist("pl1", "Main", items=tracks), "name": "x", "path": "/x", "type": SCHEMA_PLAYLIST}])
+		layer._evaluate_plugin = lambda t: {"plugin": make("p1", "Plugin"), "track": t}  # type: ignore
+		root = ServiceContainer()
+		root.add_service(TimeOfDay, layer.timebase)
+		return layer, playlists, root, calls
+
+	def _run_pass(self, layer, playlists, root):
+		import asyncio
+		return asyncio.run(layer._layer_task(root, playlists, Event()))
+
+	def test_a_transient_failure_gets_three_strikes_then_the_layer_faults(self):
+		class Flaky:
+			def __init__(self, id, name):
+				self.id, self.name = id, name
+			async def task_async(self, ctx, track, donev):
+				self.calls.append(track.id)
+				raise ConnectionError("network down")
+		layer, playlists, root, calls = self._strike_setup(Flaky)
+		self.assertIsNone(self._run_pass(layer, playlists, root))
+		self.assertIsNone(self._run_pass(layer, playlists, root))
+		self.assertIsInstance(self._run_pass(layer, playlists, root), LayerFaulted)
+		self.assertEqual(calls, ["t0", "t0", "t0"])
+		# struck out: a later pass does not run it again
+		self.assertIsInstance(self._run_pass(layer, playlists, root), LayerFaulted)
+		self.assertEqual(len(calls), 3)
+
+	def test_a_permanent_failure_strikes_out_at_once(self):
+		for error in (PermanentError("gone for good"), TypeError("bad setting"), ImportError("no module")):
+			with self.subTest(type(error).__name__):
+				class Hard:
+					def __init__(self, id, name):
+						self.id, self.name = id, name
+					async def task_async(self, ctx, track, donev):
+						self.calls.append(track.id)
+						raise error
+				self.setUp()
+				layer, playlists, root, calls = self._strike_setup(Hard)
+				self.assertIsInstance(self._run_pass(layer, playlists, root), LayerFaulted)
+				self.assertEqual(calls, ["t0"])
+
+	def test_a_success_resets_the_strikes(self):
+		outcomes = [ConnectionError("x"), ConnectionError("x"), None, ConnectionError("x"), ConnectionError("x"), None]
+		class Sometimes:
+			def __init__(self, id, name):
+				self.id, self.name = id, name
+			async def task_async(self, ctx, track, donev):
+				outcome = outcomes.pop(0)
+				if outcome is not None:
+					raise outcome
+		layer, playlists, root, calls = self._strike_setup(Sometimes)
+		for _ in range(6):
+			self.assertIsNone(self._run_pass(layer, playlists, root))
+		self.assertEqual(layer._strikes, {})
+
+	def test_a_struck_out_track_is_skipped_while_the_others_keep_playing(self):
+		class OneBad:
+			def __init__(self, id, name):
+				self.id, self.name = id, name
+			async def task_async(self, ctx, track, donev):
+				self.calls.append(track.id)
+				if track.id == "t0":
+					raise PermanentError("never works")
+		layer, playlists, root, calls = self._strike_setup(OneBad, track_count=2)
+		for _ in range(3):
+			self.assertIsNone(self._run_pass(layer, playlists, root))
+		self.assertEqual(calls, ["t0", "t1", "t1", "t1"])
+
+	def test_missing_required_settings_strike_out_without_running_the_plugin(self):
+		class Never:
+			def __init__(self, id, name):
+				self.id, self.name = id, name
+			async def task_async(self, ctx, track, donev):
+				self.calls.append(track.id)
+		layer, playlists, root, calls = self._strike_setup(Never)
+		layer.plugin_info = [{"info": {"id": "p1", "instanceSettings": {"schema": {"properties": [
+			{"name": "folder", "type": "string", "required": True}
+		]}}}}]  # type: ignore
+		self.assertIsInstance(self._run_pass(layer, playlists, root), LayerFaulted)
+		self.assertEqual(calls, [])
+
+	def test_faulted_layer_waits_then_retries_on_a_configuration_change(self):
+		import asyncio
+		from ..task.messages import ConfigurationChanged
+		layer = self.layer
+		layer.cm = object()  # type: ignore
+		layer._layer_faulted(LayerFaulted(datetime.now()))
+		self.assertEqual(layer.state, "faulted")
+		fired = []
+		layer._reload.trigger = lambda: fired.append(1)  # type: ignore
+		layer._configuration_changed(ConfigurationChanged(datetime.now(), "plugin", "modified", "x"))
+		self.assertEqual(fired, [1])
+		layer.state = "loaded"
+		layer._configuration_changed(ConfigurationChanged(datetime.now(), "plugin", "modified", "x"))
+		self.assertEqual(fired, [1])
 
 	def test_empty_playlists_back_off(self):
 		import asyncio, time

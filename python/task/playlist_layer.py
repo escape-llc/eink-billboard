@@ -21,7 +21,8 @@ from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..model.schedule import Playlist, PlaylistSchedule
 from ..model.service_container import IServiceProvider, ServiceContainer
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
-from ..plugins.plugin_base import PluginAsync, PluginExecutionContext
+from ..plugins.plugin_base import PermanentError, PluginAsync, PluginExecutionContext
+from ..web.documents import plugin_content_errors
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool
 from ..task.timer import IProvideTimer, TimerThreadService
 from ..task.protocols import IRequireShutdown
@@ -34,6 +35,10 @@ class StartPlayback(LayerControlMessage):
 	pass
 @dataclass(frozen=True, slots=True)
 class NextTrack(LayerControlMessage):
+	pass
+@dataclass(frozen=True, slots=True)
+class LayerFaulted(LayerControlMessage):
+	"""Every track has struck out: nothing plays until the configuration changes or the application restarts."""
 	pass
 
 class TelemetryDict(TypedDict):
@@ -67,6 +72,10 @@ class PlaylistLayer(DispatcherTask):
 	BACKOFF_MAX_SECONDS = 60.0
 	# a burst of schedule file changes (an editor saving several tracks) is one reload, this long after the last change
 	RELOAD_DELAY_SECONDS = 2.0
+	# a track whose plugin fails this many times in a row (a transient failure each) is skipped from then on; a permanent failure is skipped at once
+	MAX_STRIKES = 3
+	# these cannot be fixed by trying again (the plugin or its setup is wrong): one strike is out
+	PERMANENT_ERRORS = (PermanentError, ImportError, TypeError, AttributeError)
 	def __init__(self, name, router: MessageRouter):
 		super().__init__(name)
 		if router is None:
@@ -84,6 +93,8 @@ class PlaylistLayer(DispatcherTask):
 		self.shutdownlist: list[IRequireShutdown] = []
 		self.state = 'uninitialized'
 		self._backoff = 0.0
+		# consecutive failures per track, keyed by (playlist index, track index); a track at MAX_STRIKES is struck out
+		self._strikes: dict[tuple[int, int], int] = {}
 		self._restart_timer: threading.Timer|None = None
 		self._reload = Coalescer(self.RELOAD_DELAY_SECONDS, self._request_reload)
 		self.logger = logging.getLogger(__name__)
@@ -114,6 +125,28 @@ class PlaylistLayer(DispatcherTask):
 			errormsg = f"Plugin '{track.plugin_name}' is not available."
 			self.logger.error(errormsg)
 			return { "plugin": None, "track": track, "error": errormsg }
+	def _settings_problem(self, track: PlaylistSchedule, plugins: dict, datasources: dict) -> str|None:
+		"""The first thing wrong with the track's settings (a required one missing, a value out of range), named; None when they are fine."""
+		if track.plugin_name not in plugins:
+			return None
+		content = track.content.data if track.content is not None else {}
+		errors = plugin_content_errors(plugins, datasources, track.plugin_name, content, [])
+		if not errors:
+			return None
+		first = errors[0]
+		name = ".".join(str(part) for part in first["path"] if part != "content")
+		return f"{name}: {first['message']}"
+	def _strike(self, key: tuple[int, int], track: PlaylistSchedule, e: BaseException, ts: datetime, permanent: bool) -> bool:
+		"""Count a failure against the track (all strikes at once when permanent); True when it is now struck out."""
+		count = self.MAX_STRIKES if permanent else self._strikes.get(key, 0) + 1
+		self._strikes[key] = count
+		if count >= self.MAX_STRIKES:
+			self._error_with_telemetry(f"Track '{track.title}' struck out and is skipped until the configuration changes: {e}", ts)
+			return True
+		self._error_with_telemetry(f"Track '{track.title}' failed (strike {count} of {self.MAX_STRIKES}): {e}", ts)
+		return False
+	def _struck_out(self, key: tuple[int, int]) -> bool:
+		return self._strikes.get(key, 0) >= self.MAX_STRIKES
 	def _create_container(self) -> ServiceContainer:
 		if self.cm is None or self.datasources is None or self.router is None or self.timer is None or self.timebase is None:
 			raise ValueError("Cannot create context, one or more required components are not set.")
@@ -153,16 +186,27 @@ class PlaylistLayer(DispatcherTask):
 		try:
 			tod = isp.required(TimeOfDay)
 			succeeded = 0
+			tracks = 0
+			plugins = {p["info"].get("id"): p for p in (self.plugin_info or [])}
+			datasources = {d["info"].get("id"): d for d in (self.cm.enum_datasources() if self.cm is not None else [])}
 			for plindex, plinfo in enumerate(playlists):
 				playlist:Playlist = cast(Playlist, plinfo.get("info"))
 				self.logger.info(f"Loaded playlist '{playlist.name}' with {len(playlist.items)} items.")
 				for tkindex, item in enumerate(playlist.items):
 					track:PlaylistSchedule = cast(PlaylistSchedule, item)
+					key = (plindex, tkindex)
+					tracks += 1
+					if self._struck_out(key):
+						continue
 					self.logger.info(f"Track '{track.title}' with plugin '{track.plugin_name}' and content {track.content}")
 					plugin_eval = self._evaluate_plugin(track)
 					plugin:PluginAsync = cast(PluginAsync, plugin_eval.get("plugin", None))
 					if plugin is None:
-						self.logger.error(f"Plugin '{track.plugin_name}' for track '{track.title}' is not available, skipping track.")
+						self._strike(key, track, ValueError(plugin_eval.get("error", f"Plugin '{track.plugin_name}' is not available")), tod.current_time(), True)
+						continue
+					problem = self._settings_problem(track, plugins, datasources)
+					if problem is not None:
+						self._strike(key, track, PermanentError(f"The settings are not valid ({problem})"), tod.current_time(), True)
 						continue
 					try:
 						# the per-track event is its own: `donev` is the layer task's, set in the finally below, and waited on by _task_stop
@@ -171,6 +215,7 @@ class PlaylistLayer(DispatcherTask):
 						msg = await plugin.task_async(ctx, track, track_done)
 						self.logger.info(f"Plugin '{plugin.name}' for track '{track.title}' completed with message: {msg}")
 						succeeded += 1
+						self._strikes.pop(key, None)
 						self._backoff = 0.0
 						self.state = 'playing'
 						telemetry: TelemetryDict = {
@@ -181,9 +226,14 @@ class PlaylistLayer(DispatcherTask):
 							'current_track': track,
 						}
 						self.router.send("telemetry", Telemetry(tod.current_time(), "playlist_layer", cast(Mapping[str,Any], telemetry)))
+					except CancelledError:
+						raise
 					except Exception as e:
 						self.state = "error"
-						self._error_with_telemetry(f"Error invoke start with plugin '{plugin.name}' track '{track.title}': {e}", tod.current_time())
+						if self._strike(key, track, e, tod.current_time(), isinstance(e, self.PERMANENT_ERRORS)):
+							self.logger.error(f"Track '{track.title}' ({plugin.name}) struck out.")
+			if tracks > 0 and all(self._struck_out((pi, ti)) for pi, pl in enumerate(playlists) for ti, _ in enumerate(cast(Playlist, pl.get("info")).items)):
+				return LayerFaulted(tod.current_time())
 			if succeeded == 0:
 				# nothing played (every track failed, or there were none); do not let the next pass start at once
 				self._next_backoff()
@@ -197,6 +247,18 @@ class PlaylistLayer(DispatcherTask):
 		finally:
 			donev.set()
 			self.logger.info(f"'{self.name}' Layer task ended.")
+	def _layer_faulted(self, msg: LayerFaulted):
+		"""Every track has struck out: say so once and wait for a configuration change (or a restart)."""
+		self.state = 'faulted'
+		self.logger.error(f"'{self.name}' faulted: every track struck out. Waiting for a configuration change.")
+		self.router.send("telemetry", Telemetry(msg.timestamp, "playlist_layer", {
+			"state": "faulted",
+			"message": "Every track failed; playback is stopped until the configuration changes.",
+			'current_playlist_index': -1,
+			'current_playlist': None,
+			'current_track_index': -1,
+			'current_track': None,
+		}))
 	def _next_backoff(self) -> float:
 		"""Doubles the wait before the next pass, from BACKOFF_INITIAL_SECONDS up to BACKOFF_MAX_SECONDS."""
 		self._backoff = self.BACKOFF_INITIAL_SECONDS if self._backoff <= 0 else min(self._backoff * 2, self.BACKOFF_MAX_SECONDS)
@@ -290,7 +352,8 @@ class PlaylistLayer(DispatcherTask):
 			# the task stopped in the meantime
 			self.logger.debug(f"'{self.name}' stopped before the restart.")
 	def _configuration_changed(self, msg: ConfigurationChanged):
-		if msg.area == "schedules" and self.cm is not None and self.timebase is not None and not self.is_stopped():
+		# a faulted layer is waiting for anything that might fix it: a plugin's or data source's settings, not only the schedules
+		if (msg.area == "schedules" or self.state == 'faulted') and self.cm is not None and self.timebase is not None and not self.is_stopped():
 			self._reload.trigger()
 	def _request_reload(self):
 		"""On the coalescer's thread: hand the work to the task's own thread."""
@@ -316,7 +379,7 @@ class PlaylistLayer(DispatcherTask):
 			self._error_with_telemetry(f"The changed schedules do not load: {e}", msg.timestamp)
 			return
 		new_playlists = schedule_info.get("playlists", [])
-		if self._signature(new_playlists) == self._signature(self.playlists):
+		if self.state != 'faulted' and self._signature(new_playlists) == self._signature(self.playlists):
 			self.logger.info(f"'{self.name}' schedules changed, playlists are the same.")
 			return
 		self.logger.info(f"'{self.name}' playlists changed, starting them again.")
@@ -324,6 +387,7 @@ class PlaylistLayer(DispatcherTask):
 		self._task_stop()
 		self.playlists = new_playlists
 		self._backoff = 0.0
+		self._strikes.clear()
 		self.state = 'loaded'
 		self.accept(StartPlayback(self.timebase.current_time()))
 	def _cancel_restart(self):
@@ -333,6 +397,7 @@ class PlaylistLayer(DispatcherTask):
 			timer.cancel()
 	def _configure_event(self, msg: ConfigureEvent):
 		self.cm = msg.content.cm
+		self._strikes.clear()
 		try:
 			# validate the schedule before allocating resources
 			sm = self.cm.schedule_manager()

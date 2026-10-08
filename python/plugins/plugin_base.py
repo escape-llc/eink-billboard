@@ -12,6 +12,12 @@ from ..task.messages import BasicMessage
 from ..utils.image_utils import render_html_arglist
 from ..utils.file_utils import path_to_file_url
 
+class PermanentError(Exception):
+	"""
+	A failure that trying again cannot fix (a setting that is wrong, a service that is not there for good).
+	The playlist layer strikes the track out at once instead of waiting for its third transient failure.
+	"""
+
 class PluginExecutionContext:
 	def __init__(self, isp: IServiceProvider, dimensions: tuple[int, int], timestamp: datetime):
 		if isp is None:
