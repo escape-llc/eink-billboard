@@ -72,6 +72,29 @@ cd app && npm run e2e                      # build, then the browser tests (Play
 - `tkinter` is mocked in `python/tests/__init__.py`. In production it is imported only for the `tk` display, so a missing Tk fails that display and nothing else.
 - **Never print, log, or commit the contents of storage files**: they can hold API keys. Inspect them with a command that cannot echo values (key names only), not `cat`.
 
+## Where the work runs: cloud, local, container
+
+The same repo is worked on from three places. The rules above are the same everywhere; only the setup differs.
+
+| | Cloud sandbox (Claude Code on the web) | Local (Windows, Claude Code in the IDE) | Local container (Podman or Docker) |
+|---|---|---|---|
+| OS | Linux | Windows | Linux, Debian image as CI |
+| Headless Chromium | preinstalled; symlink it (see Test environment) | not installed: the render tests **skip** with a message (about 14 skips) | installed in the image: nothing skips but 3 |
+| `gh` / GitHub | may have an invalid `GH_TOKEN`; see `WORKFLOW.md` | the maintainer's signed-in `gh`; reads and writes issues, PRs, Discussions | not needed |
+| Browser tests | Playwright pinned to the sandbox's browser | `npx playwright install chromium` once | not covered; run on the host |
+| Shell | bash | PowerShell, or Git Bash for POSIX syntax | bash |
+
+- **A Windows run is not the CI run.** `mypy` also reports POSIX-only calls (`os.killpg`, `signal.SIGKILL`, `time.tzset`) on Windows, and the render tests are skipped.
+  Before a PR, run `podman compose run --rm test` (below): it does what `.github/workflows/unittest.yaml` does (`ruff`, `mypy`, `coverage run -m unittest discover .`) on Linux with Chromium.
+- **Containers** (`Dockerfile`, `compose.yaml`, `.dockerignore`):
+  - `podman compose run --rm test` builds the `test` image (Python 3.13.7, `chromium-headless-shell`, `uv`, the locked dev dependencies) and runs the checks against the **bind-mounted checkout**. The virtual environment lives in `/opt/venv` (not `.venv`), so the container never touches the Windows one, and `PYTHONDONTWRITEBYTECODE` keeps `__pycache__` out of your tree.
+    It needs `python/tests/.storage` on the host like any test run. Because it sees the working tree, an untracked file you have lying around is checked too (it once showed an unrelated `mypy` error that CI would never see).
+  - `podman compose up --build app` serves the built web app and API on `http://localhost:8080` with the storage in a named volume (seeded on first start). The port is published on `127.0.0.1` only; set `EINK_API_TOKEN` before widening it (see the network-exposure issue, #36).
+    The image has no display hardware (the `device` dependency group is left out), so it is for the API and web app, not the panel.
+  - `podman compose` delegates to whatever compose provider is installed (here `docker-compose`), so the commands are the same for Docker.
+  - The web stage keeps the repository layout (`/repo/app`, `/repo/python/tests`) because the type-check imports the shared rule cases from `python/tests`; copy any other cross-folder import it needs.
+- **No secret goes into an image.** `.dockerignore` excludes `.storage` folders, `.env` files, and zips; test storage is only ever mounted.
+
 ## Core rules
 
 - Python 3.13, **tabs** for indentation, type hints, `logging` (no `print`), config in JSON. Keep changes focused; do not reformat files you are not changing.
