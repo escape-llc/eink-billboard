@@ -207,3 +207,26 @@ def load_schema_lookups(schema_path: str) -> dict:
 			return json.load(f).get("schema", {}).get("lookups", {}) or {}
 	except (OSError, ValueError):
 		return {}
+
+def instance_properties(item: dict) -> tuple[list[dict], dict]:
+	"""The `instanceSettings` properties and lookups a plugin or datasource declares for a task's `content`."""
+	schema = ((item["info"].get("instanceSettings") or {}).get("schema")) or {}
+	return schema.get("properties") or [], schema.get("lookups") or {}
+
+def plugin_content_errors(plugins: dict, datasources: dict, plugin_name: Any, content: dict, path: list) -> list[dict]:
+	"""The plugin exists and `content` follows its settings (and its data source's); `path` is where `plugin_name` and `content` live in the item (`["task"]` for a timer task, none for a track)."""
+	plugin = plugins.get(plugin_name)
+	if plugin is None:
+		return [{ "path": [*path, "plugin_name"], "message": "Unknown plugin" }]
+	props, lookups = instance_properties(plugin)
+	errors = validate_properties(content, props, lookups)
+	for prop in props:
+		chosen = content.get(prop.get("name")) if prop.get("type") == "schema" else None
+		if isinstance(chosen, str) and chosen:
+			source = datasources.get(chosen)
+			if source is None:
+				errors.append({ "path": [prop["name"]], "message": "Not one of the allowed values" })
+			else:
+				sprops, slookups = instance_properties(source)
+				errors.extend(validate_properties(content, sprops, slookups))
+	return [{ "path": [*path, "content", *e["path"]], "message": e["message"] } for e in errors]
