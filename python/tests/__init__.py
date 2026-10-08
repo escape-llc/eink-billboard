@@ -30,3 +30,7 @@ from unittest.mock import MagicMock
 # Mock both the high-level and low-level modules
 sys.modules["_tkinter"] = MagicMock()
 sys.modules["tkinter"] = MagicMock()
+
+# no test talks to the real internet (set EINK_TEST_LIVE=1 to let them): see python/tests/fake_internet.py
+from .fake_internet import install as _install_fake_internet
+_install_fake_internet()

@@ -67,8 +67,8 @@ cd app && npm run e2e                      # build, then the browser tests (Play
   To reproduce CI locally, move `datasources/` and `plugins/` out of `python/tests/.storage/` and run the tests, then put them back.
 - The headless render tests need `chromium-headless-shell` on `PATH`. In the cloud sandbox:
   `ln -s /opt/pw-browsers/chromium_headless_shell-*/chrome-linux/headless_shell /usr/local/bin/chromium-headless-shell`.
-- Several tests call the internet (comic, newspaper, Wikipedia, the slide-show variants, the layer simulations); they fail where outbound access is restricted.
-  Record which ones fail **before** your change and compare, rather than assuming a failure is yours (or not yours).
+- **No test needs the internet.** `python/tests/__init__.py` makes every `AsyncHttpWorkerPool` talk to `python/tests/fake_internet.py`, which answers the comic feeds, the Wikipedia API and the newspaper covers from text fixtures in `python/tests/fixtures/http/` and generated images (real ones are copyrighted); any other URL is a `ConnectError` naming it. A new download in the code under test needs a route there (and a fixture), not a real request.
+  The text fixtures are hand-written in the sites' shapes; `uv run python -m scripts.record_http_fixtures` (needs the internet) replaces them with real answers, and `EINK_TEST_LIVE=1` runs the tests against the real network (the opt-in live check).
 - `tkinter` is mocked in `python/tests/__init__.py`. In production it is imported only for the `tk` display, so a missing Tk fails that display and nothing else.
 - **Never print, log, or commit the contents of storage files**: they can hold API keys. Inspect them with a command that cannot echo values (key names only), not `cat`.
 
