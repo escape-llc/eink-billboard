@@ -124,8 +124,9 @@ class TestTimerLayerReload(unittest.TestCase):
 		router.addRoute(Route("telemetry", [telemetry]))
 		layer = TimerLayer("t", router)
 		layer.timebase = ConstantTimeOfDay(NOW)
-		layer.cm = cast(Any, MagicMock())
-		layer.cm.schedule_manager.return_value = manager
+		cm_mock: Any = MagicMock()
+		cm_mock.schedule_manager.return_value = manager
+		layer.cm = cm_mock
 		layer.state = "waiting"
 		layer.tasks = [timer_entry("old")]
 		accepted: list[BasicMessage] = []
@@ -183,8 +184,9 @@ class TestPlaylistLayerReload(unittest.TestCase):
 		router.addRoute(Route("telemetry", [MessageCollectSink()]))
 		layer = PlaylistLayer("p", router)
 		layer.timebase = ConstantTimeOfDay(NOW)
-		layer.cm = cast(Any, MagicMock())
-		layer.cm.schedule_manager.return_value = manager
+		cm_mock: Any = MagicMock()
+		cm_mock.schedule_manager.return_value = manager
+		layer.cm = cm_mock
 		layer.state = "playing"
 		layer.playlists = [playlist_entry("old")]
 		layer._backoff = 16.0

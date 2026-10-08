@@ -11,13 +11,13 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Install OS dependencies
       run: apt-get update && apt-get install -y chromium-headless-shell unzip zip
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v5
+      uses: astral-sh/setup-uv@v7
       with:
         enable-cache: true
         python-version: "3.13.7"
@@ -25,14 +25,40 @@ jobs:
     - name: Install dependencies
       run: uv sync --frozen --no-group device
 
-    - name: Restore test .storage files
-      # use the prepare-test-data.ps1 script for the secret string; decode and unzip it here
-      run: |
-        echo "${{ secrets.TEST_STORAGE_B64 }}" | base64 --decode > storage.zip
-        unzip -o storage.zip -d ./python/tests/.storage || true
+    - name: Lint (syntax errors and undefined names)
+      run: uv run ruff check
 
-    - name: Run unittests
-      run: uv run python -m unittest discover .
+    - name: Type check (mypy)
+      run: uv run mypy
+
+    - name: Restore test .storage files
+      # use the prepare-test-data.ps1 script for the secret string; decode and unzip it here.
+      # The secret is passed through the environment, and an empty secret or a bad archive fails the job.
+      env:
+        TEST_STORAGE_B64: ${{ secrets.TEST_STORAGE_B64 }}
+      run: |
+        if [ -z "$TEST_STORAGE_B64" ]; then
+          echo "TEST_STORAGE_B64 is empty: the test storage cannot be restored" >&2
+          exit 1
+        fi
+        printf '%s' "$TEST_STORAGE_B64" | base64 --decode > storage.zip
+        set +e
+        unzip -q -o storage.zip -d ./python/tests/.storage
+        rc=$?
+        set -e
+        # unzip exits 1 for warnings (the archive is made on Windows, with backslash separators); 2 and up are real failures.
+        if [ "$rc" -gt 1 ]; then
+          echo "unzip failed with exit code $rc" >&2
+          exit 1
+        fi
+
+    - name: Run unittests with coverage
+      run: uv run coverage run -m unittest discover .
+
+    - name: Coverage summary
+      run: |
+        uv run coverage report > coverage.txt
+        { echo '```'; cat coverage.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
     - name: Zip test outputs
       # -r for recursive, -q for quiet (hides file list in logs)

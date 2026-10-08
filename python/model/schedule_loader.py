@@ -28,8 +28,8 @@ class ScheduleLoader:
 			info = ScheduleLoader.parsePlaylist(data)
 			return { "info": info, "name": name, "path": path, "type": schema }
 		elif schema == SCHEMA_TASKS:
-			info = ScheduleLoader.parseTimerTasks(data)
-			return { "info": info, "name": name, "path": path, "type": schema }
+			tasks = ScheduleLoader.parseTimerTasks(data)
+			return { "info": tasks, "name": name, "path": path, "type": schema }
 		else:
 			raise ValueError(f"Unknown schema '{schema}' in schedule file '{path}'.")
 	@staticmethod
@@ -42,8 +42,8 @@ class ScheduleLoader:
 			info = ScheduleLoader.parsePlaylist(data)
 			return info
 		elif schema == SCHEMA_TASKS:
-			info = ScheduleLoader.parseTimerTasks(data)
-			return info
+			tasks = ScheduleLoader.parseTimerTasks(data)
+			return tasks
 		else:
 			raise ValueError(f"Unknown schema '{schema}' in schedule.")
 

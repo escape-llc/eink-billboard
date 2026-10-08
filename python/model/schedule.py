@@ -1,4 +1,4 @@
-from typing import Any, Generator, Literal, Sequence, TypeVar, Protocol, TypedDict, runtime_checkable
+from typing import Any, Generator, Literal, Mapping, Sequence, TypeGuard, TypeVar, Protocol, TypedDict, runtime_checkable
 import calendar
 from datetime import datetime, timedelta, timezone
 
@@ -92,7 +92,7 @@ class TriggerDict(TypedDict):
 	time: TimeTriggers
 	day: DayTriggers
 
-def _is_int(value: Any) -> bool:
+def _is_int(value: Any) -> TypeGuard[int]:
 	return isinstance(value, int) and not isinstance(value, bool)
 
 def _int_list(value: Any, low: int, high: int, name: str, problems: list[str], allowed_extra: tuple[int, ...] = ()) -> None:
@@ -176,7 +176,7 @@ def next_day_start(value: datetime) -> datetime:
 def _wall(now: datetime, hour: int, minute: int) -> datetime:
 	return normalize(now.replace(hour=hour, minute=minute, second=0, microsecond=0, fold=0))
 
-def generate_trigger_time(now: datetime, time: TimeTriggers, include_now: bool = False) -> Generator[datetime, None, None]:
+def generate_trigger_time(now: datetime, time: Mapping[str, Any], include_now: bool = False) -> Generator[datetime, None, None]:
 	"""
 	Yield the datetimes that match the given time trigger configuration based on the target time.
 	The times are built from the wall clock of `now`'s day and are never earlier than `now` (an instant comparison).
@@ -241,8 +241,8 @@ def generate_schedule(now: datetime, trigger: TriggerDict, include_now: bool = F
 	:return: Generator yielding the next trigger times based on the current time and trigger configuration
 	:rtype: Generator[datetime, None, None]
 	"""
-	day = trigger.get("day", None)
-	time = trigger.get("time", None)
+	day: Mapping[str, Any] | None = trigger.get("day", None)
+	time: Mapping[str, Any] | None = trigger.get("time", None)
 	if day is None or time is None:
 		raise ValueError("Trigger must contain 'day' and 'time' fields")
 	day_type = day.get("type", None)

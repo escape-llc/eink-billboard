@@ -26,6 +26,8 @@ dependencies = [
 [dependency-groups]
 dev = [
     "coverage>=7.13.0",
+    "mypy>=2.4.0",
+    "ruff>=0.16.10",
 ]
 device = [
     "cysystemd==2.0.1 ; sys_platform == 'linux'",
@@ -45,3 +47,18 @@ omit = [
     "*.css",
     "*/tests/*",
 ]
+
+[tool.mypy]
+# Type checks cover the Python sources and tests; third-party packages without type stubs are not checked.
+files = ["python"]
+ignore_missing_imports = true
+
+[tool.ruff]
+# Only the Python sources; the rest of the repo has no Python to lint.
+include = ["python/**/*.py", "scripts/**/*.py"]
+
+[tool.ruff.lint]
+# Baseline (#25): syntax errors and undefined names only, both of which fail at run time.
+# The unused imports, unused variables, f-strings without placeholders and redefinitions are
+# 84 existing findings; tighten the selection as they are cleaned up.
+select = ["E9", "F821"]

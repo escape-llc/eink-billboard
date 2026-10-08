@@ -85,8 +85,8 @@ class PlaylistLayer(DispatcherTask):
 			raise ValueError("router is None")
 		self.router = router
 		self.cm:ConfigurationManager|None = None
-		self.playlists = []
-		self.plugin_info = None
+		self.playlists: list[Any] = []
+		self.plugin_info: list[Any] | None = None
 		self.datasources: DataSourceManager|None = None
 		self.timer: IProvideTimer|None = None
 		self.dimensions:tuple[int,int] = (800,480)

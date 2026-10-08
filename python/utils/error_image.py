@@ -48,17 +48,19 @@ def plain_error_image(dimensions: tuple[int, int], title: str, lines: list[str])
 	draw = ImageDraw.Draw(image)
 	margin = max(8, width // 40)
 	draw.rectangle((margin // 2, margin // 2, width - margin // 2 - 1, height - margin // 2 - 1), outline="black", width=max(2, width // 200))
-	heading_font = _font(max(14, height // 12))
-	body_font = _font(max(12, height // 20))
+	heading_size = max(14, height // 12)
+	body_size = max(12, height // 20)
+	heading_font = _font(heading_size)
+	body_font = _font(body_size)
 	y = margin * 2
 	draw.text((margin * 2, y), "! Cannot show this", font=heading_font, fill="black")
-	y += int(heading_font.size * 1.6)
-	body_width = max(10, (width - margin * 4) // max(1, int(body_font.size * 0.55)))
+	y += int(heading_size * 1.6)
+	body_width = max(10, (width - margin * 4) // max(1, int(body_size * 0.55)))
 	for text in [title, *lines]:
 		for part in textwrap.wrap(text, body_width) or [""]:
-			if y + body_font.size > height - margin * 2:
+			if y + body_size > height - margin * 2:
 				return image
 			draw.text((margin * 2, y), part, font=body_font, fill="black")
-			y += int(body_font.size * 1.4)
-		y += int(body_font.size * 0.4)
+			y += int(body_size * 1.4)
+		y += int(body_size * 0.4)
 	return image

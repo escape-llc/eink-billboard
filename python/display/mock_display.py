@@ -3,7 +3,7 @@ import re
 import tempfile
 import logging
 from datetime import datetime
-from typing import cast
+from typing import Any, cast
 from pathvalidate import sanitize_filename
 from PIL import Image
 from .display_base import DisplayBase
@@ -39,7 +39,7 @@ def resolve_output_folder(configured: str|None) -> str:
 class MockDisplay(DisplayBase):
 	def __init__(self, name: str):
 		super().__init__(name)
-		self.display_settings = None
+		self.display_settings: dict[str, Any] | None = None
 		self.output_folder: str|None = None
 		self.logger = logging.getLogger(__name__)
 

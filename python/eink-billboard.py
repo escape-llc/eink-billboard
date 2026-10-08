@@ -8,6 +8,7 @@ import logging
 import logging.config
 import os
 import warnings
+from typing import Any
 
 import yaml
 
@@ -72,7 +73,7 @@ def run_application(args: argparse.Namespace) -> None:
 	watcher_sink = FanoutSink(ConfigurationManagerEvictionSink(cm))
 	config_watcher = ConfigurationWatcher(time_base, watcher_sink, cm.STORAGE_PATH)
 	# plugins and datasources may contribute API routers
-	routers = {}
+	routers: dict[str, Any] = {}
 	routers.update(cm.load_routers(cm.enum_plugins()))
 	routers.update(cm.load_routers(cm.enum_datasources()))
 	app = create_app(

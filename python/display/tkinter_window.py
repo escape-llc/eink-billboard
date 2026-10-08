@@ -2,7 +2,7 @@ import logging
 import queue
 import threading
 import tkinter as tk
-from typing import Callable
+from typing import Any, Callable
 from PIL import Image, ImageTk
 from .display_base import DisplayBase
 from ..model.configuration_manager import ConfigurationManager
@@ -20,7 +20,7 @@ class TkinterWindow(DisplayBase):
 
 	def __init__(self, name: str):
 		super().__init__(name)
-		self.display_settings = None
+		self.display_settings: dict[str, Any] | None = None
 		self.image_counter = 0
 		self.root: tk.Tk | None = None
 		self.tkthread: threading.Thread | None = None
