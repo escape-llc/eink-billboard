@@ -1,0 +1,23 @@
+# Local container infrastructure (Podman or Docker).
+#   podman compose run --rm test        # ruff + mypy + unit tests on Linux, as CI does
+#   podman compose up --build app       # the server with the web app on http://localhost:8080
+# `test` needs python/tests/.storage (never committed; see AGENTS.md "Test environment").
+services:
+  test:
+    profiles: ["test"]
+    build: { context: ., target: test }
+    volumes:
+      - .:/work
+      # keep Windows-side artifacts out of the container
+      - /work/.venv
+      - /work/app/node_modules
+  app:
+    build: { context: ., target: app }
+    ports:
+      - "127.0.0.1:8080:8080"   # localhost only; widen deliberately, and set a token if you do
+    environment:
+      EINK_API_TOKEN: ${EINK_API_TOKEN:-}
+    volumes:
+      - storage:/data
+volumes:
+  storage:

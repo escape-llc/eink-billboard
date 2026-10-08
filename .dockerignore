@@ -1,0 +1,17 @@
+# Build context: keep secrets, test data and host artifacts out of images.
+.git
+.github
+.venv
+.vscode
+.env
+**/.env
+**/__pycache__
+**/node_modules
+app/dist
+.storage
+**/.storage
+.e2e-storage
+.test-output
+.coverage
+coverage.txt
+*.zip
