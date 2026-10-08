@@ -46,7 +46,7 @@
 		]
 	},
 	"default": {
-		"timezoneName": "US/Eastern",
+		"timezoneName": "America/New_York",
 		"locale": "en-US",
 		"timeFormat": "24h",
 		"location": null

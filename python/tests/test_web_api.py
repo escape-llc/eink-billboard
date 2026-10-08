@@ -362,6 +362,17 @@ class TestSchemaFile(WebApiTestBase):
 		body = _error_shape(self, self.client.get("/api/schemas/theme"), 404)
 		self.assertIn("id", body)
 
+class TestFactoryDefaults(WebApiTestBase):
+	def test_factory_system_defaults_are_valid_and_listed(self):
+		# a fresh install saves its defaults unchanged, so each default must be a value the form can show
+		schema_path = os.path.join(os.path.dirname(__file__), "..", "storage", "schemas", "system.json")
+		with open(schema_path, "r", encoding="utf-8") as f:
+			schema = json.load(f)
+		defaults = schema["default"]
+		self.assertEqual(validate_properties(defaults, schema["schema"]["properties"], schema["schema"]["lookups"]), [])
+		zones = {x["value"] for x in self.client.get("/api/lookups/timezone").json()}
+		self.assertIn(defaults["timezoneName"], zones)
+
 class TestLookups(WebApiTestBase):
 	def test_lookups(self):
 		tz = self.client.get("/api/lookups/timezone").json()
