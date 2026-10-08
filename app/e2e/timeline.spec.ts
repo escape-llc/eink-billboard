@@ -82,3 +82,23 @@ test("today is highlighted in the server's zone", async ({ page }) => {
 	await expect(page.locator(".day-header").first()).toHaveClass(/day-header-today/)
 	watch.expectNone()
 })
+
+test("a note says the times are in the device's zone when the browser's differs, and stays away when it does not", async ({ page }) => {
+	const watch = watchProblems(page)
+	const render = (timezone: string, offset: string) => ({
+		success: true, start_ts: `2026-01-05T00:00:00${offset}`, end_ts: `2026-01-12T00:00:00${offset}`, days: 7, timezone,
+		schedules: { s: { id: "s", name: "S", _rev: "r", items: [item("a", "Task", 30)] } },
+		render: [{ schedule: "s", id: "a", scheduled_time: `2026-01-05T09:00:00${offset}` }], not_render: [], invalid: []
+	})
+	// the browser is in New Zealand: a device in New York is hours behind it
+	await stubRender(page, render("America/New_York", "-05:00"))
+	await page.goto("/#/schedule")
+	await expect(page.getByTestId("zone-note")).toContainText(/device's time zone \(America\/New_York\)\. Your browser is \d+ h ahead of it\./)
+	// nothing is converted: 09:00 on the device is still the 09:00 slot
+	expect(await placement(page, "Task")).toEqual([{ column: "2", row: "19 / span 1" }])
+	await stubRender(page, render("Pacific/Auckland", "+13:00"))
+	await page.reload()
+	await expect(page.locator(".day-header")).toHaveCount(7)
+	await expect(page.getByTestId("zone-note")).toHaveCount(0)
+	watch.expectNone()
+})
