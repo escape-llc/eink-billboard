@@ -74,35 +74,3 @@ class AsyncWorkerPool(IRequireShutdown):
 
 		self.loop.close()
 		self.logger.info("[Shutdown] Complete.")
-
-"""
-# --- EXAMPLE WORK ---
-async def async_unit_of_work(task_id, duration):
-	await asyncio.sleep(duration)
-	return f"Data from {task_id}"
-
-# --- CALLBACK FUNCTION ---
-def my_sync_callback(fut):
-	try:
-		result = fut.result()
-		print(f"Callback Notification: Task finished with result: {result}")
-	except Exception as e:
-		print(f"Callback Notification: Task failed with error: {e}")
-
-# --- MAIN ---
-if __name__ == "__main__":
-	pool = AsyncWorkerPool()
-	pool.start()
-
-	# 1. Submit with a callback
-	# We don't need to 'join' this manually; the callback handles the result
-	pool.submit(async_unit_of_work("Task-A", 2), callback=my_sync_callback)
-
-	print("Main context: Task-A is running, I'm doing other things...")
-	
-	# Wait long enough to see the callback trigger
-	time.sleep(3)
-
-	print("Main context: Closing down.")
-	pool.shutdown()
-"""
