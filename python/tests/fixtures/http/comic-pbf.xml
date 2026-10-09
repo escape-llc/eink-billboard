@@ -1,8 +1,193 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel>
-<title>The Perry Bible Fellowship</title><link>https://pbfcomics.com/</link><description>The Perry Bible Fellowship</description>
-<item><title>Fixture Fellowship 4</title><link>https://pbfcomics.com/comics/fixture-4/</link><guid>https://pbfcomics.com/comics/fixture-4/</guid><pubDate>Mon, 05 Oct 2026 12:00:00 +0000</pubDate><description><![CDATA[<img src="https://pbfcomics.com/wp-content/uploads/2026/10/fixture_4.png" alt="Fixture alt 4" />]]></description></item>
-<item><title>Fixture Fellowship 3</title><link>https://pbfcomics.com/comics/fixture-3/</link><guid>https://pbfcomics.com/comics/fixture-3/</guid><pubDate>Mon, 05 Oct 2026 12:00:00 +0000</pubDate><description><![CDATA[<img src="https://pbfcomics.com/wp-content/uploads/2026/10/fixture_3.png" alt="Fixture alt 3" />]]></description></item>
-<item><title>Fixture Fellowship 2</title><link>https://pbfcomics.com/comics/fixture-2/</link><guid>https://pbfcomics.com/comics/fixture-2/</guid><pubDate>Mon, 05 Oct 2026 12:00:00 +0000</pubDate><description><![CDATA[<img src="https://pbfcomics.com/wp-content/uploads/2026/10/fixture_2.png" alt="Fixture alt 2" />]]></description></item>
-<item><title>Fixture Fellowship 1</title><link>https://pbfcomics.com/comics/fixture-1/</link><guid>https://pbfcomics.com/comics/fixture-1/</guid><pubDate>Mon, 05 Oct 2026 12:00:00 +0000</pubDate><description><![CDATA[<img src="https://pbfcomics.com/wp-content/uploads/2026/10/fixture_1.png" alt="Fixture alt 1" />]]></description></item>
-</channel></rss>
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>The Perry Bible Fellowship</title>
+	<atom:link href="https://pbfcomics.com/feed/" rel="self" type="application/rss+xml" />
+	<link>https://pbfcomics.com/</link>
+	<description>Offbeat comic strip by Nicholas Gurewitch. Includes archives, information about the author, and purchases.</description>
+	<lastBuildDate>Fri, 02 Oct 2026 15:54:12 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=7.0.2</generator>
+	<item>
+		<title>Seed Shanty</title>
+		<link>https://pbfcomics.com/comics/seed-shanty/</link>
+		
+		<dc:creator><![CDATA[Nicholas Gurewitch]]></dc:creator>
+		<pubDate>Fri, 02 Oct 2026 15:54:12 +0000</pubDate>
+				<guid isPermaLink="false">https://pbfcomics.com/?post_type=comics&#038;p=2727</guid>
+
+					<description><![CDATA[<p><img src='https://pbfcomics.com/wp-content/uploads/2026/10/PBF-Seed_Shanty.png' width='1300' height='1881' alt='Song birds sing a sea shanty aboard a schooner boat loaded to the deck with bags of seed: “Seed, Seed, Seed! All the seed we need!” Captain Robin Cornwallis has seen something through his spyglass which causes him grave concern, even as the singing continues (“On this we are agreed…”) Spyglass view: A pirate ship approaches. At every level of the ship, it is crawling with scurvy, rascally squirrels, each with their eyes aimed at the bird’s ship. “Seed, seed, seed!” the momentarily-oblivious crew of The Feeder continues.' title='PBF-Seed_Shanty' /></p>
+<p>The post <a href="https://pbfcomics.com/comics/seed-shanty/">Seed Shanty</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<img src='https://pbfcomics.com/wp-content/uploads/2026/10/PBF-Seed_Shanty.png' width='1300' height='1881' alt='Song birds sing a sea shanty aboard a schooner boat loaded to the deck with bags of seed: “Seed, Seed, Seed! All the seed we need!” Captain Robin Cornwallis has seen something through his spyglass which causes him grave concern, even as the singing continues (“On this we are agreed…”) Spyglass view: A pirate ship approaches. At every level of the ship, it is crawling with scurvy, rascally squirrels, each with their eyes aimed at the bird’s ship. “Seed, seed, seed!” the momentarily-oblivious crew of The Feeder continues.' title='PBF-Seed_Shanty' /><p>The post <a href="https://pbfcomics.com/comics/seed-shanty/">Seed Shanty</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>The Biclops</title>
+		<link>https://pbfcomics.com/comics/the-biclops/</link>
+		
+		<dc:creator><![CDATA[Nicholas Gurewitch]]></dc:creator>
+		<pubDate>Thu, 06 Aug 2026 20:20:20 +0000</pubDate>
+				<guid isPermaLink="false">https://pbfcomics.com/?post_type=comics&#038;p=2716</guid>
+
+					<description><![CDATA[<p><img src='https://pbfcomics.com/wp-content/uploads/2026/08/PBF-The_Biclops.png' width='1000' height='1301' alt='Odysseus and his men look upon a giant emerging from a cave whose large eye peers at them. The greek soldiers run away in fear, each of them having just one eye. It turns out that the giant "biclops" (freakish to them) has two eyes.' title='PBF-The_Biclops' /></p>
+<p>The post <a href="https://pbfcomics.com/comics/the-biclops/">The Biclops</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<img src='https://pbfcomics.com/wp-content/uploads/2026/08/PBF-The_Biclops.png' width='1000' height='1301' alt='Odysseus and his men look upon a giant emerging from a cave whose large eye peers at them. The greek soldiers run away in fear, each of them having just one eye. It turns out that the giant "biclops" (freakish to them) has two eyes.' title='PBF-The_Biclops' /><p>The post <a href="https://pbfcomics.com/comics/the-biclops/">The Biclops</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>Beautiful Universe</title>
+		<link>https://pbfcomics.com/comics/beautiful-universe/</link>
+		
+		<dc:creator><![CDATA[Nicholas Gurewitch]]></dc:creator>
+		<pubDate>Tue, 21 Jul 2026 03:24:50 +0000</pubDate>
+				<guid isPermaLink="false">https://pbfcomics.com/?post_type=comics&#038;p=2694</guid>
+
+					<description><![CDATA[<p><img src='https://pbfcomics.com/wp-content/uploads/2026/07/PBF-Beautiful-Universe.png' width='957' height='1350' alt='“What a beautiful universe, hon" says a telescope, amazed by the heavenly night sky. “It really is”, responds another scope, who it turns out is a microscope. Hands full of algae, she wades waist deep in a disgusting swamp which reflects the sky. However, she is amazed by the heavenly microscopic life within.' title='PBF-Beautiful-Universe' /></p>
+<p>The post <a href="https://pbfcomics.com/comics/beautiful-universe/">Beautiful Universe</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<img src='https://pbfcomics.com/wp-content/uploads/2026/07/PBF-Beautiful-Universe.png' width='957' height='1350' alt='“What a beautiful universe, hon" says a telescope, amazed by the heavenly night sky. “It really is”, responds another scope, who it turns out is a microscope. Hands full of algae, she wades waist deep in a disgusting swamp which reflects the sky. However, she is amazed by the heavenly microscopic life within.' title='PBF-Beautiful-Universe' /><p>The post <a href="https://pbfcomics.com/comics/beautiful-universe/">Beautiful Universe</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>Big Fish</title>
+		<link>https://pbfcomics.com/comics/big-fish/</link>
+		
+		<dc:creator><![CDATA[Nicholas Gurewitch]]></dc:creator>
+		<pubDate>Fri, 03 Jul 2026 18:31:06 +0000</pubDate>
+				<guid isPermaLink="false">https://pbfcomics.com/?post_type=comics&#038;p=2642</guid>
+
+					<description><![CDATA[<p><img src='https://pbfcomics.com/wp-content/uploads/2026/07/PBF-Big_Fish.png' width='1000' height='1969' alt='A determined humpback whale courses through the ocean. Secondly, the humpback whale breaches the ocean surface gloriously! We realize lastly that a goldfish has jumped out of it’s bowl, flopped on the ground, its imagination having run wild.' title='PBF-Big_Fish' /></p>
+<p>The post <a href="https://pbfcomics.com/comics/big-fish/">Big Fish</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<img src='https://pbfcomics.com/wp-content/uploads/2026/07/PBF-Big_Fish.png' width='1000' height='1969' alt='A determined humpback whale courses through the ocean. Secondly, the humpback whale breaches the ocean surface gloriously! We realize lastly that a goldfish has jumped out of it’s bowl, flopped on the ground, its imagination having run wild.' title='PBF-Big_Fish' /><p>The post <a href="https://pbfcomics.com/comics/big-fish/">Big Fish</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>Endgame</title>
+		<link>https://pbfcomics.com/comics/endgame/</link>
+		
+		<dc:creator><![CDATA[Nicholas Gurewitch]]></dc:creator>
+		<pubDate>Thu, 02 Apr 2026 15:46:59 +0000</pubDate>
+				<guid isPermaLink="false">https://pbfcomics.com/?post_type=comics&#038;p=2628</guid>
+
+					<description><![CDATA[<p><img src='https://pbfcomics.com/wp-content/uploads/2026/04/PBF-Endgame.png' width='900' height='1145' alt='A 3 panel comic strip: “There’s no way out of this one, Dad. Check.” says a kid who is dominating his Dad in chess. Dad, slyly, angles his watch to reflect a beam of light onto the board, catching the attention of a cat. In the last panel, we see the pieces scatter as the cat pounces. Dad covers his smile from his distraught child.' title='PBF-Endgame' /></p>
+<p>The post <a href="https://pbfcomics.com/comics/endgame/">Endgame</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<img src='https://pbfcomics.com/wp-content/uploads/2026/04/PBF-Endgame.png' width='900' height='1145' alt='A 3 panel comic strip: “There’s no way out of this one, Dad. Check.” says a kid who is dominating his Dad in chess. Dad, slyly, angles his watch to reflect a beam of light onto the board, catching the attention of a cat. In the last panel, we see the pieces scatter as the cat pounces. Dad covers his smile from his distraught child.' title='PBF-Endgame' /><p>The post <a href="https://pbfcomics.com/comics/endgame/">Endgame</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>Buzz</title>
+		<link>https://pbfcomics.com/comics/buzz/</link>
+		
+		<dc:creator><![CDATA[Nicholas Gurewitch]]></dc:creator>
+		<pubDate>Fri, 30 Jan 2026 17:15:22 +0000</pubDate>
+				<guid isPermaLink="false">https://pbfcomics.com/?post_type=comics&#038;p=2622</guid>
+
+					<description><![CDATA[<p><img src='https://pbfcomics.com/wp-content/uploads/2026/01/PBF-Buzz-2.png' width='1000' height='713' alt='Two sleepy kidney beans are awoken at 5:31 in the morning. Banging a pan with a spoon and jumping on the bed is their child, a coffee bean.' title='PBF-Buzz' /></p>
+<p>The post <a href="https://pbfcomics.com/comics/buzz/">Buzz</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<img src='https://pbfcomics.com/wp-content/uploads/2026/01/PBF-Buzz-2.png' width='1000' height='713' alt='Two sleepy kidney beans are awoken at 5:31 in the morning. Banging a pan with a spoon and jumping on the bed is their child, a coffee bean.' title='PBF-Buzz' /><p>The post <a href="https://pbfcomics.com/comics/buzz/">Buzz</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>Artist</title>
+		<link>https://pbfcomics.com/comics/artist/</link>
+		
+		<dc:creator><![CDATA[Nicholas Gurewitch]]></dc:creator>
+		<pubDate>Wed, 21 Jan 2026 19:15:56 +0000</pubDate>
+				<guid isPermaLink="false">https://pbfcomics.com/?post_type=comics&#038;p=2618</guid>
+
+					<description><![CDATA[<p><img src='https://pbfcomics.com/wp-content/uploads/2026/01/PBF_Artist.png' width='1080' height='898' alt='' title='PBF_Artist' /></p>
+<p>The post <a href="https://pbfcomics.com/comics/artist/">Artist</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<img src='https://pbfcomics.com/wp-content/uploads/2026/01/PBF_Artist.png' width='1080' height='898' alt='' title='PBF_Artist' /><p>The post <a href="https://pbfcomics.com/comics/artist/">Artist</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>Hand and Hand</title>
+		<link>https://pbfcomics.com/comics/hand-and-hand/</link>
+		
+		<dc:creator><![CDATA[Nicholas Gurewitch]]></dc:creator>
+		<pubDate>Thu, 11 Dec 2025 03:31:57 +0000</pubDate>
+				<guid isPermaLink="false">https://pbfcomics.com/?post_type=comics&#038;p=2606</guid>
+
+					<description><![CDATA[<p><img src='https://pbfcomics.com/wp-content/uploads/2025/12/PBF-Hand_and_Hand.png' width='900' height='1457' alt='' title='PBF-Hand_and_Hand' /></p>
+<p>The post <a href="https://pbfcomics.com/comics/hand-and-hand/">Hand and Hand</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<img src='https://pbfcomics.com/wp-content/uploads/2025/12/PBF-Hand_and_Hand.png' width='900' height='1457' alt='' title='PBF-Hand_and_Hand' /><p>The post <a href="https://pbfcomics.com/comics/hand-and-hand/">Hand and Hand</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>Another Message</title>
+		<link>https://pbfcomics.com/comics/another-message/</link>
+		
+		<dc:creator><![CDATA[Nicholas Gurewitch]]></dc:creator>
+		<pubDate>Fri, 21 Nov 2025 18:38:39 +0000</pubDate>
+				<guid isPermaLink="false">https://pbfcomics.com/?post_type=comics&#038;p=2592</guid>
+
+					<description><![CDATA[<p><img src='https://pbfcomics.com/wp-content/uploads/2025/11/PBF-The_Message_II.png' width='1080' height='1584' alt='A bloody melee with merciless stabbing, impalements, and eye-gouging. Flashback to “Earlier:” A king announces that his soldiers are to withdraw, for he has received a written apology from the enemy via messenger bird. Disappointment ensues, however. What appeared to read “I’m sorry” on a partially-unfurled parchment is revealed to read: “I’m sorry you feel that way”.' title='PBF-The_Message_II' /></p>
+<p>The post <a href="https://pbfcomics.com/comics/another-message/">Another Message</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<img src='https://pbfcomics.com/wp-content/uploads/2025/11/PBF-The_Message_II.png' width='1080' height='1584' alt='A bloody melee with merciless stabbing, impalements, and eye-gouging. Flashback to “Earlier:” A king announces that his soldiers are to withdraw, for he has received a written apology from the enemy via messenger bird. Disappointment ensues, however. What appeared to read “I’m sorry” on a partially-unfurled parchment is revealed to read: “I’m sorry you feel that way”.' title='PBF-The_Message_II' /><p>The post <a href="https://pbfcomics.com/comics/another-message/">Another Message</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>The Message</title>
+		<link>https://pbfcomics.com/comics/the-message/</link>
+		
+		<dc:creator><![CDATA[Nicholas Gurewitch]]></dc:creator>
+		<pubDate>Mon, 03 Nov 2025 16:54:13 +0000</pubDate>
+				<guid isPermaLink="false">https://pbfcomics.com/?post_type=comics&#038;p=2573</guid>
+
+					<description><![CDATA[<p><img src='https://pbfcomics.com/wp-content/uploads/2025/11/PBF-The-Message.png' width='1080' height='1734' alt='An urgent message is sent by delivery raven (a la Game of Thrones). The royal recipient is concerned. Below cursive script, crude bird scrawl has been added to the scroll: "feed food gud raven"' title='PBF-The-Message' /></p>
+<p>The post <a href="https://pbfcomics.com/comics/the-message/">The Message</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></description>
+										<content:encoded><![CDATA[<img src='https://pbfcomics.com/wp-content/uploads/2025/11/PBF-The-Message.png' width='1080' height='1734' alt='An urgent message is sent by delivery raven (a la Game of Thrones). The royal recipient is concerned. Below cursive script, crude bird scrawl has been added to the scroll: "feed food gud raven"' title='PBF-The-Message' /><p>The post <a href="https://pbfcomics.com/comics/the-message/">The Message</a> appeared first on <a href="https://pbfcomics.com">The Perry Bible Fellowship</a>.</p>
+]]></content:encoded>
+					
+		
+		
+			</item>
+	</channel>
+</rss>

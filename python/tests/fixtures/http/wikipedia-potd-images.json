@@ -1,1 +1,18 @@
-{"batchcomplete":true,"query":{"pages":[{"pageid":900001,"ns":10,"title":"Template:POTD/2026-10-08","images":[{"ns":6,"title":"File:Fixture picture of the day.jpg"}]}]}}
+{
+ "batchcomplete": true,
+ "query": {
+  "pages": [
+   {
+    "pageid": 84292245,
+    "ns": 10,
+    "title": "Template:POTD/2026-10-09",
+    "images": [
+     {
+      "ns": 6,
+      "title": "File:Alhambra evening panorama Mirador San Nicolas sRGB-1.jpg"
+     }
+    ]
+   }
+  ]
+ }
+}

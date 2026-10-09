@@ -32,7 +32,7 @@ COMIC_FEEDS = {
 	("webcomicname.com", "/rss"): "comic-webcomicname.xml",
 }
 # where the comics' images come from; any image there is a generated one
-COMIC_IMAGE_HOSTS = ("imgs.xkcd.com", "files.explosm.net", "www.smbc-comics.com", "pbfcomics.com", "www.questionablecontent.net",
+COMIC_IMAGE_HOSTS = ("imgs.xkcd.com", "files.explosm.net", "static.explosm.net", "www.smbc-comics.com", "pbfcomics.com", "www.questionablecontent.net",
 	"poorlydrawnlines.com", "www.qwantz.com", "64.media.tumblr.com")
 WIKIPEDIA_POTD = "wikipedia-potd-images.json"
 WIKIPEDIA_IMAGEINFO = "wikipedia-imageinfo.json"
@@ -100,7 +100,8 @@ def _wikipedia_api(request: httpx.Request) -> httpx.Response | None:
 	return None
 
 def _wikimedia_image(request: httpx.Request) -> httpx.Response | None:
-	if request.url.host == "upload.wikimedia.org" and request.url.path.startswith("/wikipedia/"):
+	# the picture itself (upload.) and its resized thumbnails (thumb.), which is what the datasource asks for
+	if request.url.host in ("upload.wikimedia.org", "thumb.wikimedia.org") and request.url.path.startswith("/wikipedia/"):
 		return _image(1280, 853, request.url.path.rsplit("/", 1)[-1], "JPEG")
 	return None
 
