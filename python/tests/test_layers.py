@@ -211,7 +211,7 @@ class PlaylistLayerTests(unittest.TestCase):
 		layer.ERROR_SLOT_MINUTES = 0.0001
 		self.sent: list = []
 		layer.router.send = lambda route, msg: self.sent.append((route, msg))  # type: ignore
-		patcher = mock.patch("python.task.playlist_layer.render_error_image", side_effect=lambda stm, dims, title, lines: Image.new("RGB", (8, 8)))
+		patcher = mock.patch("python.task.playlist_layer.render_error_image", side_effect=lambda stm, dims, title, lines, theme=None: Image.new("RGB", (8, 8)))
 		self.render_error = patcher.start()
 		self.addCleanup(patcher.stop)
 		calls: list[str] = []

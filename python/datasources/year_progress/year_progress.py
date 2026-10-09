@@ -6,11 +6,12 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from ...plugins.plugin_base import RenderSession
+from ...model.theme import ThemeInputs, current_inputs
 from ...utils.file_utils import path_to_file_url
 from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
 from ...datasources.data_source import DataSource, DataSourceExecutionContext, MediaItemAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 
-def generate_image(schedule_ts:datetime, stm: StaticConfigurationManager, dimensions, settings):
+def generate_image(schedule_ts:datetime, stm: StaticConfigurationManager, dimensions, settings, theme: ThemeInputs|None = None):
 	"""Blocking (runs Chromium). `dimensions` is the target size (see target_dimensions)."""
 	# the year is the one where the display is: the schedule timestamp already carries the system zone (naive means local)
 	current_time = schedule_ts if schedule_ts.tzinfo is not None else schedule_ts.astimezone()
@@ -30,12 +31,11 @@ def generate_image(schedule_ts:datetime, stm: StaticConfigurationManager, dimens
 		"year": current_time.year,
 		"year_percent": year_percent,
 		"days_left": days_left,
-		"theme_name": "split-complementary",
 		"settings": settings
 	}
 	px = Path(os.path.dirname(__file__)).joinpath("render")
 	css = path_to_file_url(os.path.join(px.resolve(), "year_progress.css"))
-	rs = RenderSession(stm, str(px.resolve()), "year_progress.html", css)
+	rs = RenderSession(stm, str(px.resolve()), "year_progress.html", css, theme)
 	image = rs.render(dimensions, template_params)
 	return image
 
@@ -54,5 +54,5 @@ class YearProgressAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 		if display_config is None:
 			raise ValueError("Display settings is None")
 		# Chromium is slow and blocking: keep it off the event loop
-		img = await asyncio.to_thread(generate_image, dsec.timestamp, stm, target_dimensions(dsec, display_config), params)
+		img = await asyncio.to_thread(generate_image, dsec.timestamp, stm, target_dimensions(dsec, display_config), params, current_inputs(scm))
 		return None if img is None else MediaRenderResult(image=img, title=f"Year Progress: {dsec.timestamp.year}")

@@ -23,6 +23,7 @@ from ..task.configure_event import ConfigureEvent
 from ..task.playlist_layer import NextTrack, StartPlayback
 from ..task.message_router import MessageRouter
 from ..task.timer import IProvideTimer, TimerThreadService
+from ..model.theme import ThemeInputs, current_inputs
 from ..utils.error_image import render_error_image, safe_reason
 
 class PlaylistStateDict(TypedDict):
@@ -177,11 +178,14 @@ class TimerLayer(DispatcherTask):
 			self.logger.error(f"Timer service is not available.")
 			return
 		self._run_layer_task(self.tasks, msg.timestamp)
+	def _theme(self) -> ThemeInputs:
+		"""The device theme now, for the error page (the factory theme when there is no configuration)."""
+		return current_inputs(self.cm.settings_manager() if self.cm is not None else None)
 	async def _show_error(self, item: TimerTaskItem, reason: str, ts: datetime) -> None:
 		"""A task that failed shows an error page for the time it would have shown its image (its `slideMinutes`, one minute if it has none), as the interstitial does."""
 		try:
 			stm = self.cm.static_manager() if self.cm is not None else None
-			image = await asyncio.to_thread(render_error_image, stm, self.dimensions, item.title, [reason])
+			image = await asyncio.to_thread(render_error_image, stm, self.dimensions, item.title, [reason], self._theme())
 			content = item.task.content if isinstance(item.task.content, dict) else {}
 			minutes = content.get("slideMinutes")
 			duration = timedelta(minutes=float(minutes) if isinstance(minutes, (int, float)) and minutes > 0 else 1.0)

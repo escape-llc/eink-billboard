@@ -20,11 +20,6 @@
 				--margin-bottom: 0px;
 				--margin-left: 0px;
 				--margin-right: 0px;
-				--theme-name: "{{theme_name}}";
-				--theme-h: 210;
-				--theme-s: 70%;
-				--theme-param-1: 30;
-				--theme-text-h: 210;
 			}
 			body {
 				margin-top: var(--margin-top);
@@ -44,11 +39,15 @@
 		{% for style in style_sheets %}
 			<link rel="stylesheet" href="{{style}}">
 		{% endfor %}
+		{# the device theme (python/model/theme.py), after themes.css so it replaces that file's defaults #}
+		{% if theme_vars %}
+		<style>:root { {{ theme_vars }} }</style>
+		{% endif %}
 		{% block style %}
 		{% endblock %}
 	</head>
 	<body>
-		<div id="container" class="container theme-{{theme_name}} text-primary
+		<div id="container" class="container text-primary
 		{% if settings.frame == 'Corner' %}corner-frame{% endif %}
 		{% if settings.frame == 'Top and Bottom' %}top-bottom-frame{% endif %}
 		{% if settings.frame == 'Rectangle' %}rectangle-frame{% endif %}

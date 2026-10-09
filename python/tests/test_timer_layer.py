@@ -134,7 +134,7 @@ class TestFailedTask(unittest.TestCase):
 		clock = FakeClock(datetime(2024, 1, 1, 9, 0, tzinfo=NY))
 		isp = ServiceContainer()
 		isp.add_service(TimeOfDay, clock)
-		with mock.patch("python.task.timer_layer.render_error_image", side_effect=lambda stm, dims, title, lines: Image.new("RGB", (8, 8))) as render:
+		with mock.patch("python.task.timer_layer.render_error_image", side_effect=lambda stm, dims, title, lines, theme=None: Image.new("RGB", (8, 8))) as render:
 			asyncio.run(layer._run_task_item(isp, clock, item, "scheduled", 0, None, None))
 		return sent, render, PriorityImage
 
@@ -149,7 +149,7 @@ class TestFailedTask(unittest.TestCase):
 		self.assertIsInstance(displays[0], PriorityImage)
 		self.assertEqual((displays[0].title, displays[0].duration), ("Error: Weather", timedelta(minutes=5)))
 		# the page says the exception's type, never its text (a URL may carry a key)
-		self.assertEqual(render.call_args.args[2:], ("Weather", ["ConnectionError"]))
+		self.assertEqual(render.call_args.args[2:4], ("Weather", ["ConnectionError"]))
 
 	def test_a_task_without_slide_minutes_shows_it_for_one_minute(self):
 		class Boom:

@@ -7,10 +7,11 @@ from typing import Any, Mapping
 
 from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
 from ...plugins.plugin_base import RenderSession
+from ...model.theme import ThemeInputs, current_inputs
 from ...utils.file_utils import path_to_file_url
 from ...datasources.data_source import DataSource, DataSourceExecutionContext, MediaItemAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 
-def generate_image(schedule_ts:datetime, stm: StaticConfigurationManager, dimensions, settings) -> MediaRenderResult | None:
+def generate_image(schedule_ts:datetime, stm: StaticConfigurationManager, dimensions, settings, theme: ThemeInputs|None = None) -> MediaRenderResult | None:
 	"""Blocking (runs Chromium). `dimensions` is the target size (see target_dimensions)."""
 	#title = settings.get('title')
 	countdown_date_str = settings.get('targetDate')
@@ -37,13 +38,12 @@ def generate_image(schedule_ts:datetime, stm: StaticConfigurationManager, dimens
 		"day_count": abs(day_count),
 		"left_or_passed": left_or_passed,
 		"label": label,
-		"theme_name": "triadic",
 		"settings": settings
 	}
 
 	px = Path(os.path.dirname(__file__)).joinpath("render")
 	css = path_to_file_url(os.path.join(px.resolve(), "countdown.css"))
-	rs = RenderSession(stm, str(px.resolve()), "countdown.html", css)
+	rs = RenderSession(stm, str(px.resolve()), "countdown.html", css, theme)
 	image = rs.render(dimensions, template_params)
 	return None if image is None else MediaRenderResult(image=image, title="Countdown")
 
@@ -61,5 +61,5 @@ class CountdownAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 		if display_config is None:
 			raise ValueError("Display settings is None")
 		# Chromium is slow and blocking: keep it off the event loop
-		return await asyncio.to_thread(generate_image, dsec.timestamp, stm, target_dimensions(dsec, display_config), params)
+		return await asyncio.to_thread(generate_image, dsec.timestamp, stm, target_dimensions(dsec, display_config), params, current_inputs(scm))
 	pass

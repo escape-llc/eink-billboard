@@ -8,6 +8,7 @@ from ..datasources.data_source import DataSource, DataSourceExecutionContext
 from ..model.service_container import IServiceProvider, ServiceContainer, ServiceContainer
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, StaticConfigurationManager
 from ..model.schedule import ScheduleItemBase
+from ..model.theme import DEFAULT_INPUTS, ThemeInputs, css_vars
 from ..task.messages import BasicMessage
 from ..utils.image_utils import render_html_arglist
 from ..utils.file_utils import path_to_file_url
@@ -55,7 +56,7 @@ class PluginExecutionContext:
 		return dsec
 
 class RenderSession:
-	def __init__(self, stm: StaticConfigurationManager, render_dir:str, html_file:str, css_file:str|None = None):
+	def __init__(self, stm: StaticConfigurationManager, render_dir:str, html_file:str, css_file:str|None = None, theme: ThemeInputs|None = None):
 		if stm is None:
 			raise ValueError("stm is None")
 		if render_dir is None:
@@ -71,6 +72,8 @@ class RenderSession:
 		]
 		if css_file:
 			self.css_files.append(css_file)
+		# the device theme (python/model/theme.py: current_inputs); without one, the factory theme
+		self.theme = theme if theme is not None else DEFAULT_INPUTS
 		self.env = self._create_render_environment(stm, render_dir)
 		self.font_faces = stm.enum_fonts()
 	def _create_render_environment(self, stm: StaticConfigurationManager, render_dir:str):
@@ -79,8 +82,10 @@ class RenderSession:
 			loader=loader,
 			autoescape=select_autoescape(['html', 'xml'])
 		)
-	def render(self, dimensions, template_params={}):
+	def render(self, dimensions, template_params: dict|None = None):
+		template_params = dict(template_params or {})
 		template_params["style_sheets"] = self.css_files
+		template_params["theme_vars"] = css_vars(self.theme)
 		template_params["width"] = dimensions[0]
 		template_params["height"] = dimensions[1]
 		template_params["font_faces"] = self.font_faces
