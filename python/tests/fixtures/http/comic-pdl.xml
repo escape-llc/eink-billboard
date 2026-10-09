@@ -1,8 +1,201 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel>
-<title>Poorly Drawn Lines</title><link>https://poorlydrawnlines.com/</link><description>Poorly Drawn Lines</description>
-<item><title>Fixture Lines 4</title><link>https://poorlydrawnlines.com/comic/fixture-4/</link><guid>https://poorlydrawnlines.com/comic/fixture-4/</guid><pubDate>Mon, 05 Oct 2026 12:00:00 +0000</pubDate><description><![CDATA[Fixture 4]]></description><content:encoded><![CDATA[<p><img src="https://poorlydrawnlines.com/wp-content/uploads/2026/10/fixture_4.png" alt="" /></p>]]></content:encoded></item>
-<item><title>Fixture Lines 3</title><link>https://poorlydrawnlines.com/comic/fixture-3/</link><guid>https://poorlydrawnlines.com/comic/fixture-3/</guid><pubDate>Mon, 05 Oct 2026 12:00:00 +0000</pubDate><description><![CDATA[Fixture 3]]></description><content:encoded><![CDATA[<p><img src="https://poorlydrawnlines.com/wp-content/uploads/2026/10/fixture_3.png" alt="" /></p>]]></content:encoded></item>
-<item><title>Fixture Lines 2</title><link>https://poorlydrawnlines.com/comic/fixture-2/</link><guid>https://poorlydrawnlines.com/comic/fixture-2/</guid><pubDate>Mon, 05 Oct 2026 12:00:00 +0000</pubDate><description><![CDATA[Fixture 2]]></description><content:encoded><![CDATA[<p><img src="https://poorlydrawnlines.com/wp-content/uploads/2026/10/fixture_2.png" alt="" /></p>]]></content:encoded></item>
-<item><title>Fixture Lines 1</title><link>https://poorlydrawnlines.com/comic/fixture-1/</link><guid>https://poorlydrawnlines.com/comic/fixture-1/</guid><pubDate>Mon, 05 Oct 2026 12:00:00 +0000</pubDate><description><![CDATA[Fixture 1]]></description><content:encoded><![CDATA[<p><img src="https://poorlydrawnlines.com/wp-content/uploads/2026/10/fixture_1.png" alt="" /></p>]]></content:encoded></item>
-</channel></rss>
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>Poorly Drawn Lines</title>
+	<atom:link href="https://poorlydrawnlines.com/feed/" rel="self" type="application/rss+xml" />
+	<link>https://poorlydrawnlines.com</link>
+	<description>Comics by Reza Farazmand</description>
+	<lastBuildDate>Thu, 08 Oct 2026 15:50:17 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>
+	hourly	</sy:updatePeriod>
+	<sy:updateFrequency>
+	1	</sy:updateFrequency>
+	
+
+<image>
+	<url>https://poorlydrawnlines.com/wp-content/uploads/2024/04/cropped-mouse-favicon-transparent-32x32.png</url>
+	<title>Poorly Drawn Lines</title>
+	<link>https://poorlydrawnlines.com</link>
+	<width>32</width>
+	<height>32</height>
+</image> 
+	<item>
+		<title>See You</title>
+		<link>https://poorlydrawnlines.com/comic/see-you/</link>
+		
+		<dc:creator><![CDATA[Reza]]></dc:creator>
+		<pubDate>Thu, 08 Oct 2026 15:50:16 +0000</pubDate>
+				<category><![CDATA[Comic]]></category>
+		<guid isPermaLink="false">https://poorlydrawnlines.com/?p=258472</guid>
+
+					<description><![CDATA[]]></description>
+										<content:encoded><![CDATA[
+<figure class="wp-block-image aligncenter size-full"><a href="https://poorlydrawnlines.com/wp-content/uploads/2026/10/see-you.png"><img fetchpriority="high" decoding="async" width="1080" height="939" src="https://poorlydrawnlines.com/wp-content/uploads/2026/10/see-you.png" alt="" class="wp-image-258473"/></a></figure>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>Things That Can Fly</title>
+		<link>https://poorlydrawnlines.com/comic/things-that-can-fly/</link>
+		
+		<dc:creator><![CDATA[Reza]]></dc:creator>
+		<pubDate>Wed, 30 Sep 2026 16:56:23 +0000</pubDate>
+				<category><![CDATA[Comic]]></category>
+		<guid isPermaLink="false">https://poorlydrawnlines.com/?p=258468</guid>
+
+					<description><![CDATA[]]></description>
+										<content:encoded><![CDATA[
+<figure class="wp-block-image aligncenter size-full"><a href="https://poorlydrawnlines.com/wp-content/uploads/2026/09/things-that-can-fly.png"><img decoding="async" width="1080" height="1808" src="https://poorlydrawnlines.com/wp-content/uploads/2026/09/things-that-can-fly.png" alt="" class="wp-image-258469"/></a></figure>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>Coming to Life</title>
+		<link>https://poorlydrawnlines.com/comic/coming-to-life/</link>
+		
+		<dc:creator><![CDATA[Reza]]></dc:creator>
+		<pubDate>Fri, 25 Sep 2026 16:32:45 +0000</pubDate>
+				<category><![CDATA[Comic]]></category>
+		<guid isPermaLink="false">https://poorlydrawnlines.com/?p=258465</guid>
+
+					<description><![CDATA[]]></description>
+										<content:encoded><![CDATA[
+<figure class="wp-block-image aligncenter size-full"><a href="https://poorlydrawnlines.com/wp-content/uploads/2026/09/coming-to-life.png"><img decoding="async" width="1080" height="1381" src="https://poorlydrawnlines.com/wp-content/uploads/2026/09/coming-to-life.png" alt="" class="wp-image-258466"/></a></figure>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>Must Be New</title>
+		<link>https://poorlydrawnlines.com/comic/must-be-new/</link>
+		
+		<dc:creator><![CDATA[Reza]]></dc:creator>
+		<pubDate>Thu, 24 Sep 2026 15:30:18 +0000</pubDate>
+				<category><![CDATA[Comic]]></category>
+		<guid isPermaLink="false">https://poorlydrawnlines.com/?p=258461</guid>
+
+					<description><![CDATA[]]></description>
+										<content:encoded><![CDATA[
+<figure class="wp-block-image aligncenter size-full"><a href="https://poorlydrawnlines.com/wp-content/uploads/2026/09/the-rule.png"><img decoding="async" width="1080" height="1381" src="https://poorlydrawnlines.com/wp-content/uploads/2026/09/the-rule.png" alt="" class="wp-image-258462"/></a></figure>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>Travel Mug</title>
+		<link>https://poorlydrawnlines.com/comic/travel-mug/</link>
+		
+		<dc:creator><![CDATA[Reza]]></dc:creator>
+		<pubDate>Fri, 18 Sep 2026 16:03:39 +0000</pubDate>
+				<category><![CDATA[Comic]]></category>
+		<guid isPermaLink="false">https://poorlydrawnlines.com/?p=258458</guid>
+
+					<description><![CDATA[]]></description>
+										<content:encoded><![CDATA[
+<figure class="wp-block-image aligncenter size-full"><a href="https://poorlydrawnlines.com/wp-content/uploads/2026/09/travel-mug.png"><img decoding="async" width="1080" height="939" src="https://poorlydrawnlines.com/wp-content/uploads/2026/09/travel-mug.png" alt="" class="wp-image-258459"/></a></figure>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>A Lamp</title>
+		<link>https://poorlydrawnlines.com/comic/a-lamp/</link>
+		
+		<dc:creator><![CDATA[Reza]]></dc:creator>
+		<pubDate>Tue, 15 Sep 2026 16:38:24 +0000</pubDate>
+				<category><![CDATA[Comic]]></category>
+		<guid isPermaLink="false">https://poorlydrawnlines.com/?p=258454</guid>
+
+					<description><![CDATA[]]></description>
+										<content:encoded><![CDATA[
+<figure class="wp-block-image aligncenter size-full"><img decoding="async" width="1080" height="1381" src="https://poorlydrawnlines.com/wp-content/uploads/2026/09/a-lamp.png" alt="" class="wp-image-258455"/></figure>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>New Guy</title>
+		<link>https://poorlydrawnlines.com/comic/new-guy/</link>
+		
+		<dc:creator><![CDATA[Reza]]></dc:creator>
+		<pubDate>Thu, 10 Sep 2026 15:35:28 +0000</pubDate>
+				<category><![CDATA[Comic]]></category>
+		<guid isPermaLink="false">https://poorlydrawnlines.com/?p=258451</guid>
+
+					<description><![CDATA[]]></description>
+										<content:encoded><![CDATA[
+<figure class="wp-block-image aligncenter size-full"><a href="https://poorlydrawnlines.com/wp-content/uploads/2026/09/new-guy.png"><img decoding="async" width="1080" height="2253" src="https://poorlydrawnlines.com/wp-content/uploads/2026/09/new-guy.png" alt="" class="wp-image-258452"/></a></figure>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>The Ghost of This Lamp</title>
+		<link>https://poorlydrawnlines.com/comic/the-ghost-of-this-lamp/</link>
+		
+		<dc:creator><![CDATA[Reza]]></dc:creator>
+		<pubDate>Thu, 03 Sep 2026 16:44:01 +0000</pubDate>
+				<category><![CDATA[Comic]]></category>
+		<guid isPermaLink="false">https://poorlydrawnlines.com/?p=258184</guid>
+
+					<description><![CDATA[]]></description>
+										<content:encoded><![CDATA[
+<figure class="wp-block-image aligncenter size-full"><a href="https://poorlydrawnlines.com/wp-content/uploads/2026/09/ghost-of-this-lamp-2.png"><img decoding="async" width="1080" height="1381" src="https://poorlydrawnlines.com/wp-content/uploads/2026/09/ghost-of-this-lamp-2.png" alt="" class="wp-image-258188"/></a></figure>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>Just One Problem</title>
+		<link>https://poorlydrawnlines.com/comic/just-one-problem/</link>
+		
+		<dc:creator><![CDATA[Reza]]></dc:creator>
+		<pubDate>Wed, 26 Aug 2026 17:09:15 +0000</pubDate>
+				<category><![CDATA[Comic]]></category>
+		<guid isPermaLink="false">https://poorlydrawnlines.com/?p=258169</guid>
+
+					<description><![CDATA[]]></description>
+										<content:encoded><![CDATA[
+<figure class="wp-block-image aligncenter size-full"><a href="https://poorlydrawnlines.com/wp-content/uploads/2026/08/bird-society-1-1.png"><img decoding="async" width="1080" height="2260" src="https://poorlydrawnlines.com/wp-content/uploads/2026/08/bird-society-1-1.png" alt="" class="wp-image-258177"/></a></figure>
+]]></content:encoded>
+					
+		
+		
+			</item>
+		<item>
+		<title>The Forest</title>
+		<link>https://poorlydrawnlines.com/comic/the-forest/</link>
+		
+		<dc:creator><![CDATA[Reza]]></dc:creator>
+		<pubDate>Thu, 20 Aug 2026 18:21:51 +0000</pubDate>
+				<category><![CDATA[Comic]]></category>
+		<guid isPermaLink="false">https://poorlydrawnlines.com/?p=258165</guid>
+
+					<description><![CDATA[]]></description>
+										<content:encoded><![CDATA[
+<figure class="wp-block-image aligncenter size-full"><img decoding="async" width="1080" height="1381" src="https://poorlydrawnlines.com/wp-content/uploads/2026/08/the-forest.png" alt="" class="wp-image-258166"/></figure>
+]]></content:encoded>
+					
+		
+		
+			</item>
+	</channel>
+</rss>

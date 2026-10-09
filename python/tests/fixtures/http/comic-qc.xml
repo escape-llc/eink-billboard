@@ -1,8 +1,709 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel>
-<title>Questionable Content</title><link>https://www.questionablecontent.net/</link><description>Questionable Content</description>
-<item><title>Fixture Content 4</title><link>https://www.questionablecontent.net/view.php?comic=9004</link><guid>https://www.questionablecontent.net/view.php?comic=9004</guid><pubDate>Mon, 05 Oct 2026 12:00:00 +0000</pubDate><description><![CDATA[<img src="https://www.questionablecontent.net/comics/9004.png">]]></description></item>
-<item><title>Fixture Content 3</title><link>https://www.questionablecontent.net/view.php?comic=9003</link><guid>https://www.questionablecontent.net/view.php?comic=9003</guid><pubDate>Mon, 05 Oct 2026 12:00:00 +0000</pubDate><description><![CDATA[<img src="https://www.questionablecontent.net/comics/9003.png">]]></description></item>
-<item><title>Fixture Content 2</title><link>https://www.questionablecontent.net/view.php?comic=9002</link><guid>https://www.questionablecontent.net/view.php?comic=9002</guid><pubDate>Mon, 05 Oct 2026 12:00:00 +0000</pubDate><description><![CDATA[<img src="https://www.questionablecontent.net/comics/9002.png">]]></description></item>
-<item><title>Fixture Content 1</title><link>https://www.questionablecontent.net/view.php?comic=9001</link><guid>https://www.questionablecontent.net/view.php?comic=9001</guid><pubDate>Mon, 05 Oct 2026 12:00:00 +0000</pubDate><description><![CDATA[<img src="https://www.questionablecontent.net/comics/9001.png">]]></description></item>
-</channel></rss>
+<rss xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:sy="http://purl.org/rss/1.0/modules/syndication/" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+  <channel>
+    <title>QC RSS v2</title>
+    <link>http://www.questionablecontent.net</link>
+    <description>The Official QC RSS Feed</description>
+    <atom:link href="" rel="self" type="application/rss+xml"/>
+    <item>
+      <title>The Take Factory</title>
+      <link>https://questionablecontent.net/view.php?comic=5935</link>
+      <pubDate>Thu, 08 Oct 2026 21:57:50 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5935</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5935.png"&gt;&lt;/p&gt; &lt;p&gt;D'Angelo is cool actually&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Main Character Again</title>
+      <link>https://questionablecontent.net/view.php?comic=5934</link>
+      <pubDate>Wed, 07 Oct 2026 21:59:20 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5934</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5934.png"&gt;&lt;/p&gt; &lt;p&gt;hoo boy&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Twisting Her Words</title>
+      <link>https://questionablecontent.net/view.php?comic=5933</link>
+      <pubDate>Tue, 06 Oct 2026 22:02:44 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5933</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5933.png"&gt;&lt;/p&gt; &lt;p&gt;I'm starting to think Anh might be prone to making bad decisions&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>NYT Bestseller</title>
+      <link>https://questionablecontent.net/view.php?comic=5932</link>
+      <pubDate>Mon, 05 Oct 2026 22:02:45 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5932</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5932.png"&gt;&lt;/p&gt; &lt;p&gt;do not punch hannelore&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Priorities In Order</title>
+      <link>https://questionablecontent.net/view.php?comic=5931</link>
+      <pubDate>Sun, 04 Oct 2026 21:55:45 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5931</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5931.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Slow News Day</title>
+      <link>https://questionablecontent.net/view.php?comic=5930</link>
+      <pubDate>Thu, 01 Oct 2026 22:04:12 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5930</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5930.png"&gt;&lt;/p&gt; &lt;p&gt;people actually BUY them??&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>The Fruits Of Success</title>
+      <link>https://questionablecontent.net/view.php?comic=5929</link>
+      <pubDate>Wed, 30 Sep 2026 22:05:19 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5929</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5929.png"&gt;&lt;/p&gt; &lt;p&gt;no lesson was learned&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>A Wrench In The System</title>
+      <link>https://questionablecontent.net/view.php?comic=5928</link>
+      <pubDate>Tue, 29 Sep 2026 21:47:13 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5928</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5928.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Feeling Crabby</title>
+      <link>https://questionablecontent.net/view.php?comic=5927</link>
+      <pubDate>Mon, 28 Sep 2026 22:00:37 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5927</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5927.png"&gt;&lt;/p&gt; &lt;p&gt;crabitha mentioned&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Crisis Resolution</title>
+      <link>https://questionablecontent.net/view.php?comic=5926</link>
+      <pubDate>Sun, 27 Sep 2026 22:23:49 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5926</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5926.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Color Picker</title>
+      <link>https://questionablecontent.net/view.php?comic=5925</link>
+      <pubDate>Fri, 25 Sep 2026 01:02:00 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5925</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5925.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>No Middle Sliders</title>
+      <link>https://questionablecontent.net/view.php?comic=5924</link>
+      <pubDate>Wed, 23 Sep 2026 21:48:44 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5924</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5924.png"&gt;&lt;/p&gt; &lt;p&gt;tomato moray...&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Where The Wind Blows</title>
+      <link>https://questionablecontent.net/view.php?comic=5923</link>
+      <pubDate>Tue, 22 Sep 2026 22:07:09 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5923</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5923.png"&gt;&lt;/p&gt; &lt;p&gt;twue fwenship&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Checkpoint</title>
+      <link>https://questionablecontent.net/view.php?comic=5922</link>
+      <pubDate>Mon, 21 Sep 2026 22:02:06 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5922</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5922.png"&gt;&lt;/p&gt; &lt;p&gt;they'll put some drywall up eventually&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Live Long And Prosper</title>
+      <link>https://questionablecontent.net/view.php?comic=5921</link>
+      <pubDate>Sun, 20 Sep 2026 22:02:03 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5921</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5921.png"&gt;&lt;/p&gt; &lt;p&gt;I'm more of a Murderbot guy myself&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Once More With Feeling</title>
+      <link>https://questionablecontent.net/view.php?comic=5920</link>
+      <pubDate>Thu, 17 Sep 2026 21:59:45 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5920</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5920.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Don't Do Imprisonment</title>
+      <link>https://questionablecontent.net/view.php?comic=5919</link>
+      <pubDate>Wed, 16 Sep 2026 21:58:39 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5919</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5919.png"&gt;&lt;/p&gt; &lt;p&gt;it's bad in most cases&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Occam's Safety Razor</title>
+      <link>https://questionablecontent.net/view.php?comic=5918</link>
+      <pubDate>Tue, 15 Sep 2026 21:45:38 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5918</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5918.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>No One Told You Life Was Gonna Be This Way</title>
+      <link>https://questionablecontent.net/view.php?comic=5917</link>
+      <pubDate>Mon, 14 Sep 2026 21:10:41 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5917</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5917.png"&gt;&lt;/p&gt; &lt;p&gt;clapclapclapclap&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Tool Time</title>
+      <link>https://questionablecontent.net/view.php?comic=5916</link>
+      <pubDate>Sun, 13 Sep 2026 22:46:37 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5916</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5916.png"&gt;&lt;/p&gt; &lt;p&gt;ough ough ough&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Negative Reinforcement</title>
+      <link>https://questionablecontent.net/view.php?comic=5915</link>
+      <pubDate>Thu, 10 Sep 2026 21:52:38 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5915</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5915.png"&gt;&lt;/p&gt; &lt;p&gt;it's a pun, you see&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Cubic Theory</title>
+      <link>https://questionablecontent.net/view.php?comic=5914</link>
+      <pubDate>Wed, 09 Sep 2026 22:08:13 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5914</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5914.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>No Place Like Woom</title>
+      <link>https://questionablecontent.net/view.php?comic=5913</link>
+      <pubDate>Tue, 08 Sep 2026 22:03:11 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5913</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5913.png"&gt;&lt;/p&gt; &lt;p&gt;woomy&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>It's A Weird Commute</title>
+      <link>https://questionablecontent.net/view.php?comic=5912</link>
+      <pubDate>Mon, 07 Sep 2026 21:51:44 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5912</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5912.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Plan Of Action</title>
+      <link>https://questionablecontent.net/view.php?comic=5911</link>
+      <pubDate>Sun, 06 Sep 2026 22:01:53 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5911</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5911.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Permanent Stain</title>
+      <link>https://questionablecontent.net/view.php?comic=5910</link>
+      <pubDate>Thu, 03 Sep 2026 22:22:37 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5910</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5910.png"&gt;&lt;/p&gt; &lt;p&gt;gwoop&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Grape Flavor</title>
+      <link>https://questionablecontent.net/view.php?comic=5909</link>
+      <pubDate>Wed, 02 Sep 2026 22:01:51 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5909</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5909.png"&gt;&lt;/p&gt; &lt;p&gt;or flavour if you're not American&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Who's That Pokemon?</title>
+      <link>https://questionablecontent.net/view.php?comic=5908</link>
+      <pubDate>Tue, 01 Sep 2026 22:06:32 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5908</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5908.png"&gt;&lt;/p&gt; &lt;p&gt;Moray has been replaced by a Ditto&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Woomy</title>
+      <link>https://questionablecontent.net/view.php?comic=5907</link>
+      <pubDate>Mon, 31 Aug 2026 22:55:58 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5907</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5907.png"&gt;&lt;/p&gt; &lt;p&gt;woom&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>May Is Helping</title>
+      <link>https://questionablecontent.net/view.php?comic=5906</link>
+      <pubDate>Sun, 30 Aug 2026 21:55:22 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5906</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5906.png"&gt;&lt;/p&gt; &lt;p&gt;h m p h&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Just Like In Her Animes</title>
+      <link>https://questionablecontent.net/view.php?comic=5905</link>
+      <pubDate>Thu, 27 Aug 2026 21:41:40 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5905</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5905.png"&gt;&lt;/p&gt; &lt;p&gt;Chobits had some problematic elements imho&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Head Over Ass</title>
+      <link>https://questionablecontent.net/view.php?comic=5904</link>
+      <pubDate>Wed, 26 Aug 2026 22:05:22 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5904</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5904.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Momo Keeps The Score</title>
+      <link>https://questionablecontent.net/view.php?comic=5903</link>
+      <pubDate>Tue, 25 Aug 2026 22:24:06 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5903</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5903.png"&gt;&lt;/p&gt; &lt;p&gt;it has been [0] days since May and Marigold got in a fight about something stupid&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>The Bravest Of The Brave</title>
+      <link>https://questionablecontent.net/view.php?comic=5902</link>
+      <pubDate>Mon, 24 Aug 2026 21:47:28 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5902</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5902.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Banned From The Produce Aisle</title>
+      <link>https://questionablecontent.net/view.php?comic=5901</link>
+      <pubDate>Sun, 23 Aug 2026 21:43:46 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5901</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5901.png"&gt;&lt;/p&gt; &lt;p&gt;and the baked goods department, but for different reasons&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Moon River</title>
+      <link>https://questionablecontent.net/view.php?comic=5900</link>
+      <pubDate>Thu, 20 Aug 2026 21:46:30 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5900</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5900.png"&gt;&lt;/p&gt; &lt;p&gt;May is quick on the uptake&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Fur Affinity</title>
+      <link>https://questionablecontent.net/view.php?comic=5899</link>
+      <pubDate>Wed, 19 Aug 2026 21:57:38 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5899</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5899.png"&gt;&lt;/p&gt; &lt;p&gt;if moray got bit by a tick she'd get slyme disease&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Voicing Fears</title>
+      <link>https://questionablecontent.net/view.php?comic=5898</link>
+      <pubDate>Tue, 18 Aug 2026 22:05:17 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5898</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5898.png"&gt;&lt;/p&gt; &lt;p&gt;it's actually shaving cream&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Dragging It Out</title>
+      <link>https://questionablecontent.net/view.php?comic=5897</link>
+      <pubDate>Mon, 17 Aug 2026 21:53:00 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5897</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5897.png"&gt;&lt;/p&gt; &lt;p&gt;use your words, Liz&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>That's How You Get Raccoons</title>
+      <link>https://questionablecontent.net/view.php?comic=5896</link>
+      <pubDate>Sun, 16 Aug 2026 22:26:30 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5896</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5896.png"&gt;&lt;/p&gt; &lt;p&gt;or xenomorphs&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Surprise Unmasking</title>
+      <link>https://questionablecontent.net/view.php?comic=5895</link>
+      <pubDate>Thu, 13 Aug 2026 22:07:56 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5895</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5895.png"&gt;&lt;/p&gt; &lt;p&gt;It was Zlata all along!!!&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>First Impression, Second Try</title>
+      <link>https://questionablecontent.net/view.php?comic=5894</link>
+      <pubDate>Wed, 12 Aug 2026 21:55:18 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5894</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5894.png"&gt;&lt;/p&gt; &lt;p&gt;ANOTHER NEW ONE&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Invitation Refused</title>
+      <link>https://questionablecontent.net/view.php?comic=5893</link>
+      <pubDate>Tue, 11 Aug 2026 21:49:04 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5893</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5893.png"&gt;&lt;/p&gt; &lt;p&gt;Caves of Qud reference&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>A Good Day, In The End</title>
+      <link>https://questionablecontent.net/view.php?comic=5892</link>
+      <pubDate>Mon, 10 Aug 2026 21:29:42 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5892</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5892.png"&gt;&lt;/p&gt; &lt;p&gt;shoujo&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Dawning Horror</title>
+      <link>https://questionablecontent.net/view.php?comic=5891</link>
+      <pubDate>Sun, 09 Aug 2026 22:07:42 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5891</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5891.png"&gt;&lt;/p&gt; &lt;p&gt;Oh No&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Don't Go Breakin' Her Heart</title>
+      <link>https://questionablecontent.net/view.php?comic=5890</link>
+      <pubDate>Fri, 07 Aug 2026 01:07:05 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5890</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5890.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Best Wishes, Anh</title>
+      <link>https://questionablecontent.net/view.php?comic=5889</link>
+      <pubDate>Thu, 06 Aug 2026 01:08:47 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5889</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5889.png"&gt;&lt;/p&gt; &lt;p&gt;she gets it now&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Anh Doesn't Get It</title>
+      <link>https://questionablecontent.net/view.php?comic=5888</link>
+      <pubDate>Wed, 05 Aug 2026 00:45:30 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5888</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5888.png"&gt;&lt;/p&gt; &lt;p&gt;she doesn't get it&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Bubbles Catches On</title>
+      <link>https://questionablecontent.net/view.php?comic=5887</link>
+      <pubDate>Tue, 04 Aug 2026 01:00:56 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5887</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5887.png"&gt;&lt;/p&gt; &lt;p&gt;Bubbles gets it&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Funny Ha Ha</title>
+      <link>https://questionablecontent.net/view.php?comic=5886</link>
+      <pubDate>Mon, 03 Aug 2026 05:29:02 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5886</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5886.png"&gt;&lt;/p&gt; &lt;p&gt;hehehuehhueh&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Soggy</title>
+      <link>https://questionablecontent.net/view.php?comic=5885</link>
+      <pubDate>Thu, 30 Jul 2026 21:42:00 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5885</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5885.png"&gt;&lt;/p&gt; &lt;p&gt;damp...&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>All Ankles</title>
+      <link>https://questionablecontent.net/view.php?comic=5884</link>
+      <pubDate>Wed, 29 Jul 2026 22:13:18 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5884</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5884.png"&gt;&lt;/p&gt; &lt;p&gt;lying...&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>All Elbows</title>
+      <link>https://questionablecontent.net/view.php?comic=5883</link>
+      <pubDate>Tue, 28 Jul 2026 21:26:48 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5883</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5883.png"&gt;&lt;/p&gt; &lt;p&gt;yesssss&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Let It Ride</title>
+      <link>https://questionablecontent.net/view.php?comic=5882</link>
+      <pubDate>Mon, 27 Jul 2026 21:57:32 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5882</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5882.png"&gt;&lt;/p&gt; &lt;p&gt;let's see what happens&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Overwhelmingly Negative</title>
+      <link>https://questionablecontent.net/view.php?comic=5881</link>
+      <pubDate>Sun, 26 Jul 2026 21:41:49 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5881</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5881.png"&gt;&lt;/p&gt; &lt;p&gt;banned in 40 countries and 11 orbital habitats&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Humming</title>
+      <link>https://questionablecontent.net/view.php?comic=5880</link>
+      <pubDate>Thu, 23 Jul 2026 23:06:42 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5880</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5880.png"&gt;&lt;/p&gt; &lt;p&gt;it's everyone's favorite character, Floating Black Slab Emitting A Low Hum&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>It's A Virtue</title>
+      <link>https://questionablecontent.net/view.php?comic=5879</link>
+      <pubDate>Wed, 22 Jul 2026 22:04:20 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5879</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5879.png"&gt;&lt;/p&gt; &lt;p&gt;she can wait&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Some Regrets</title>
+      <link>https://questionablecontent.net/view.php?comic=5878</link>
+      <pubDate>Tue, 21 Jul 2026 21:59:34 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5878</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5878.png"&gt;&lt;/p&gt; &lt;p&gt;at least they didn't die&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>A Friend In Need's A Friend Indeed</title>
+      <link>https://questionablecontent.net/view.php?comic=5877</link>
+      <pubDate>Mon, 20 Jul 2026 22:10:10 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5877</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5877.png"&gt;&lt;/p&gt; &lt;p&gt;it is a muse joke&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>The Wiggles</title>
+      <link>https://questionablecontent.net/view.php?comic=5876</link>
+      <pubDate>Sun, 19 Jul 2026 21:51:04 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5876</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5876.png"&gt;&lt;/p&gt; &lt;p&gt;the waggles&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Music To Their Ears</title>
+      <link>https://questionablecontent.net/view.php?comic=5875</link>
+      <pubDate>Fri, 17 Jul 2026 00:09:34 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5875</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5875.png"&gt;&lt;/p&gt; &lt;p&gt;the magic words&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>There Will Be Pets</title>
+      <link>https://questionablecontent.net/view.php?comic=5874</link>
+      <pubDate>Wed, 15 Jul 2026 22:05:13 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5874</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5874.png"&gt;&lt;/p&gt; &lt;p&gt;Yay is exercising a remarkable amount of self-control here&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Do Not Perceive Him</title>
+      <link>https://questionablecontent.net/view.php?comic=5873</link>
+      <pubDate>Tue, 14 Jul 2026 22:07:20 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5873</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5873.png"&gt;&lt;/p&gt; &lt;p&gt;"perceive" is one of those words I always misspell even though it follows the "i before e, except after c" rule&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Psybrarian</title>
+      <link>https://questionablecontent.net/view.php?comic=5872</link>
+      <pubDate>Mon, 13 Jul 2026 22:02:47 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5872</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5872.png"&gt;&lt;/p&gt; &lt;p&gt;she just Knows&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>To Have And To Hold</title>
+      <link>https://questionablecontent.net/view.php?comic=5871</link>
+      <pubDate>Sun, 12 Jul 2026 22:01:23 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5871</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5871.png"&gt;&lt;/p&gt; &lt;p&gt;LET HER&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>A Modest Proposal</title>
+      <link>https://questionablecontent.net/view.php?comic=5870</link>
+      <pubDate>Thu, 09 Jul 2026 21:52:49 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5870</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5870.png"&gt;&lt;/p&gt; &lt;p&gt;Modesty is one of Moray's strong suits&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Body Plan</title>
+      <link>https://questionablecontent.net/view.php?comic=5869</link>
+      <pubDate>Wed, 08 Jul 2026 22:17:16 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5869</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5869.png"&gt;&lt;/p&gt; &lt;p&gt;Claire is supportive&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Faulty Memory</title>
+      <link>https://questionablecontent.net/view.php?comic=5868</link>
+      <pubDate>Tue, 07 Jul 2026 22:06:09 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5868</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5868.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Files Not Found</title>
+      <link>https://questionablecontent.net/view.php?comic=5867</link>
+      <pubDate>Mon, 06 Jul 2026 22:00:19 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5867</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5867.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Process Optimization</title>
+      <link>https://questionablecontent.net/view.php?comic=5866</link>
+      <pubDate>Sun, 05 Jul 2026 21:48:01 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5866</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5866.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Close Relations</title>
+      <link>https://questionablecontent.net/view.php?comic=5865</link>
+      <pubDate>Thu, 02 Jul 2026 22:27:09 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5865</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5865.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Moray Solves A Mystery</title>
+      <link>https://questionablecontent.net/view.php?comic=5864</link>
+      <pubDate>Wed, 01 Jul 2026 21:36:13 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5864</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5864.png"&gt;&lt;/p&gt; &lt;p&gt;Big news! We have a brand new &lt;a href="https://www.questionablecontent.net/archive.php"&gt;archive page!&lt;/a&gt; Now you can SCROLL ENDLESSLY through the archive, or type in a comic number and read from there! I think it's very cool, and much better than the old "giant list of 6000 comics" version. &lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Makes Sense To Me</title>
+      <link>https://questionablecontent.net/view.php?comic=5863</link>
+      <pubDate>Tue, 30 Jun 2026 21:33:15 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5863</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5863.png"&gt;&lt;/p&gt; &lt;p&gt;no foolishness detected&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Absolute Foolishness</title>
+      <link>https://questionablecontent.net/view.php?comic=5862</link>
+      <pubDate>Mon, 29 Jun 2026 21:26:35 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5862</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5862.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>What She's Up To</title>
+      <link>https://questionablecontent.net/view.php?comic=5861</link>
+      <pubDate>Sun, 28 Jun 2026 22:15:54 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5861</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5861.png"&gt;&lt;/p&gt; &lt;p&gt;oh god&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Trip Of A Lifetime</title>
+      <link>https://questionablecontent.net/view.php?comic=5860</link>
+      <pubDate>Thu, 25 Jun 2026 22:12:51 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5860</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5860.png"&gt;&lt;/p&gt; &lt;p&gt;there's a software emulation for everything&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Back In Town</title>
+      <link>https://questionablecontent.net/view.php?comic=5859</link>
+      <pubDate>Thu, 25 Jun 2026 05:58:36 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5859</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5859.png"&gt;&lt;/p&gt; &lt;p&gt;Hey we're back! Sorry for the long period of dead website. Turns out getting your shit hacked and deleted and then being jerked around by your hosting company for weeks is a HUGE pain in the ass. Hopefully that is all behind us now. Thanks for your patience.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Plotting</title>
+      <link>https://questionablecontent.net/view.php?comic=5858</link>
+      <pubDate>Wed, 24 Jun 2026 07:39:00 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5858</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5858.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>I'm The Problem, It's Me</title>
+      <link>https://questionablecontent.net/view.php?comic=5857</link>
+      <pubDate>Wed, 24 Jun 2026 07:38:34 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5857</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5857.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>It's Been</title>
+      <link>https://questionablecontent.net/view.php?comic=5856</link>
+      <pubDate>Wed, 24 Jun 2026 07:38:18 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5856</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5856.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>The Morning After</title>
+      <link>https://questionablecontent.net/view.php?comic=5855</link>
+      <pubDate>Wed, 24 Jun 2026 07:37:52 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5855</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5855.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Perchance To Dream</title>
+      <link>https://questionablecontent.net/view.php?comic=5854</link>
+      <pubDate>Wed, 24 Jun 2026 07:37:37 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5854</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5854.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>It's Never Aliens</title>
+      <link>https://questionablecontent.net/view.php?comic=5853</link>
+      <pubDate>Wed, 24 Jun 2026 07:37:20 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5853</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5853.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Emotional And Physical Support</title>
+      <link>https://questionablecontent.net/view.php?comic=5852</link>
+      <pubDate>Wed, 24 Jun 2026 07:36:48 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5852</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5852.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Physics Class Is In Session</title>
+      <link>https://questionablecontent.net/view.php?comic=5851</link>
+      <pubDate>Wed, 24 Jun 2026 07:36:28 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5851</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5851.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Do Not Honk</title>
+      <link>https://questionablecontent.net/view.php?comic=5850</link>
+      <pubDate>Wed, 24 Jun 2026 07:36:06 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5850</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5850.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Synopses</title>
+      <link>https://questionablecontent.net/view.php?comic=5849</link>
+      <pubDate>Wed, 24 Jun 2026 07:35:54 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5849</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5849.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>So Many Opinions</title>
+      <link>https://questionablecontent.net/view.php?comic=5848</link>
+      <pubDate>Wed, 24 Jun 2026 07:35:39 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5848</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5848.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Zlata Has Opinions</title>
+      <link>https://questionablecontent.net/view.php?comic=5847</link>
+      <pubDate>Wed, 24 Jun 2026 07:35:13 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5847</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5847.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Model Citizens</title>
+      <link>https://questionablecontent.net/view.php?comic=5846</link>
+      <pubDate>Wed, 24 Jun 2026 07:34:56 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5846</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5846.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Red Alert</title>
+      <link>https://questionablecontent.net/view.php?comic=5845</link>
+      <pubDate>Wed, 24 Jun 2026 07:34:41 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5845</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5845.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Zlata Has Fun</title>
+      <link>https://questionablecontent.net/view.php?comic=5844</link>
+      <pubDate>Wed, 24 Jun 2026 07:34:28 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5844</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5844.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Moray Is A Thermos</title>
+      <link>https://questionablecontent.net/view.php?comic=5843</link>
+      <pubDate>Wed, 24 Jun 2026 07:34:14 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5843</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5843.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Enter Zlata</title>
+      <link>https://questionablecontent.net/view.php?comic=5842</link>
+      <pubDate>Wed, 24 Jun 2026 07:34:01 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5842</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5842.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Hi Upsettia</title>
+      <link>https://questionablecontent.net/view.php?comic=5841</link>
+      <pubDate>Wed, 24 Jun 2026 07:33:31 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5841</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5841.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Trouble Comes Knocking</title>
+      <link>https://questionablecontent.net/view.php?comic=5840</link>
+      <pubDate>Wed, 24 Jun 2026 07:33:17 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5840</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5840.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>More Dutch Trivia</title>
+      <link>https://questionablecontent.net/view.php?comic=5839</link>
+      <pubDate>Wed, 24 Jun 2026 07:33:00 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5839</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5839.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Haligonian Delicacies</title>
+      <link>https://questionablecontent.net/view.php?comic=5838</link>
+      <pubDate>Wed, 24 Jun 2026 07:32:46 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5838</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5838.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>3D Printed Jumpsuit</title>
+      <link>https://questionablecontent.net/view.php?comic=5837</link>
+      <pubDate>Wed, 24 Jun 2026 07:32:31 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5837</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5837.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Hair Today, Gone Today As Well</title>
+      <link>https://questionablecontent.net/view.php?comic=5836</link>
+      <pubDate>Wed, 24 Jun 2026 07:32:14 -0300</pubDate>
+      <guid>https://questionablecontent.net/view.php?comic=5836</guid>
+      <description>&lt;p&gt;&lt;img src="https://www.questionablecontent.net/comics/5836.png"&gt;&lt;/p&gt; &lt;p&gt;&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>
