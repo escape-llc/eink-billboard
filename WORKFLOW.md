@@ -7,13 +7,6 @@ Standing default: every real change goes through this sequence, not a direct com
 
 - **GitHub access that can read and write issues and PRs.** Either the GitHub CLI (`gh auth status`; `gh auth login` if it fails) or, in an agent session, the GitHub tools it was given.
   Everything below says "open a PR", "check CI", and so on; use whichever you have. If a push or API call returns 403, stop and tell the maintainer (see `AGENTS.md`).
-- **Current limitation (until the maintainer sets up a GitHub token for cloud sessions):** `gh` is installed in the cloud sandbox but its `GH_TOKEN` is invalid, so every `gh` command fails
-  (`gh auth status` shows it). In that situation do not try to find another token; work around it:
-  - issues, labels, PRs, review replies, merging, and checking CI: use the GitHub tools the session provides (the `mcp__github__*` tools) instead of `gh`;
-  - session summaries: those tools have no Discussions support, so **draft the summary** (per `SESSION_SUMMARIES.md`) and give it to the maintainer to post;
-  - everything else in the sequence is unchanged.
-  The maintainer may later run these sessions from the Claude Code extension, which uses the maintainer's own signed-in `gh` and can run the `gh` commands directly.
-  Once a valid token is in the environment (`GH_TOKEN`, with write access to issues, pull requests, and Discussions), delete this note.
 - `git`, `uv` (Python 3.13), and for web changes `node`/`npm`. CI uses `python:3.13.7-slim`; match that locally.
 - Test environment prerequisites (the ignored `python/tests/.storage/`, `chromium-headless-shell`) are in `AGENTS.md`.
 
