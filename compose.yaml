@@ -1,7 +1,6 @@
 # Local container infrastructure (Podman or Docker).
 #   podman compose run --rm test        # ruff + mypy + unit tests on Linux, as CI does
 #   podman compose up --build app       # the server with the web app on http://localhost:8080
-# Podman 6 on Windows (WSL2): see AGENTS.md; use compose.wsl.yaml for the app and `up --exit-code-from test` for the tests.
 # `test` needs python/tests/.storage (never committed; see AGENTS.md "Test environment").
 services:
   test:
