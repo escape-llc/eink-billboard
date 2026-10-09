@@ -85,10 +85,13 @@ def capture_logs(name: str = "python"):
 		lg.setLevel(old_level)
 
 class ImportTests(unittest.TestCase):
-	def test_import_basic_task_prints_nothing(self):
-		result = subprocess.run([sys.executable, "-c", "import python.task.basic_task"], cwd=REPO_ROOT, capture_output=True, text=True, timeout=60)
-		self.assertEqual(result.returncode, 0, result.stderr)
-		self.assertEqual(result.stdout, "")
+	def test_import_task_modules_prints_nothing(self):
+		# importing must not run demos or print: the task modules, including the two worker pools
+		for module in ("basic_task", "async_worker_pool", "async_http_worker_pool"):
+			with self.subTest(module=module):
+				result = subprocess.run([sys.executable, "-c", f"import python.task.{module}"], cwd=REPO_ROOT, capture_output=True, text=True, timeout=60)
+				self.assertEqual(result.returncode, 0, result.stderr)
+				self.assertEqual(result.stdout, "")
 
 class BrokenLoggingCalls(unittest.TestCase):
 	def test_core_task_unhandled_logs_exception_text(self):
