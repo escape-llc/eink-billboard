@@ -80,7 +80,8 @@ After struggling with different ideas, we arrive at the following architecture, 
 	* Determined by the Data Source.
 * Overlay layer
 	* Timer Layer provides images for the overlay layer.
-	* Semi-transparent image "overlays" are composited onto the background.
+	* Semi-transparent image "overlays" are composited onto the background (`ImageOverlay`: an image at a position, optionally with a "wash" that lightens the background under it; `text_overlay()` makes a centered text box).
+	* The Compositor draws them; the Foreground and Priority layers hide them. No layer sends overlays yet.
 	* Similar behavior to device Lock Screen, e.g. Date/weather/reminders/etc.
 	* Persistent (date/weather) or time-sensitive (reminders).
 	* Determined by the Data Source.
