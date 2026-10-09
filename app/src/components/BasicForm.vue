@@ -77,6 +77,8 @@ const plugins = computed<any[]>(() => injplugins.value)
 const dataSources = computed<any[]>(() => injdataSources.value)
 watch(() => props.form, (nv) => {
 	if(nv) {
+		// a plugin just chosen brings fields the values do not have: they start at the descriptor's default, as they do for a new item
+		applyDefaults(formProperties(nv.schema), localValues.value).forEach(([name, value]) => { localValues.value[name] = value })
 		ensureInitializeForm(nv.schema, localValues.value)
 	}
 	else {
@@ -318,7 +320,7 @@ function flatNames(fields: FormField[]): string[] {
 /** The `default` of each field (null and absent defaults carry no information), for values the form does not have yet. */
 function applyDefaults(fields: FormField[], values: Record<string, any> = {}): [string, unknown][] {
 	return fields.flatMap(f => [
-		...(f.type !== "header" && "default" in f && (f as any).default !== undefined && (f as any).default !== null && !(f.name in values) ? [[f.name, (f as any).default] as [string, unknown]] : []),
+		...(f.type !== "header" && f.default !== undefined && f.default !== null && !(f.name in values) ? [[f.name, f.default] as [string, unknown]] : []),
 		...applyDefaults(f.children ?? [], values)
 	])
 }

@@ -5,7 +5,7 @@
 			<div style="font-size:150%">Scheduler</div>
 		</template>
 		<template #end>
-			<Button size="small" label="New task" icon="pi pi-plus" :disabled="pluginList.length === 0" @click="handleNew" />
+			<Button size="small" label="New task" icon="pi pi-plus" :disabled="timerPlugins.length === 0" @click="handleNew" />
 		</template>
 	</Toolbar>
 	<Message v-if="zoneNote" severity="info" :closable="false" size="small" class="my-1" data-testid="zone-note">{{ zoneNote }}</Message>
@@ -186,7 +186,11 @@ const titleErrorMessage = ref<string|undefined>(undefined)
 const isPluginValid = ref(false)
 const pluginErrorMessage = ref<string|undefined>(undefined)
 const selectedPlugin = computed(() => pluginList.value.find(p => p.id === editModel.value.plugin_name) || null)
-const pluginOptions = computed<DropdownOption[]>(() => pluginList.value.map(p => ({ id: p.id, name: p.name })))
+// a timer task acts on the priority or overlay layer: the plugins for the playlist (background, foreground) are not offered.
+// A stored task keeps its plugin (and shows it) even when it would not be offered now
+const TIMER_LAYERS = ["layer-priority", "layer-overlay"]
+const timerPlugins = computed(() => pluginList.value.filter(p => (p.features ?? []).some(f => TIMER_LAYERS.includes(f))))
+const pluginOptions = computed<DropdownOption[]>(() => pluginList.value.filter(p => timerPlugins.value.includes(p) || p.id === editModel.value.plugin_name).map(p => ({ id: p.id, name: p.name })))
 
 function derefSchedule(schedules:Record<string,any>, sid:string, id:string) {
 	if(sid in schedules) {
@@ -367,7 +371,7 @@ const DEFAULT_TRIGGER = {
 	time: { type: "specific", hour: 9, minute: 0 }
 }
 const handleNew = () => {
-	const first = pluginList.value[0]
+	const first = timerPlugins.value[0]
 	if(!first) return
 	resetMessages()
 	currentEvent.value = undefined

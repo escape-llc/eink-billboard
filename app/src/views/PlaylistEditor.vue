@@ -162,7 +162,11 @@ const editModel = reactive<Record<string,any>>({} as any) // start with empty mo
 
 const selectedTrack = computed(() => (selectedIndex.value !== null ? tracks.value[selectedIndex.value] : null))
 const selectedPlugin = computed(() => pluginList.value.find(p => p.id === editModel.plugin_name) || null)
-const pluginOptions = computed(() => pluginList.value.map(p => ({ id: p.id, name: p.name })))
+// a playlist track plays on the background or foreground layer: the plugins for the timer layers (priority, overlay) are not offered.
+// A stored track keeps its plugin (and shows it) even when it would not be offered now
+const PLAYLIST_LAYERS = ["layer-background", "layer-foreground"]
+const playlistPlugins = computed(() => pluginList.value.filter(p => (p.features ?? []).some(f => PLAYLIST_LAYERS.includes(f))))
+const pluginOptions = computed(() => pluginList.value.filter(p => playlistPlugins.value.includes(p) || p.id === editModel.plugin_name).map(p => ({ id: p.id, name: p.name })))
 
 // a track that is not saved yet has an id of ours; the server gives it its own
 const NEW_PREFIX = "new-"
@@ -201,7 +205,7 @@ function resetMessages() {
 
 // track operations: they change the working copy; Save sends the playlist
 function addTrack() {
-	const first = pluginList.value[0]
+	const first = playlistPlugins.value[0]
 	if(!first) return
 	tracks.value.push({ id: uid(), plugin_name: first.id, type: "PlaylistSchedule", title: "Untitled", content: {} })
 	dirty.value = true
