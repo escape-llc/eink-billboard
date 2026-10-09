@@ -6,6 +6,7 @@
 				"items": [
 					{"name": "Analogous", "value": "analogous" },
 					{"name": "Complementary", "value": "complementary" },
+					{"name": "Split Complementary", "value": "split-complementary" },
 					{"name": "Monochrome", "value": "monochrome" },
 					{"name": "Triadic", "value": "triadic" },
 					{"name": "Tetradic", "value": "tetradic" }

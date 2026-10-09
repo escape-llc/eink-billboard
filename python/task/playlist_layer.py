@@ -26,6 +26,7 @@ from ..web.documents import plugin_content_errors
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool
 from ..task.timer import IProvideTimer, TimerThreadService
 from ..task.protocols import IRequireShutdown
+from ..model.theme import ThemeInputs, current_inputs
 from ..utils.error_image import render_error_image, safe_reason
 
 @dataclass(frozen=True, slots=True)
@@ -155,10 +156,13 @@ class PlaylistLayer(DispatcherTask):
 		data = track.content.data if track.content is not None else {}
 		minutes = data.get("slideMinutes") if isinstance(data, dict) else None
 		return float(minutes) if isinstance(minutes, (int, float)) and minutes > 0 else float(self.ERROR_SLOT_MINUTES)
+	def _theme(self) -> ThemeInputs:
+		"""The device theme now, for the error page (the factory theme when there is no configuration)."""
+		return current_inputs(self.cm.settings_manager() if self.cm is not None else None)
 	async def _show_error(self, track: PlaylistSchedule, key: tuple[int, int], ts: datetime) -> None:
 		"""The slot of a track that failed shows an error page, for the time the track would have taken. The display skips it when the panel already shows it."""
 		stm = self.cm.static_manager() if self.cm is not None else None
-		image = await asyncio.to_thread(render_error_image, stm, self.dimensions, track.title, [self._reasons.get(key, "Failed")])
+		image = await asyncio.to_thread(render_error_image, stm, self.dimensions, track.title, [self._reasons.get(key, "Failed")], self._theme())
 		self.router.send("display", DisplayImage(ts, f"Error: {track.title}", image))
 		if self.timer is None:
 			await asyncio.sleep(self.BACKOFF_INITIAL_SECONDS)
@@ -169,7 +173,7 @@ class PlaylistLayer(DispatcherTask):
 		stm = self.cm.static_manager() if self.cm is not None else None
 		lines = [f"{cast(PlaylistSchedule, item).title}: {self._reasons.get((pi, ti), 'Failed')}"
 			for pi, pl in enumerate(playlists) for ti, item in enumerate(cast(Playlist, pl.get("info")).items)][:6]
-		image = await asyncio.to_thread(render_error_image, stm, self.dimensions, "Playback stopped", lines)
+		image = await asyncio.to_thread(render_error_image, stm, self.dimensions, "Playback stopped", lines, self._theme())
 		self.router.send("display", DisplayImage(ts, "Error: playback stopped", image))
 	def _struck_out(self, key: tuple[int, int]) -> bool:
 		return self._strikes.get(key, 0) >= self.MAX_STRIKES
