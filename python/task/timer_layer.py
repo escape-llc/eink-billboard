@@ -15,7 +15,7 @@ from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..plugins.plugin_base import PluginAsync, PluginExecutionContext
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool
 from ..task.basic_task import DispatcherTask
-from ..task.display_messages import DisplaySettings, PriorityImage
+from ..task.display_messages import DisplaySettings, OverlayDefinition, OverlayImage, OverlayRevoke, OverlayZones, PriorityImage
 from ..task.coalescer import Coalescer
 from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage, ReloadSchedules, Telemetry
 from ..task.protocols import IProvideTimer, IRequireShutdown, MessageSink
@@ -63,6 +63,8 @@ class TimerLayer(DispatcherTask):
 		self.datasources: DataSourceManager|None = None
 		self.timer: IProvideTimer|None = None
 		self.dimensions:tuple[int,int] = (800,480)
+		# the zones the display announced, for overlay plugins and overlay errors
+		self.overlay_zones = OverlayZones([])
 		self.task_pool: AsyncHttpWorkerPool|None = None
 		self.layer_task: tuple[Future, threading.Event] | None = None
 		self.shutdownlist: list[IRequireShutdown] = []
@@ -114,6 +116,7 @@ class TimerLayer(DispatcherTask):
 		root.add_service(IProvideTimer, self.timer)
 		root.add_service(TimeOfDay, self.timebase)
 		root.add_service(MessageSink, self)
+		root.add_service(OverlayZones, self.overlay_zones)
 		return root
 	def _configure_event(self, msg: ConfigureEvent):
 		self.cm = msg.content.cm
@@ -165,6 +168,7 @@ class TimerLayer(DispatcherTask):
 	def _display_settings(self, msg: DisplaySettings):
 		self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
 		self.dimensions = (msg.width, msg.height)
+		self.overlay_zones = OverlayZones(msg.overlays)
 	def _start_playback(self, msg: StartPlayback):
 		self.logger.info(f"'{self.name}' StartPlayback {self.state}")
 		if self.state != 'loaded':
@@ -181,10 +185,27 @@ class TimerLayer(DispatcherTask):
 	def _theme(self) -> ThemeInputs:
 		"""The device theme now, for the error page (the factory theme when there is no configuration)."""
 		return current_inputs(self.cm.settings_manager() if self.cm is not None else None)
+	def _overlay_zone(self, item: TimerTaskItem) -> OverlayDefinition|None:
+		"""The zone of an overlay task (its plugin has the "layer-overlay" feature and its settings name a zone the display has), else None."""
+		info = next((px["info"] for px in (self.plugin_info or []) if px["info"].get("id") == item.task.plugin_name), None)
+		if info is None or "layer-overlay" not in (info.get("features") or []):
+			return None
+		content = item.task.content if isinstance(item.task.content, dict) else {}
+		zone = content.get("zone")
+		return self.overlay_zones.get(zone) if isinstance(zone, str) else None
 	async def _show_error(self, item: TimerTaskItem, reason: str, ts: datetime) -> None:
-		"""A task that failed shows an error page for the time it would have shown its image (its `slideMinutes`, one minute if it has none), as the interstitial does."""
+		"""
+		A task that failed shows an error page where it would have shown its image, as the message it would have sent:
+		an overlay task in its zone, as an overlay (until the task succeeds, or is disabled or removed); any other task full screen,
+		for its `slideMinutes` (one minute if it has none), as the interstitial does.
+		"""
 		try:
 			stm = self.cm.static_manager() if self.cm is not None else None
+			zone = self._overlay_zone(item)
+			if zone is not None:
+				image = await asyncio.to_thread(render_error_image, stm, zone.dimensions, item.title, [reason], self._theme(), True)
+				self.router.send("display", OverlayImage(ts, item.id, zone.name, f"Error: {item.title}", image))
+				return
 			image = await asyncio.to_thread(render_error_image, stm, self.dimensions, item.title, [reason], self._theme())
 			content = item.task.content if isinstance(item.task.content, dict) else {}
 			minutes = content.get("slideMinutes")
@@ -374,6 +395,11 @@ class TimerLayer(DispatcherTask):
 			self.logger.info(f"'{self.name}' schedules changed, timer tasks are the same.")
 			return
 		self.logger.info(f"'{self.name}' timer tasks changed, re-planning.")
+		# a task that is gone or disabled takes its overlay with it (a revoke for a task that has none does nothing)
+		kept = { item.id for item in self._get_enabled_tasks(new_tasks) }
+		for item in self._get_enabled_tasks(self.tasks):
+			if item.id not in kept:
+				self.router.send("display", OverlayRevoke(msg.timestamp, item.id))
 		if self._restart_timer is not None:
 			self._restart_timer.cancel()
 			self._restart_timer = None

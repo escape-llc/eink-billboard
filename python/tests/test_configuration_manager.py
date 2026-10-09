@@ -27,15 +27,11 @@ class TestConfigurationManager(unittest.TestCase):
 		cm = ConfigurationManager()
 		list = cm.enum_plugins()
 		self.assertIsNotNone(list)
-		self.assertEqual(len(list), 2)  # Adjust based on expected number of plugins
-		info0 = list[0].get('info', None)
-		self.assertIsNotNone(info0, 'info0 failed')
-		self.assertEqual(info0['id'], 'interstitial', 'info0.id failed')
-		self.assertEqual(info0['class'], 'InterstitialAsync', 'info0.class failed')
-		info1 = list[1].get('info', None)
-		self.assertIsNotNone(info1, 'info1 failed')
-		self.assertEqual(info1['id'], 'slide-show', 'info1.id failed')
-		self.assertEqual(info1['class'], 'SlideShowAsync', 'info1.class failed')
+		by_id = { px['info']['id']: px['info'] for px in list }
+		self.assertEqual(set(by_id), { 'interstitial', 'overlay', 'slide-show' })
+		self.assertEqual(by_id['interstitial']['class'], 'InterstitialAsync')
+		self.assertEqual(by_id['overlay']['class'], 'OverlayAsync')
+		self.assertEqual(by_id['slide-show']['class'], 'SlideShowAsync')
 
 	def test_enum_datasources(self):
 		cm = ConfigurationManager()
@@ -56,7 +52,7 @@ class TestConfigurationManager(unittest.TestCase):
 		infos = cm.enum_plugins()
 		plugins = cm.load_plugins(infos)
 		self.assertIsNotNone(plugins)
-		self.assertEqual(len(plugins), 2)  # Adjust based on expected number of loaded plugins
+		self.assertEqual(len(plugins), 3)  # interstitial, overlay, slide-show
 		plugin = plugins.get('interstitial', None)
 		self.assertIsNotNone(plugin, 'plugin interstitial failed')
 		if plugin is not None:

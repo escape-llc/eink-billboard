@@ -1,0 +1,63 @@
+{
+	"id": "overlay",
+	"name": "Overlay",
+	"version": "0.0.1",
+	"class": "OverlayAsync",
+	"file": "overlay.py",
+	"module": "python.plugins.overlay.overlay",
+	"description": "Shows a data source's image in a zone of the screen, over the background, until the next run replaces it or the data source has nothing to show.",
+	"disabled": false,
+	"features": ["layer-overlay"],
+	"settings": {
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+				"dataSource": {
+					"schema": "data-sources",
+					"features": ["media-overlay"]
+				}
+			},
+			"properties": [
+				{
+					"name": "dataSource",
+					"type": "schema",
+					"required": true,
+					"default": null,
+					"lookup": "dataSource",
+					"label": "Data Source",
+					"description": "What to show: a data source made for overlays."
+				},
+				{
+					"name": "zone",
+					"type": "string",
+					"required": true,
+					"default": "bottom-right",
+					"label": "Zone",
+					"description": "Where on the screen: one of six boxes, three across the top and three across the bottom.",
+					"enum": ["top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"]
+				},
+				{
+					"name": "wash",
+					"type": "number",
+					"required": true,
+					"default": 0.4,
+					"min": 0,
+					"max": 1,
+					"label": "Wash",
+					"description": "How much to lighten the background under the overlay so it reads: 0 is none, 1 is white."
+				}
+			]
+		},
+		"default": {
+			"dataSource": null,
+			"zone": "bottom-right",
+			"wash": 0.4
+		}
+	}
+}

@@ -5,7 +5,8 @@ import logging
 import threading
 from typing import Any, Mapping, cast
 
-from .display_messages import ComputedImage, DisplayImage, DisplaySettings, PriorityImage
+from .display_messages import ComputedImage, DisplayImage, DisplaySettings, OverlayImage, OverlayRevoke, PriorityImage
+from .overlay_zones import ZONE_NAMES, Zone, zones_for
 from ..display.mock_display import MockDisplay
 from ..display.display_base import DisplayBase
 from ..model.configuration_manager import ConfigurationManager
@@ -18,7 +19,7 @@ from ..task.protocols import CreateTimerResult, IProvideTimer
 from ..task.timer import TimerThreadService
 from ..task.async_worker_pool import AsyncWorkerPool
 from .message_router import MessageRouter
-from ..utils.image_compositor import ImageCompositor
+from ..utils.image_compositor import ImageCompositor, ImageOverlay
 from ..utils.image_utils import apply_image_enhancement, change_orientation, resize_image
 
 class Display(DispatcherTask):
@@ -46,6 +47,9 @@ class Display(DispatcherTask):
 		self.task_commit: tuple[Future, threading.Event] | None = None
 		self.task_priority: tuple[Future, threading.Event] | None = None
 		self.task_render: tuple[Future, threading.Event] | None = None
+		# overlays: the zones (set at configure) and, per zone, who put up what is there (only touched on the pool loop)
+		self.zones: dict[str, Zone] = {}
+		self.overlays: dict[str, tuple[str, ImageOverlay]] = {}
 		self.logger = logging.getLogger(__name__)
 
 	def _stop_task(self, task:tuple[Future, threading.Event]):
@@ -118,9 +122,11 @@ class Display(DispatcherTask):
 			self.timer = ts if ts is not None else TimerThreadService(self.timebase)
 			self.resolution = self.display.initialize(self.cm)
 			self.logger.info(f"Loading display {display_type} {self.resolution[0]}x{self.resolution[1]}")
+			orientation = cast(str, display_settings.get("orientation", "landscape"))
+			self.zones = { zone.name: zone for zone in zones_for(self.resolution, orientation) }
 			self._start_tasks(self.display, self.compsitor, self.timebase, display_settings)
 			msg.notify()
-			self.router.send("display-settings", DisplaySettings(msg.timestamp, display_type, self.resolution[0], self.resolution[1], []))
+			self.router.send("display-settings", DisplaySettings(msg.timestamp, display_type, self.resolution[0], self.resolution[1], [zone.definition() for zone in self.zones.values()]))
 		except Exception as e:
 			self.logger.error(f"configure.unhandled: {str(e)}", exc_info=True)
 			msg.notify(True, e)
@@ -154,6 +160,30 @@ class Display(DispatcherTask):
 	async def _task_background_layer(self, commitq: asyncio.Queue[BasicMessage], compositor: ImageCompositor, msg: DisplayImage):
 		compositor.set_layer_background(msg)
 		await commitq.put(BasicMessage(msg.timestamp))
+	async def _task_overlay_layer(self, commitq: asyncio.Queue[BasicMessage], compositor: ImageCompositor, msg: OverlayImage):
+		zone = self.zones.get(msg.zone)
+		if zone is None:
+			self.logger.warning(f"Overlay '{msg.title}' asks for zone '{msg.zone}', which this display does not have; dropped.")
+			return
+		image = msg.img if msg.img.size == zone.size else msg.img.resize(zone.size)
+		if zone.portrait:
+			image = change_orientation(image, "portrait")
+		# a sender owns one zone: one that moved to another zone leaves nothing behind in the old one
+		for name in [name for name, (key, _) in self.overlays.items() if key == msg.key and name != zone.name]:
+			del self.overlays[name]
+		self.overlays[zone.name] = (msg.key, ImageOverlay(image, (zone.panel_box[0], zone.panel_box[1]), msg.wash))
+		self._set_overlays(compositor)
+		await commitq.put(BasicMessage(msg.timestamp))
+	async def _task_overlay_revoke(self, commitq: asyncio.Queue[BasicMessage], compositor: ImageCompositor, msg: OverlayRevoke):
+		owned = [name for name, (key, _) in self.overlays.items() if key == msg.key]
+		if not owned:
+			return
+		for name in owned:
+			del self.overlays[name]
+		self._set_overlays(compositor)
+		await commitq.put(BasicMessage(msg.timestamp))
+	def _set_overlays(self, compositor: ImageCompositor) -> None:
+		compositor.set_layer_overlays([self.overlays[name][1] for name in ZONE_NAMES if name in self.overlays])
 	async def _task_priority_layer(self, priorityq: asyncio.Queue[PriorityImage], msg: PriorityImage):
 		await priorityq.put(msg)
 	async def _task_commit_timer(self, commitq: asyncio.Queue[BasicMessage], renderq: asyncio.Queue[BasicMessage], timebase: TimeOfDay, donev: threading.Event):
@@ -276,6 +306,19 @@ class Display(DispatcherTask):
 			self._wait_for(fut, f"priority '{msg.title}'")
 		except Exception as e:
 			self.logger.error(f"priorityimage.unhandled: {e}", exc_info=True)
+	def _overlay_image(self, msg: OverlayImage):
+		"""An overlay for a zone: it stays until its sender (`key`) replaces or revokes it."""
+		if self.task_pool is None or self.commitq is None:
+			self.logger.error(f"Overlay '{msg.title}': the display is not running")
+			return
+		self.logger.info(f"Overlay '{msg.title}' in '{msg.zone}'")
+		fut = self.task_pool.submit(self._task_overlay_layer(self.commitq, self.compsitor, msg), None)
+		self._wait_for(fut, f"overlay '{msg.title}'")
+	def _overlay_revoke(self, msg: OverlayRevoke):
+		if self.task_pool is None or self.commitq is None:
+			return
+		fut = self.task_pool.submit(self._task_overlay_revoke(self.commitq, self.compsitor, msg), None)
+		self._wait_for(fut, f"overlay revoke '{msg.key}'")
 	def _display_image(self, msg: DisplayImage):
 		try:
 			if self.cm is None:

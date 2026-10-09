@@ -34,3 +34,31 @@
 	margin-top: 6dvh;
 	line-height: 1;
 }
+/* an overlay zone: a short box, so bigger type relative to it, one line each, nothing wraps, the hint is left out */
+.error-compact .error-wrapper {
+	width: 94%;
+	max-height: 94dvh;
+	overflow: hidden;
+}
+.error-compact .error-heading {
+	font-size: 18dvh;
+	letter-spacing: 0.04em;
+	margin-bottom: 4dvh;
+}
+.error-compact .error-title {
+	font-size: 30dvh;
+	margin-bottom: 2dvh;
+}
+.error-compact .error-heading,
+.error-compact .error-title,
+.error-compact .error-line {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.error-compact .error-line {
+	font-size: 20dvh;
+}
+.error-compact .error-hint {
+	display: none;
+}
