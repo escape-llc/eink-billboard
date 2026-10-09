@@ -10,7 +10,7 @@ dependencies = [
     "httpx>=0.28.1",
     "icalendar==6.3.1",
     "jinja2>=3.1",
-    "numpy==2.2.1",
+    "numpy==2.5.3",
     "openai==1.109.1",
     "pathvalidate==3.3.1",
     "pillow>=12.3.0",
@@ -30,8 +30,8 @@ dev = [
     "ruff>=0.16.10",
 ]
 device = [
-    "cysystemd==2.0.1 ; sys_platform == 'linux'",
-    "inky==2.2.1 ; sys_platform == 'linux'",
+    "cysystemd==2.0.5 ; sys_platform == 'linux'",
+    "inky==2.5.0 ; sys_platform == 'linux'",
 ]
 
 [tool.coverage.run]
