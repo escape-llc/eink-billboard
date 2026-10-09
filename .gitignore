@@ -6,3 +6,4 @@ __pycache__/
 tests/.storage/
 .coverage
 .e2e-storage/
+.ignore/
