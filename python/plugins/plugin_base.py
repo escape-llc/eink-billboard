@@ -56,7 +56,7 @@ class PluginExecutionContext:
 		return dsec
 
 class RenderSession:
-	def __init__(self, stm: StaticConfigurationManager, render_dir:str, html_file:str, css_file:str|None = None, theme: ThemeInputs|None = None):
+	def __init__(self, stm: StaticConfigurationManager, render_dir:str, html_file:str, theme: ThemeInputs|None = None):
 		if stm is None:
 			raise ValueError("stm is None")
 		if render_dir is None:
@@ -64,14 +64,12 @@ class RenderSession:
 		if html_file is None:
 			raise ValueError("html_file is None")
 		self.html_file = html_file
-		# NOTE CSS files MUST use absolute paths because HTML is saved to a temporary file
-		# load the base plugin and current plugin css files
+		# the shared stylesheets; a page puts its own CSS in the {% block style %} of its template, so it is one file.
+		# NOTE linked CSS files MUST use absolute paths because HTML is saved to a temporary file
 		self.css_files = [
 			path_to_file_url(os.path.join(stm.ROOT_PATH, "render", "plugin.css")),
 			path_to_file_url(os.path.join(stm.ROOT_PATH, "render", "themes.css"))
 		]
-		if css_file:
-			self.css_files.append(css_file)
 		# the device theme (python/model/theme.py: current_inputs); without one, the factory theme
 		self.theme = theme if theme is not None else DEFAULT_INPUTS
 		self.env = self._create_render_environment(stm, render_dir)

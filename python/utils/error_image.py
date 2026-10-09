@@ -6,11 +6,10 @@ from PIL import Image, ImageDraw, ImageFont
 from ..model.configuration_manager import StaticConfigurationManager
 from ..model.theme import ThemeInputs
 from ..plugins.plugin_base import PermanentError, RenderSession
-from .file_utils import path_to_file_url
 
 logger = logging.getLogger(__name__)
 
-# the error page wears the device theme like the plugins' pages (static/render: plugin.html extended by error.html, plugin.css, themes.css, error.css)
+# the error page wears the device theme like the plugins' pages (static/render: plugin.html extended by error.html, which carries its own CSS; plugin.css and themes.css are shared)
 
 def _font(size: int) -> ImageFont.ImageFont | ImageFont.FreeTypeFont:
 	return ImageFont.load_default(size=size)
@@ -34,8 +33,7 @@ def render_error_image(stm: StaticConfigurationManager|None, dimensions: tuple[i
 	if stm is not None:
 		try:
 			render_dir = os.path.join(stm.ROOT_PATH, "render")
-			css = path_to_file_url(os.path.join(render_dir, "error.css"))
-			image = RenderSession(stm, render_dir, "error.html", css, theme).render(dimensions, { "settings": {}, "title": title, "lines": lines, "compact": compact })
+			image = RenderSession(stm, render_dir, "error.html", theme).render(dimensions, { "settings": {}, "title": title, "lines": lines, "compact": compact })
 			if image is not None:
 				return image
 		except Exception as e:

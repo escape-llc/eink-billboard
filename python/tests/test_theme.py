@@ -110,7 +110,7 @@ class TestCss(unittest.TestCase):
 			with open(os.path.join(folder, "page.html"), "w", encoding="utf-8") as f:
 				f.write('{% extends "plugin.html" %}{% block content %}x{% endblock %}')
 			with patch.object(plugin_base, "render_html_arglist", fake_render):
-				RenderSession(StaticConfigurationManager(STATIC), folder, "page.html", None, inputs).render((100, 50), { "settings": {} })
+				RenderSession(StaticConfigurationManager(STATIC), folder, "page.html", inputs).render((100, 50), { "settings": {} })
 		html = captured["html"]
 		self.assertIn(css_vars(inputs), html)
 		self.assertGreater(html.index(css_vars(inputs)), html.index("themes.css"))
@@ -129,7 +129,7 @@ class TestCssMatchesPython(unittest.TestCase):
 		with tempfile.TemporaryDirectory() as folder:
 			with open(os.path.join(folder, "swatches.html"), "w", encoding="utf-8") as f:
 				f.write('{% extends "plugin.html" %}{% block content %}' + swatches + '{% endblock %}')
-			image = RenderSession(StaticConfigurationManager(STATIC), folder, "swatches.html", None, inputs_from(settings)).render((len(roles) * SWATCH, 3 * SWATCH), { "settings": {} })
+			image = RenderSession(StaticConfigurationManager(STATIC), folder, "swatches.html", inputs_from(settings)).render((len(roles) * SWATCH, 3 * SWATCH), { "settings": {} })
 		self.assertIsNotNone(image)
 		return roles, image.convert("RGB")
 
