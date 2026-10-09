@@ -37,15 +37,11 @@ class TestConfigurationManager(unittest.TestCase):
 		cm = ConfigurationManager()
 		list = cm.enum_datasources()
 		self.assertIsNotNone(list)
-		self.assertEqual(len(list), 8)  # Adjust based on expected number of datasources
-		info0 = list[0].get('info', None)
-		self.assertIsNotNone(info0, 'info0 failed')
-		self.assertEqual(info0['id'], 'clock')
-		self.assertEqual(info0['class'], 'ClockAsync')
-		info1 = list[1].get('info', None)
-		self.assertIsNotNone(info1, 'info1 failed')
-		self.assertEqual(info1['id'], 'comic')
-		self.assertEqual(info1['class'], 'ComicFeedAsync')
+		by_id = { px['info']['id']: px['info'] for px in list }
+		self.assertEqual(set(by_id), { 'clock', 'comic', 'countdown', 'image-folder', 'newspaper', 'openai-image', 'today', 'wpotd', 'year_progress' })
+		self.assertEqual(by_id['clock']['class'], 'ClockAsync')
+		self.assertEqual(by_id['comic']['class'], 'ComicFeedAsync')
+		self.assertEqual(by_id['today']['class'], 'TodayAsync')
 
 	def test_load_plugins(self):
 		cm = ConfigurationManager()
@@ -64,7 +60,7 @@ class TestConfigurationManager(unittest.TestCase):
 		infos = cm.enum_datasources()
 		datasources = cm.load_datasources(infos)
 		self.assertIsNotNone(datasources)
-		self.assertEqual(len(datasources), 8)  # Adjust based on expected number of loaded datasources
+		self.assertEqual(len(datasources), 9)
 		datasource = datasources.get('comic', None)
 		self.assertIsNotNone(datasource, 'datasource comic failed')
 		if datasource is not None:

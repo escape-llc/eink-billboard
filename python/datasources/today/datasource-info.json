@@ -1,0 +1,58 @@
+{
+	"id": "today",
+	"name": "Today",
+	"version": "0.0.1",
+	"class": "TodayAsync",
+	"file": "today.py",
+	"module": "python.datasources.today.today",
+	"description": "Today's date, as text in the theme's colors, for an overlay zone.",
+	"disabled": false,
+	"features": ["media-overlay"],
+	"settings": {
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+			},
+			"properties": [
+				{
+					"name": "format",
+					"type": "string",
+					"required": true,
+					"default": "long",
+					"label": "Format",
+					"description": "long: Friday, October 9. full: Friday, October 9, 2026. short: Fri, Oct 9. numeric: 2026-10-09. custom: your own pattern. The weekday is highlighted.",
+					"enum": ["long", "full", "short", "numeric", "custom"]
+				},
+				{
+					"name": "customFormat",
+					"type": "string",
+					"required": true,
+					"default": null,
+					"label": "Custom Format",
+					"description": "A strftime pattern, e.g. %A %d %B (%A weekday, %d day, %B month, %Y year).",
+					"visibleIf": { "field": "format", "eq": "custom" }
+				},
+				{
+					"name": "font",
+					"type": "string",
+					"required": true,
+					"default": "Jost",
+					"label": "Font",
+					"description": "The typeface. The colors come from the theme.",
+					"enum": ["Jost", "Napoli", "Dogica", "DS-Digital"]
+				}
+			]
+		},
+		"default": {
+			"format": "long",
+			"customFormat": null,
+			"font": "Jost"
+		}
+	}
+}
