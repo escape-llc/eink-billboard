@@ -14,6 +14,19 @@ updates:
     groups:
       npm-minor-patch:
         update-types: ["minor", "patch"]
+    ignore:
+      # PrimeVue 5 is a paid product: stay on 4.x (and the Prime packages that go with it)
+      - dependency-name: "primevue"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@primevue/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@primeuix/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "primeicons"
+        update-types: ["version-update:semver-major"]
+      # vue-tsc uses the TypeScript compiler API, which TypeScript 7 does not provide
+      - dependency-name: "typescript"
+        versions: [">=7"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
