@@ -1,4 +1,4 @@
-"""Offline tests for the slide show and interstitial plugins, with fake datasources, router and timer."""
+"""Offline tests for the slide show and priority update plugins, with fake datasources, router and timer."""
 import threading
 import unittest
 from datetime import datetime, timedelta
@@ -9,7 +9,7 @@ from PIL import Image
 
 from ..datasources.data_source import DataSourceManager, MediaItemAsync, MediaListAsync, MediaRenderAsync, MediaRenderResult
 from ..model.service_container import ServiceContainer
-from ..plugins.interstitial.interstitial import InterstitialAsync
+from ..plugins.priority_update.priority_update import PriorityUpdateAsync
 from ..plugins.slide_show.slide_show import SlideShowAsync
 from ..task.display import DisplayImage, PriorityImage
 from ..task.message_router import MessageRouter
@@ -105,21 +105,21 @@ class TestSlideShow(unittest.IsolatedAsyncioTestCase):
 			await show.task_async(cast(Any, make_context(ds, FakeRouter(), FakeTimer())), track, done)
 		self.assertTrue(done.is_set())
 
-class TestInterstitial(unittest.IsolatedAsyncioTestCase):
+class TestPriorityUpdate(unittest.IsolatedAsyncioTestCase):
 	def _track(self):
-		return SimpleNamespace(title="My Interstitial", task=SimpleNamespace(content={"dataSource": "item", "slideMinutes": 2}))
+		return SimpleNamespace(title="My Priority Update", task=SimpleNamespace(content={"dataSource": "item", "slideMinutes": 2}))
 	async def test_success_sends_priority_image(self):
 		router = FakeRouter()
-		await InterstitialAsync("i", "i")._do_task_async(cast(Any, make_context(FakeItem(), router, FakeTimer())), cast(Any, self._track()))
+		await PriorityUpdateAsync("i", "i")._do_task_async(cast(Any, make_context(FakeItem(), router, FakeTimer())), cast(Any, self._track()))
 		self.assertEqual(len(router.sent), 1)
 		self.assertIsInstance(router.sent[0][1], PriorityImage)
-		self.assertEqual(router.sent[0][1].title, "My Interstitial")
+		self.assertEqual(router.sent[0][1].title, "My Priority Update")
 	async def test_failure_is_logged_with_the_items_title_and_raised(self):
 		router = FakeRouter()
-		plugin = InterstitialAsync("i", "i")
+		plugin = PriorityUpdateAsync("i", "i")
 		with self.assertLogs(plugin.logger, level="ERROR") as logs, self.assertRaises(RuntimeError):
 			await plugin._do_task_async(cast(Any, make_context(FakeItem(fail=True), router, FakeTimer())), cast(Any, self._track()))
-		self.assertIn("My Interstitial", "\n".join(logs.output))
+		self.assertIn("My Priority Update", "\n".join(logs.output))
 		self.assertEqual(router.sent, [])
 
 if __name__ == "__main__":
