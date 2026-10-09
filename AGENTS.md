@@ -80,7 +80,7 @@ The same repo is worked on from three places. The rules above are the same every
 |---|---|---|---|
 | OS | Linux | Windows | Linux, Debian image as CI |
 | Headless Chromium | preinstalled; symlink it (see Test environment) | not installed: the render tests **skip** with a message (about 14 skips) | installed in the image: nothing skips but 3 |
-| `gh` / GitHub | may have an invalid `GH_TOKEN`; see `WORKFLOW.md` | the maintainer's signed-in `gh`; reads and writes issues, PRs, Discussions | not needed |
+| `gh` / GitHub | needs a valid `GH_TOKEN` with write access to issues, PRs and Discussions; without one, draft session summaries for the maintainer (`SESSION_SUMMARIES.md`) | the maintainer's signed-in `gh`; reads and writes issues, PRs, Discussions | not needed |
 | Browser tests | `npx playwright install chromium` (its preinstalled browser may not match) | `npx playwright install chromium` once per Playwright version | not covered; run on the host |
 | Shell | bash | PowerShell, or Git Bash for POSIX syntax | bash |
 

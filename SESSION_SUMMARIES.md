@@ -17,7 +17,9 @@ Rule of thumb: **one summary per commit-worthy unit of work, written while it is
 ## Where it goes
 
 Post to a Discussions category named **AI Session Summaries**. If Discussions or that category does not exist yet, the maintainer creates it in the repository settings (an agent cannot).
-An agent without a tool that can create discussions (see the current limitation in `WORKFLOW.md`'s "Expected tools") drafts the text and hands it to the maintainer to post; it never posts on the maintainer's behalf unless asked.
+Post it with `gh api graphql` (`createDiscussion`), using the repository ID `R_kgDOPwjIug` and the category ID `DIC_kwDOPwjIus4DHXcX`; look them up again with
+`gh api graphql -f query='{repository(owner:"escape-llc",name:"eink-billboard"){id discussionCategories(first:10){nodes{id name}}}}'`.
+An agent session whose `gh` has no valid token (a cloud session without `GH_TOKEN`) drafts the text and hands it to the maintainer; it never posts on the maintainer's behalf unless asked.
 These are maintainer-directed build-in-public notes; let them read as what they are.
 
 ## The prompt
