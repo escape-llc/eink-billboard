@@ -5,19 +5,19 @@ description = "e-Ink Billboard"
 readme = "readme.md"
 requires-python = ">=3.13"
 dependencies = [
-    "feedparser==6.0.12",
+    "feedparser==6.0.14",
     "fastapi>=0.115",
     "httpx>=0.28.1",
     "icalendar==6.3.1",
     "jinja2>=3.1",
     "numpy==2.2.1",
-    "openai==1.58.1",
+    "openai==1.109.1",
     "pathvalidate==3.3.1",
     "pillow>=12.3.0",
-    "psutil==7.0.0",
+    "psutil==7.2.2",
     "python-dotenv>=1.2.2",
     "pyyaml>=6.0.3",
-    "recurring-ical-events==3.7.0",
+    "recurring-ical-events==3.8.2",
     "tzdata>=2025.2",
     "uvicorn>=0.32",
     "watchdog==6.0.0",
