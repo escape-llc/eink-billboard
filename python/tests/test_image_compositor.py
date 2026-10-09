@@ -249,6 +249,16 @@ class TestTextOverlay(unittest.TestCase):
 		self.assertTrue(strong)
 		self.assertTrue(all(px[:3] == (255, 0, 0) for px in strong))
 
+	def test_runs_of_colors_on_one_line(self):
+		overlay = text_overlay([("Fri", (255, 0, 0)), (", Oct 9", (0, 0, 255))], (200, 40), (0, 0))
+		pixels = [overlay.image.getpixel((x, y)) for x in range(200) for y in range(40)]
+		colors = { px[:3] for px in pixels if px[3] == 255 }
+		self.assertEqual(colors, { (255, 0, 0), (0, 0, 255) })
+		# red before blue, on one line
+		reds = [x for x in range(200) for y in range(40) if overlay.image.getpixel((x, y)) == (255, 0, 0, 255)]
+		blues = [x for x in range(200) for y in range(40) if overlay.image.getpixel((x, y)) == (0, 0, 255, 255)]
+		self.assertLess(max(reds), min(blues))
+
 	def test_text_overlay_drawn_by_the_compositor(self):
 		comp = ImageCompositor()
 		comp.set_layer_background(_di("Background", _create_rgb((0, 0, 0), size=(200, 100))))

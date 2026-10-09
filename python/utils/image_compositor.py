@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 from PIL import Image, ImageDraw, ImageFont
 
-from ..task.display import DisplayImage
+from ..task.display_messages import DisplayImage
 
 @dataclass(frozen=True, eq=False)
 class ImageOverlay:
@@ -21,25 +21,34 @@ def _sized(font: FontType|None, size: int) -> FontType:
 		return font.font_variant(size=size)
 	return font # a bitmap font has one size
 
-def text_overlay(text: str, size: tuple[int, int], position: tuple[int, int], font: FontType|None = None, color: tuple[int, ...] = (255, 255, 255), wash: float = 0.0, max_font_size: int = 48, min_font_size: int = 8) -> ImageOverlay:
-	"""Text centered in a transparent `size` box. The font is shrunk (from its own size, or `max_font_size`, down to `min_font_size`) until the text fits;
+type TextRun = tuple[str, tuple[int, ...]]
+
+def text_overlay(text: str|list[TextRun], size: tuple[int, int], position: tuple[int, int], font: FontType|None = None, color: tuple[int, ...] = (255, 255, 255), wash: float = 0.0, max_font_size: int = 48, min_font_size: int = 8) -> ImageOverlay:
+	"""Text centered in a transparent `size` box, on one line. `text` is a string in `color`, or runs of `(text, color)` drawn one after another
+	(e.g. a highlighted word). The font is shrunk (from its own size, or `max_font_size`, down to `min_font_size`) until the line fits;
 	if it still does not fit at the minimum, it is clipped to the box. `font` is normally StaticConfigurationManager.get_font(...); without one the default font is used."""
+	runs: list[TextRun] = [(text, color)] if isinstance(text, str) else list(text)
+	line = "".join(part for part, _ in runs)
 	width, height = size
 	canvas = Image.new("RGBA", size, (255, 255, 255, 0))
 	draw = ImageDraw.Draw(canvas)
 	start = int(font.size) if isinstance(font, ImageFont.FreeTypeFont) else max_font_size
 	chosen = _sized(font, min_font_size)
-	box = draw.textbbox((0, 0), text, font=chosen)
+	box = draw.textbbox((0, 0), line, font=chosen)
 	for n in range(max(start, min_font_size), min_font_size - 1, -1):
 		candidate = _sized(font, n)
-		candidate_box = draw.textbbox((0, 0), text, font=candidate)
+		candidate_box = draw.textbbox((0, 0), line, font=candidate)
 		chosen, box = candidate, candidate_box
 		if candidate_box[2] - candidate_box[0] <= width and candidate_box[3] - candidate_box[1] <= height:
 			break
 	# the bounding box does not start at the origin (side bearing, ascent): offset by it to center the ink, not the origin
 	x = (width - (box[2] - box[0])) // 2 - box[0]
 	y = (height - (box[3] - box[1])) // 2 - box[1]
-	draw.text((x, y), text, fill=color, font=chosen)
+	# each run starts where the line so far ends (measured on the whole prefix, so the spacing is the same as one string's)
+	drawn = ""
+	for part, part_color in runs:
+		draw.text((x + draw.textlength(drawn, font=chosen), y), part, fill=part_color, font=chosen)
+		drawn += part
 	return ImageOverlay(canvas, position, wash)
 
 type LayerStackOp = tuple["LayerStack", "LayerStack"]
