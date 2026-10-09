@@ -1,12 +1,20 @@
 import { z } from 'zod'
+import type { FormDef } from './FormDefs'
 
-export type PluginProperty = { name: string; type: string; label: string }
+/** A plugin's descriptor as `/api/plugins/list` sends it (plugin-info.json). */
 export type PluginDef = {
 	id: string
 	name: string
+	version?: string
+	description?: string
+	disabled?: boolean
 	color?: string
-	instanceSettings: any // form def consumed by BasicForm
-	properties: PluginProperty[]
+	/** what the plugin does: layer-background, layer-foreground (playlist), layer-priority, layer-overlay (timer), media-* (what it takes) */
+	features?: string[]
+	/** the plugin's own settings (none for most) */
+	settings?: FormDef | null
+	/** the settings of one use of the plugin: the form of a track or timer task */
+	instanceSettings: FormDef
 }
 
 export const PLAYLIST_SCHEMA = "urn:inky:storage:schedule:playlist:1"
