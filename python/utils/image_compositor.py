@@ -4,11 +4,43 @@ from PIL import Image, ImageDraw, ImageFont
 
 from ..task.display import DisplayImage
 
+@dataclass(frozen=True, eq=False)
 class ImageOverlay:
-	def __init__(self, image: Image.Image, position: tuple):
-		self.image = image
-		self.position = position
-	pass
+	"""An image drawn over the background at `position` (top-left, in background pixels).
+	`wash` (0 to 1) lightens the background under the overlay toward white first, so light text reads over a busy picture (0.4 is a good start)."""
+	image: Image.Image
+	position: tuple[int, int]
+	wash: float = 0.0
+
+FontType = ImageFont.FreeTypeFont | ImageFont.ImageFont
+
+def _sized(font: FontType|None, size: int) -> FontType:
+	if font is None:
+		return ImageFont.load_default(size=size)
+	if isinstance(font, ImageFont.FreeTypeFont):
+		return font.font_variant(size=size)
+	return font # a bitmap font has one size
+
+def text_overlay(text: str, size: tuple[int, int], position: tuple[int, int], font: FontType|None = None, color: tuple[int, ...] = (255, 255, 255), wash: float = 0.0, max_font_size: int = 48, min_font_size: int = 8) -> ImageOverlay:
+	"""Text centered in a transparent `size` box. The font is shrunk (from its own size, or `max_font_size`, down to `min_font_size`) until the text fits;
+	if it still does not fit at the minimum, it is clipped to the box. `font` is normally StaticConfigurationManager.get_font(...); without one the default font is used."""
+	width, height = size
+	canvas = Image.new("RGBA", size, (255, 255, 255, 0))
+	draw = ImageDraw.Draw(canvas)
+	start = int(font.size) if isinstance(font, ImageFont.FreeTypeFont) else max_font_size
+	chosen = _sized(font, min_font_size)
+	box = draw.textbbox((0, 0), text, font=chosen)
+	for n in range(max(start, min_font_size), min_font_size - 1, -1):
+		candidate = _sized(font, n)
+		candidate_box = draw.textbbox((0, 0), text, font=candidate)
+		chosen, box = candidate, candidate_box
+		if candidate_box[2] - candidate_box[0] <= width and candidate_box[3] - candidate_box[1] <= height:
+			break
+	# the bounding box does not start at the origin (side bearing, ascent): offset by it to center the ink, not the origin
+	x = (width - (box[2] - box[0])) // 2 - box[0]
+	y = (height - (box[3] - box[1])) // 2 - box[1]
+	draw.text((x, y), text, fill=color, font=chosen)
+	return ImageOverlay(canvas, position, wash)
 
 type LayerStackOp = tuple["LayerStack", "LayerStack"]
 @dataclass(frozen=True)
@@ -64,6 +96,36 @@ class BgFgRenderPackage(RenderPackage):
 		img = Image.alpha_composite(self._bg.img.convert("RGBA"), self._fg.img.convert("RGBA"))
 		return (img, self._fg.title)
 
+class OverlayRenderPackage(RenderPackage):
+	"""The background with the overlays drawn over it, in order; the title is the background's."""
+	def __init__(self, version:int, base: DisplayImage, overlays: list[ImageOverlay]):
+		if base is None:
+			raise ValueError("OverlayRenderPackage requires a background image")
+		self._version = version
+		self._base = base
+		self._overlays = list(overlays)
+	@property
+	def version(self) -> int:
+		return self._version
+	def render(self) -> RenderInfo:
+		canvas = self._base.img.convert("RGBA")
+		for overlay in self._overlays:
+			picture = overlay.image.convert("RGBA")
+			x, y = overlay.position
+			# the part of the overlay that lies on the background: one that hangs off the edge is cut, not an error
+			left, top = max(x, 0), max(y, 0)
+			right, bottom = min(x + picture.width, canvas.width), min(y + picture.height, canvas.height)
+			if right <= left or bottom <= top:
+				continue
+			if overlay.wash > 0:
+				region = canvas.crop((left, top, right, bottom))
+				# CSS "lighten" against white is white, so the wash is a blend toward white; the background's own transparency is kept
+				washed = Image.blend(region.convert("RGB"), Image.new("RGB", region.size, (255, 255, 255)), min(overlay.wash, 1.0)).convert("RGBA")
+				washed.putalpha(region.getchannel("A"))
+				canvas.paste(washed, (left, top))
+			canvas.alpha_composite(picture.crop((left - x, top - y, right - x, bottom - y)), (left, top))
+		return (canvas.convert(self._base.img.mode), self._base.title)
+
 class ImageCompositor:
 	def __init__(self):
 		self._current_stack: LayerStack = LayerStack(0, None, [], None, None)
@@ -95,6 +157,8 @@ class ImageCompositor:
 #			return BgFgRenderPackage(self._current_stack.version, self._current_stack.background, self._current_stack.forground)
 		elif self._current_stack.forground is not None:
 			return SimpleRenderPackage(self._current_stack.version, self._current_stack.forground)
+		elif self._current_stack.background is not None and self._current_stack.overlays:
+			return OverlayRenderPackage(self._current_stack.version, self._current_stack.background, self._current_stack.overlays)
 		elif self._current_stack.background is not None:
 			return SimpleRenderPackage(self._current_stack.version, self._current_stack.background)
 		return None
