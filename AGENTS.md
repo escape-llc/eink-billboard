@@ -86,12 +86,20 @@ The same repo is worked on from three places. The rules above are the same every
 
 - **A Windows run is not the CI run.** `mypy` also reports POSIX-only calls (`os.killpg`, `signal.SIGKILL`, `time.tzset`) on Windows, and the render tests are skipped.
   Before a PR, run `podman compose run --rm test` (below): it does what `.github/workflows/unittest.yaml` does (`ruff`, `mypy`, `coverage run -m unittest discover .`) on Linux with Chromium.
-- **Containers** (`Dockerfile`, `compose.yaml`, `.dockerignore`):
+- **Containers** (`Dockerfile`, `compose.yaml`, `compose.wsl.yaml`, `.dockerignore`):
   - `podman compose run --rm test` builds the `test` image (Python 3.13.7, `chromium-headless-shell`, `uv`, the locked dev dependencies) and runs the checks against the **bind-mounted checkout**. The virtual environment lives in `/opt/venv` (not `.venv`), so the container never touches the Windows one, and `PYTHONDONTWRITEBYTECODE` keeps `__pycache__` out of your tree.
     It needs `python/tests/.storage` on the host like any test run. Because it sees the working tree, an untracked file you have lying around is checked too (it once showed an unrelated `mypy` error that CI would never see).
   - `podman compose up --build app` serves the built web app and API on `http://localhost:8080` with the storage in a named volume (seeded on first start). The port is published on `127.0.0.1` only; set `EINK_API_TOKEN` before widening it (see the network-exposure issue, #36).
     The image has no display hardware (the `device` dependency group is left out), so it is for the API and web app, not the panel.
   - `podman compose` delegates to whatever compose provider is installed (here `docker-compose`), so the commands are the same for Docker.
+  - **Podman 6 on Windows (WSL2 machine)** needs three adjustments, all found after an upgrade that rebuilt the machine:
+    - The installer moved Podman to `%LOCALAPPDATA%\Programs\Podman`; a shell (or IDE) started before the upgrade does not have it on `PATH` until restarted.
+    - The WSL kernel (6.6.x) lacks nftables features netavark 6 uses (`fib`, `dnat` in an `inet` table), so **every** container fails with `nftables error: "nft" did not return successfully`.
+      Turn the container firewall off inside the machine (it is a disposable VM; this is not in the repo) and restart it:
+      `podman machine ssh 'mkdir -p /etc/containers/containers.conf.d && printf "[network]\nfirewall_driver = \"none\"\n" > /etc/containers/containers.conf.d/50-wsl-no-firewall.conf'`, then `podman machine stop` and `podman machine start`.
+      Published ports then do nothing (they are DNAT rules), so run the app with `compose.wsl.yaml`: `podman compose -f compose.yaml -f compose.wsl.yaml up --build app` (host network, bound to `127.0.0.1`, which WSL forwards to Windows `localhost`).
+    - `docker-compose` cannot attach to Podman 6 (`unable to upgrade to tcp, received 500`), so `compose run` fails; run the checks with `podman compose --profile test up --abort-on-container-exit --exit-code-from test test`.
+    Recreating the machine (`podman machine rm`/`init`, or an upgrade) loses the firewall setting; reapply it.
   - The web stage keeps the repository layout (`/repo/app`, `/repo/python/tests`) because the type-check imports the shared rule cases from `python/tests`; copy any other cross-folder import it needs.
 - **No secret goes into an image.** `.dockerignore` excludes `.storage` folders, `.env` files, and zips; test storage is only ever mounted.
 

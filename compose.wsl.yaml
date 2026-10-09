@@ -1,0 +1,8 @@
+# Override for Podman 6 on Windows (WSL2 machine): the WSL kernel lacks nftables features netavark needs for published ports,
+# so the app uses the WSL VM's network, bound to loopback, which WSL forwards to Windows localhost. See AGENTS.md.
+#   podman compose -f compose.yaml -f compose.wsl.yaml up --build app
+services:
+  app:
+    network_mode: host
+    ports: !reset []
+    command: ["uv", "run", "--no-sync", "python", "-m", "python.eink-billboard", "--host", "127.0.0.1", "--port", "8080", "--storage", "/data", "--app", "/work/app/dist"]
