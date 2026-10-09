@@ -53,7 +53,7 @@ class TestConfigurationManager(unittest.TestCase):
 		self.assertIsNotNone(plugin, 'plugin interstitial failed')
 		if plugin is not None:
 			self.assertEqual(plugin.id, 'interstitial')
-			self.assertEqual(plugin.name, 'Interstitial Overlay')
+			self.assertEqual(plugin.name, 'Priority Update')
 
 	def test_load_datasources(self):
 		cm = ConfigurationManager()
