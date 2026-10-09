@@ -61,10 +61,10 @@ test("the playlist track form renders the plugin's fields and follows a change o
 	await expect(editor.locator("label", { hasText: "Max Slides" })).toBeVisible()
 	await expect(editor.getByRole("spinbutton").first()).toBeVisible()
 
-	// the plugin is the form's own field list: another plugin brings its own fields
+	// a track plays on the background or foreground layer: only the playlist plugins are offered, not the timer ones (Priority Update, Overlay)
 	await editor.locator(".p-select").filter({ hasText: "Slide Show" }).first().click()
-	await page.getByRole("option").filter({ hasText: "Priority Update" }).first().click()
-	await expect(editor.locator("label", { hasText: "Max Slides" })).toHaveCount(0)
-	await expect(editor.locator("label", { hasText: "Slide Duration" })).toBeVisible()
+	await expect(page.getByRole("option")).toHaveCount(1)
+	await expect(page.getByRole("option").filter({ hasText: "Slide Show" })).toBeVisible()
+	await page.keyboard.press("Escape")
 	watch.expectNone()
 })

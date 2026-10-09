@@ -216,7 +216,7 @@ Each Track determines:
 
 The Timer Layer coroutine executes a Playlist consisting of the day's task list with startup and all the triggers materialized (exact time-of-day computed).  When this Playlist ends, the coroutine ends, and the Timer Layer calculates the next day's Playlist and schedules the coroutine again (without startup items).
 
-The primary plugin is the Interstitial plugin.  This updates the Display's Priority layer with the (timed) image.
+The primary plugin is the Priority Update plugin (id `interstitial`).  This updates the Display's Priority layer with the (timed) image.
 
 Schedules are very flexible, and may be specific combinations of day(s) and time(s) of day.
 

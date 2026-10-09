@@ -197,7 +197,7 @@ class TimerLayer(DispatcherTask):
 		"""
 		A task that failed shows an error page where it would have shown its image, as the message it would have sent:
 		an overlay task in its zone, as an overlay (until the task succeeds, or is disabled or removed); any other task full screen,
-		for its `slideMinutes` (one minute if it has none), as the interstitial does.
+		for its `slideMinutes` (one minute if it has none), as the priority update plugin does.
 		"""
 		try:
 			stm = self.cm.static_manager() if self.cm is not None else None

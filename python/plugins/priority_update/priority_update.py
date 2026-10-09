@@ -13,7 +13,7 @@ class SettingsDict(TypedDict):
 	dataSource: str
 	slideMinutes: int
 
-class InterstitialAsync(PluginAsync):
+class PriorityUpdateAsync(PluginAsync):
 	def __init__(self, id, name):
 		self._id = id
 		self._name = name
@@ -42,7 +42,7 @@ class InterstitialAsync(PluginAsync):
 			try:
 				state = await dataSource.open_async(dsec, cast(Mapping[str,Any],settings))
 				if state is None:
-					raise RuntimeError(f"{dataSourceName}: No media items found for interstitial")
+					raise RuntimeError(f"{dataSourceName}: No media items found for the priority update")
 				item = state
 				mrr = await dataSource.render_async(dsec, cast(Mapping[str,Any],settings), item)
 			except Exception as e:

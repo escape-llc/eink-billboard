@@ -79,6 +79,9 @@ test("a task can be added", async ({ page }) => {
 	const created = page.getByRole("dialog", { name: "New task" })
 	await expect(created).toBeVisible()
 	await created.locator("input[name=title]").fill("Added in the browser")
+	// the plugin is picked by name (the list is in the folders' order): Priority Update has a required data source
+	await created.locator(".p-select").filter({ hasText: "Overlay" }).first().click()
+	await page.getByRole("option").filter({ hasText: "Priority Update" }).first().click()
 	// the plugin's own fields: a data source is required
 	await created.locator(".p-select").filter({ hasText: "Data Source" }).first().click()
 	await page.getByRole("option").filter({ hasText: "Year Progress" }).first().click()
@@ -91,6 +94,25 @@ test("a task can be added", async ({ page }) => {
 	watch.expectNone()
 })
 
+test("a new task is offered the timer plugins only, and the form follows the plugin", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/schedule")
+	await page.getByRole("button", { name: "New task" }).click()
+	const created = page.getByRole("dialog", { name: "New task" })
+	await expect(created).toBeVisible()
+	// the plugin list: the timer plugins (priority, overlay), not the playlist's Slide Show
+	await created.locator(".p-select").filter({ hasText: "Overlay" }).first().click()
+	await expect(page.getByRole("option")).toHaveCount(2)
+	await expect(page.getByRole("option").filter({ hasText: "Slide Show" })).toHaveCount(0)
+	// the plugin is the form's own field list: each brings its own fields
+	await expect(created.locator("label", { hasText: "Zone" })).toBeVisible()
+	await page.getByRole("option").filter({ hasText: "Priority Update" }).first().click()
+	await expect(created.locator("label", { hasText: "Slide Duration" })).toBeVisible()
+	await expect(created.locator("label", { hasText: "Zone" })).toHaveCount(0)
+	// and starts at that plugin's defaults, not blank
+	await expect(created.locator("input[name=slideMinutes]")).toHaveValue("1")
+	watch.expectNone()
+})
 test("a task can be deleted after a confirmation", async ({ page }) => {
 	const watch = watchProblems(page)
 	await openFirstQuarterHourTask(page)

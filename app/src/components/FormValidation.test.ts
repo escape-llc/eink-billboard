@@ -97,7 +97,7 @@ const decode = (v: unknown): unknown =>
 describe("what a form submits", () => {
 	// BasicForm submits `z.object(fieldRules(...)).safeParse(values).data`: only the fields of the selection come out
 	const slideShow = [field({ name: "slideMax", type: "int" }), field({ name: "slideMinutes", type: "int" })]
-	const interstitial = [field({ name: "slideMinutes", type: "int" })]
+	const priorityUpdate = [field({ name: "slideMinutes", type: "int" })]
 	const submit = (fields: FormField[], values: Record<string, unknown>) => {
 		const r = z.object(fieldRules(fields, {}, values)).safeParse(values)
 		return r.success ? r.data : null
@@ -105,7 +105,7 @@ describe("what a form submits", () => {
 	it("leaves out values left over from a previous selection or that the descriptor does not know", () => {
 		const values = { slideMax: 4, slideMinutes: 2, strayFromOldPlugin: "x" }
 		expect(submit(slideShow, values)).toEqual({ slideMax: 4, slideMinutes: 2 })
-		expect(submit(interstitial, values)).toEqual({ slideMinutes: 2 })
+		expect(submit(priorityUpdate, values)).toEqual({ slideMinutes: 2 })
 	})
 	it("leaves out a hidden field (the form then saves it as null)", () => {
 		const fields = [field({ name: "on", type: "boolean" }), field({ name: "detail", type: "string", visibleIf: { field: "on", eq: true } })]
