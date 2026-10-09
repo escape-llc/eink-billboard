@@ -1,7 +1,7 @@
 {% extends "plugin.html" %}
 
 {% block content %}
-<div class="error-container">
+<div class="error-container{% if compact %} error-compact{% endif %}">
 	<div class="error-wrapper">
 		<div class="error-heading text-secondary-1">CANNOT SHOW THIS</div>
 		<div class="error-title text-primary">{{ title }}</div>

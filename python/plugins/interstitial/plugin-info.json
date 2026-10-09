@@ -7,7 +7,7 @@
 	"module": "python.plugins.interstitial.interstitial",
 	"description": "Interrupts the current display with an image.",
 	"disabled": false,
-	"features": ["layer-priority", "layer-overlay", "media-image"],
+	"features": ["layer-priority", "media-image"],
 	"settings": {
 		"schema": {
 			"properties": [

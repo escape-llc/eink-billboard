@@ -24,9 +24,10 @@ def safe_reason(error: BaseException) -> str:
 		return str(error)
 	return type(error).__name__
 
-def render_error_image(stm: StaticConfigurationManager|None, dimensions: tuple[int, int], title: str, lines: list[str], theme: ThemeInputs|None = None) -> Image.Image:
+def render_error_image(stm: StaticConfigurationManager|None, dimensions: tuple[int, int], title: str, lines: list[str], theme: ThemeInputs|None = None, compact: bool = False) -> Image.Image:
 	"""
 	The page for a slot that failed: what failed (`title`) and why (`lines`), in the theme of the other pages (blocking: Chromium).
+	`compact` is the layout for a small box (an overlay zone): the heading and the title, then the reason if it fits; nothing wraps, the rest is clipped.
 	When the themed page cannot be made (no `stm`, or the browser is what failed) a plain page is drawn instead, so the user still sees the error.
 	It holds nothing that changes (no clock): the same failure gives the same pixels, and the display can tell nothing needs redrawing.
 	"""
@@ -34,18 +35,31 @@ def render_error_image(stm: StaticConfigurationManager|None, dimensions: tuple[i
 		try:
 			render_dir = os.path.join(stm.ROOT_PATH, "render")
 			css = path_to_file_url(os.path.join(render_dir, "error.css"))
-			image = RenderSession(stm, render_dir, "error.html", css, theme).render(dimensions, { "settings": {}, "title": title, "lines": lines })
+			image = RenderSession(stm, render_dir, "error.html", css, theme).render(dimensions, { "settings": {}, "title": title, "lines": lines, "compact": compact })
 			if image is not None:
 				return image
 		except Exception as e:
 			logger.warning(f"The themed error page could not be rendered, drawing the plain one: {type(e).__name__}")
-	return plain_error_image(dimensions, title, lines)
+	return plain_error_image(dimensions, title, lines, compact)
 
-def plain_error_image(dimensions: tuple[int, int], title: str, lines: list[str]) -> Image.Image:
+def plain_error_image(dimensions: tuple[int, int], title: str, lines: list[str], compact: bool = False) -> Image.Image:
 	"""A black-on-white page drawn with PIL alone: no browser, no fonts, nothing that can fail the way the themed page can."""
 	width, height = dimensions
 	image = Image.new("RGB", (width, height), "white")
 	draw = ImageDraw.Draw(image)
+	if compact:
+		# a small box: the heading and the title, one line each (and the reason if there is room), clipped at the edge
+		size = max(8, height // 4)
+		font = _font(size)
+		pad = max(2, height // 12)
+		draw.rectangle((0, 0, width - 1, height - 1), outline="black", width=max(1, height // 40))
+		y = pad
+		for text in ["! Cannot show this", title, *lines]:
+			if y + size > height - pad:
+				break
+			draw.text((pad * 2, y), text, font=font, fill="black")
+			y += int(size * 1.25)
+		return image
 	margin = max(8, width // 40)
 	draw.rectangle((margin // 2, margin // 2, width - margin // 2 - 1, height - margin // 2 - 1), outline="black", width=max(2, width // 200))
 	heading_size = max(14, height // 12)

@@ -55,6 +55,18 @@ class ThemedErrorImageTests(unittest.TestCase):
 		self.assertNotEqual(first.convert("RGB").getpixel((5, 5)), (255, 255, 255))
 		self.assertNotEqual(first.tobytes(), plain_error_image((800, 480), "Morning slides", ["folder: Required"]).convert(first.mode).tobytes())
 
+	@unittest.skipUnless(HAVE_CHROME, "needs chromium-headless-shell on PATH")
+	def test_the_compact_page_fits_an_overlay_zone(self):
+		image = render_error_image(self.stm, (246, 96), "Today", ["PermanentError: a very long reason that cannot fit on one line of a small box"], None, True)
+		self.assertEqual(image.size, (246, 96))
+		self.assertNotEqual(image.tobytes(), plain_error_image((246, 96), "Today", ["x"], True).convert(image.mode).tobytes())
+
+	def test_the_compact_plain_page_is_the_zone_size(self):
+		image = plain_error_image((246, 96), "Today", ["a reason"], True)
+		self.assertEqual(image.size, (246, 96))
+		# drawn, not blank
+		self.assertIsNotNone(image.convert("L").point(lambda v: 255 - v).getbbox())
+
 	def test_falls_back_to_the_plain_page_when_the_browser_fails(self):
 		with mock.patch.object(error_image, "RenderSession", side_effect=RuntimeError("no browser")):
 			image = render_error_image(self.stm, (800, 480), "T", ["x"])
