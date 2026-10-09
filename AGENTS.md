@@ -50,7 +50,7 @@ cd app && npm run e2e                      # build, then the browser tests (Play
 - `npm run build` runs `vue-tsc -b` first, which reports **zero** errors; keep it that way (a type error fails the build).
 - The built app uses hash routes (`/#/settings`), and Vite's default layout: `index.html` and `public/` files at the root, bundles in `assets/`.
 - **Browser tests** (`app/e2e/`, Playwright Test): `playwright.config.ts` starts two real servers on a storage built by `scripts/e2e_storage.py` (the factory defaults plus the **synthetic** fixtures in `app/e2e/fixtures/storage`: schedules, a system settings file, a fake API key).
-  No secret and none of the real test storage is involved, so they run on fork PRs. One server is open (port 8099), one requires a token (8098, `e2e-token`). They need `uv sync` and, once, `npx playwright install chromium`; in the cloud sandbox the browser is already installed and `@playwright/test` is pinned (`~1.56.1`) to match it.
+  No secret and none of the real test storage is involved, so they run on fork PRs. One server is open (port 8099), one requires a token (8098, `e2e-token`). They need `uv sync` and, once per Playwright version, `npx playwright install chromium` (CI does this itself). `@playwright/test` is no longer pinned to the cloud sandbox's preinstalled browser; a sandbox session installs the matching one the same way.
   `watchProblems()` in `e2e/support.ts` fails a test on any page error, console error, failed request, or HTTP error that the test did not declare, so a page that merely renders is not enough.
   Gotchas: the app uses hash routes (`/#/settings`); PrimeVue option accessible names are not their text, so match options by visible text; the factory `location: null` leaves Save disabled, so the fixture sets one.
 - CI: `.github/workflows/web.yaml` runs the `web` job (build, unit tests) and the `e2e` job (browser tests) on pull requests and pushes to `master`. They are not required checks until the maintainer adds them to the ruleset.
@@ -81,7 +81,7 @@ The same repo is worked on from three places. The rules above are the same every
 | OS | Linux | Windows | Linux, Debian image as CI |
 | Headless Chromium | preinstalled; symlink it (see Test environment) | not installed: the render tests **skip** with a message (about 14 skips) | installed in the image: nothing skips but 3 |
 | `gh` / GitHub | may have an invalid `GH_TOKEN`; see `WORKFLOW.md` | the maintainer's signed-in `gh`; reads and writes issues, PRs, Discussions | not needed |
-| Browser tests | Playwright pinned to the sandbox's browser | `npx playwright install chromium` once | not covered; run on the host |
+| Browser tests | `npx playwright install chromium` (its preinstalled browser may not match) | `npx playwright install chromium` once per Playwright version | not covered; run on the host |
 | Shell | bash | PowerShell, or Git Bash for POSIX syntax | bash |
 
 - **A Windows run is not the CI run.** `mypy` also reports POSIX-only calls (`os.killpg`, `signal.SIGKILL`, `time.tzset`) on Windows, and the render tests are skipped.
