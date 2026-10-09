@@ -11,6 +11,7 @@ app/dist
 .storage
 **/.storage
 .e2e-storage
+.ignore
 .test-output
 .coverage
 coverage.txt

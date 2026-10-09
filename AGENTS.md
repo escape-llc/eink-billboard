@@ -60,7 +60,7 @@ cd app && npm run e2e                      # build, then the browser tests (Play
 
 ## Test environment
 
-- `python/tests/.storage/` must exist and is **never committed**. CI rebuilds it from the `TEST_STORAGE_B64` secret (see `prepare-test-data.ps1`, which excludes `datasources/` and `plugins/`).
+- `python/tests/.storage/` must exist and is **never committed**. CI rebuilds it from the `TEST_STORAGE_B64` secret (see `prepare-test-data.ps1`, which writes to the git-ignored `.ignore/` folder, the place for any transient or sensitive output, and which excludes `datasources/` and `plugins/`).
   It needs at least `schedules/`, `schemas/`, `settings/`.
   **Tests must not assume `datasources/` or `plugins/` content exists; create what you need.** A test that passed locally against a full storage failed CI for exactly this reason (the first run of PR #19).
   API tests work on a temp copy (`WebApiTestBase`) and never modify the original.
