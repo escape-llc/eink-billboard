@@ -11,7 +11,7 @@ dependencies = [
     "icalendar==6.3.1",
     "jinja2>=3.1",
     "numpy==2.2.1",
-    "openai==1.109.1",
+    "openai==3.24.0",
     "pathvalidate==3.3.1",
     "pillow>=12.3.0",
     "psutil==7.2.2",
