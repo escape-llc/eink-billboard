@@ -163,13 +163,17 @@ def _item_validator(cm, kind: Kind = TASKS):
 	"""What the store cannot know: the plugin exists and its `content` is valid. A timer task keeps them under `task`, a playlist track at the top."""
 	plugins = {p["info"].get("id"): p for p in cm.enum_plugins()}
 	datasources = {d["info"].get("id"): d for d in cm.enum_datasources()}
+	def settings_of(owner: str, ident: str) -> dict|None:
+		"""The stored settings of a plugin or data source, which its `settings` lookups choose from (ids here are the descriptors' own)."""
+		manager = cm.plugin_manager(ident) if owner == "plugin" else cm.datasource_manager(ident)
+		return manager.open().get()[1]
 	if kind is TASKS:
 		def validate_task(item: dict) -> list[dict]:
 			task = item.get("task") or {}
-			return plugin_content_errors(plugins, datasources, task.get("plugin_name"), task.get("content") or {}, ["task"])
+			return plugin_content_errors(plugins, datasources, task.get("plugin_name"), task.get("content") or {}, ["task"], settings_of)
 		return validate_task
 	def validate_track(item: dict) -> list[dict]:
-		return plugin_content_errors(plugins, datasources, item.get("plugin_name"), item.get("content") or {}, [])
+		return plugin_content_errors(plugins, datasources, item.get("plugin_name"), item.get("content") or {}, [], settings_of)
 	return validate_track
 
 def _store(cm, kind: Kind = TASKS) -> ScheduleStore:

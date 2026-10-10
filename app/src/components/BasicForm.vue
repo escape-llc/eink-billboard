@@ -49,11 +49,14 @@ let currentResolver: ((values: Record<string, any>) => z.ZodTypeAny)|undefined =
 type AddToSchemaType = (resv: Record<string, z.ZodTypeAny>) => void
 type AddInitialValuesType = () => Record<string, any>
 
+export type Owner = { kind: "plugin" | "datasource", id: string }
 export interface PropsType {
 	form?: FormDef
 	initialValues?: any
 	fieldNameWidth?: string
 	baseUrl: string
+	/** whose own settings the `settings` lookups of the form choose from (a plugin's instance form: that plugin) */
+	owner?: Owner
 	beforeFieldsSchema?: AddToSchemaType
 	afterFieldsSchema?: AddToSchemaType
 	addInitialValues?: AddInitialValuesType
@@ -78,7 +81,7 @@ const dataSources = computed<any[]>(() => injdataSources.value)
 watch(() => props.form, (nv) => {
 	if(nv) {
 		// a plugin just chosen brings fields the values do not have: they start at the descriptor's default, as they do for a new item
-		applyDefaults(formProperties(nv.schema), localValues.value).forEach(([name, value]) => { localValues.value[name] = value })
+		applyDefaults(formProperties(nv.schema, props.owner), localValues.value).forEach(([name, value]) => { localValues.value[name] = value })
 		ensureInitializeForm(nv.schema)
 	}
 	else {
@@ -95,7 +98,7 @@ watch(() => props.initialValues, (nv) => {
 			ox = Object.assign(ox, addv) // ensure new object reference to trigger form update
 		}
 		// a value the document does not have yet starts at the descriptor's default (a new playlist track, say)
-		const dflts = props.form?.schema ? applyDefaults(formProperties(props.form.schema), ox) : []
+		const dflts = props.form?.schema ? applyDefaults(formProperties(props.form.schema, props.owner), ox) : []
 		dflts.forEach(([name, value]) => { ox[name] = value })
 		localValues.value = ox
 		ensureInitializeForm(props.form?.schema)
@@ -111,7 +114,7 @@ watch(() => props.initialValues, (nv) => {
 )
 function ensureInitializeForm(schema: SchemaType|undefined): void {
 	if(!schema) return;
-	localProperties.value = formProperties(schema)
+	localProperties.value = formProperties(schema, props.owner)
 	currentResolver = createResolver(localProperties.value)
 	startLookups(schema, localProperties.value)
 }
@@ -130,7 +133,7 @@ function schemaFilterFeatures(features: string[], check: string[]|undefined): bo
 	if(!check || check.length === 0) return true;
 	return check.some(c => features.includes(c))
 }
-function formProperties(schema: SchemaType|undefined) :any[] {
+function formProperties(schema: SchemaType|undefined, owner: Owner|undefined) :any[] {
 	if(schema?.properties) {
 		const retv:any[] = []
 		schema.properties.forEach(px => {
@@ -146,6 +149,12 @@ function formProperties(schema: SchemaType|undefined) :any[] {
 					const urlLookup = schema.lookups ? schema.lookups[px.lookup] : undefined
 					fx.lookupUrl = toRaw(urlLookup && 'url' in urlLookup ? urlLookup.url : null)
 				}
+				else if(isLookupItems(schema, px.lookup, "settings")) {
+					// the choices are a list the owner keeps in its own settings: served by the owner's lookup route
+					fx.list = []
+					fx.listType = "url"
+					fx.lookupUrl = owner ? `/api/${owner.kind}s/${encodeURIComponent(owner.id)}/lookups/${encodeURIComponent(px.lookup)}` : null
+				}
 				else if(isLookupItems(schema, px.lookup, "schema")) {
 					fx.list = lookupSchema(schema, px.lookup)
 					fx.listType = "schema"
@@ -159,7 +168,7 @@ function formProperties(schema: SchemaType|undefined) :any[] {
 				if(svalue) {
 					const target = fx.list.find((vx: any) => vx.value === svalue)
 					if(target) {
-						fx.children = formProperties(target.schema?.schema as SchemaType|undefined)
+						fx.children = formProperties(target.schema?.schema as SchemaType|undefined, target.owner)
 					}
 				}
 			}
@@ -202,10 +211,10 @@ function lookupSchema(schema: SchemaType, lookup:string): LookupValue[] {
 			const lku = lookups[lookup]
 			if(lku && "schema" in lku) {
 				if(lku.schema === "plugins") {
-					return plugins.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings) }))
+					return plugins.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings), owner: { kind: "plugin", id: px.id } }))
 				}
 				else if(lku.schema === "data-sources") {
-					return dataSources.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings) }))
+					return dataSources.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings), owner: { kind: "datasource", id: px.id } }))
 				}
 				else {
 					console.warn("Unknown lookup schema", lku.schema)
@@ -255,16 +264,22 @@ function createResolver(fields: FormField[]): (values: Record<string, any>) => z
 		return z.object(resv)
 	}
 }
-const serverErrors: Record<string, { message: string, value: string }> = {}
+// what the server reported per field: `path` (after the field's name) names the row and field of a list's problem
+const serverErrors: Record<string, { message: string, path: string[], value: string }[]> = {}
 let lastSubmitted: Record<string, any> = {}
 /** Show the `errors` of a 422 response (`[{ path: [name], message }]`) on their fields. Returns how many matched a field of this form. */
 const setServerErrors = (errors: { path?: unknown[], message?: string }[]): number => {
 	const values = lastSubmitted
 	let matched = 0
+	const fresh = new Set<string>()
 	for(const e of errors ?? []) {
 		const name = Array.isArray(e?.path) ? e.path[0] : undefined
 		if(typeof name === "string" && typeof e.message === "string") {
-			serverErrors[name] = { message: e.message, value: JSON.stringify(values?.[name]) }
+			if(!fresh.has(name)) {
+				fresh.add(name)
+				serverErrors[name] = []
+			}
+			serverErrors[name]!.push({ message: e.message, path: (e.path as unknown[]).slice(1).map(String), value: JSON.stringify(values?.[name]) })
 			matched++
 		}
 	}
@@ -280,17 +295,17 @@ const resolver = ({ values }: { values: Record<string, any> }) => {
 			const field = issue.path[0];
 			if(field !== undefined) {
 				if (!errors[field]) errors[field] = [];
-				errors[field].push({ message: issue.message });
+				errors[field].push({ message: issue.message, path: issue.path.slice(1).map(String) });
 			}
 		});
 	}
 	// problems the server reported stay on a field until its value changes
-	for(const [name, entry] of Object.entries(serverErrors)) {
-		if(JSON.stringify(values[name]) !== entry.value) {
+	for(const [name, entries] of Object.entries(serverErrors)) {
+		if(JSON.stringify(values[name]) !== entries[0]!.value) {
 			delete serverErrors[name]
 		}
 		else if(!errors[name]) {
-			errors[name] = [{ message: entry.message }]
+			errors[name] = entries.map(entry => ({ message: entry.message, path: entry.path }))
 		}
 	}
 	emits('validate', { result, values });
@@ -336,13 +351,16 @@ function applyDefaults(fields: FormField[], values: Record<string, any> = {}): [
 	])
 }
 const handleFormFieldEvent = (data:any) => {
-	if(data.type === "schema-change") {
+	if(data.type === "set-value") {
+		form.value?.setFieldValue(data.field.name, data.value)
+	}
+	else if(data.type === "schema-change") {
 		const field = findField(localProperties.value, data.field.name)
 		if(field) {
 			// the previous choice's values must not be saved with the new one
 			flatNames(field.children ?? []).forEach(name => form.value?.setFieldValue(name, null))
 			const chosen = data.selected?.schema?.schema as SchemaType|undefined
-			field.children = formProperties(chosen)
+			field.children = formProperties(chosen, data.selected?.owner)
 			applyDefaults(field.children).forEach(([name, value]) => form.value?.setFieldValue(name, value))
 			currentResolver = createResolver(localProperties.value)
 			startLookups(chosen as SchemaType, field.children)

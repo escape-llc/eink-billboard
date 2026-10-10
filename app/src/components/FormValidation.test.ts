@@ -9,6 +9,10 @@ const check = (px: FormField, value: unknown) => {
 	const r = sx.safeParse(value)
 	return r.success ? null : r.error.issues[0]!.message
 }
+const firstPath = (px: FormField, value: unknown) => {
+	const r = schemaFor(px)!.safeParse(value)
+	return r.success ? null : r.error.issues[0]!.path.map(String)
+}
 
 describe("string", () => {
 	it("required rejects empty and null with 'Required'", () => {
@@ -32,6 +36,16 @@ describe("string", () => {
 		expect(check(field({ type: "string", list: [{ value: "x" }] }), "y")).toBe("Not one of the allowed values")
 		expect(check(field({ type: "string", list: [{ value: "x" }] }), "x")).toBeNull()
 		expect(check(field({ type: "string", list: [] }), "anything")).toBeNull()
+	})
+})
+
+describe("a value the document does not have", () => {
+	it("is unset for an optional field of any type (a property added after the settings were saved), and Required for a required one", () => {
+		for (const type of ["string", "boolean", "number", "integer", "location"]) {
+			expect(check(field({ type, required: false }), undefined), type).toBeNull()
+			expect(check(field({ type, required: true }), undefined), type).toBe("Required")
+		}
+		expect(check(field({ type: "array", required: false, items: { type: "object", properties: [] } }), undefined)).toBeNull()
 	})
 })
 
@@ -117,6 +131,11 @@ describe("shared rules (form_rules.json)", () => {
 	for (const c of rules.cases) {
 		it(c.name, () => {
 			expect(check(c.field as unknown as FormField, decode(c.value))).toBe(c.error)
+			// the form names a location's latitude or longitude where the server names the field: only the cases that give a path compare it
+			const path = (c as { path?: string[] }).path
+			if (path) {
+				expect(firstPath(c.field as unknown as FormField, decode(c.value))).toEqual(path)
+			}
 		})
 	}
 })
