@@ -124,6 +124,7 @@ The same repo is worked on from three places. The rules above are the same every
   | `location` | `{latitude -90..90, longitude -180..180}` |
   | `schema` | a string; the form also checks it is one of the available plugins/datasources |
   | `boolean` | optional booleans may be `null` (unset) |
+  | `array` | a list of flat objects: `items: { type: "object", key, properties }`. `minItems` / `maxItems` ("At least N items", "At most N items"); each item follows the rules of its `properties`; the `key` field's values are unique ("Must be unique", on the later row); not a list: "Expected a list". A 422 path is `[name, "<row>", "<field>"]`. Item fields are `string` (with `enum`, `pattern`, ...), `number`, `integer` or `boolean`: no `writeOnly`, `visibleIf`, `lookup` or nested lists (`test_web_api` checks) |
   | `header` | no value, never validated |
   | `description` | shown under the field as help text (any property) |
 
@@ -132,6 +133,11 @@ The same repo is worked on from three places. The rules above are the same every
   A property of a type neither side knows is not checked. A `number` shows the digits its descriptor declares (`step`, `minFractionDigits`, `maxFractionDigits`); only `integer` forces whole numbers.
   A descriptor's `instanceSettings` has no `default` document: each property carries its own `default`, and `test_web_api` checks the defaults against the rules, the field names (no `.`, `[`, `]`: PrimeVue reads them as paths) and the types.
   A `schema` field's choices are the sources whose `features` match the lookup's (the form offers only those; the server rejects the others). A lookup that fails to load shows a message under the field, never an option.
+
+  **A list kept in settings, one entry chosen per task.** A plugin or data source keeps an `array` in its own `settings` (a feed list) and its `instanceSettings` offer the entries through a `settings` lookup:
+  `"lookups": { "feed": { "settings": "feeds", "value": "name", "label": "name" } }`, used by a `string` property with `"lookup": "feed"`. The task stores the entry's `value` (its `key`, so reordering the list is safe; a renamed or deleted entry shows as a stale value the user must choose again).
+  The choices are served by `GET /api/datasources/{id}/lookups/{lookup}` (`/api/plugins/...` likewise), for a lookup the descriptor declares; the form reaches it through `BasicForm`'s `owner`. Unlike a URL lookup the server can check membership, so a value that is not an entry is a 422 (and nothing is allowed while the list is empty).
+  The row editor (`ArrayField.vue`) sits **outside** its `FormField`: PrimeVue inputs bind to the nearest `FormField` and would each overwrite the whole list with their own value.
 
   **Conditional visibility.** A property may carry `visibleIf`, a predicate over the other fields' values (`app/src/components/FormVisibility.ts`, `python/web/visibility.py`, cases in `python/tests/form_visibility.json`):
   `{ "field": "x", "const" | "enum" | "set": ... }`, combined with `all` / `any` / `not`. Names are the form's field names (children of a `schema` field share them); unset (missing, `null`, `""`) reads as `null`.

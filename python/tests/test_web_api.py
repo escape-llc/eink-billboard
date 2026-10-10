@@ -14,7 +14,7 @@ from ..model.configuration_manager import ConfigurationManager, _internal_save
 from ..model.service_container import ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..web.app import WebSettings, create_app
-from ..web.documents import SECRET_MASK, plugin_content_errors, validate_properties
+from ..web.documents import SECRET_MASK, plugin_content_errors, resolve_settings_lookups, settings_lookup_items, validate_properties
 from ..web.routers.settings import _settings_lookups
 from ..web.sessions import SessionStore
 from ..web.visibility import evaluate, find_problems, hidden_names, null_hidden
@@ -141,7 +141,7 @@ class TestValidateProperties(unittest.TestCase):
 				errors = validate_properties({ "f": decode_case_value(case["value"]) }, [case["field"]])
 				self.assertEqual(errors[0]["message"] if errors else None, case["error"])
 				if errors:
-					self.assertEqual(errors[0]["path"], ["f"])
+					self.assertEqual(errors[0]["path"], ["f", *case.get("path", [])])
 
 	def test_missing_required_is_reported_and_headers_are_skipped(self):
 		props = [{ "name": "a", "type": "string", "required": True }, { "name": "h", "type": "header", "title": "H" }]
@@ -274,6 +274,60 @@ class TestDescriptorRules(unittest.TestCase):
 				own = { k: v for k, v in prop.items() if k not in ("visibleIf", "required") }
 				self.assertEqual(validate_properties({ prop["name"]: prop["default"] }, [own]), [])
 
+	ITEM_TYPES = ("string", "boolean", "number", "integer")
+
+	def test_arrays_and_settings_lookups_have_the_supported_shape(self):
+		root, files = self._files()
+		for path in files:
+			with open(path, "r", encoding="utf-8") as f:
+				info = json.load(f)
+			where = os.path.relpath(path, root)
+			settings_props = { p["name"]: p for p in ((info.get("settings") or {}).get("schema") or {}).get("properties") or [] if "name" in p }
+			for _, prop in self._each_property_of(info, where):
+				if prop.get("type") != "array":
+					continue
+				with self.subTest(f"{where}/{prop['name']}"):
+					items = prop.get("items") or {}
+					self.assertEqual(items.get("type"), "object")
+					fields = items.get("properties") or []
+					self.assertTrue(fields, "an array of objects lists the fields of an object")
+					names = [x["name"] for x in fields]
+					self.assertEqual(len(names), len(set(names)))
+					if items.get("key"):
+						self.assertIn(items["key"], names)
+					for field in fields:
+						# a first version: flat scalars, checked by the rules every other field has
+						self.assertIn(field.get("type"), self.ITEM_TYPES)
+						for unsupported in ("writeOnly", "visibleIf", "lookup", "items"):
+							self.assertNotIn(unsupported, field, f"{field['name']}: `{unsupported}` is not supported inside an array item")
+			for lookups in self._lookup_maps(info):
+				for lname, lk in lookups.items():
+					if isinstance(lk, dict) and "settings" in lk:
+						with self.subTest(f"{where}/lookups/{lname}"):
+							target = settings_props.get(lk["settings"])
+							self.assertIsNotNone(target, "a settings lookup names an array in the same descriptor's own settings")
+							self.assertEqual((target or {}).get("type"), "array")
+							fields = [x["name"] for x in (((target or {}).get("items") or {}).get("properties") or [])]
+							self.assertIn(lk.get("value", "name"), fields)
+							self.assertIn(lk.get("label", lk.get("value", "name")), fields)
+
+	@staticmethod
+	def _lookup_maps(node):
+		if isinstance(node, dict):
+			if isinstance(node.get("lookups"), dict):
+				yield node["lookups"]
+			for v in node.values():
+				yield from TestDescriptorRules._lookup_maps(v)
+		elif isinstance(node, list):
+			for v in node:
+				yield from TestDescriptorRules._lookup_maps(v)
+
+	@staticmethod
+	def _each_property_of(info, where):
+		for w, props in TestDescriptors._property_lists(info, where):
+			for prop in props:
+				yield w, prop
+
 	def test_settings_default_documents_agree_with_the_property_defaults(self):
 		root, files = self._files()
 		for path in files:
@@ -317,6 +371,75 @@ class TestSettingsLookups(unittest.TestCase):
 		self.assertEqual(_settings_lookups({ "info": { "settings": None } }), {})
 		lookups = { "fmt": { "items": [] } }
 		self.assertEqual(_settings_lookups({ "info": { "settings": { "schema": { "lookups": lookups } } } }), lookups)
+
+FEEDS_PROPERTY = { "name": "feeds", "type": "array", "required": False, "maxItems": 3, "items": { "type": "object", "key": "name", "properties": [
+	{ "name": "name", "type": "string", "required": True },
+	{ "name": "url", "type": "string", "required": True, "pattern": "^https?://" },
+] } }
+FEED_LOOKUPS = { "feed": { "settings": "feeds", "value": "name" } }
+
+def _feed_source():
+	"""A data source that keeps a list of feeds in its settings, and whose task picks one."""
+	return { "path": "x", "info": { "id": "feed-source", "name": "Feeds", "features": ["media-image"],
+		"settings": { "schema": { "properties": [FEEDS_PROPERTY] } },
+		"instanceSettings": { "schema": { "lookups": FEED_LOOKUPS, "properties": [{ "name": "feed", "type": "string", "required": True, "lookup": "feed" }] } } } }
+
+class TestSettingsLookupChoices(unittest.TestCase):
+	STORED = { "feeds": [{ "name": "a", "url": "http://a" }, { "name": "b", "url": "http://b" }, { "url": "http://nameless" }, "junk"] }
+
+	def test_the_choices_are_the_items_of_the_stored_list(self):
+		self.assertEqual(settings_lookup_items(FEED_LOOKUPS["feed"], self.STORED), [{ "name": "a", "value": "a" }, { "name": "b", "value": "b" }])
+		self.assertEqual(settings_lookup_items(FEED_LOOKUPS["feed"], None), [])
+		self.assertEqual(settings_lookup_items(FEED_LOOKUPS["feed"], { "feeds": "x" }), [])
+		self.assertEqual(settings_lookup_items({ "settings": "feeds", "value": "url", "label": "name" }, { "feeds": [{ "name": "A", "url": "u" }] }), [{ "name": "A", "value": "u" }])
+
+	def test_a_value_must_be_one_of_the_stored_choices_even_when_there_are_none(self):
+		props = [{ "name": "feed", "type": "string", "lookup": "feed" }]
+		stored = resolve_settings_lookups(FEED_LOOKUPS, self.STORED)
+		self.assertEqual(validate_properties({ "feed": "a" }, props, stored), [])
+		self.assertEqual(validate_properties({ "feed": "gone" }, props, stored)[0]["message"], "Not one of the allowed values")
+		nothing = resolve_settings_lookups(FEED_LOOKUPS, None)
+		self.assertEqual(validate_properties({ "feed": "a" }, props, nothing)[0]["message"], "Not one of the allowed values")
+		self.assertEqual(validate_properties({ "feed": None }, props, nothing), [])
+
+	def test_task_content_is_checked_against_the_owners_stored_settings(self):
+		source = _feed_source()
+		plugins = { "p": _content_item([{ "name": "dataSource", "type": "schema", "required": True, "lookup": "ds" }], { "ds": { "schema": "data-sources", "features": ["media-image"] } }) }
+		def stored(kind, ident):
+			return self.STORED if (kind, ident) == ("datasource", "feed-source") else None
+		ok = plugin_content_errors(plugins, { "feed-source": source }, "p", { "dataSource": "feed-source", "feed": "a" }, [], stored)
+		self.assertEqual(ok, [])
+		gone = plugin_content_errors(plugins, { "feed-source": source }, "p", { "dataSource": "feed-source", "feed": "gone" }, [], stored)
+		self.assertEqual(gone, [{ "path": ["content", "feed"], "message": "Not one of the allowed values" }])
+
+class TestSettingsLookupRoutes(WebApiTestBase):
+	def setUp(self):
+		super().setUp()
+		patcher = mock.patch.object(ConfigurationManager, "enum_datasources", lambda cm_self: [_feed_source()])
+		patcher.start()
+		self.addCleanup(patcher.stop)
+		self.write_datasource_settings("feed-source", { "feeds": [{ "name": "a", "url": "http://a" }] })
+
+	def test_the_choices_come_from_the_stored_settings(self):
+		resp = self.client.get("/api/datasources/feed-source/lookups/feed")
+		self.assertEqual(resp.status_code, 200, resp.text)
+		self.assertEqual(resp.json(), [{ "name": "a", "value": "a" }])
+
+	def test_only_a_declared_settings_lookup_is_served(self):
+		_error_shape(self, self.client.get("/api/datasources/feed-source/lookups/nope"), 404)
+		_error_shape(self, self.client.get("/api/datasources/not-a-source/lookups/feed"), 404)
+		_error_shape(self, self.client.get("/api/plugins/not-a-plugin/lookups/feed"), 404)
+
+	def test_the_list_in_the_settings_is_validated_with_a_path_to_the_row(self):
+		doc = self.client.get("/api/datasources/feed-source/settings").json()
+		doc["feeds"] = [{ "name": "a", "url": "http://a" }, { "name": "a", "url": "ftp://x" }]
+		body = _error_shape(self, self.client.put("/api/datasources/feed-source/settings", json=doc), 422)
+		self.assertEqual(body["errors"], [
+			{ "path": ["feeds", "1", "url"], "message": "Not in the expected format" },
+			{ "path": ["feeds", "1", "name"], "message": "Must be unique" },
+		])
+		doc["feeds"] = [{ "name": "a", "url": "http://a" }, { "name": "b", "url": "https://b" }]
+		self.assertEqual(self.client.put("/api/datasources/feed-source/settings", json=doc).status_code, 200)
 
 class TestSettingsValidation(WebApiTestBase):
 	def test_put_out_of_range_and_unknown_choice_are_422_with_the_field_path(self):
