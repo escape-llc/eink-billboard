@@ -51,7 +51,11 @@ class OpenAIAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		image_model = params.get("imageModel", DEFAULT_IMAGE_MODEL)
 		if image_model not in IMAGE_MODELS:
 			raise RuntimeError(f"Invalid Image Model provided: {image_model}")
-		image_quality = params.get('quality', "medium" if image_model == "gpt-image-1" else "standard")
+		# each model has its own quality names (the descriptor shows only the one that applies)
+		if image_model == "gpt-image-1":
+			image_quality = params.get('gptImageQuality') or "medium"
+		else:
+			image_quality = params.get('dalle3Quality') or DEFAULT_IMAGE_QUALITY
 		randomize_prompt = params.get('randomizePrompt') == True
 		display_cob = scm.open("display")
 		_, display_settings = display_cob.get()

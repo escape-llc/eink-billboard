@@ -35,7 +35,7 @@
 				},
 				{
 					"name": "slideMax",
-					"type": "number",
+					"type": "int",
 					"required": true,
 					"default": 4,
 					"min": 0,
@@ -44,7 +44,7 @@
 				},
 				{
 					"name": "slideMinutes",
-					"type": "number",
+					"type": "int",
 					"required": true,
 					"default": 15,
 					"min": 1,
@@ -52,11 +52,6 @@
 					"description": "Minutes per image."
 				}
 			]
-		},
-		"default": {
-			"dataSource": null,
-			"slideMax": 4,
-			"slideMinutes": 15
 		}
 	}
 }

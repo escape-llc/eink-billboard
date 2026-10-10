@@ -65,7 +65,7 @@ class TestConfigurationManager(unittest.TestCase):
 		self.assertIsNotNone(datasource, 'datasource comic failed')
 		if datasource is not None:
 			self.assertEqual(datasource.id, 'comic')
-			self.assertEqual(datasource.name, 'Comic Plugin')
+			self.assertEqual(datasource.name, 'Comic')
 
 	def test_load_save_plugin_state(self):
 		with tempfile.TemporaryDirectory() as tempdir:

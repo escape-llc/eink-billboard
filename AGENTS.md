@@ -123,8 +123,13 @@ The same repo is worked on from three places. The rules above are the same every
   | `date` | `YYYY-MM-DD`, a real day ("Expected a date (YYYY-MM-DD)") |
   | `location` | `{latitude -90..90, longitude -180..180}` |
   | `schema` | a string; the form also checks it is one of the available plugins/datasources |
+  | `boolean` | optional booleans may be `null` (unset) |
   | `header` | no value, never validated |
   | `description` | shown under the field as help text (any property) |
+
+  A property of a type neither side knows is not checked. A `number` shows the digits its descriptor declares (`step`, `minFractionDigits`, `maxFractionDigits`); only `int` forces whole numbers.
+  A descriptor's `instanceSettings` has no `default` document: each property carries its own `default`, and `test_web_api` checks the defaults against the rules, the field names (no `.`, `[`, `]`: PrimeVue reads them as paths) and the types.
+  A `schema` field's choices are the sources whose `features` match the lookup's (the form offers only those; the server rejects the others). A lookup that fails to load shows a message under the field, never an option.
 
   **Conditional visibility.** A property may carry `visibleIf`, a predicate over the other fields' values (`app/src/components/FormVisibility.ts`, `python/web/visibility.py`, cases in `python/tests/form_visibility.json`):
   `{ "field": "x", "eq" | "ne" | "in" | "set": ... }`, combined with `all` / `any` / `not`. Names are the form's field names (children of a `schema` field share them); unset (missing, `null`, `""`) reads as `null`.

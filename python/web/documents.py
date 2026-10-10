@@ -213,6 +213,14 @@ def instance_properties(item: dict) -> tuple[list[dict], dict]:
 	schema = ((item["info"].get("instanceSettings") or {}).get("schema")) or {}
 	return schema.get("properties") or [], schema.get("lookups") or {}
 
+def _offers(source: dict, lookup: Any) -> bool:
+	"""The data source has one of the `features` the lookup asks for (the choices the form offers: see `schemaFilterFeatures` in `BasicForm.vue`)."""
+	wanted = lookup.get("features") if isinstance(lookup, dict) else None
+	have = source["info"].get("features") or []
+	if not have:
+		return False
+	return not wanted or any(f in have for f in wanted)
+
 def plugin_content_errors(plugins: dict, datasources: dict, plugin_name: Any, content: dict, path: list) -> list[dict]:
 	"""The plugin exists and `content` follows its settings (and its data source's); `path` is where `plugin_name` and `content` live in the item (`["task"]` for a timer task, none for a track)."""
 	plugin = plugins.get(plugin_name)
@@ -220,11 +228,13 @@ def plugin_content_errors(plugins: dict, datasources: dict, plugin_name: Any, co
 		return [{ "path": [*path, "plugin_name"], "message": "Unknown plugin" }]
 	props, lookups = instance_properties(plugin)
 	errors = validate_properties(content, props, lookups)
+	hidden = hidden_names(props, content)
 	for prop in props:
-		chosen = content.get(prop.get("name")) if prop.get("type") == "schema" else None
+		# a hidden choice is not applicable: its data source's fields are not checked either
+		chosen = content.get(prop.get("name")) if prop.get("type") == "schema" and prop.get("name") not in hidden else None
 		if isinstance(chosen, str) and chosen:
 			source = datasources.get(chosen)
-			if source is None:
+			if source is None or not _offers(source, lookups.get(prop.get("lookup"))):
 				errors.append({ "path": [prop["name"]], "message": "Not one of the allowed values" })
 			else:
 				sprops, slookups = instance_properties(source)

@@ -35,8 +35,8 @@
 			<template v-else-if="field.type === 'number' || field.type === 'int'">
 				<InputNumber style="flex-grow:1" :name="field.name" :inputId="field.name" :invalid="isInvalid" size="small"
 					:min="field.min" :max="field.max" :step="field.step" :showButtons="true"
-					:minFractionDigits="field.type === 'int' ? 0 : field.minFractionDigits || 0"
-					:maxFractionDigits="field.type === 'int' ? 0 : field.maxFractionDigits || 0"
+					:minFractionDigits="field.type === 'int' ? 0 : field.minFractionDigits"
+					:maxFractionDigits="field.type === 'int' ? 0 : field.maxFractionDigits"
 					:showClear="field.required === false"
 					:placeholder="field.label" fluid />
 			</template>
@@ -66,6 +66,7 @@
 			<Message v-if="isInvalid"
 				severity="error" size="small" variant="simple">{{ errorMessage }}</Message>
 		</slot>
+		<Message v-if="field.lookupError" severity="warn" size="small" variant="simple">{{ field.lookupError }}</Message>
 		<Message v-if="field.description" severity="secondary" size="small" variant="simple">{{ field.description }}</Message>
 		<template v-if="field.children?.length">
 			<BasicFormField 
@@ -74,6 +75,7 @@
 				:field="child"
 				:formContext="formContext"
 				:fieldNameWidth="fieldNameWidth"
+				@form-field-event="(data: SchemaChangeData) => emits('form-field-event', data)"
 			>
 				<!-- Forward all slots to descendants -->
 				<template v-for="(_, name) in $slots" #[name]="slotProps">
@@ -111,12 +113,9 @@ defineSlots<Record<string, (props: any) => any>>()
 const emits = defineEmits<EmitsType>()
 function handleSchemaChange(event: any, field: any) {
 	// emit an event to the parent with the selected schema
+	// a cleared choice (no match) still tells the parent, which drops the previous choice's fields
 	const schema = field.list.find((s: any) => s.value === event.value);
-	if (schema) {
-		// populate field.children with the properties of the selected schema
-//		props.formContext.onChange(field.name, event.value);
-		emits('form-field-event', { type: 'schema-change', field, selected: toRaw(schema) });
-	}
+	emits('form-field-event', { type: 'schema-change', field, selected: schema ? toRaw(schema) : null });
 }
 const fieldState = computed(() => props.formContext?.[props.field.name] || {});
 // the form's field states, read by name, are the values the predicates look at

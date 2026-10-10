@@ -54,7 +54,7 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 			return required ? base : z.preprocess(emptyToNull, base.nullable())
 		}
 		case "boolean":
-			return z.boolean()
+			return optionalUnless(required, z.boolean())
 		case "number":
 		case "int": {
 			let base = px.type === "int" ? z.number().int({ error: messages.wholeNumbers }) : z.number()
@@ -82,9 +82,9 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 			return required ? z.preprocess(emptyToNull, iso) : z.preprocess(emptyToNull, iso.nullable())
 		}
 		default: {
-			console.warn("no validation for type, using 'string'", px)
-			const base = z.string()
-			return (px as { required?: boolean }).required === true ? base.min(1, { error: messages.required }) : base
+			// the server does not check a type it does not know either
+			console.warn("no validation for type", px)
+			return z.any()
 		}
 	}
 }

@@ -46,11 +46,6 @@
 					"visibleIf": { "field": "randomizeDate", "eq": false }
 				}
 			]
-		},
-		"default": {
-			"shrinkToFit": true,
-			"randomizeDate": false,
-			"customDate": null
 		}
 	}
 }

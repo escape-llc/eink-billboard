@@ -1,11 +1,11 @@
 {
 	"id": "countdown",
-	"name": "countdown",
+	"name": "Countdown",
 	"version": "0.0.1",
 	"class": "CountdownAsync",
 	"file": "countdown.py",
 	"module": "python.datasources.countdown.countdown",
-	"description": "Countdown to specfic date/time.",
+	"description": "Countdown to a specific date/time.",
 	"features": ["layer-priority", "layer-foreground", "media-image"],
 	"disabled": false,
 	"settings": {
@@ -35,10 +35,6 @@
 					"description": "Countdown to date."
 				}
 			]
-		},
-		"default": {
-			"title": null,
-			"targetDate": null
 		}
 	}
 }
