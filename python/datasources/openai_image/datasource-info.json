@@ -15,9 +15,9 @@
 					"name": "apiKey",
 					"type": "string",
 					"required": true,
-					"secret": true,
+					"writeOnly": true,
 					"default": null,
-					"label": "API Key",
+					"title": "API Key",
 					"description": "Your OpenAI API key."
 				}
 			]
@@ -35,7 +35,7 @@
 					"type": "string",
 					"required": true,
 					"default": "dall-e-3",
-					"label": "Image Model",
+					"title": "Image Model",
 					"description": "OpenAI image model.",
 					"enum": ["dall-e-3", "dall-e-2", "gpt-image-1"]
 				},
@@ -44,27 +44,27 @@
 					"type": "string",
 					"required": true,
 					"default": "standard",
-					"label": "Image Quality",
+					"title": "Image Quality",
 					"description": "DALL-E 3 image quality.",
 					"enum": ["standard", "hd"],
-					"visibleIf": { "field": "imageModel", "eq": "dall-e-3" }
+					"visibleIf": { "field": "imageModel", "const": "dall-e-3" }
 				},
 				{
 					"name": "gptImageQuality",
 					"type": "string",
 					"required": true,
 					"default": "medium",
-					"label": "Image Quality",
+					"title": "Image Quality",
 					"description": "GPT Image quality.",
 					"enum": ["low", "medium", "high", "auto"],
-					"visibleIf": { "field": "imageModel", "eq": "gpt-image-1" }
+					"visibleIf": { "field": "imageModel", "const": "gpt-image-1" }
 				},
 				{
 					"name": "prompt",
 					"type": "string",
 					"required": true,
 					"default": null,
-					"label": "Prompt",
+					"title": "Prompt",
 					"description": "Your Gen-AI prompt for the image."
 				},
 				{
@@ -72,7 +72,7 @@
 					"type": "boolean",
 					"required": false,
 					"default": true,
-					"label": "Randomize Prompt",
+					"title": "Randomize Prompt",
 					"description": "Randomize the prompt."
 				}
 			]

@@ -5,7 +5,7 @@
 			"name": "string required, empty",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "string"
 			},
@@ -16,7 +16,7 @@
 			"name": "string required, null",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "string"
 			},
@@ -27,7 +27,7 @@
 			"name": "string required, set",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "string"
 			},
@@ -38,7 +38,7 @@
 			"name": "string optional, empty",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": false,
 				"type": "string"
 			},
@@ -49,7 +49,7 @@
 			"name": "string optional, null",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": false,
 				"type": "string"
 			},
@@ -60,7 +60,7 @@
 			"name": "enum, member",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "string",
 				"enum": [
@@ -75,7 +75,7 @@
 			"name": "enum, not a member",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "string",
 				"enum": [
@@ -90,7 +90,7 @@
 			"name": "enum optional, null",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": false,
 				"type": "string",
 				"enum": [
@@ -104,10 +104,10 @@
 			"name": "number min 0, below",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "number",
-				"min": 0
+				"minimum": 0
 			},
 			"value": -1,
 			"error": "Minimum 0"
@@ -116,10 +116,10 @@
 			"name": "number min 0, at",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "number",
-				"min": 0
+				"minimum": 0
 			},
 			"value": 0,
 			"error": null
@@ -128,10 +128,10 @@
 			"name": "number max 0, above",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "number",
-				"max": 0
+				"maximum": 0
 			},
 			"value": 1,
 			"error": "Maximum 0"
@@ -140,10 +140,10 @@
 			"name": "number min 0.5, below",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "number",
-				"min": 0.5
+				"minimum": 0.5
 			},
 			"value": 0.25,
 			"error": "Minimum 0.5"
@@ -152,7 +152,7 @@
 			"name": "number required, null",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "number"
 			},
@@ -163,7 +163,7 @@
 			"name": "number optional, null",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": false,
 				"type": "number"
 			},
@@ -174,9 +174,9 @@
 			"name": "int, fraction",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
-				"type": "int"
+				"type": "integer"
 			},
 			"value": 1.5,
 			"error": "Whole numbers only"
@@ -185,9 +185,9 @@
 			"name": "int, whole",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
-				"type": "int"
+				"type": "integer"
 			},
 			"value": 3,
 			"error": null
@@ -196,10 +196,10 @@
 			"name": "int min 1, below",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
-				"type": "int",
-				"min": 1
+				"type": "integer",
+				"minimum": 1
 			},
 			"value": 0,
 			"error": "Minimum 1"
@@ -208,7 +208,7 @@
 			"name": "location required, null",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "location"
 			},
@@ -219,7 +219,7 @@
 			"name": "location optional, null",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": false,
 				"type": "location"
 			},
@@ -230,7 +230,7 @@
 			"name": "location, in range",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "location"
 			},
@@ -244,7 +244,7 @@
 			"name": "location, latitude out of range",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "location"
 			},
@@ -258,7 +258,7 @@
 			"name": "location, longitude out of range",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "location"
 			},
@@ -272,9 +272,10 @@
 			"name": "date, valid",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
-				"type": "date"
+				"type": "string",
+				"format": "date"
 			},
 			"value": "2026-10-05",
 			"error": null
@@ -283,9 +284,10 @@
 			"name": "date, impossible",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
-				"type": "date"
+				"type": "string",
+				"format": "date"
 			},
 			"value": "2026-02-31",
 			"error": "Expected a date (YYYY-MM-DD)"
@@ -294,9 +296,10 @@
 			"name": "date optional, empty",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": false,
-				"type": "date"
+				"type": "string",
+				"format": "date"
 			},
 			"value": "",
 			"error": null
@@ -305,9 +308,10 @@
 			"name": "date required, empty",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
-				"type": "date"
+				"type": "string",
+				"format": "date"
 			},
 			"value": "",
 			"error": "Required"
@@ -316,7 +320,7 @@
 			"name": "boolean, true",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "boolean"
 			},
@@ -327,7 +331,7 @@
 			"name": "number NaN is not finite",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "number"
 			},
@@ -340,7 +344,7 @@
 			"name": "number Infinity is not finite",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "number"
 			},
@@ -353,7 +357,7 @@
 			"name": "number -Infinity is not finite",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
 				"type": "number"
 			},
@@ -366,9 +370,9 @@
 			"name": "int NaN is not finite",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": true,
-				"type": "int"
+				"type": "integer"
 			},
 			"value": {
 				"$number": "NaN"
@@ -379,10 +383,10 @@
 			"name": "optional number with max, Infinity is not finite",
 			"field": {
 				"name": "f",
-				"label": "F",
+				"title": "F",
 				"required": false,
 				"type": "number",
-				"max": 10
+				"maximum": 10
 			},
 			"value": {
 				"$number": "Infinity"
@@ -392,10 +396,10 @@
 		{
 			"name": "boolean optional, null",
 			"field": {
-			  "name": "f",
-			  "label": "F",
-			  "required": false,
-			  "type": "boolean"
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "boolean"
 			},
 			"value": null,
 			"error": null
@@ -403,10 +407,10 @@
 		{
 			"name": "boolean required, null",
 			"field": {
-			  "name": "f",
-			  "label": "F",
-			  "required": true,
-			  "type": "boolean"
+				"name": "f",
+				"title": "F",
+				"required": true,
+				"type": "boolean"
 			},
 			"value": null,
 			"error": "Required"
@@ -414,26 +418,124 @@
 		{
 			"name": "unknown type is not checked",
 			"field": {
-			  "name": "f",
-			  "label": "F",
-			  "required": false,
-			  "type": "widget"
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "widget"
 			},
-			"value": {"any": 1},
+			"value": {
+				"any": 1
+			},
 			"error": null
 		},
 		{
 			"name": "number with a fraction and no digit settings",
 			"field": {
-			  "name": "f",
-			  "label": "F",
-			  "required": true,
-			  "type": "number",
-			  "min": 0,
-			  "max": 1
+				"name": "f",
+				"title": "F",
+				"required": true,
+				"type": "number",
+				"minimum": 0,
+				"maximum": 1
 			},
 			"value": 0.4,
 			"error": null
+		},
+		{
+			"name": "string pattern, match",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"pattern": "^#[0-9a-f]{3}$"
+			},
+			"value": "#abc",
+			"error": null
+		},
+		{
+			"name": "string pattern, no match",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"pattern": "^#[0-9a-f]{3}$"
+			},
+			"value": "abc",
+			"error": "Not in the expected format"
+		},
+		{
+			"name": "string pattern, empty is unset",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"pattern": "^#[0-9a-f]{3}$"
+			},
+			"value": "",
+			"error": null
+		},
+		{
+			"name": "minLength",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"minLength": 3
+			},
+			"value": "ab",
+			"error": "At least 3 characters"
+		},
+		{
+			"name": "maxLength",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"maxLength": 3
+			},
+			"value": "abcd",
+			"error": "At most 3 characters"
+		},
+		{
+			"name": "minLength, long enough",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"minLength": 3
+			},
+			"value": "abc",
+			"error": null
+		},
+		{
+			"name": "format date, valid",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "date"
+			},
+			"value": "2026-10-09",
+			"error": null
+		},
+		{
+			"name": "format date, not a day",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "date"
+			},
+			"value": "2026-02-31",
+			"error": "Expected a date (YYYY-MM-DD)"
 		}
 	]
 }

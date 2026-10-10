@@ -21,34 +21,34 @@
 			{
 				"name":"display_type",
 				"type": "string",
-				"label": "Display Type",
+				"title": "Display Type",
 				"lookup": "display",
 				"required": true
 			},
 			{
 				"name":"orientation",
 				"type": "string",
-				"label": "Orientation",
+				"title": "Orientation",
 				"lookup": "orientation",
 				"required": true
 			},
 			{
 				"name":"rotate180",
 				"type": "boolean",
-				"label": "Rotate 180",
+				"title": "Rotate 180",
 				"required": false
 			},
 			{
 				"name": "imageSettings",
 				"type": "header",
-				"label": "Image Settings"
+				"title": "Image Settings"
 			},
 			{
 				"name":"imageSettings-saturation",
 				"type": "number",
-				"label": "Saturation",
-				"min": 0,
-				"max": 2,
+				"title": "Saturation",
+				"minimum": 0,
+				"maximum": 2,
 				"step": 0.1,
 				"minFractionDigits": 1,
 				"maxFractionDigits": 1,
@@ -57,9 +57,9 @@
 			{
 				"name":"imageSettings-contrast",
 				"type": "number",
-				"label": "Contrast",
-				"min": 0,
-				"max": 2,
+				"title": "Contrast",
+				"minimum": 0,
+				"maximum": 2,
 				"step": 0.1,
 				"minFractionDigits": 1,
 				"maxFractionDigits": 1,
@@ -68,9 +68,9 @@
 			{
 				"name":"imageSettings-brightness",
 				"type": "number",
-				"label": "Brightness",
-				"min": 0,
-				"max": 2,
+				"title": "Brightness",
+				"minimum": 0,
+				"maximum": 2,
 				"step": 0.1,
 				"minFractionDigits": 1,
 				"maxFractionDigits": 1,
@@ -79,9 +79,9 @@
 			{
 				"name":"imageSettings-sharpness",
 				"type": "number",
-				"label": "Sharpness",
-				"min": 0,
-				"max": 2,
+				"title": "Sharpness",
+				"minimum": 0,
+				"maximum": 2,
 				"step": 0.1,
 				"minFractionDigits": 1,
 				"maxFractionDigits": 1,

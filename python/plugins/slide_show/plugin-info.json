@@ -30,25 +30,25 @@
 					"required": true,
 					"default": null,
 					"lookup": "dataSource",
-					"label": "Data Source",
+					"title": "Data Source",
 					"description": "Gallery single or list source."
 				},
 				{
 					"name": "slideMax",
-					"type": "int",
+					"type": "integer",
 					"required": true,
 					"default": 4,
-					"min": 0,
-					"label": "Max Slides",
+					"minimum": 0,
+					"title": "Max Slides",
 					"description": "Maximum number of images in the slideshow. Zero for 'unlimited'."
 				},
 				{
 					"name": "slideMinutes",
-					"type": "int",
+					"type": "integer",
 					"required": true,
 					"default": 15,
-					"min": 1,
-					"label": "Slide Duration Minutes",
+					"minimum": 1,
+					"title": "Slide Duration Minutes",
 					"description": "Minutes per image."
 				}
 			]

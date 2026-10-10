@@ -64,7 +64,7 @@
 				</Toolbar>
 			</template>
 			<template #group-header="slotProps">
-				<h3 class="mb-0">{{ slotProps.label }}</h3>
+				<h3 class="mb-0">{{ slotProps.title }}</h3>
 			</template>
 			<template #before-fields>
 				<InputGroup v-if="!editTarget?.id && documents.length > 1">
