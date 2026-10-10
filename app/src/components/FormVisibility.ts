@@ -2,7 +2,7 @@
  * Conditional visibility: a property may carry `visibleIf`, a small JSON predicate over the other fields' values.
  * The server applies the same rules (`python/web/visibility.py`); the cases both must pass are in `python/tests/form_visibility.json`.
  *
- *   { "field": "randomizeDate", "eq": false }       eq | ne | in | set (true: has a value, false: has none)
+ *   { "field": "randomizeDate", "const": false }    const | enum | set (true: has a value, false: has none)
  *   { "all": [ ... ] }  { "any": [ ... ] }  { "not": { ... } }
  *
  * Names are the form's field names (children of a `schema` field share the same namespace). An unset value (undefined, null, "")
@@ -11,7 +11,7 @@
 import type { FormField } from "./FormValidation"
 
 export type Predicate =
-	| { field: string, eq?: unknown, ne?: unknown, in?: unknown[], set?: boolean }
+	| { field: string, const?: unknown, enum?: unknown[], set?: boolean }
 	| { all: Predicate[] }
 	| { any: Predicate[] }
 	| { not: Predicate }
@@ -32,9 +32,8 @@ export function evaluate(p: unknown, values: ValueSource): boolean {
 	if ("not" in o) return !evaluate(o.not, values)
 	if (typeof o.field === "string") {
 		const v = read(values, o.field)
-		if ("eq" in o) return v === (o.eq === undefined ? null : o.eq)
-		if ("ne" in o) return v !== (o.ne === undefined ? null : o.ne)
-		if (Array.isArray(o.in)) return o.in.includes(v)
+		if ("const" in o) return v === (o.const === undefined ? null : o.const)
+		if (Array.isArray(o.enum)) return o.enum.includes(v)
 		if (typeof o.set === "boolean") return (v !== null) === o.set
 	}
 	return true
@@ -63,7 +62,7 @@ export function referencedFields(p: unknown): string[] {
 	return typeof o.field === "string" ? [o.field] : []
 }
 
-const OPERATORS = ["eq", "ne", "in", "set"]
+const OPERATORS = ["const", "enum", "set"]
 function shapeProblem(p: unknown): string | null {
 	if (!p || typeof p !== "object" || Array.isArray(p)) return "is not an object"
 	const o = p as Record<string, unknown>
@@ -76,7 +75,7 @@ function shapeProblem(p: unknown): string | null {
 	}
 	if ("not" in o) return shapeProblem(o.not)
 	if (typeof o.field !== "string") return "needs a field, all, any or not"
-	return OPERATORS.some(op => op in o) ? null : "needs eq, ne, in or set"
+	return OPERATORS.some(op => op in o) ? null : "needs const, enum or set"
 }
 
 /** What is wrong with the `visibleIf` of these properties: a malformed predicate, a name that is no field, or a cycle. Empty when fine. */

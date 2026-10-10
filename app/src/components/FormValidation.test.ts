@@ -3,7 +3,7 @@ import { z } from "zod"
 import { fieldRules, schemaFor, type FormField } from "./FormValidation"
 import rules from "../../../python/tests/form_rules.json"
 
-const field = (over: Record<string, unknown>) => ({ name: "f", label: "F", required: true, ...over }) as FormField
+const field = (over: Record<string, unknown>) => ({ name: "f", title: "F", required: true, ...over }) as FormField
 const check = (px: FormField, value: unknown) => {
 	const sx = schemaFor(px)!
 	const r = sx.safeParse(value)
@@ -36,19 +36,19 @@ describe("string", () => {
 })
 
 describe("number and int", () => {
-	it("min and max of zero are enforced (they used to be ignored)", () => {
-		expect(check(field({ type: "number", min: 0 }), -1)).toBe("Minimum 0")
-		expect(check(field({ type: "number", min: 0 }), 0)).toBeNull()
-		expect(check(field({ type: "number", max: 0 }), 1)).toBe("Maximum 0")
+	it("minimum and maximum of zero are enforced (they used to be ignored)", () => {
+		expect(check(field({ type: "number", minimum: 0 }), -1)).toBe("Minimum 0")
+		expect(check(field({ type: "number", minimum: 0 }), 0)).toBeNull()
+		expect(check(field({ type: "number", maximum: 0 }), 1)).toBe("Maximum 0")
 	})
 	it("required rejects null, optional accepts it", () => {
 		expect(check(field({ type: "number" }), null)).toBe("Required")
 		expect(check(field({ type: "number", required: false }), null)).toBeNull()
 	})
 	it("int rejects fractions", () => {
-		expect(check(field({ type: "int" }), 1.5)).toBe("Whole numbers only")
-		expect(check(field({ type: "int", min: 1 }), 0)).toBe("Minimum 1")
-		expect(check(field({ type: "int" }), 3)).toBeNull()
+		expect(check(field({ type: "integer" }), 1.5)).toBe("Whole numbers only")
+		expect(check(field({ type: "integer", minimum: 1 }), 0)).toBe("Minimum 1")
+		expect(check(field({ type: "integer" }), 3)).toBeNull()
 	})
 })
 
@@ -73,16 +73,16 @@ describe("schema and date", () => {
 		expect(check(px, "")).toBe("Required")
 	})
 	it("dates are YYYY-MM-DD", () => {
-		expect(check(field({ type: "date" }), "2026-10-05")).toBeNull()
-		expect(check(field({ type: "date" }), "2026-02-31")).not.toBeNull()
-		expect(check(field({ type: "date", required: false }), "")).toBeNull()
+		expect(check(field({ type: "string", format: "date" }), "2026-10-05")).toBeNull()
+		expect(check(field({ type: "string", format: "date" }), "2026-02-31")).not.toBeNull()
+		expect(check(field({ type: "string", format: "date", required: false }), "")).toBeNull()
 	})
 })
 
 describe("fieldRules", () => {
 	it("skips headers and includes the children of schema fields", () => {
 		const rules = fieldRules([
-			{ name: "h", label: "H", type: "header" },
+			{ name: "h", title: "H", type: "header" },
 			field({ name: "dataSource", type: "schema", children: [field({ name: "folder", type: "string" })] })
 		] as FormField[])
 		expect(Object.keys(rules).sort()).toEqual(["dataSource", "folder"])
@@ -96,8 +96,8 @@ const decode = (v: unknown): unknown =>
 
 describe("what a form submits", () => {
 	// BasicForm submits `z.object(fieldRules(...)).safeParse(values).data`: only the fields of the selection come out
-	const slideShow = [field({ name: "slideMax", type: "int" }), field({ name: "slideMinutes", type: "int" })]
-	const priorityUpdate = [field({ name: "slideMinutes", type: "int" })]
+	const slideShow = [field({ name: "slideMax", type: "integer" }), field({ name: "slideMinutes", type: "integer" })]
+	const priorityUpdate = [field({ name: "slideMinutes", type: "integer" })]
 	const submit = (fields: FormField[], values: Record<string, unknown>) => {
 		const r = z.object(fieldRules(fields, {}, values)).safeParse(values)
 		return r.success ? r.data : null
@@ -108,7 +108,7 @@ describe("what a form submits", () => {
 		expect(submit(priorityUpdate, values)).toEqual({ slideMinutes: 2 })
 	})
 	it("leaves out a hidden field (the form then saves it as null)", () => {
-		const fields = [field({ name: "on", type: "boolean" }), field({ name: "detail", type: "string", visibleIf: { field: "on", eq: true } })]
+		const fields = [field({ name: "on", type: "boolean" }), field({ name: "detail", type: "string", visibleIf: { field: "on", const: true } })]
 		expect(submit(fields, { on: false, detail: "kept?" })).toEqual({ on: false })
 	})
 })

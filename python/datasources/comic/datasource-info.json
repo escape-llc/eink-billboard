@@ -25,7 +25,7 @@
 					"type": "string",
 					"required": true,
 					"default": "XKCD",
-					"label": "Comic Source",
+					"title": "Comic Source",
 					"description": "Where to download comics.",
 					"enum":[
 						"XKCD",
@@ -43,16 +43,16 @@
 					"type": "boolean",
 					"required": false,
 					"default": true,
-					"label": "Show Caption",
+					"title": "Show Caption",
 					"description": "Display a caption."
 				},
 				{
 					"name": "fontSize",
-					"type": "int",
-					"min": 6,
+					"type": "integer",
+					"minimum": 6,
 					"required": true,
 					"default": 12,
-					"label": "Font size",
+					"title": "Font size",
 					"description": "The caption font size."
 				}
 			]

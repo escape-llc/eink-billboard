@@ -30,16 +30,16 @@
 					"required": true,
 					"default": null,
 					"lookup": "dataSource",
-					"label": "Data Source",
+					"title": "Data Source",
 					"description": "Single image source."
 				},
 				{
 					"name": "slideMinutes",
-					"type": "int",
+					"type": "integer",
 					"required": true,
 					"default": 1,
-					"min": 1,
-					"label": "Slide Duration Minutes",
+					"minimum": 1,
+					"title": "Slide Duration Minutes",
 					"description": "Minutes for image."
 				}
 			]

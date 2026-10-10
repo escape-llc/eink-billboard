@@ -17,34 +17,34 @@
 			{
 				"name":"theme",
 				"type": "string",
-				"label": "Theme",
+				"title": "Theme",
 				"lookup": "theme",
 				"required": true
 			},
 			{
 				"name":"hue",
 				"type": "number",
-				"label": "Hue",
-				"min": 0,
-				"max": 360,
+				"title": "Hue",
+				"minimum": 0,
+				"maximum": 360,
 				"step": 1,
 				"required": true
 			},
 			{
 				"name":"saturation",
 				"type": "number",
-				"label": "Saturation",
-				"min": 0,
-				"max": 100,
+				"title": "Saturation",
+				"minimum": 0,
+				"maximum": 100,
 				"step": 1,
 				"required": true
 			},
 			{
 				"name":"lightness",
 				"type": "number",
-				"label": "Lightness",
-				"min": 20,
-				"max": 80,
+				"title": "Lightness",
+				"minimum": 20,
+				"maximum": 80,
 				"step": 1,
 				"required": true
 			}

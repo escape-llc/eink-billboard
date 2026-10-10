@@ -19,28 +19,28 @@
 			{
 				"name":"timezoneName",
 				"type": "string",
-				"label": "Timezone",
+				"title": "Timezone",
 				"lookup": "timezone",
 				"required": true
 			},
 			{
 				"name":"locale",
 				"type": "string",
-				"label": "Locale",
+				"title": "Locale",
 				"lookup": "locale",
 				"required": true
 			},
 			{
 				"name":"timeFormat",
 				"type": "string",
-				"label": "Time Format",
+				"title": "Time Format",
 				"lookup": "timeFormat",
 				"required": true
 			},
 			{
 				"name":"location",
 				"type": "location",
-				"label": "Location",
+				"title": "Location",
 				"required": false
 			}
 		]
