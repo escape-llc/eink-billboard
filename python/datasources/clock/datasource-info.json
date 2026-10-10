@@ -51,11 +51,6 @@
 					"description": "The secondary color."
 				}
 			]
-		},
-		"default": {
-			"clockFace": "Gradient Clock",
-			"primaryColor": "#db3246",
-			"secondaryColor": "#000000"
 		}
 	}
 }

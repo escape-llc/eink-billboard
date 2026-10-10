@@ -49,15 +49,13 @@
 					"default": 0.4,
 					"min": 0,
 					"max": 1,
+					"step": 0.05,
+					"minFractionDigits": 0,
+					"maxFractionDigits": 2,
 					"label": "Wash",
 					"description": "How much to lighten the background under the overlay so it reads: 0 is none, 1 is white."
 				}
 			]
-		},
-		"default": {
-			"dataSource": null,
-			"zone": "bottom-right",
-			"wash": 0.4
 		}
 	}
 }

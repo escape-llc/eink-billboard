@@ -35,7 +35,7 @@
 				},
 				{
 					"name": "slideMinutes",
-					"type": "number",
+					"type": "int",
 					"required": true,
 					"default": 1,
 					"min": 1,
@@ -43,10 +43,6 @@
 					"description": "Minutes for image."
 				}
 			]
-		},
-		"default": {
-			"dataSource": null,
-			"slideMinutes": 1
 		}
 	}
 }

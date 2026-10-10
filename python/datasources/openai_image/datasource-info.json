@@ -40,13 +40,24 @@
 					"enum": ["dall-e-3", "dall-e-2", "gpt-image-1"]
 				},
 				{
-					"name": "imageQuality",
+					"name": "dalle3Quality",
+					"type": "string",
+					"required": true,
+					"default": "standard",
+					"label": "Image Quality",
+					"description": "DALL-E 3 image quality.",
+					"enum": ["standard", "hd"],
+					"visibleIf": { "field": "imageModel", "eq": "dall-e-3" }
+				},
+				{
+					"name": "gptImageQuality",
 					"type": "string",
 					"required": true,
 					"default": "medium",
 					"label": "Image Quality",
-					"description": "OpenAI image quality.",
-					"enum":["low","medium","high"]
+					"description": "GPT Image quality.",
+					"enum": ["low", "medium", "high", "auto"],
+					"visibleIf": { "field": "imageModel", "eq": "gpt-image-1" }
 				},
 				{
 					"name": "prompt",
@@ -65,12 +76,6 @@
 					"description": "Randomize the prompt."
 				}
 			]
-		},
-		"default": {
-			"imageModel": "dall-e-3",
-			"imageQuality": "standard",
-			"prompt": null,
-			"randomizePrompt": false
 		}
 	}
 }

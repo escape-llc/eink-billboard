@@ -39,9 +39,6 @@
 					"description": "Select the newspaper."
 				}
 			]
-		},
-		"default": {
-			"slug": "ny_nyt"
 		}
 	}
 }

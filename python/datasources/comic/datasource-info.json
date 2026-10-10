@@ -1,6 +1,6 @@
 {
 	"id": "comic",
-	"name": "Comic Plugin",
+	"name": "Comic",
 	"version": "0.0.1",
 	"class": "ComicFeedAsync",
 	"file": "comic_feed.py",
@@ -24,7 +24,6 @@
 					"name": "comic",
 					"type": "string",
 					"required": true,
-					"lookup": null,
 					"default": "XKCD",
 					"label": "Comic Source",
 					"description": "Where to download comics.",
@@ -49,18 +48,14 @@
 				},
 				{
 					"name": "fontSize",
-					"type": "number",
+					"type": "int",
+					"min": 6,
 					"required": true,
 					"default": 12,
 					"label": "Font size",
 					"description": "The caption font size."
 				}
 			]
-		},
-		"default": {
-			"comic": "XKCD",
-			"titleCaption": true,
-			"fontSize": 12
 		}
 	}
 }

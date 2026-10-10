@@ -79,7 +79,7 @@ watch(() => props.form, (nv) => {
 	if(nv) {
 		// a plugin just chosen brings fields the values do not have: they start at the descriptor's default, as they do for a new item
 		applyDefaults(formProperties(nv.schema), localValues.value).forEach(([name, value]) => { localValues.value[name] = value })
-		ensureInitializeForm(nv.schema, localValues.value)
+		ensureInitializeForm(nv.schema)
 	}
 	else {
 		localProperties.value = []
@@ -98,7 +98,7 @@ watch(() => props.initialValues, (nv) => {
 		const dflts = props.form?.schema ? applyDefaults(formProperties(props.form.schema), ox) : []
 		dflts.forEach(([name, value]) => { ox[name] = value })
 		localValues.value = ox
-		ensureInitializeForm(props.form?.schema as SchemaType, localValues.value)
+		ensureInitializeForm(props.form?.schema)
 	}
 	else {
 		localValues.value = {}
@@ -109,8 +109,7 @@ watch(() => props.initialValues, (nv) => {
 	});
 }, { immediate:true }
 )
-function ensureInitializeForm(schema: SchemaType, values: any): void {
-	if(values && Object.keys(values).length === 0) return;
+function ensureInitializeForm(schema: SchemaType|undefined): void {
 	if(!schema) return;
 	localProperties.value = formProperties(schema)
 	currentResolver = createResolver(localProperties.value)
@@ -131,8 +130,8 @@ function schemaFilterFeatures(features: string[], check: string[]|undefined): bo
 	if(!check || check.length === 0) return true;
 	return check.some(c => features.includes(c))
 }
-function formProperties(schema: SchemaType) :any[] {
-	if(schema.properties) {
+function formProperties(schema: SchemaType|undefined) :any[] {
+	if(schema?.properties) {
 		const retv:any[] = []
 		schema.properties.forEach(px => {
 			const fx:any = { ...px }
@@ -160,7 +159,7 @@ function formProperties(schema: SchemaType) :any[] {
 				if(svalue) {
 					const target = fx.list.find((vx: any) => vx.value === svalue)
 					if(target) {
-						fx.children = formProperties(target.schema.schema as SchemaType)
+						fx.children = formProperties(target.schema?.schema as SchemaType|undefined)
 					}
 				}
 			}
@@ -225,12 +224,15 @@ function lookupUrl(target: any): void {
 		//console.log("lookupUrl", json, target)
 		nextTick().then(_ => {
 			target.list = withCurrentValue(json, target.name)
+			target.lookupError = undefined
 		})
 	})
 	.catch(ex => {
 		console.error("lookupUrl", ex)
 		nextTick().then(_ => {
-			target.list = withCurrentValue([{name:ex.message,value:ex.message}], target.name)
+			// the message is shown under the field; it is never a choice that could be saved
+			target.list = withCurrentValue([], target.name)
+			target.lookupError = `The choices could not be loaded: ${ex.message}`
 		})
 	})
 }
@@ -317,6 +319,15 @@ const reset = () => {
 function flatNames(fields: FormField[]): string[] {
 	return fields.flatMap(f => [...(f.type === "header" ? [] : [f.name]), ...flatNames(f.children ?? [])])
 }
+/** The field of that name at any depth (a data source's own fields can hold another choice). */
+function findField(fields: FormField[], name: string): any {
+	for(const f of fields) {
+		if(f.name === name) return f
+		const inner = findField(f.children ?? [], name)
+		if(inner) return inner
+	}
+	return undefined
+}
 /** The `default` of each field (null and absent defaults carry no information), for values the form does not have yet. */
 function applyDefaults(fields: FormField[], values: Record<string, any> = {}): [string, unknown][] {
 	return fields.flatMap(f => [
@@ -326,14 +337,15 @@ function applyDefaults(fields: FormField[], values: Record<string, any> = {}): [
 }
 const handleFormFieldEvent = (data:any) => {
 	if(data.type === "schema-change") {
-		const field = localProperties.value.find((f:any) => f.name === data.field.name)
+		const field = findField(localProperties.value, data.field.name)
 		if(field) {
 			// the previous choice's values must not be saved with the new one
 			flatNames(field.children ?? []).forEach(name => form.value?.setFieldValue(name, null))
-			field.children = formProperties(data.selected.schema.schema)
+			const chosen = data.selected?.schema?.schema as SchemaType|undefined
+			field.children = formProperties(chosen)
 			applyDefaults(field.children).forEach(([name, value]) => form.value?.setFieldValue(name, value))
 			currentResolver = createResolver(localProperties.value)
-			startLookups(data.selected.schema.schema, field.children)
+			startLookups(chosen as SchemaType, field.children)
 			nextTick().then(_ => {
 				form.value?.validate();
 			})

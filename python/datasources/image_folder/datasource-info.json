@@ -29,9 +29,6 @@
 					"description": "Select the folder with images to display."
 				}
 			]
-		},
-		"default": {
-			"folder": null
 		}
 	}
 }

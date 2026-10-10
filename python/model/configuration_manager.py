@@ -18,6 +18,10 @@ class ItemSettingsDict(TypedDict):
 	schema: ReadOnly[dict]
 	default: ReadOnly[dict]
 
+class ItemInstanceSettingsDict(TypedDict):
+	# the properties and lookups of a task's `content`; each property carries its own default
+	schema: ReadOnly[dict]
+
 ItemInfoDict = TypedDict('ItemInfoDict', {
 	'id': ReadOnly[str],
 	'name': ReadOnly[str],
@@ -29,7 +33,7 @@ ItemInfoDict = TypedDict('ItemInfoDict', {
 	'disabled': ReadOnly[bool],
 	'features': ReadOnly[list[str]],
 	'settings': ReadOnly[ItemSettingsDict],
-	'instanceSettings': ReadOnly[ItemSettingsDict]
+	'instanceSettings': ReadOnly[ItemInstanceSettingsDict]
 })
 
 class CollectInfoDict(TypedDict):
