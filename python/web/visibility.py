@@ -15,6 +15,14 @@ def _read(values: dict, name: str) -> Any:
 	v = values.get(name)
 	return None if v == "" else v
 
+def _same(a: Any, b: Any) -> bool:
+	"""Equal values of the same kind: `1` equals `1.0` (JSON has one number type), but `True` is not `1`."""
+	if isinstance(a, bool) or isinstance(b, bool):
+		return type(a) is type(b) and a == b
+	if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+		return a == b
+	return type(a) is type(b) and a == b
+
 def evaluate(p: Any, values: dict) -> bool:
 	"""True when the predicate holds. One this code does not understand holds (the property stays visible); `find_problems` reports it."""
 	if not isinstance(p, dict):
@@ -28,11 +36,11 @@ def evaluate(p: Any, values: dict) -> bool:
 	if isinstance(p.get("field"), str):
 		v = _read(values, p["field"])
 		if "eq" in p:
-			return v == p["eq"] and type(v) is type(p["eq"])
+			return _same(v, p["eq"])
 		if "ne" in p:
-			return not (v == p["ne"] and type(v) is type(p["ne"]))
+			return not _same(v, p["ne"])
 		if isinstance(p.get("in"), list):
-			return any(v == x and type(v) is type(x) for x in p["in"])
+			return any(_same(v, x) for x in p["in"])
 		if isinstance(p.get("set"), bool):
 			return (v is not None) == p["set"]
 	return True

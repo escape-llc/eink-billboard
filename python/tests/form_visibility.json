@@ -223,6 +223,18 @@
 			},
 			"values": {},
 			"visible": true
+		},
+		{
+			"name": "eq 1, value 1.0 (one JSON number type)",
+			"predicate": { "field": "a", "eq": 1 },
+			"values": { "a": 1.0 },
+			"visible": true
+		},
+		{
+			"name": "eq 1, value true is not the number",
+			"predicate": { "field": "a", "eq": 1 },
+			"values": { "a": true },
+			"visible": false
 		}
 	]
 }

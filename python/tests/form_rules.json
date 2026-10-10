@@ -388,6 +388,52 @@
 				"$number": "Infinity"
 			},
 			"error": "Must be a finite number"
+		},
+		{
+			"name": "boolean optional, null",
+			"field": {
+			  "name": "f",
+			  "label": "F",
+			  "required": false,
+			  "type": "boolean"
+			},
+			"value": null,
+			"error": null
+		},
+		{
+			"name": "boolean required, null",
+			"field": {
+			  "name": "f",
+			  "label": "F",
+			  "required": true,
+			  "type": "boolean"
+			},
+			"value": null,
+			"error": "Required"
+		},
+		{
+			"name": "unknown type is not checked",
+			"field": {
+			  "name": "f",
+			  "label": "F",
+			  "required": false,
+			  "type": "widget"
+			},
+			"value": {"any": 1},
+			"error": null
+		},
+		{
+			"name": "number with a fraction and no digit settings",
+			"field": {
+			  "name": "f",
+			  "label": "F",
+			  "required": true,
+			  "type": "number",
+			  "min": 0,
+			  "max": 1
+			},
+			"value": 0.4,
+			"error": null
 		}
 	]
 }

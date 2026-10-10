@@ -43,6 +43,10 @@ def _settings_properties(item: CollectInfoDict) -> list[dict]:
 	settings = item["info"].get("settings") or {}
 	return (settings.get("schema") or {}).get("properties") or []
 
+def _settings_lookups(item: CollectInfoDict) -> dict:
+	settings = item["info"].get("settings") or {}
+	return (settings.get("schema") or {}).get("lookups") or {}
+
 @router.get('/settings/{name}')
 def get_device_settings(name: str, cm: CM):
 	name = _device_name(name)
@@ -84,7 +88,7 @@ def put_plugin_settings(plugin_id: str, cm: CM, body: dict[str, Any] = Body(...)
 	declared, item = _find_item(cm.enum_plugins(), plugin_id, "plugin")
 	cob = cm.plugin_manager(declared).open()
 	properties = _settings_properties(item)
-	return put_document(f"plugin-{declared}-settings", body, cob, properties, secret_fields(properties))
+	return put_document(f"plugin-{declared}-settings", body, cob, properties, secret_fields(properties), _settings_lookups(item))
 
 @router.get('/datasources/{datasource_id}/settings')
 def get_datasource_settings(datasource_id: str, cm: CM):
@@ -97,4 +101,4 @@ def put_datasource_settings(datasource_id: str, cm: CM, body: dict[str, Any] = B
 	declared, item = _find_item(cm.enum_datasources(), datasource_id, "datasource")
 	cob = cm.datasource_manager(declared).open()
 	properties = _settings_properties(item)
-	return put_document(f"datasource-{declared}-settings", body, cob, properties, secret_fields(properties))
+	return put_document(f"datasource-{declared}-settings", body, cob, properties, secret_fields(properties), _settings_lookups(item))

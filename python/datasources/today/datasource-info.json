@@ -48,11 +48,6 @@
 					"enum": ["Jost", "Napoli", "Dogica", "DS-Digital"]
 				}
 			]
-		},
-		"default": {
-			"format": "long",
-			"customFormat": null,
-			"font": "Jost"
 		}
 	}
 }

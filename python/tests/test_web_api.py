@@ -13,7 +13,8 @@ from ..model.configuration_manager import ConfigurationManager, _internal_save
 from ..model.service_container import ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..web.app import WebSettings, create_app
-from ..web.documents import SECRET_MASK, validate_properties
+from ..web.documents import SECRET_MASK, plugin_content_errors, validate_properties
+from ..web.routers.settings import _settings_lookups
 from ..web.sessions import SessionStore
 from ..web.visibility import evaluate, find_problems, hidden_names, null_hidden
 
@@ -212,6 +213,87 @@ class TestDescriptors(unittest.TestCase):
 				with self.subTest(where):
 					self.assertEqual(find_problems(props), [])
 		self.assertGreater(checked, 5)
+
+class TestDescriptorRules(unittest.TestCase):
+	"""Every descriptor in the repository: names the form can hold, types both validators know, defaults that pass their own rules."""
+	KNOWN_TYPES = ("string", "boolean", "number", "int", "date", "location", "schema", "header")
+
+	@staticmethod
+	def _files():
+		import glob
+		root = os.path.dirname(os.path.dirname(__file__))
+		return root, glob.glob(os.path.join(root, "storage", "schemas", "*.json")) 			+ glob.glob(os.path.join(root, "plugins", "*", "*-info.json")) 			+ glob.glob(os.path.join(root, "datasources", "*", "*-info.json"))
+
+	def _each_property(self):
+		root, files = self._files()
+		for path in files:
+			with open(path, "r", encoding="utf-8") as f:
+				doc = json.load(f)
+			for where, props in TestDescriptors._property_lists(doc, os.path.relpath(path, root)):
+				for prop in props:
+					yield f"{where}/{prop['name']}", prop
+
+	def test_names_and_types(self):
+		seen = 0
+		for where, prop in self._each_property():
+			seen += 1
+			with self.subTest(where):
+				# PrimeVue Form reads a dot or a bracket in a field name as a path into the values
+				self.assertFalse(any(c in prop["name"] for c in ".[]"), "a field name cannot hold . [ or ]")
+				self.assertIn(prop.get("type"), self.KNOWN_TYPES)
+		self.assertGreater(seen, 20)
+
+	def test_defaults_pass_their_own_rules(self):
+		for where, prop in self._each_property():
+			if prop.get("type") == "header" or prop.get("default") is None:
+				continue
+			with self.subTest(where):
+				own = { k: v for k, v in prop.items() if k not in ("visibleIf", "required") }
+				self.assertEqual(validate_properties({ prop["name"]: prop["default"] }, [own]), [])
+
+	def test_settings_default_documents_agree_with_the_property_defaults(self):
+		root, files = self._files()
+		for path in files:
+			with open(path, "r", encoding="utf-8") as f:
+				info = json.load(f)
+			settings = info.get("settings") or {}
+			document = settings.get("default")
+			if not isinstance(document, dict):
+				continue
+			for prop in (settings.get("schema") or {}).get("properties") or []:
+				if prop.get("type") != "header" and prop.get("default") is not None and prop["name"] in document:
+					with self.subTest(f"{os.path.relpath(path, root)}/{prop['name']}"):
+						self.assertEqual(document[prop["name"]], prop["default"])
+
+def _content_item(properties, lookups=None, features=None):
+	return { "info": { "features": features or [], "instanceSettings": { "schema": { "properties": properties, "lookups": lookups or {} } } } }
+
+class TestPluginContentErrors(unittest.TestCase):
+	PLUGINS = { "p": _content_item([
+		{ "name": "mode", "type": "string", "enum": ["on", "off"] },
+		{ "name": "dataSource", "type": "schema", "required": True, "lookup": "ds", "visibleIf": { "field": "mode", "eq": "on" } },
+	], { "ds": { "schema": "data-sources", "features": ["media-overlay"] } }) }
+	SOURCES = {
+		"overlay-source": _content_item([{ "name": "text", "type": "string", "required": True }], features=["media-overlay"]),
+		"image-source": _content_item([{ "name": "text", "type": "string", "required": True }], features=["media-image"]),
+	}
+
+	def test_a_source_without_the_lookups_features_is_not_one_of_the_choices(self):
+		ok = plugin_content_errors(self.PLUGINS, self.SOURCES, "p", { "mode": "on", "dataSource": "overlay-source", "text": "x" }, [])
+		self.assertEqual(ok, [])
+		bad = plugin_content_errors(self.PLUGINS, self.SOURCES, "p", { "mode": "on", "dataSource": "image-source", "text": "x" }, [])
+		self.assertEqual(bad, [{ "path": ["content", "dataSource"], "message": "Not one of the allowed values" }])
+
+	def test_the_fields_of_a_hidden_choice_are_not_checked(self):
+		# the choice is hidden (mode is off): its data source's required "text" does not apply
+		errors = plugin_content_errors(self.PLUGINS, self.SOURCES, "p", { "mode": "off", "dataSource": "overlay-source" }, [])
+		self.assertEqual(errors, [])
+
+class TestSettingsLookups(unittest.TestCase):
+	def test_the_lookups_of_a_descriptors_settings(self):
+		self.assertEqual(_settings_lookups({ "info": { "settings": None } }), {})
+		lookups = { "fmt": { "items": [] } }
+		self.assertEqual(_settings_lookups({ "info": { "settings": { "schema": { "lookups": lookups } } } }), lookups)
 
 class TestSettingsValidation(WebApiTestBase):
 	def test_put_out_of_range_and_unknown_choice_are_422_with_the_field_path(self):
