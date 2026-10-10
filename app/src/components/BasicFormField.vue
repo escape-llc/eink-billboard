@@ -17,6 +17,15 @@
 					<ToggleSwitch :name="field.name" :inputId="field.name" size="small" fluid />
 				</InputGroupAddon>
 			</template>
+			<template v-else-if="field.type === 'array'">
+				<InputGroupAddon style="flex-grow:1;padding:0">
+					<!-- Registers the field with the form and nothing more: the PrimeVue inputs of the rows would each take the whole field's value if they were inside it.
+						The rows are edited outside it, and the form is told the new list. -->
+					<FormField :name="field.name" :validateOnValueUpdate="true" />
+					<ArrayField :field="field" :modelValue="fieldState.value" :errors="fieldState.errors"
+						@update:modelValue="(v: Record<string, unknown>[]) => emits('form-field-event', { type: 'set-value', field, value: v })" />
+				</InputGroupAddon>
+			</template>
 			<template v-else-if="field.type === 'schema'">
 				<Select size="small" :name="field.name" :inputId="field.name" :invalid="isInvalid" :options="field.list"
 					optionLabel="name" optionValue="value" :showClear="field.required === false"
@@ -63,7 +72,7 @@
 			</template>
 		</InputGroup>
 		<slot name="message" v-bind="{ field, fieldState }">
-			<Message v-if="isInvalid"
+			<Message v-if="isInvalid && errorMessage"
 				severity="error" size="small" variant="simple">{{ errorMessage }}</Message>
 		</slot>
 		<Message v-if="field.lookupError" severity="warn" size="small" variant="simple">{{ field.lookupError }}</Message>
@@ -75,7 +84,7 @@
 				:field="child"
 				:formContext="formContext"
 				:fieldNameWidth="fieldNameWidth"
-				@form-field-event="(data: SchemaChangeData) => emits('form-field-event', data)"
+				@form-field-event="(data: FieldEventData) => emits('form-field-event', data)"
 			>
 				<!-- Forward all slots to descendants -->
 				<template v-for="(_, name) in $slots" #[name]="slotProps">
@@ -89,6 +98,7 @@
 import { Message, InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Select, DatePicker } from 'primevue';
 import FormField from '@primevue/forms/formfield';
 import LeafletPicker from './LeafletPicker.vue';
+import ArrayField from './ArrayField.vue';
 import { isoToDate, dateToIso } from './FormDates';
 import { isVisible } from './FormVisibility';
 import { computed, toRaw } from 'vue';
@@ -103,8 +113,15 @@ export interface SchemaChangeData {
 	field: any
 	selected: any
 }
+/** a field that is not a PrimeVue control hands its new value to the form */
+export interface SetValueData {
+	type: 'set-value'
+	field: any
+	value: unknown
+}
+export type FieldEventData = SchemaChangeData | SetValueData
 export interface EmitsType {
-	(e: 'form-field-event', data: SchemaChangeData): void
+	(e: 'form-field-event', data: FieldEventData): void
 }
 
 const props = defineProps<PropsType>()
@@ -121,7 +138,11 @@ const fieldState = computed(() => props.formContext?.[props.field.name] || {});
 // the form's field states, read by name, are the values the predicates look at
 const visible = computed(() => isVisible(props.field, (name: string) => props.formContext?.[name]?.value))
 const isInvalid = computed(() => !!fieldState.value.invalid);
-const errorMessage = computed(() => fieldState.value.error?.message);
+// a problem with one row of a list is shown on that row (by `ArrayField`); the message under the field is for the field as a whole
+const errorMessage = computed(() => {
+	const errors: { message?: string, path?: string[] }[] = fieldState.value.errors ?? []
+	return errors.length > 0 ? errors.find(e => !e.path?.length)?.message : fieldState.value.error?.message
+});
 </script>
 <style scoped>
 </style>

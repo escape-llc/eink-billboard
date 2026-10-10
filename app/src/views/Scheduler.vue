@@ -46,7 +46,7 @@
 			</div>
 		</Message>
 		<Message v-for="(problem, index) in serverProblems" :key="index" severity="error" size="small" variant="simple">{{ problem }}</Message>
-		<BasicForm v-if="selectedPlugin" ref="bf" :form="selectedPlugin.instanceSettings" :initialValues="editModel.content" :baseUrl="API_URL"
+		<BasicForm v-if="selectedPlugin" ref="bf" :form="selectedPlugin.instanceSettings" :owner="{ kind: 'plugin', id: selectedPlugin.id }" :initialValues="editModel.content" :baseUrl="API_URL"
 			:beforeFieldsSchema="beforeFieldsSchema" :addInitialValues="addInitialValues"
 			@validate="onValidated" @submit="submitForm"
 			class="form">

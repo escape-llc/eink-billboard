@@ -1,14 +1,14 @@
 """Settings documents and their schemas: device-wide (system/display/theme), per plugin and per datasource."""
 import logging
 import os
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Body
 from fastapi.responses import FileResponse
 
 from ...model.configuration_manager import CollectInfoDict, ConfigurationManager
 from ..deps import CM
-from ..documents import get_document, load_schema_lookups, load_schema_properties, put_document, secret_fields
+from ..documents import get_document, instance_properties, load_schema_lookups, load_schema_properties, put_document, secret_fields, settings_lookup_items
 from ..errors import ApiError
 
 logger = logging.getLogger(__name__)
@@ -46,6 +46,17 @@ def _settings_properties(item: CollectInfoDict) -> list[dict]:
 def _settings_lookups(item: CollectInfoDict) -> dict:
 	settings = item["info"].get("settings") or {}
 	return (settings.get("schema") or {}).get("lookups") or {}
+
+def _settings_lookup_choices(item: CollectInfoDict, lookup_name: str, stored: dict|None) -> list[dict]:
+	"""
+	The choices of one of the item's `settings` lookups, from the settings it keeps. Only a lookup the descriptor declares (with a `settings` list) is served;
+	what is read is our own declared name, never the URL's string.
+	"""
+	_, lookups = instance_properties(cast(dict, item))
+	for declared, definition in lookups.items():
+		if declared == lookup_name and isinstance(definition, dict) and "settings" in definition:
+			return settings_lookup_items(definition, stored)
+	raise ApiError(404, "Unknown lookup.", None)
 
 @router.get('/settings/{name}')
 def get_device_settings(name: str, cm: CM):
@@ -102,3 +113,15 @@ def put_datasource_settings(datasource_id: str, cm: CM, body: dict[str, Any] = B
 	cob = cm.datasource_manager(declared).open()
 	properties = _settings_properties(item)
 	return put_document(f"datasource-{declared}-settings", body, cob, properties, secret_fields(properties), _settings_lookups(item))
+
+@router.get('/plugins/{plugin_id}/lookups/{lookup}')
+def get_plugin_lookup(plugin_id: str, lookup: str, cm: CM):
+	declared, item = _find_item(cm.enum_plugins(), plugin_id, "plugin")
+	_, stored = cm.plugin_manager(declared).open().get()
+	return _settings_lookup_choices(item, lookup, stored)
+
+@router.get('/datasources/{datasource_id}/lookups/{lookup}')
+def get_datasource_lookup(datasource_id: str, lookup: str, cm: CM):
+	declared, item = _find_item(cm.enum_datasources(), datasource_id, "datasource")
+	_, stored = cm.datasource_manager(declared).open().get()
+	return _settings_lookup_choices(item, lookup, stored)

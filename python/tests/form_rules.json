@@ -1,5 +1,5 @@
 {
-	"comment": "Cases both the form (FormValidation.ts) and the server (documents.validate_properties) must agree on. error is the message of the first problem, or null. A value written {\"$number\": \"NaN\"} (or Infinity, -Infinity) stands for that number, which JSON cannot hold; both test runners decode it.",
+	"comment": "Cases both the form (FormValidation.ts) and the server (documents.validate_properties) must agree on. error is the message of the first problem, or null. A value written {\"$number\": \"NaN\"} (or Infinity, -Infinity) stands for that number, which JSON cannot hold; both test runners decode it. A case may name the path of the first problem (relative to the field, after its name); otherwise it is the field alone.",
 	"cases": [
 		{
 			"name": "string required, empty",
@@ -536,6 +536,373 @@
 			},
 			"value": "2026-02-31",
 			"error": "Expected a date (YYYY-MM-DD)"
+		},
+		{
+			"name": "array, valid",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"maxItems": 3,
+				"items": {
+					"type": "object",
+					"key": "name",
+					"properties": [
+						{
+							"name": "name",
+							"type": "string",
+							"title": "Name",
+							"required": true
+						},
+						{
+							"name": "url",
+							"type": "string",
+							"title": "URL",
+							"required": false,
+							"pattern": "^https?://"
+						}
+					]
+				}
+			},
+			"value": [
+				{
+					"name": "a",
+					"url": "http://x"
+				},
+				{
+					"name": "b",
+					"url": null
+				}
+			],
+			"error": null
+		},
+		{
+			"name": "array, empty",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"maxItems": 3,
+				"items": {
+					"type": "object",
+					"key": "name",
+					"properties": [
+						{
+							"name": "name",
+							"type": "string",
+							"title": "Name",
+							"required": true
+						},
+						{
+							"name": "url",
+							"type": "string",
+							"title": "URL",
+							"required": false,
+							"pattern": "^https?://"
+						}
+					]
+				}
+			},
+			"value": [],
+			"error": null
+		},
+		{
+			"name": "array optional, null",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"maxItems": 3,
+				"items": {
+					"type": "object",
+					"key": "name",
+					"properties": [
+						{
+							"name": "name",
+							"type": "string",
+							"title": "Name",
+							"required": true
+						},
+						{
+							"name": "url",
+							"type": "string",
+							"title": "URL",
+							"required": false,
+							"pattern": "^https?://"
+						}
+					]
+				}
+			},
+			"value": null,
+			"error": null
+		},
+		{
+			"name": "array required, null",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": true,
+				"type": "array",
+				"maxItems": 3,
+				"items": {
+					"type": "object",
+					"key": "name",
+					"properties": [
+						{
+							"name": "name",
+							"type": "string",
+							"title": "Name",
+							"required": true
+						},
+						{
+							"name": "url",
+							"type": "string",
+							"title": "URL",
+							"required": false,
+							"pattern": "^https?://"
+						}
+					]
+				}
+			},
+			"value": null,
+			"error": "Required"
+		},
+		{
+			"name": "array, not a list",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"maxItems": 3,
+				"items": {
+					"type": "object",
+					"key": "name",
+					"properties": [
+						{
+							"name": "name",
+							"type": "string",
+							"title": "Name",
+							"required": true
+						},
+						{
+							"name": "url",
+							"type": "string",
+							"title": "URL",
+							"required": false,
+							"pattern": "^https?://"
+						}
+					]
+				}
+			},
+			"value": "x",
+			"error": "Expected a list"
+		},
+		{
+			"name": "array, too many",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"maxItems": 3,
+				"items": {
+					"type": "object",
+					"key": "name",
+					"properties": [
+						{
+							"name": "name",
+							"type": "string",
+							"title": "Name",
+							"required": true
+						},
+						{
+							"name": "url",
+							"type": "string",
+							"title": "URL",
+							"required": false,
+							"pattern": "^https?://"
+						}
+					]
+				}
+			},
+			"value": [
+				{
+					"name": "0"
+				},
+				{
+					"name": "1"
+				},
+				{
+					"name": "2"
+				},
+				{
+					"name": "3"
+				}
+			],
+			"error": "At most 3 items"
+		},
+		{
+			"name": "array minItems",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"maxItems": 3,
+				"items": {
+					"type": "object",
+					"key": "name",
+					"properties": [
+						{
+							"name": "name",
+							"type": "string",
+							"title": "Name",
+							"required": true
+						},
+						{
+							"name": "url",
+							"type": "string",
+							"title": "URL",
+							"required": false,
+							"pattern": "^https?://"
+						}
+					]
+				},
+				"minItems": 1
+			},
+			"value": [],
+			"error": "At least 1 items"
+		},
+		{
+			"name": "array, an item field is required",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"maxItems": 3,
+				"items": {
+					"type": "object",
+					"key": "name",
+					"properties": [
+						{
+							"name": "name",
+							"type": "string",
+							"title": "Name",
+							"required": true
+						},
+						{
+							"name": "url",
+							"type": "string",
+							"title": "URL",
+							"required": false,
+							"pattern": "^https?://"
+						}
+					]
+				}
+			},
+			"value": [
+				{
+					"name": "a"
+				},
+				{
+					"name": ""
+				}
+			],
+			"error": "Required",
+			"path": [
+				"1",
+				"name"
+			]
+		},
+		{
+			"name": "array, an item field breaks its rule",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"maxItems": 3,
+				"items": {
+					"type": "object",
+					"key": "name",
+					"properties": [
+						{
+							"name": "name",
+							"type": "string",
+							"title": "Name",
+							"required": true
+						},
+						{
+							"name": "url",
+							"type": "string",
+							"title": "URL",
+							"required": false,
+							"pattern": "^https?://"
+						}
+					]
+				}
+			},
+			"value": [
+				{
+					"name": "a",
+					"url": "ftp://x"
+				}
+			],
+			"error": "Not in the expected format",
+			"path": [
+				"0",
+				"url"
+			]
+		},
+		{
+			"name": "array, duplicate key",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"maxItems": 3,
+				"items": {
+					"type": "object",
+					"key": "name",
+					"properties": [
+						{
+							"name": "name",
+							"type": "string",
+							"title": "Name",
+							"required": true
+						},
+						{
+							"name": "url",
+							"type": "string",
+							"title": "URL",
+							"required": false,
+							"pattern": "^https?://"
+						}
+					]
+				}
+			},
+			"value": [
+				{
+					"name": "a"
+				},
+				{
+					"name": "b"
+				},
+				{
+					"name": "a"
+				}
+			],
+			"error": "Must be unique",
+			"path": [
+				"2",
+				"name"
+			]
 		}
 	]
 }
