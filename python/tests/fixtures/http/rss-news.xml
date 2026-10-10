@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+	<channel>
+		<title>Example Daily</title>
+		<link>https://news.example.test/</link>
+		<description>Invented headlines for the tests.</description>
+		<item>
+			<title>Council &amp; mayor agree on a new bridge</title>
+			<link>https://news.example.test/bridge</link>
+			<pubDate>Wed, 07 Oct 2026 09:30:00 GMT</pubDate>
+			<description>&lt;p&gt;The &lt;b&gt;long-awaited&lt;/b&gt; crossing will open in 2029, after years of argument about the cost.&lt;/p&gt;</description>
+			<media:content url="https://img.example.test/bridge.jpg" type="image/jpeg" medium="image"/>
+		</item>
+		<item>
+			<title>Library extends its opening hours</title>
+			<link>https://news.example.test/library</link>
+			<pubDate>Tue, 06 Oct 2026 16:00:00 GMT</pubDate>
+			<description>Evenings and Sundays, starting next month.</description>
+			<enclosure url="https://img.example.test/library.png" type="image/png" length="1234"/>
+		</item>
+		<item>
+			<title>Market moves to the harbour</title>
+			<link>https://news.example.test/market</link>
+			<pubDate>Mon, 05 Oct 2026 07:15:00 GMT</pubDate>
+			<description>&lt;p&gt;&lt;img src="https://img.example.test/market.gif" alt=""/&gt;Stalls will line the quay from spring.&lt;/p&gt;</description>
+		</item>
+		<item>
+			<title>Chess club wins the regional cup</title>
+			<link>https://news.example.test/chess</link>
+			<pubDate>Sun, 04 Oct 2026 12:00:00 GMT</pubDate>
+			<description>A one-point margin after the final round.</description>
+		</item>
+		<item>
+			<title>Bus route 12 is rerouted for a month</title>
+			<link>https://news.example.test/bus</link>
+			<pubDate>Sat, 03 Oct 2026 08:00:00 GMT</pubDate>
+			<description>Roadworks on the old high street.</description>
+		</item>
+		<item>
+			<title>Weather: a dry week ahead</title>
+			<link>https://news.example.test/weather</link>
+			<pubDate>Fri, 02 Oct 2026 06:00:00 GMT</pubDate>
+			<description>Mild days, cool nights.</description>
+		</item>
+	</channel>
+</rss>
