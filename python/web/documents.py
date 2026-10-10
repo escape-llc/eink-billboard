@@ -9,7 +9,7 @@ import logging
 import math
 import re
 from datetime import date
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from ..model.configuration_manager import ConfigurationObject, HASH_KEY, ID_KEY
 from .errors import ApiError
@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 NOT_FINITE = "Must be a finite number"
 ENTER_THE_KEY = "Enter the key"
+
+NOT_A_LIST = "Expected a list"
+NOT_UNIQUE = "Must be unique"
 
 # What clients see instead of a stored secret. Sending it back unchanged means "keep the stored value".
 SECRET_MASK = "********"
@@ -109,11 +112,14 @@ def _check_value(prop: dict, value: Any, lookups: dict) -> str|None:
 			if prop.get("pattern") and not re.search(prop["pattern"], value):
 				return "Not in the expected format"
 		allowed = prop.get("enum")
+		closed = False
 		if not allowed:
 			lookup = lookups.get(prop.get("lookup")) if prop.get("lookup") else None
 			items = lookup.get("items") if isinstance(lookup, dict) else None
 			allowed = [i.get("value") for i in items if isinstance(i, dict)] if isinstance(items, list) else None
-		if allowed and value != "" and value not in allowed:
+			# a lookup resolved from stored settings is the whole truth: when it offers nothing, nothing is allowed
+			closed = isinstance(lookup, dict) and lookup.get("closed") is True and allowed is not None
+		if value != "" and (allowed or closed) and value not in (allowed or []):
 			return "Not one of the allowed values"
 	elif ptype == "boolean":
 		if not isinstance(value, bool):
@@ -136,6 +142,37 @@ def _check_value(prop: dict, value: Any, lookups: dict) -> str|None:
 			return "Expected string"
 	return None
 
+def _array_errors(prop: dict, value: Any, lookups: dict) -> list[dict]:
+	"""
+	Errors for the value of an `array` property, with paths relative to the property: `[]` for the list as a whole,
+	`[index, name]` for a field of one item. The items' fields follow the same rules as any other property.
+	`items.key` names the field whose value identifies an item: it must be unique (the later item is the one reported).
+	"""
+	if not isinstance(value, list):
+		return [{ "path": [], "message": NOT_A_LIST }]
+	errors: list[dict] = []
+	minimum, maximum = prop.get("minItems"), prop.get("maxItems")
+	if minimum is not None and len(value) < minimum:
+		errors.append({ "path": [], "message": f"At least {minimum} items" })
+	if maximum is not None and len(value) > maximum:
+		errors.append({ "path": [], "message": f"At most {maximum} items" })
+	items = prop.get("items") or {}
+	item_props = items.get("properties") or []
+	key = items.get("key")
+	seen: set = set()
+	for index, item in enumerate(value):
+		if not isinstance(item, dict):
+			errors.append({ "path": [str(index)], "message": "Expected an object" })
+			continue
+		for e in validate_properties(item, item_props, lookups):
+			errors.append({ "path": [str(index), *e["path"]], "message": e["message"] })
+		identity = item.get(key) if key else None
+		if isinstance(identity, str) and identity != "":
+			if identity in seen:
+				errors.append({ "path": [str(index), key], "message": NOT_UNIQUE })
+			seen.add(identity)
+	return errors
+
 def validate_properties(document: dict, properties: Iterable[dict]|None, lookups: dict|None = None) -> list[dict]:
 	"""
 	Check the values the schema declares against the same rules the form applies: type, `required`, `enum` / `items` lookup membership,
@@ -155,6 +192,9 @@ def validate_properties(document: dict, properties: Iterable[dict]|None, lookups
 		if value is None or value == "":
 			if prop.get("required") is True:
 				errors.append({ "path": [name], "message": "Required" })
+			continue
+		if prop.get("type") == "array":
+			errors.extend({ "path": [name, *e["path"]], "message": e["message"] } for e in _array_errors(prop, value, lookups))
 			continue
 		message = _check_value(prop, value, lookups)
 		if message:
@@ -214,6 +254,29 @@ def load_schema_lookups(schema_path: str) -> dict:
 	except (OSError, ValueError):
 		return {}
 
+def settings_lookup_items(lookup: Any, settings: dict|None) -> list[dict]:
+	"""
+	The choices of a `settings` lookup, `{"settings": "feeds", "value": "name", "label": "name"}`: one `{name, value}` per item of the list
+	that the declaring plugin or data source keeps in its own stored settings. Empty when nothing is stored or the list is not one.
+	"""
+	if not isinstance(lookup, dict) or not isinstance(lookup.get("settings"), str):
+		return []
+	listed = (settings or {}).get(lookup["settings"])
+	value_key = lookup.get("value", "name")
+	label_key = lookup.get("label", value_key)
+	return [
+		{ "name": str(item.get(label_key, item.get(value_key))), "value": item.get(value_key) }
+		for item in (listed if isinstance(listed, list) else [])
+		if isinstance(item, dict) and isinstance(item.get(value_key), str) and item.get(value_key) != ""
+	]
+
+def resolve_settings_lookups(lookups: dict, settings: dict|None) -> dict:
+	"""The lookups with every `settings` lookup turned into a closed `items` lookup of the stored choices (validation then checks membership)."""
+	return {
+		name: ({ "items": settings_lookup_items(lk, settings), "closed": True } if isinstance(lk, dict) and "settings" in lk else lk)
+		for name, lk in (lookups or {}).items()
+	}
+
 def instance_properties(item: dict) -> tuple[list[dict], dict]:
 	"""The `instanceSettings` properties and lookups a plugin or datasource declares for a task's `content`."""
 	schema = ((item["info"].get("instanceSettings") or {}).get("schema")) or {}
@@ -227,12 +290,18 @@ def _offers(source: dict, lookup: Any) -> bool:
 		return False
 	return not wanted or any(f in have for f in wanted)
 
-def plugin_content_errors(plugins: dict, datasources: dict, plugin_name: Any, content: dict, path: list) -> list[dict]:
-	"""The plugin exists and `content` follows its settings (and its data source's); `path` is where `plugin_name` and `content` live in the item (`["task"]` for a timer task, none for a track)."""
+def plugin_content_errors(plugins: dict, datasources: dict, plugin_name: Any, content: dict, path: list,
+		settings_of: Callable[[str, str], dict|None]|None = None) -> list[dict]:
+	"""
+	The plugin exists and `content` follows its settings (and its data source's); `path` is where `plugin_name` and `content` live in the item (`["task"]` for a timer task, none for a track).
+	`settings_of(kind, id)` gives the stored settings of a `"plugin"` or `"datasource"`, which the `settings` lookups of its instance fields choose from.
+	"""
 	plugin = plugins.get(plugin_name)
 	if plugin is None:
 		return [{ "path": [*path, "plugin_name"], "message": "Unknown plugin" }]
 	props, lookups = instance_properties(plugin)
+	if settings_of:
+		lookups = resolve_settings_lookups(lookups, settings_of("plugin", plugin["info"].get("id")))
 	errors = validate_properties(content, props, lookups)
 	hidden = hidden_names(props, content)
 	for prop in props:
@@ -244,5 +313,7 @@ def plugin_content_errors(plugins: dict, datasources: dict, plugin_name: Any, co
 				errors.append({ "path": [prop["name"]], "message": "Not one of the allowed values" })
 			else:
 				sprops, slookups = instance_properties(source)
+				if settings_of:
+					slookups = resolve_settings_lookups(slookups, settings_of("datasource", source["info"].get("id")))
 				errors.extend(validate_properties(content, sprops, slookups))
 	return [{ "path": [*path, "content", *e["path"]], "message": e["message"] } for e in errors]

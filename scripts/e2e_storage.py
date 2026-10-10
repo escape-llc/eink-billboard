@@ -23,13 +23,17 @@ PLACEHOLDERS = { "__E2E_IMAGES__": os.path.join(ROOT, "python", "tests", "images
 SCRATCH = os.path.join(ROOT, ".e2e-storage")
 
 def _add_visibility_fields(target: str) -> None:
-	"""Two synthetic properties on the display schema, so the browser tests can see `visibleIf` work on a real settings page."""
+	"""Synthetic properties on the display schema, so the browser tests can see `visibleIf` and a list of rows work on a real settings page."""
 	schema_file = os.path.join(target, "schemas", "display.json")
 	with open(schema_file, "r", encoding="utf-8") as f:
 		schema = json.load(f)
 	schema["schema"]["properties"] += [
 		{ "name": "e2eAdvanced", "type": "boolean", "title": "E2E Advanced", "required": False },
 		{ "name": "e2eDetail", "type": "string", "title": "E2E Detail", "required": True, "visibleIf": { "field": "e2eAdvanced", "const": True } },
+		{ "name": "e2eFeeds", "type": "array", "title": "E2E Feeds", "required": False, "maxItems": 3, "items": { "type": "object", "key": "name", "properties": [
+			{ "name": "name", "type": "string", "title": "Name", "required": True },
+			{ "name": "url", "type": "string", "title": "URL", "required": False, "pattern": "^https?://" },
+		] } },
 	]
 	with open(schema_file, "w", encoding="utf-8", newline="\n") as f:
 		json.dump(schema, f, indent=2)

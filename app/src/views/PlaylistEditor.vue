@@ -50,7 +50,7 @@
 
 			<div class="track-editor">
 				<div v-if="selectedTrack" class="editor-card">
-					<BasicForm ref="bf" v-if="selectedPlugin" :baseUrl="API_URL" :form="selectedPlugin.instanceSettings" :initialValues="editModel.content"
+					<BasicForm ref="bf" v-if="selectedPlugin" :baseUrl="API_URL" :form="selectedPlugin.instanceSettings" :owner="{ kind: 'plugin', id: selectedPlugin.id }" :initialValues="editModel.content"
 						@validate="handleValidate" @submit="submitForm">
 						<template #header>
 							<Toolbar style="width:100%" class="p-1 mt-2">

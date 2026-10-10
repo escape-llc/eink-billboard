@@ -17,6 +17,9 @@ z.config({
 		if (issue.code === "invalid_type" && (issue.input === null || issue.input === undefined)) {
 			return messages.required
 		}
+		if (issue.code === "invalid_type" && issue.expected === "array") {
+			return messages.list
+		}
 		if (issue.code === "invalid_type" && issue.expected === "number" && typeof issue.input === "number") {
 			return messages.finite
 		}
@@ -24,10 +27,11 @@ z.config({
 	}
 })
 
-const emptyToNull = (val: unknown) => (val === "" ? null : val)
+// "" and a value the document does not have are both "not set", which is how an optional field is stored (as the server reads a missing one)
+const emptyToNull = (val: unknown) => (val === "" || val === undefined ? null : val)
 
 /** Optional fields hold `null` when unset (that is how the server stores them), so null is valid unless the field is required. */
-const optionalUnless = (required: boolean, schema: z.ZodTypeAny): z.ZodTypeAny => (required ? schema : schema.nullable())
+const optionalUnless = (required: boolean, schema: z.ZodTypeAny): z.ZodTypeAny => (required ? schema : z.preprocess(emptyToNull, schema.nullable()))
 
 /** Only checks membership when the list is known (URL lookups load later, so an empty list means "not loaded yet"). */
 function oneOf(values: readonly unknown[]) {
@@ -72,6 +76,31 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 			if (px.minimum !== undefined) base = base.min(px.minimum, { error: messages.minimum(px.minimum) })
 			if (px.maximum !== undefined) base = base.max(px.maximum, { error: messages.maximum(px.maximum) })
 			return optionalUnless(required, base)
+		}
+		case "array": {
+			const key = px.items?.key
+			// an item without an optional field has none set (as on the server), so those rules accept a missing key too
+			const itemFields = (px.items?.properties ?? []) as FormField[]
+			const shape = fieldRules(itemFields)
+			for (const f of itemFields) {
+				if (shape[f.name] && (f as { required?: boolean }).required !== true) shape[f.name] = shape[f.name]!.optional()
+			}
+			let list = z.array(z.object(shape))
+			if (px.minItems !== undefined) list = list.min(px.minItems, { error: messages.atLeastItems(px.minItems) })
+			if (px.maxItems !== undefined) list = list.max(px.maxItems, { error: messages.atMostItems(px.maxItems) })
+			const unique = key
+				? list.superRefine((items, ctx) => {
+					const seen = new Set<unknown>()
+					items.forEach((item, index) => {
+						const identity = (item as Record<string, unknown>)[key]
+						if (typeof identity === "string" && identity !== "") {
+							if (seen.has(identity)) ctx.addIssue({ code: "custom", message: messages.unique, path: [index, key] })
+							seen.add(identity)
+						}
+					})
+				})
+				: list
+			return optionalUnless(required, unique)
 		}
 		case "location": {
 			const base = z.object({

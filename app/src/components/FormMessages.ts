@@ -11,6 +11,10 @@ export const messages = {
 	longitude: "Longitude is -180 to 180",
 	date: "Expected a date (YYYY-MM-DD)",
 	format: "Not in the expected format",
+	list: "Expected a list",
+	unique: "Must be unique",
+	atLeastItems: (n: number) => `At least ${n} items`,
+	atMostItems: (n: number) => `At most ${n} items`,
 	atLeast: (n: number) => `At least ${n} characters`,
 	atMost: (n: number) => `At most ${n} characters`,
 } as const
