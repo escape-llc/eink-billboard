@@ -10,4 +10,7 @@ export const messages = {
 	latitude: "Latitude is -90 to 90",
 	longitude: "Longitude is -180 to 180",
 	date: "Expected a date (YYYY-MM-DD)",
+	format: "Not in the expected format",
+	atLeast: (n: number) => `At least ${n} characters`,
+	atMost: (n: number) => `At most ${n} characters`,
 } as const

@@ -1,6 +1,7 @@
 from datetime import datetime
 import json
 import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -39,6 +40,8 @@ class WebApiTestBase(unittest.TestCase):
 		self.tmp = tempfile.TemporaryDirectory()
 		self.storage = os.path.join(self.tmp.name, ".storage")
 		shutil.copytree(storage_path(), self.storage)
+		# the device schemas are factory content (not a secret): the API is tested against the ones in the repository, whatever the copied storage holds
+		shutil.copytree(os.path.join(os.path.dirname(os.path.dirname(__file__)), "storage", "schemas"), os.path.join(self.storage, "schemas"), dirs_exist_ok=True)
 		self.cm = ConfigurationManager(storage_path=self.storage)
 		root = ServiceContainer()
 		root.add_service(ConfigurationManager, self.cm)
@@ -141,7 +144,7 @@ class TestValidateProperties(unittest.TestCase):
 					self.assertEqual(errors[0]["path"], ["f"])
 
 	def test_missing_required_is_reported_and_headers_are_skipped(self):
-		props = [{ "name": "a", "type": "string", "required": True }, { "name": "h", "type": "header", "label": "H" }]
+		props = [{ "name": "a", "type": "string", "required": True }, { "name": "h", "type": "header", "title": "H" }]
 		self.assertEqual(validate_properties({}, props), [{ "path": ["a"], "message": "Required" }])
 
 	def test_items_lookup_limits_the_values(self):
@@ -164,7 +167,7 @@ class TestVisibility(unittest.TestCase):
 
 	PROPS = [
 		{ "name": "randomizeDate", "type": "boolean" },
-		{ "name": "customDate", "type": "date", "required": True, "visibleIf": { "field": "randomizeDate", "eq": False } },
+		{ "name": "customDate", "type": "string", "format": "date", "required": True, "visibleIf": { "field": "randomizeDate", "const": False } },
 	]
 
 	def test_hidden_properties_are_not_validated_and_are_stored_as_null(self):
@@ -178,8 +181,8 @@ class TestVisibility(unittest.TestCase):
 
 	def test_find_problems(self):
 		self.assertEqual(find_problems(self.PROPS), [])
-		self.assertIn("unknown field 'nope'", find_problems([{ "name": "a", "visibleIf": { "field": "nope", "eq": 1 } }])[0])
-		self.assertIn("needs eq, ne, in or set", find_problems([{ "name": "a", "visibleIf": { "field": "a" } }])[0])
+		self.assertIn("unknown field 'nope'", find_problems([{ "name": "a", "visibleIf": { "field": "nope", "const": 1 } }])[0])
+		self.assertIn("needs const, enum or set", find_problems([{ "name": "a", "visibleIf": { "field": "a" } }])[0])
 		cyc = [{ "name": "a", "visibleIf": { "field": "b", "set": True } }, { "name": "b", "visibleIf": { "field": "a", "set": True } }]
 		self.assertTrue(any("cycle" in m for m in find_problems(cyc)))
 
@@ -216,7 +219,11 @@ class TestDescriptors(unittest.TestCase):
 
 class TestDescriptorRules(unittest.TestCase):
 	"""Every descriptor in the repository: names the form can hold, types both validators know, defaults that pass their own rules."""
-	KNOWN_TYPES = ("string", "boolean", "number", "int", "date", "location", "schema", "header")
+	KNOWN_TYPES = ("string", "boolean", "number", "integer", "location", "schema", "header")
+	FORMATS = ("date",)
+	# names the descriptors used before the JSON Schema ones; nothing accepts them any more
+	REMOVED = { "label": "title", "min": "minimum", "max": "maximum", "secret": "writeOnly" }
+	REMOVED_PREDICATE = { "eq": "const", "ne": "not + const", "in": "enum" }
 
 	@staticmethod
 	def _files():
@@ -241,7 +248,23 @@ class TestDescriptorRules(unittest.TestCase):
 				# PrimeVue Form reads a dot or a bracket in a field name as a path into the values
 				self.assertFalse(any(c in prop["name"] for c in ".[]"), "a field name cannot hold . [ or ]")
 				self.assertIn(prop.get("type"), self.KNOWN_TYPES)
+				self.assertIn(prop.get("format", "date"), self.FORMATS)
+				for old, new in self.REMOVED.items():
+					self.assertNotIn(old, prop, f"`{old}` is now `{new}`")
+				self.assertFalse(self._predicate_keys(prop.get("visibleIf")) & set(self.REMOVED_PREDICATE), "a visibleIf uses a removed operator")
+				if "pattern" in prop:
+					# both JavaScript and Python read it: keep to what they share (no named groups, lookbehind or inline flags)
+					re.compile(prop["pattern"])
+					self.assertNotRegex(prop["pattern"], r"\(\?[<P(i-]")
 		self.assertGreater(seen, 20)
+
+	@staticmethod
+	def _predicate_keys(p):
+		if isinstance(p, dict):
+			return set(p) | set().union(*(TestDescriptorRules._predicate_keys(v) for v in p.values()), set())
+		if isinstance(p, list):
+			return set().union(*(TestDescriptorRules._predicate_keys(v) for v in p), set())
+		return set()
 
 	def test_defaults_pass_their_own_rules(self):
 		for where, prop in self._each_property():
@@ -271,7 +294,7 @@ def _content_item(properties, lookups=None, features=None):
 class TestPluginContentErrors(unittest.TestCase):
 	PLUGINS = { "p": _content_item([
 		{ "name": "mode", "type": "string", "enum": ["on", "off"] },
-		{ "name": "dataSource", "type": "schema", "required": True, "lookup": "ds", "visibleIf": { "field": "mode", "eq": "on" } },
+		{ "name": "dataSource", "type": "schema", "required": True, "lookup": "ds", "visibleIf": { "field": "mode", "const": "on" } },
 	], { "ds": { "schema": "data-sources", "features": ["media-overlay"] } }) }
 	SOURCES = {
 		"overlay-source": _content_item([{ "name": "text", "type": "string", "required": True }], features=["media-overlay"]),

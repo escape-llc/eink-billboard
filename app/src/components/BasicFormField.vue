@@ -1,7 +1,7 @@
 <template>
 	<template v-if="field.type === 'header'">
 		<slot name="group-header" v-bind="field">
-			<div>{{ field.label }}</div>
+			<div>{{ field.title }}</div>
 		</slot>
 	</template>
 	<template v-else-if="visible">
@@ -9,7 +9,7 @@
 			<InputGroupAddon>
 				<slot name="label" v-bind="{ field, fieldState }">
 					<label :style="{'width': props.fieldNameWidth, 'max-width': props.fieldNameWidth }"
-						style="flex-shrink:0;flex-grow:1" :for="field.name">{{ field.label }}</label>
+						style="flex-shrink:0;flex-grow:1" :for="field.name">{{ field.title }}</label>
 				</slot>
 			</InputGroupAddon>
 			<template v-if="field.type === 'boolean'">
@@ -20,25 +20,34 @@
 			<template v-else-if="field.type === 'schema'">
 				<Select size="small" :name="field.name" :inputId="field.name" :invalid="isInvalid" :options="field.list"
 					optionLabel="name" optionValue="value" :showClear="field.required === false"
-					:placeholder="field.label" fluid @change="handleSchemaChange($event, field)" />
+					:placeholder="field.title" fluid @change="handleSchemaChange($event, field)" />
+			</template>
+			<template v-else-if="field.type === 'string' && field.format === 'date'">
+				<InputGroupAddon style="flex-grow:1">
+					<FormField style="width:100%" :name="field.name" v-slot="$field" :validateOnValueUpdate="true">
+						<DatePicker size="small" fluid showIcon showButtonBar dateFormat="yy-mm-dd" :inputId="field.name" :invalid="isInvalid"
+							:modelValue="isoToDate($field.value)" :placeholder="field.title"
+							@update:modelValue="(d: Date|(Date|null)[]|null|undefined) => $field.props.onChange(dateToIso(Array.isArray(d) ? d[0] : d))" />
+					</FormField>
+				</InputGroupAddon>
 			</template>
 			<template v-else-if="'enum' in field">
 				<Select size="small" :name="field.name" :inputId="field.name" :invalid="isInvalid" :options="field.enum"
 					:showClear="field.required === false"
-					:placeholder="field.label" fluid />
+					:placeholder="field.title" fluid />
 			</template>
 			<template v-else-if="'lookup' in field">
 				<Select size="small" :name="field.name" :inputId="field.name" :invalid="isInvalid" :options="field.list"
 					optionLabel="name" optionValue="value" :showClear="field.required === false"
-					:placeholder="field.label" fluid />
+					:placeholder="field.title" fluid />
 			</template>
-			<template v-else-if="field.type === 'number' || field.type === 'int'">
+			<template v-else-if="field.type === 'number' || field.type === 'integer'">
 				<InputNumber style="flex-grow:1" :name="field.name" :inputId="field.name" :invalid="isInvalid" size="small"
-					:min="field.min" :max="field.max" :step="field.step" :showButtons="true"
-					:minFractionDigits="field.type === 'int' ? 0 : field.minFractionDigits"
-					:maxFractionDigits="field.type === 'int' ? 0 : field.maxFractionDigits"
+					:min="field.minimum" :max="field.maximum" :step="field.step" :showButtons="true"
+					:minFractionDigits="field.type === 'integer' ? 0 : field.minFractionDigits"
+					:maxFractionDigits="field.type === 'integer' ? 0 : field.maxFractionDigits"
 					:showClear="field.required === false"
-					:placeholder="field.label" fluid />
+					:placeholder="field.title" fluid />
 			</template>
 			<template v-else-if="field.type === 'location'">
 				<InputGroupAddon style="flex-grow:1">
@@ -47,19 +56,10 @@
 					</FormField>
 				</InputGroupAddon>
 			</template>
-			<template v-else-if="field.type === 'date'">
-				<InputGroupAddon style="flex-grow:1">
-					<FormField style="width:100%" :name="field.name" v-slot="$field" :validateOnValueUpdate="true">
-						<DatePicker size="small" fluid showIcon showButtonBar dateFormat="yy-mm-dd" :inputId="field.name" :invalid="isInvalid"
-							:modelValue="isoToDate($field.value)" :placeholder="field.label"
-							@update:modelValue="(d: Date|(Date|null)[]|null|undefined) => $field.props.onChange(dateToIso(Array.isArray(d) ? d[0] : d))" />
-					</FormField>
-				</InputGroupAddon>
-			</template>
 			<template v-else>
-				<InputText style="flex-grow:1" :name="field.name" :id="field.name" :invalid="isInvalid" size="small" :type="field.secret ? 'password' : 'text'"
-					:autocomplete="field.secret ? 'new-password' : undefined"
-					:placeholder="field.label" fluid />
+				<InputText style="flex-grow:1" :name="field.name" :id="field.name" :invalid="isInvalid" size="small" :type="field.writeOnly ? 'password' : 'text'"
+					:autocomplete="field.writeOnly ? 'new-password' : undefined"
+					:placeholder="field.title" fluid />
 			</template>
 		</InputGroup>
 		<slot name="message" v-bind="{ field, fieldState }">

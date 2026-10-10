@@ -24,14 +24,14 @@
 					"name": "title",
 					"type": "string",
 					"required": true,
-					"label": "Title",
+					"title": "Title",
 					"description": "Countdown title."
 				},
 				{
 					"name": "targetDate",
-					"type": "date",
+					"type": "string", "format": "date",
 					"required": true,
-					"label": "Target Date",
+					"title": "Target Date",
 					"description": "Countdown to date."
 				}
 			]

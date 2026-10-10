@@ -25,7 +25,7 @@
 					"type": "string",
 					"required": true,
 					"default": "long",
-					"label": "Format",
+					"title": "Format",
 					"description": "long: Friday, October 9. full: Friday, October 9, 2026. short: Fri, Oct 9. numeric: 2026-10-09. custom: your own pattern. The weekday is highlighted.",
 					"enum": ["long", "full", "short", "numeric", "custom"]
 				},
@@ -34,16 +34,16 @@
 					"type": "string",
 					"required": true,
 					"default": null,
-					"label": "Custom Format",
+					"title": "Custom Format",
 					"description": "A strftime pattern, e.g. %A %d %B (%A weekday, %d day, %B month, %Y year).",
-					"visibleIf": { "field": "format", "eq": "custom" }
+					"visibleIf": { "field": "format", "const": "custom" }
 				},
 				{
 					"name": "font",
 					"type": "string",
 					"required": true,
 					"default": "Jost",
-					"label": "Font",
+					"title": "Font",
 					"description": "The typeface. The colors come from the theme.",
 					"enum": ["Jost", "Napoli", "Dogica", "DS-Digital"]
 				}

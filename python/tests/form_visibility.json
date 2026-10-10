@@ -11,7 +11,7 @@
 			"name": "eq false, value false",
 			"predicate": {
 				"field": "r",
-				"eq": false
+				"const": false
 			},
 			"values": {
 				"r": false
@@ -22,7 +22,7 @@
 			"name": "eq false, value true",
 			"predicate": {
 				"field": "r",
-				"eq": false
+				"const": false
 			},
 			"values": {
 				"r": true
@@ -33,7 +33,7 @@
 			"name": "eq false, unset is not false",
 			"predicate": {
 				"field": "r",
-				"eq": false
+				"const": false
 			},
 			"values": {},
 			"visible": false
@@ -42,7 +42,7 @@
 			"name": "eq null matches unset",
 			"predicate": {
 				"field": "r",
-				"eq": null
+				"const": null
 			},
 			"values": {
 				"r": ""
@@ -53,7 +53,7 @@
 			"name": "eq is strict about type",
 			"predicate": {
 				"field": "r",
-				"eq": 1
+				"const": 1
 			},
 			"values": {
 				"r": true
@@ -61,10 +61,12 @@
 			"visible": false
 		},
 		{
-			"name": "ne",
+			"name": "not const",
 			"predicate": {
-				"field": "r",
-				"ne": "a"
+				"not": {
+					"field": "r",
+					"const": "a"
+				}
 			},
 			"values": {
 				"r": "b"
@@ -72,10 +74,12 @@
 			"visible": true
 		},
 		{
-			"name": "ne, equal",
+			"name": "not const, equal",
 			"predicate": {
-				"field": "r",
-				"ne": "a"
+				"not": {
+					"field": "r",
+					"const": "a"
+				}
 			},
 			"values": {
 				"r": "a"
@@ -86,7 +90,7 @@
 			"name": "in, member",
 			"predicate": {
 				"field": "r",
-				"in": [
+				"enum": [
 					"a",
 					"b"
 				]
@@ -100,7 +104,7 @@
 			"name": "in, not a member",
 			"predicate": {
 				"field": "r",
-				"in": [
+				"enum": [
 					"a",
 					"b"
 				]
@@ -149,11 +153,11 @@
 				"all": [
 					{
 						"field": "a",
-						"eq": 1
+						"const": 1
 					},
 					{
 						"field": "b",
-						"eq": 2
+						"const": 2
 					}
 				]
 			},
@@ -169,11 +173,11 @@
 				"all": [
 					{
 						"field": "a",
-						"eq": 1
+						"const": 1
 					},
 					{
 						"field": "b",
-						"eq": 2
+						"const": 2
 					}
 				]
 			},
@@ -189,11 +193,11 @@
 				"any": [
 					{
 						"field": "a",
-						"eq": 1
+						"const": 1
 					},
 					{
 						"field": "b",
-						"eq": 2
+						"const": 2
 					}
 				]
 			},
@@ -226,14 +230,24 @@
 		},
 		{
 			"name": "eq 1, value 1.0 (one JSON number type)",
-			"predicate": { "field": "a", "eq": 1 },
-			"values": { "a": 1.0 },
+			"predicate": {
+				"field": "a",
+				"const": 1
+			},
+			"values": {
+				"a": 1.0
+			},
 			"visible": true
 		},
 		{
 			"name": "eq 1, value true is not the number",
-			"predicate": { "field": "a", "eq": 1 },
-			"values": { "a": true },
+			"predicate": {
+				"field": "a",
+				"const": 1
+			},
+			"values": {
+				"a": true
+			},
 			"visible": false
 		}
 	]

@@ -24,10 +24,10 @@ ENTER_THE_KEY = "Enter the key"
 SECRET_MASK = "********"
 
 def secret_fields(properties: Iterable[dict]|None) -> set[str]:
-	"""Names of the properties flagged `"secret": true` in a schema descriptor."""
+	"""Names of the properties flagged `"writeOnly": true` in a schema descriptor."""
 	if not properties:
 		return set()
-	return { p["name"] for p in properties if isinstance(p, dict) and p.get("secret") is True and "name" in p }
+	return { p["name"] for p in properties if isinstance(p, dict) and p.get("writeOnly") is True and "name" in p }
 
 def redact(document: dict, secrets: set[str]) -> dict:
 	"""A copy of the document where non-empty secret values are replaced with the mask."""
@@ -99,6 +99,15 @@ def _check_value(prop: dict, value: Any, lookups: dict) -> str|None:
 	if ptype == "string":
 		if not isinstance(value, str):
 			return "Expected string"
+		if prop.get("format") == "date":
+			return None if value == "" or _is_iso_date(value) else "Expected a date (YYYY-MM-DD)"
+		if value != "":
+			if prop.get("minLength") is not None and len(value) < prop["minLength"]:
+				return f"At least {prop['minLength']} characters"
+			if prop.get("maxLength") is not None and len(value) > prop["maxLength"]:
+				return f"At most {prop['maxLength']} characters"
+			if prop.get("pattern") and not re.search(prop["pattern"], value):
+				return "Not in the expected format"
 		allowed = prop.get("enum")
 		if not allowed:
 			lookup = lookups.get(prop.get("lookup")) if prop.get("lookup") else None
@@ -109,20 +118,17 @@ def _check_value(prop: dict, value: Any, lookups: dict) -> str|None:
 	elif ptype == "boolean":
 		if not isinstance(value, bool):
 			return "Expected boolean"
-	elif ptype in ("number", "int"):
+	elif ptype in ("number", "integer"):
 		if not _is_number(value):
 			return f"Expected {ptype}"
 		if isinstance(value, float) and not math.isfinite(value):
 			return NOT_FINITE
-		if ptype == "int" and isinstance(value, float) and not value.is_integer():
+		if ptype == "integer" and isinstance(value, float) and not value.is_integer():
 			return "Whole numbers only"
-		if prop.get("min") is not None and value < prop["min"]:
-			return f"Minimum {prop['min']:g}"
-		if prop.get("max") is not None and value > prop["max"]:
-			return f"Maximum {prop['max']:g}"
-	elif ptype == "date":
-		if value != "" and not _is_iso_date(value):
-			return "Expected a date (YYYY-MM-DD)"
+		if prop.get("minimum") is not None and value < prop["minimum"]:
+			return f"Minimum {prop['minimum']:g}"
+		if prop.get("maximum") is not None and value > prop["maximum"]:
+			return f"Maximum {prop['maximum']:g}"
 	elif ptype == "location":
 		return _is_location(value)
 	elif ptype == "schema":
@@ -133,7 +139,7 @@ def _check_value(prop: dict, value: Any, lookups: dict) -> str|None:
 def validate_properties(document: dict, properties: Iterable[dict]|None, lookups: dict|None = None) -> list[dict]:
 	"""
 	Check the values the schema declares against the same rules the form applies: type, `required`, `enum` / `items` lookup membership,
-	`min` / `max`, `int`, `date` and `location`. Properties hidden by `visibleIf` are skipped. Unknown properties are kept untouched.
+	`minimum` / `maximum`, `integer`, `format: date`, `minLength` / `maxLength` / `pattern` and `location`. Properties hidden by `visibleIf` are skipped. Unknown properties are kept untouched.
 	`null` (and "" for strings and dates) means unset: valid unless the property is `required`.
 	Returns a list of `{ "path": [name], "message": str }`; empty when valid.
 	"""

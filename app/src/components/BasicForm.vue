@@ -17,7 +17,7 @@
 					-->
 					<template v-if="field.type === 'header'">
 						<slot name="group-header" v-bind="field">
-							<div>{{ field.label }}</div>
+							<div>{{ field.title }}</div>
 						</slot>
 					</template>
 					<template v-else>
