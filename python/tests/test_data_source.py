@@ -14,10 +14,11 @@ from ..datasources.newspaper.newspaper import NewspaperAsync
 from ..model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool
-from .utils import create_configuration_manager, save_image, test_output_path_for
+from ..model.configuration_manager import ConfigurationManager
+from .utils import create_configuration_manager, save_datasource_settings, save_image, temp_configuration_manager, test_output_path_for
 
-def create_data_source_context(dsid:str, schedule_ts: datetime = datetime.now()) -> DataSourceExecutionContext:
-	cm = create_configuration_manager()
+def create_data_source_context(dsid:str, schedule_ts: datetime = datetime.now(), cm: ConfigurationManager|None = None) -> DataSourceExecutionContext:
+	cm = cm or create_configuration_manager()
 	cm.ensure_folders()
 	scm = cm.settings_manager()
 	stm = cm.static_manager()
@@ -41,11 +42,11 @@ class TestAsyncDataSources(unittest.TestCase):
 		except Exception:
 			pass
 
-	async def run_datasource_async(self, ds, params, image_size, image_count):
+	async def run_datasource_async(self, ds, params, image_size, image_count, cm: ConfigurationManager|None = None):
 		self.assertIsInstance(ds, MediaListAsync)
 		self.assertIsInstance(ds, MediaRenderAsync)
 		folder = test_output_path_for(f"ds-{ds.id}-async")
-		dsec = create_data_source_context(ds.id)
+		dsec = create_data_source_context(ds.id, cm=cm)
 		state:list = await cast(MediaListAsync, ds).open_async(dsec, params)
 		self.assertTrue(len(state) > 0)
 		images = []
@@ -80,10 +81,13 @@ class TestAsyncDataSources(unittest.TestCase):
 		self.assertEqual(len(images), image_count)
 	def test_image_folder(self):
 		ds = ImageFolderAsync("image-folder", "image-folder")
+		# the task names a folder; the data source keeps where it is in its own settings
+		cm = temp_configuration_manager(self)
+		save_datasource_settings(cm, "image-folder", { "folders": [{ "name": "test images", "path": "python/tests/images" }] })
 		params = {
-			"folder": "python/tests/images"
+			"folder": "test images"
 		}
-		self.pool.submit(self.run_datasource_async, ds, params, (800, 480), 9).result(timeout=60)
+		self.pool.submit(self.run_datasource_async, ds, params, (800, 480), 9, cm).result(timeout=60)
 	def test_image_folder_requires_folder(self):
 		import asyncio
 		ds = ImageFolderAsync("image-folder", "image-folder")

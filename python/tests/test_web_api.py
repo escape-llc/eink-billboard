@@ -219,7 +219,7 @@ class TestDescriptors(unittest.TestCase):
 
 class TestDescriptorRules(unittest.TestCase):
 	"""Every descriptor in the repository: names the form can hold, types both validators know, defaults that pass their own rules."""
-	KNOWN_TYPES = ("string", "boolean", "number", "integer", "location", "schema", "header")
+	KNOWN_TYPES = ("string", "boolean", "number", "integer", "location", "schema", "array", "header")
 	FORMATS = ("date",)
 	# names the descriptors used before the JSON Schema ones; nothing accepts them any more
 	REMOVED = { "label": "title", "min": "minimum", "max": "maximum", "secret": "writeOnly" }
