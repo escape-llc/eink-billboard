@@ -12,7 +12,7 @@
 				"dataSource": "image-folder",
 				"slideMax": 4,
 				"slideMinutes": 2,
-				"folder": "__E2E_IMAGES__"
+				"folder": "E2E images"
 			}
 		},
 		{
@@ -24,7 +24,7 @@
 				"dataSource": "image-folder",
 				"slideMax": 2,
 				"slideMinutes": 5,
-				"folder": "__E2E_IMAGES__"
+				"folder": "E2E images"
 			}
 		}
 	]
