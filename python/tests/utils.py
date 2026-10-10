@@ -1,7 +1,9 @@
 from concurrent.futures import Executor, Future, ThreadPoolExecutor
 import os
 from pathlib import Path
+import tempfile
 import threading
+import unittest
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Callable
@@ -147,6 +149,21 @@ def storage_path() -> str:
 	test_directory = os.path.dirname(test_file_path)
 	storage = os.path.join(test_directory, ".storage")
 	return storage
+
+def temp_configuration_manager(test: unittest.TestCase) -> ConfigurationManager:
+	"""A configuration manager over a private storage with the factory defaults, so a test can write settings without touching the shared test storage."""
+	tmp = tempfile.TemporaryDirectory()
+	test.addCleanup(tmp.cleanup)
+	cm = ConfigurationManager(storage_path=tmp.name)
+	cm.hard_reset()
+	return cm
+
+def save_datasource_settings(cm: ConfigurationManager, datasource_id: str, document: dict) -> None:
+	"""Store a data source's settings (an Image Folder keeps the folders its tasks name there)."""
+	cob = cm.datasource_manager(datasource_id).open()
+	rev, _ = cob.get()
+	committed, _ = cob.save(rev, document)
+	assert committed
 
 def create_configuration_manager() -> ConfigurationManager:
 	storage = storage_path()

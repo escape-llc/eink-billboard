@@ -21,7 +21,7 @@ from ..task.timer import IProvideTimer
 from ..task.message_router import MessageRouter, Route
 from ..task.messages import BasicMessage, QuitMessage
 from ..task.protocols import MessageSink
-from .utils import RecordingTask, ScaledTimeOfDay, ScaledTimerThreadService, create_configuration_manager, save_images
+from .utils import RecordingTask, ScaledTimeOfDay, ScaledTimerThreadService, create_configuration_manager, save_datasource_settings, save_images, temp_configuration_manager
 
 class DebugMessageSink(MessageSink):
 	def __init__(self):
@@ -34,9 +34,9 @@ TICK_RATE_SLOW = 1
 TICKS = 60*1
 
 class TestAsyncPlugins(unittest.TestCase):
-	def run_slide_show(self, track:PlaylistSchedule, dsm: DataSourceManager, timeout=10, testCancel=False):
+	def run_slide_show(self, track:PlaylistSchedule, dsm: DataSourceManager, timeout=10, testCancel=False, cm: ConfigurationManager|None = None):
 		plugin = SlideShowAsync("slide-show", "Slide Show Plugin")
-		cm = create_configuration_manager()
+		cm = cm or create_configuration_manager()
 		scm = cm.settings_manager()
 		stm = cm.static_manager()
 		display = RecordingTask("FakeDisplay")
@@ -78,7 +78,7 @@ class TestAsyncPlugins(unittest.TestCase):
 	def test_slide_show_with_image_folder(self):
 		content = {
 			"dataSource": "image-folder",
-			"folder": "python/tests/images",
+			"folder": "test images",
 			"slideMax": 0,
 			"slideMinutes": 1
 		}
@@ -91,7 +91,9 @@ class TestAsyncPlugins(unittest.TestCase):
 		)
 		dsmap:dict[str,DataSource] = {"image-folder": ImageFolderAsync("image-folder", "image-folder")}
 		datasources = DataSourceManager(dsmap)
-		display = self.run_slide_show(track, datasources)
+		cm = temp_configuration_manager(self)
+		save_datasource_settings(cm, "image-folder", { "folders": [{ "name": "test images", "path": "python/tests/images" }] })
+		display = self.run_slide_show(track, datasources, cm=cm)
 		self.assertEqual(len(display.msgs), 9, "display.msgs failed")
 	def test_slide_show_with_comic(self):
 		content = {

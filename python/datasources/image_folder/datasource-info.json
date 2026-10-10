@@ -11,13 +11,32 @@
 	"settings": {
 		"schema": {
 			"properties": [
+				{
+					"name": "folders",
+					"type": "array",
+					"required": false,
+					"default": [],
+					"title": "Folders",
+					"description": "The folders of images a task can show. A task picks one by its name.",
+					"items": {
+						"type": "object",
+						"key": "name",
+						"properties": [
+							{ "name": "name", "type": "string", "required": true, "title": "Name", "minLength": 1 },
+							{ "name": "path", "type": "string", "required": true, "title": "Folder Path", "minLength": 1 }
+						]
+					}
+				}
 			]
 		},
-		"default": null
+		"default": {
+			"folders": []
+		}
 	},
 	"instanceSettings": {
 		"schema": {
 			"lookups": {
+				"folder": { "settings": "folders", "value": "name" }
 			},
 			"properties": [
 				{
@@ -25,8 +44,9 @@
 					"type": "string",
 					"required": true,
 					"default": null,
-					"title": "Folder Path",
-					"description": "Select the folder with images to display."
+					"lookup": "folder",
+					"title": "Folder",
+					"description": "Which folder of images to show. Add folders in the Image Folder data source settings."
 				}
 			]
 		}
