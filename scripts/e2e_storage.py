@@ -28,8 +28,8 @@ def _add_visibility_fields(target: str) -> None:
 	with open(schema_file, "r", encoding="utf-8") as f:
 		schema = json.load(f)
 	schema["schema"]["properties"] += [
-		{ "name": "e2eAdvanced", "type": "boolean", "label": "E2E Advanced", "required": False },
-		{ "name": "e2eDetail", "type": "string", "label": "E2E Detail", "required": True, "visibleIf": { "field": "e2eAdvanced", "eq": True } },
+		{ "name": "e2eAdvanced", "type": "boolean", "title": "E2E Advanced", "required": False },
+		{ "name": "e2eDetail", "type": "string", "title": "E2E Detail", "required": True, "visibleIf": { "field": "e2eAdvanced", "const": True } },
 	]
 	with open(schema_file, "w", encoding="utf-8", newline="\n") as f:
 		json.dump(schema, f, indent=2)

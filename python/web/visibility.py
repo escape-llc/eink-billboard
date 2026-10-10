@@ -3,13 +3,13 @@ Conditional visibility of schema properties: the same rules as `app/src/componen
 (the cases both must pass are in `python/tests/form_visibility.json`).
 
 A property may carry `visibleIf`, a small JSON predicate over the other properties' values:
-	{ "field": "randomizeDate", "eq": false }       eq | ne | in | set (true: has a value, false: has none)
+	{ "field": "randomizeDate", "const": false }    const | enum | set (true: has a value, false: has none)
 	{ "all": [ ... ] }   { "any": [ ... ] }   { "not": { ... } }
 An unset value (missing, null, "") reads as null. A hidden property is not applicable: it is not validated and is stored as null.
 """
 from typing import Any, Iterable
 
-_OPERATORS = ("eq", "ne", "in", "set")
+_OPERATORS = ("const", "enum", "set")
 
 def _read(values: dict, name: str) -> Any:
 	v = values.get(name)
@@ -35,12 +35,10 @@ def evaluate(p: Any, values: dict) -> bool:
 		return not evaluate(p["not"], values)
 	if isinstance(p.get("field"), str):
 		v = _read(values, p["field"])
-		if "eq" in p:
-			return _same(v, p["eq"])
-		if "ne" in p:
-			return not _same(v, p["ne"])
-		if isinstance(p.get("in"), list):
-			return any(_same(v, x) for x in p["in"])
+		if "const" in p:
+			return _same(v, p["const"])
+		if isinstance(p.get("enum"), list):
+			return any(_same(v, x) for x in p["enum"])
 		if isinstance(p.get("set"), bool):
 			return (v is not None) == p["set"]
 	return True
@@ -79,7 +77,7 @@ def _shape_problem(p: Any) -> str|None:
 		return _shape_problem(p["not"])
 	if not isinstance(p.get("field"), str):
 		return "needs a field, all, any or not"
-	return None if any(op in p for op in _OPERATORS) else "needs eq, ne, in or set"
+	return None if any(op in p for op in _OPERATORS) else "needs const, enum or set"
 
 def find_problems(properties: Iterable[dict]) -> list[str]:
 	"""What is wrong with the `visibleIf` of these properties: a malformed predicate, a name that is no property, or a cycle."""

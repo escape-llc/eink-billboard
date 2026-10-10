@@ -112,27 +112,29 @@ The same repo is worked on from three places. The rules above are the same every
 - **IDs from URLs are untrusted.** Plugin and datasource IDs must come from `cm.enum_plugins()` / `cm.enum_datasources()`; never build a path from a raw URL parameter.
   Validating is not enough for the analyser (or a reader): what builds the path must be **our own value** (the constant from our list, the ID declared in the descriptor), not the URL's string that passed a check. Files served for a URL are resolved with `realpath` and must start with the folder's prefix (see `_file_in_bundle`), which also stops symbolic links.
   Error bodies do not echo the URL's text back. CodeQL's `py/path-injection` alerts are about exactly this; fix the flow, do not dismiss the alert.
-- **Secrets.** A schema property with `"secret": true` is masked (`********`) in GET responses and kept when the mask, or nothing, is sent back. Mark any new key/token/password property that way.
+- **Secrets.** A schema property with `"writeOnly": true` is masked (`********`) in GET responses and kept when the mask, or nothing, is sent back. Mark any new key/token/password property that way.
 - **Form field rules are written twice and must agree.** The form (`app/src/components/FormValidation.ts`) and the server (`validate_properties` in `python/web/documents.py`) apply the same rules to a descriptor's properties; the cases both must pass are in `python/tests/form_rules.json` (run by Vitest and by `test_web_api`). Change a rule in both places and add a case.
 
   | Property | Rule (message) |
   |---|---|
   | `required: true` | not null / not empty ("Required"). Optional properties may be `null` (unset) |
-  | `string` | with `enum`, or an `items` lookup: one of the values ("Not one of the allowed values"); a URL lookup is not checked |
-  | `number`, `int` | `min` / `max` inclusive, **including 0** ("Minimum N", "Maximum N"); `int` has no fraction ("Whole numbers only") |
-  | `date` | `YYYY-MM-DD`, a real day ("Expected a date (YYYY-MM-DD)") |
+  | `string` | with `enum`, or an `items` lookup: one of the values ("Not one of the allowed values"); a URL lookup is not checked. `minLength` / `maxLength` ("At least N characters", "At most N characters") and `pattern` ("Not in the expected format") apply to a value that is there (`""` is unset); a `pattern` must read the same in JavaScript and Python `re` (no named groups, lookbehind or inline flags) |
+  | `number`, `integer` | `minimum` / `maximum` inclusive, **including 0** ("Minimum N", "Maximum N"); `integer` has no fraction ("Whole numbers only") |
+  | `string` with `format: "date"` | `YYYY-MM-DD`, a real day ("Expected a date (YYYY-MM-DD)"); shown as a date picker |
   | `location` | `{latitude -90..90, longitude -180..180}` |
   | `schema` | a string; the form also checks it is one of the available plugins/datasources |
   | `boolean` | optional booleans may be `null` (unset) |
   | `header` | no value, never validated |
   | `description` | shown under the field as help text (any property) |
 
-  A property of a type neither side knows is not checked. A `number` shows the digits its descriptor declares (`step`, `minFractionDigits`, `maxFractionDigits`); only `int` forces whole numbers.
+  **Descriptors use JSON Schema keyword names** (`title`, `type`, `format`, `minimum`, `maximum`, `minLength`, `maxLength`, `pattern`, `enum`, `const`, `default`, `writeOnly`, `items`); the old names (`label`, `min`, `max`, `secret`, `int`, `date`, `eq`, `ne`, `in`) are gone, and `test_web_api` fails on them.
+  Our own keywords keep bare names, which JSON Schema ignores: `required` (a boolean on the property, not the array of the standard), `lookup`, `visibleIf`, `step`, `minFractionDigits`, `maxFractionDigits`, `header` and `description` as help text. Never give a standard keyword a different meaning.
+  A property of a type neither side knows is not checked. A `number` shows the digits its descriptor declares (`step`, `minFractionDigits`, `maxFractionDigits`); only `integer` forces whole numbers.
   A descriptor's `instanceSettings` has no `default` document: each property carries its own `default`, and `test_web_api` checks the defaults against the rules, the field names (no `.`, `[`, `]`: PrimeVue reads them as paths) and the types.
   A `schema` field's choices are the sources whose `features` match the lookup's (the form offers only those; the server rejects the others). A lookup that fails to load shows a message under the field, never an option.
 
   **Conditional visibility.** A property may carry `visibleIf`, a predicate over the other fields' values (`app/src/components/FormVisibility.ts`, `python/web/visibility.py`, cases in `python/tests/form_visibility.json`):
-  `{ "field": "x", "eq" | "ne" | "in" | "set": ... }`, combined with `all` / `any` / `not`. Names are the form's field names (children of a `schema` field share them); unset (missing, `null`, `""`) reads as `null`.
+  `{ "field": "x", "const" | "enum" | "set": ... }`, combined with `all` / `any` / `not`. Names are the form's field names (children of a `schema` field share them); unset (missing, `null`, `""`) reads as `null`.
   A hidden field is not applicable: it is not validated (a hidden `required` does not block) and is **saved as `null`**, by the form and again by the server. `test_web_api` checks every descriptor's `visibleIf` for unknown fields and cycles.
   The server's 422 body lists `errors: [{ path: [name], message }]`. Use PrimeVue components for every control the form renders (`DatePicker`, `InputNumber`, `Select`, ...).
 - **Timer tasks are changed one at a time** (`python/model/schedule_store.py`, routes under `/api/schedule/timer`): `POST` a document or a task, `PUT`/`PATCH`/`DELETE` a document (`/{doc}`) or a task (`/{doc}/items/{item}`).

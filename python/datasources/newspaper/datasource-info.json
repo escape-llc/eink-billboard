@@ -34,7 +34,7 @@
 					"type": "string",
 					"required": true,
 					"default": "ny_nyt",
-					"label": "Newspaper",
+					"title": "Newspaper",
 					"lookup": "newspaperSlug",
 					"description": "Select the newspaper."
 				}

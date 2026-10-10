@@ -25,7 +25,7 @@
 					"type": "string",
 					"required": true,
 					"default": null,
-					"label": "Clock Face",
+					"title": "Clock Face",
 					"description": "The clock face.",
 					"enum": [
 						"Gradient Clock",
@@ -37,17 +37,19 @@
 				{
 					"name": "primaryColor",
 					"type": "string",
+					"pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
 					"required": true,
 					"default": null,
-					"label": "Primary Color",
+					"title": "Primary Color",
 					"description": "The primary color."
 				},
 				{
 					"name": "secondaryColor",
 					"type": "string",
+					"pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
 					"required": true,
 					"default": null,
-					"label": "Secondary Color",
+					"title": "Secondary Color",
 					"description": "The secondary color."
 				}
 			]

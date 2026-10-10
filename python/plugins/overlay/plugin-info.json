@@ -30,7 +30,7 @@
 					"required": true,
 					"default": null,
 					"lookup": "dataSource",
-					"label": "Data Source",
+					"title": "Data Source",
 					"description": "What to show: a data source made for overlays."
 				},
 				{
@@ -38,7 +38,7 @@
 					"type": "string",
 					"required": true,
 					"default": "bottom-right",
-					"label": "Zone",
+					"title": "Zone",
 					"description": "Where on the screen: one of six boxes, three across the top and three across the bottom.",
 					"enum": ["top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"]
 				},
@@ -47,12 +47,12 @@
 					"type": "number",
 					"required": true,
 					"default": 0.4,
-					"min": 0,
-					"max": 1,
+					"minimum": 0,
+					"maximum": 1,
 					"step": 0.05,
 					"minFractionDigits": 0,
 					"maxFractionDigits": 2,
-					"label": "Wash",
+					"title": "Wash",
 					"description": "How much to lighten the background under the overlay so it reads: 0 is none, 1 is white."
 				}
 			]

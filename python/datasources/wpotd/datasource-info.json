@@ -25,7 +25,7 @@
 					"type": "boolean",
 					"required": false,
 					"default": true,
-					"label": "Shrink to Fit",
+					"title": "Shrink to Fit",
 					"description": "Resize the image to fit the device screen."
 				},
 				{
@@ -33,17 +33,17 @@
 					"type": "boolean",
 					"required": false,
 					"default": false,
-					"label": "Randomize Date",
+					"title": "Randomize Date",
 					"description": "Randomize the date for the Picture of the Day."
 				},
 				{
 					"name": "customDate",
-					"type": "date",
+					"type": "string", "format": "date",
 					"required": false,
 					"default": null,
-					"label": "Custom Date",
+					"title": "Custom Date",
 					"description": "Custom date for the Picture of the Day. Not used when the date is randomized.",
-					"visibleIf": { "field": "randomizeDate", "eq": false }
+					"visibleIf": { "field": "randomizeDate", "const": false }
 				}
 			]
 		}

@@ -41,8 +41,19 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 	const required = px.required === true
 	switch (px.type) {
 		case "string": {
+			if (px.format === "date") {
+				const iso = z.iso.date({ error: (issue) => (issue.input === null || issue.input === undefined ? messages.required : messages.date) })
+				return required ? z.preprocess(emptyToNull, iso) : z.preprocess(emptyToNull, iso.nullable())
+			}
 			let base: z.ZodTypeAny = z.string()
 			if (required) base = (base as z.ZodString).min(1, { error: messages.required })
+			// the length and pattern rules apply to a value that is there: "" is unset, which `required` handles
+			if (px.minLength !== undefined) base = base.refine((v: unknown) => v === "" || (v as string).length >= px.minLength!, { error: messages.atLeast(px.minLength) })
+			if (px.maxLength !== undefined) base = base.refine((v: unknown) => (v as string).length <= px.maxLength!, { error: messages.atMost(px.maxLength) })
+			if (px.pattern) {
+				const re = new RegExp(px.pattern)
+				base = base.refine((v: unknown) => v === "" || re.test(v as string), { error: messages.format })
+			}
 			if (px.enum && px.enum.length > 0) {
 				const allowed = px.enum
 				base = base.refine(oneOf(allowed), { error: messages.notAllowed })
@@ -56,10 +67,10 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 		case "boolean":
 			return optionalUnless(required, z.boolean())
 		case "number":
-		case "int": {
-			let base = px.type === "int" ? z.number().int({ error: messages.wholeNumbers }) : z.number()
-			if (px.min !== undefined) base = base.min(px.min, { error: messages.minimum(px.min) })
-			if (px.max !== undefined) base = base.max(px.max, { error: messages.maximum(px.max) })
+		case "integer": {
+			let base = px.type === "integer" ? z.number().int({ error: messages.wholeNumbers }) : z.number()
+			if (px.minimum !== undefined) base = base.min(px.minimum, { error: messages.minimum(px.minimum) })
+			if (px.maximum !== undefined) base = base.max(px.maximum, { error: messages.maximum(px.maximum) })
 			return optionalUnless(required, base)
 		}
 		case "location": {
@@ -76,10 +87,6 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 				base = base.refine(oneOf(px.list.map(x => x.value)), { error: messages.notAvailable })
 			}
 			return required ? base : z.preprocess(emptyToNull, base.nullable())
-		}
-		case "date": {
-			const iso = z.iso.date({ error: (issue) => (issue.input === null || issue.input === undefined ? messages.required : messages.date) })
-			return required ? z.preprocess(emptyToNull, iso) : z.preprocess(emptyToNull, iso.nullable())
 		}
 		default: {
 			// the server does not check a type it does not know either

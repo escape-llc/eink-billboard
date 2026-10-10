@@ -2,15 +2,17 @@ import type { Predicate } from "./FormVisibility"
 
 export type FieldGroupDef = {
 	name: string
-	label: string
+	title: string
 	type: "header"
 	description?: string
 	visibleIf?: Predicate
 }
 export type FieldDef = {
 	name: string
-	label: string
-	type: "string" | "boolean" | "number" | "int" | "location" | "schema" | "date"
+	title: string
+	type: "string" | "boolean" | "number" | "integer" | "location" | "schema"
+	/** of a string: `date` is a `YYYY-MM-DD` day (a date picker) */
+	format?: "date"
 	required: boolean
 	/** what a new item starts with (null or absent: nothing) */
 	default?: unknown
@@ -19,12 +21,16 @@ export type FieldDef = {
 	/** a predicate over the other fields' values: hidden (not validated, saved as null) when false; see FormVisibility.ts */
 	visibleIf?: Predicate
 	/** shown as a password input; the server never sends the stored value back */
-	secret?: boolean
+	writeOnly?: boolean
 	lookup?: string
 	/** the allowed values of a string field */
 	enum?: string[]
-	min?: number
-	max?: number
+	minimum?: number
+	maximum?: number
+	minLength?: number
+	maxLength?: number
+	/** a regular expression both JavaScript and Python read the same way */
+	pattern?: string
 	step?: number
 	minFractionDigits?: number
 	maxFractionDigits?: number
