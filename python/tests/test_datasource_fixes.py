@@ -32,7 +32,8 @@ from ..datasources.wpotd import wpotd
 from ..datasources.wpotd.wpotd import WpotdAsync
 from ..datasources.year_progress import year_progress
 from ..datasources.year_progress.year_progress import YearProgressAsync
-from ..model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
+from ..model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
+from ..plugins.plugin_base import PermanentError
 from ..model.service_container import ServiceContainer
 from ..task.async_http_worker_pool import client_var
 
@@ -52,6 +53,19 @@ class FakeSettings:
 	def open(self, name: str):
 		assert name == "display"
 		return _Cob(self.display)
+
+class FakeDatasourceSettings:
+	"""Stands in for DatasourceConfigurationManager: the stored settings document."""
+	def __init__(self, document):
+		self.document = document
+	def open(self):
+		return _Cob(self.document)
+
+def folders_dsec(folders) -> DataSourceExecutionContext:
+	"""A context where the Image Folder data source has these named folders in its settings."""
+	root = ServiceContainer()
+	root.add_service(DatasourceConfigurationManager, cast(Any, FakeDatasourceSettings({ "folders": folders })))
+	return DataSourceExecutionContext(root, (800, 480), datetime(2026, 10, 7, 12, 0, tzinfo=TZ_TOKYO))
 
 def make_dsec(orientation="landscape", dimensions=(800, 480), ts=None) -> DataSourceExecutionContext:
 	root = ServiceContainer()
@@ -375,12 +389,26 @@ class TestImageFolder(unittest.TestCase):
 			self.assertEqual(img.convert("RGB").getpixel((5, 5)), (255, 255, 255))
 	def test_missing_folder_is_a_clear_error(self):
 		ds = ImageFolderAsync("f", "f")
+		dsec = folders_dsec([{ "name": "gone", "path": "/definitely/not/here" }])
 		with self.assertRaisesRegex(ValueError, "not a folder"):
-			asyncio.run(ds.open_async(cast(Any, None), {"folder": "/definitely/not/here"}))
+			asyncio.run(ds.open_async(dsec, {"folder": "gone"}))
+	def test_the_task_names_a_folder_kept_in_the_settings(self):
+		ds = ImageFolderAsync("f", "f")
+		with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as other:
+			Image.new("RGB", (40, 30)).save(os.path.join(d, "a.png"))
+			dsec = folders_dsec([{ "name": "other", "path": other }, { "name": "pictures", "path": d }])
+			self.assertEqual(asyncio.run(ds.open_async(dsec, {"folder": "pictures"})), [os.path.join(d, "a.png")])
+	def test_a_name_that_is_not_in_the_settings_is_permanent(self):
+		# renamed or removed from the settings: trying again cannot fix it
+		ds = ImageFolderAsync("f", "f")
+		with self.assertRaisesRegex(PermanentError, "'nope' is not in the Image Folder settings"):
+			asyncio.run(ds.open_async(folders_dsec([{ "name": "pictures", "path": "/x" }]), {"folder": "nope"}))
+		with self.assertRaises(PermanentError):
+			asyncio.run(ds.open_async(folders_dsec([]), {"folder": "nope"}))
 	def test_empty_folder_gives_empty_list(self):
 		ds = ImageFolderAsync("f", "f")
 		with tempfile.TemporaryDirectory() as d:
-			self.assertEqual(asyncio.run(ds.open_async(cast(Any, None), {"folder": d})), [])
+			self.assertEqual(asyncio.run(ds.open_async(folders_dsec([{ "name": "empty", "path": d }]), {"folder": "empty"})), [])
 	def test_render_uses_portrait_dimensions(self):
 		ds = ImageFolderAsync("f", "f")
 		with tempfile.TemporaryDirectory() as d:

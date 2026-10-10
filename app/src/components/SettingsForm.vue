@@ -124,6 +124,8 @@ function send(post: any) {
 	.then(jv => {
 		if(jv.success) {
 			_rev = jv.rev
+			// what was saved is the new starting point: the form is no longer "changed" (leaving does not ask), and secrets show masked again
+			apiJson(props.settingsUrl).then(applySettings).catch(ex => console.warn("settings.reload", ex))
 		}
 		emits("submit", { result: jv, invalid: null, error: null })
 	})

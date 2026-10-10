@@ -137,6 +137,8 @@ The same repo is worked on from three places. The rules above are the same every
   **A list kept in settings, one entry chosen per task.** A plugin or data source keeps an `array` in its own `settings` (a feed list) and its `instanceSettings` offer the entries through a `settings` lookup:
   `"lookups": { "feed": { "settings": "feeds", "value": "name", "label": "name" } }`, used by a `string` property with `"lookup": "feed"`. The task stores the entry's `value` (its `key`, so reordering the list is safe; a renamed or deleted entry shows as a stale value the user must choose again).
   The choices are served by `GET /api/datasources/{id}/lookups/{lookup}` (`/api/plugins/...` likewise), for a lookup the descriptor declares; the form reaches it through `BasicForm`'s `owner`. Unlike a URL lookup the server can check membership, so a value that is not an entry is a 422 (and nothing is allowed while the list is empty).
+  The Image Folder data source is the first user: its `folders` (`name`, `path`) are in its settings, and a task's `folder` is a name (an unknown name is a `PermanentError`). Tests that run it write its settings first (`save_datasource_settings`).
+  After a save, `SettingsForm` reloads the document: the saved values are the form's new baseline, so it is not "changed" and leaving the page does not ask to discard.
   The row editor (`ArrayField.vue`) sits **outside** its `FormField`: PrimeVue inputs bind to the nearest `FormField` and would each overwrite the whole list with their own value.
 
   **Conditional visibility.** A property may carry `visibleIf`, a predicate over the other fields' values (`app/src/components/FormVisibility.ts`, `python/web/visibility.py`, cases in `python/tests/form_visibility.json`):

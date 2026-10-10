@@ -10,7 +10,8 @@ from ..model.schedule_store import check_item_shape, merge_patch
 BASE = "/api/schedule/timer"
 SPECIFIC = { "on_startup": False, "day": { "type": "dayofweek", "days": [0, 1, 2, 3, 4, 5, 6] }, "time": { "type": "specific", "hour": 9, "minute": 0 } }
 
-CONTENT = { "dataSource": "image-folder", "slideMax": 4, "slideMinutes": 2, "folder": "/x" }
+# a task names one of the folders the Image Folder data source keeps in its settings (written by ScheduleApiBase)
+CONTENT = { "dataSource": "image-folder", "slideMax": 4, "slideMinutes": 2, "folder": "x" }
 
 def task_body(**over) -> dict:
 	body = { "title": "Morning", "enabled": True, "trigger": SPECIFIC, "task": { "plugin_name": "slide-show", "content": CONTENT } }
@@ -21,6 +22,7 @@ class ScheduleApiBase(WebApiTestBase):
 	"""The plugin and datasource descriptors come from the source tree (slide-show, image-folder); the test writes the schedules it needs."""
 	def setUp(self):
 		super().setUp()
+		self.write_datasource_settings("image-folder", { "folders": [{ "name": "x", "path": "/x" }, { "name": "y", "path": "/y" }] })
 		schedules = os.path.join(self.storage, "schedules")
 		for name in os.listdir(schedules):
 			os.remove(os.path.join(schedules, name))
@@ -116,8 +118,16 @@ class TestTasks(ScheduleApiBase):
 		self.assertEqual(got["_rev"], self.rev_of_item("a2"))
 		_error_shape(self, self.client.get(f"{BASE}/doc-a/items/zzz"), 404)
 
+	def test_a_folder_must_be_one_the_data_source_keeps_in_its_settings(self):
+		body = task_body(task={ "plugin_name": "slide-show", "content": { **CONTENT, "folder": "/x" } })
+		resp = self.client.post(f"{BASE}/doc-a/items", json=body)
+		self.assertEqual(_error_shape(self, resp, 422)["errors"], [{ "path": ["task", "content", "folder"], "message": "Not one of the allowed values" }])
+		# a folder removed from the settings leaves the tasks that name it invalid the next time they are saved
+		self.write_datasource_settings("image-folder", { "folders": [] })
+		_error_shape(self, self.client.post(f"{BASE}/doc-a/items", json=task_body()), 422)
+
 	def test_add_generates_the_id_and_defaults(self):
-		resp = self.client.post(f"{BASE}/doc-a/items", json={ "trigger": SPECIFIC, "task": { "plugin_name": "slide-show", "content": { **CONTENT, "folder": "/y" } } })
+		resp = self.client.post(f"{BASE}/doc-a/items", json={ "trigger": SPECIFIC, "task": { "plugin_name": "slide-show", "content": { **CONTENT, "folder": "y" } } })
 		self.assertEqual(resp.status_code, 201, resp.text)
 		task = resp.json()["task"]
 		self.assertEqual((task["title"], task["enabled"]), ("", True))

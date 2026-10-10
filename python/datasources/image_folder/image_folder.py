@@ -3,6 +3,8 @@ import os
 from typing import Any, Mapping
 
 from PIL import Image, ImageOps, ImageFilter
+from ...model.configuration_manager import DatasourceConfigurationManager
+from ...plugins.plugin_base import PermanentError
 from ...utils.image_utils import to_rgb
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 
@@ -43,10 +45,20 @@ class ImageFolderAsync(DataSource, MediaListAsync, MediaRenderAsync):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
+	@staticmethod
+	def _folder_path(dsec: DataSourceExecutionContext, name: str) -> str:
+		"""The path of the named folder, from the folders this data source keeps in its settings (the task stores only the name)."""
+		_, settings = dsec.provider.required(DatasourceConfigurationManager).open().get()
+		for entry in (settings or {}).get("folders") or []:
+			if isinstance(entry, dict) and entry.get("name") == name and isinstance(entry.get("path"), str) and entry["path"]:
+				return entry["path"]
+		# nothing to retry: the folder was renamed or removed from the settings
+		raise PermanentError(f"The folder '{name}' is not in the Image Folder settings.")
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
-		folder_path = params.get('folder')
-		if not folder_path:
+		name = params.get('folder')
+		if not name:
 			raise ValueError("The 'folder' setting is required for the image folder datasource.")
+		folder_path = self._folder_path(dsec, name)
 		if not os.path.isdir(folder_path):
 			raise ValueError("The 'folder' setting is not a folder that exists.")
 		image_files = list_files_in_folder(folder_path)
