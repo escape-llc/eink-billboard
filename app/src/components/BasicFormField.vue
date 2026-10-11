@@ -6,7 +6,7 @@
 	</template>
 	<template v-else-if="visible">
 		<InputGroup>
-			<InputGroupAddon :class="{ 'label-top': tall }">
+			<InputGroupAddon class="field-label" :class="{ 'label-top': tall }">
 				<slot name="label" v-bind="{ field, fieldState }">
 					<label :style="{'width': props.fieldNameWidth, 'max-width': props.fieldNameWidth }"
 						style="flex-shrink:0;flex-grow:1" :for="field.name">{{ field.title }}</label>
@@ -24,7 +24,7 @@
 					:placeholder="field.title" fluid />
 			</template>
 			<template v-else-if="field.type === 'array'">
-				<InputGroupAddon style="flex-grow:1;padding:0">
+				<InputGroupAddon style="flex:1 1 0;min-width:0;padding:0">
 					<!-- Registers the field with the form and nothing more: the PrimeVue inputs of the rows would each take the whole field's value if they were inside it.
 						The rows are edited outside it, and the form is told the new list. -->
 					<FormField :name="field.name" :validateOnValueUpdate="true" />
@@ -172,6 +172,10 @@ const errorMessage = computed(() => {
 });
 </script>
 <style scoped>
+/* the label keeps its width: a wide row editor beside it must not squeeze it until its text spills over the border */
+.field-label {
+	flex: 0 0 auto;
+}
 .label-top {
 	align-items: flex-start;
 }
