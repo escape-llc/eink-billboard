@@ -42,3 +42,25 @@ test("folders are added in the data source's settings, and a track chooses among
 	await expect(page.getByRole("option")).toHaveText(["E2E images", "Holiday"])
 	watch.expectNone()
 })
+
+test("the RSS Feed settings test an address through the real route, which refuses this device", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "Data Sources" }).click()
+	await page.getByRole("tabpanel").locator(".p-select").first().click()
+	await page.getByRole("option", { name: /^rss/ }).click()
+	await page.getByRole("button", { name: "Add to Feeds" }).click()
+	await page.getByRole("textbox", { name: "Name 1", exact: true }).fill("Loopback")
+	const url = page.getByRole("textbox", { name: "Feed URL 1", exact: true })
+	await url.fill("not an address")
+	await expect(page.getByText("Enter a valid URL")).toBeVisible()
+	await expect(page.getByRole("button", { name: "Test Feed URL 1" })).toBeDisabled()
+	// no network is needed: a refused address is answered before anything is fetched
+	await url.fill("http://127.0.0.1:1/feed.xml")
+	await page.getByRole("button", { name: "Test Feed URL 1" }).click()
+	await expect(page.getByText("cannot be tested here")).toBeVisible()
+	// the answer does not repeat the address (what is typed in the box is a value, not page text)
+	await expect(page.getByText("127.0.0.1")).toHaveCount(0)
+	watch.expectNone()
+})
+

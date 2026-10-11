@@ -15,9 +15,11 @@ from ..datasources.rss.rss import RssAsync, parse_stories, plain_text
 from ..model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
 from ..plugins.plugin_base import PermanentError
-from ..task.async_http_worker_pool import client_var
+from ..task.async_http_worker_pool import AsyncHttpWorkerPool, client_var
+from ..utils import url_guard
 from ..utils.image_utils import LINUX_CHROME_HEADLESS, WIN_CHROME_HEADLESS, os_type
 from .fake_internet import FakeInternet, fixture_text
+from .test_web_api import WebApiTestBase
 from .test_datasource_fixes import STATIC, FakeDatasourceSettings, FakeRenderSession, _Cob
 
 NEWS = "https://news.example.test/feed.xml"
@@ -193,3 +195,95 @@ class TestRealPage(unittest.IsolatedAsyncioTestCase):
 					result.image.save(folder.joinpath(f"{orientation}-{number}.png"))
 					self.assertGreater(len(result.image.convert("L").getcolors(maxcolors=256) or []), 1, "the page is not blank")
 					self.assertIsInstance(result.image, Image.Image)
+
+TEST_URL = "/api/datasource/rss/test"
+PUBLIC = "93.184.216.34"
+
+class TestFeedTestRoute(WebApiTestBase):
+	"""What the Test button asks: can the server open this address and read it as a feed?"""
+	def setUp(self):
+		super().setUp()
+		names = { "news.example.test": [PUBLIC], "notes.example.test": [PUBLIC], "inside.example.test": ["127.0.0.1"] }
+		async def resolve(host: str, port: int) -> list[str]:
+			if host not in names:
+				raise OSError("no such host")
+			return names[host]
+		patcher = patch.object(url_guard, "_resolve", resolve)
+		patcher.start()
+		self.addCleanup(patcher.stop)
+
+	def ask(self, value, transport=None) -> dict:
+		"""POST the question; the answer is always 200 with `{ ok, message }`. `transport` replaces the fake internet."""
+		with patch.object(AsyncHttpWorkerPool, "default_transport", transport or AsyncHttpWorkerPool.default_transport):
+			resp = self.client.post(TEST_URL, json={ "value": value })
+		self.assertEqual(resp.status_code, 200, resp.text)
+		answer = resp.json()
+		self.assertEqual(sorted(answer), ["message", "ok"])
+		return answer
+
+	def test_a_feed_is_counted_and_named(self):
+		self.assertEqual(self.ask("https://news.example.test/feed.xml"), { "ok": True, "message": "6 stories, from “Example Daily”" })
+		self.assertEqual(self.ask("https://notes.example.test/atom.xml"), { "ok": True, "message": "2 stories, from “Example Atom Notes”" })
+
+	def test_a_page_that_is_no_feed_is_a_no(self):
+		self.assertEqual(self.ask("https://news.example.test/page"), { "ok": False, "message": "The response is not a feed." })
+
+	def test_what_can_go_wrong_is_told_in_words(self):
+		def status(code):
+			return httpx.MockTransport(lambda r: httpx.Response(code))
+		def raises(exc):
+			def handler(request):
+				raise exc
+			return httpx.MockTransport(handler)
+		url = "https://news.example.test/feed.xml"
+		self.assertEqual(self.ask(url, status(404))["message"], "The server answered 404.")
+		self.assertEqual(self.ask(url, raises(httpx.ReadTimeout("slow")))["message"], "The server did not answer in time.")
+		self.assertEqual(self.ask(url, raises(httpx.ConnectError("refused")))["message"], "Could not connect to the server.")
+		self.assertEqual(self.ask(url, raises(httpx.DecodingError("bad")))["message"], "The request failed (DecodingError).")
+		self.assertIn("too large", self.ask(url, httpx.MockTransport(lambda r: httpx.Response(200, content=b"x" * (rss.MAX_FEED_BYTES + 1))))["message"])
+		self.assertEqual(self.ask("https://unknown.example.test/feed")["message"], "The host name could not be found.")
+
+	def test_this_device_is_not_a_place_to_test(self):
+		asked: list[httpx.Request] = []
+		def handler(request: httpx.Request) -> httpx.Response:
+			asked.append(request)
+			return httpx.Response(200, content=fixture_text("rss-news.xml").encode())
+		transport = httpx.MockTransport(handler)
+		for value in ("http://localhost:8080/api/settings/system", "http://127.0.0.1/", "http://[::1]/", "http://169.254.169.254/latest/meta-data", "https://inside.example.test/feed"):
+			with self.subTest(value):
+				answer = self.ask(value, transport)
+				self.assertFalse(answer["ok"])
+		self.assertEqual(asked, [], "nothing was requested of a refused address")
+
+	def test_the_home_network_is_a_place_to_test(self):
+		transport = httpx.MockTransport(lambda r: httpx.Response(200, content=fixture_text("rss-atom.xml").encode()))
+		self.assertTrue(self.ask("http://192.168.1.20:8080/atom.xml", transport)["ok"])
+
+	def test_a_redirect_to_this_device_is_refused(self):
+		asked: list[str] = []
+		def handler(request: httpx.Request) -> httpx.Response:
+			asked.append(request.url.host)
+			return httpx.Response(302, headers={ "Location": "http://127.0.0.1:8080/api/settings/system" })
+		answer = self.ask("https://news.example.test/feed.xml", httpx.MockTransport(handler))
+		self.assertFalse(answer["ok"])
+		self.assertEqual(asked, ["news.example.test"])
+
+	def test_only_http_and_nothing_at_all_are_refused_in_words(self):
+		self.assertEqual(self.ask("ftp://news.example.test/f")["message"], "Only http and https addresses can be tested.")
+		for nothing in ("", "   ", None, 7, ["https://news.example.test/feed.xml"]):
+			with self.subTest(nothing):
+				self.assertEqual(self.ask(nothing), { "ok": False, "message": "Enter an address first." })
+
+	def test_no_answer_holds_the_address(self):
+		secret = "https://user:hunter2@inside.example.test/feed?apikey=abc123"
+		for value, transport in ((secret, None), ("https://hunter2:abc123@news.example.test/feed.xml", httpx.MockTransport(lambda r: httpx.Response(500)))):
+			with self.subTest(value):
+				text = str(self.ask(value, transport))
+				for leaked in ("hunter2", "abc123", "inside.example.test"):
+					self.assertNotIn(leaked, text)
+
+	def test_the_route_needs_the_token_when_there_is_one(self):
+		self.client.close()
+		self.token = "secret-token"
+		self.setUp()
+		self.assertEqual(self.client.post(TEST_URL, json={ "value": "https://news.example.test/feed.xml" }).status_code, 401)
