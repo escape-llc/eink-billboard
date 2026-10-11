@@ -6,6 +6,7 @@
 	"file": "slide_show.py",
 	"module": "python.plugins.slide_show.slide_show",
 	"description": "Media Gallery Slide Show.",
+	"describe": "{dataSource}",
 	"disabled": false,
 	"features": ["layer-background", "layer-foreground", "media-image", "media-list"],
 	"settings": {

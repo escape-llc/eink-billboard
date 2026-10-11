@@ -6,6 +6,7 @@
 	"file": "newspaper.py",
 	"module": "python.datasources.newspaper.newspaper",
 	"description": "A Newspaper PotD downloader.",
+	"describe": "Newspaper {slug}",
 	"disabled": false,
 	"features": ["internet", "layer-foreground", "media-image"],
 	"router": {

@@ -6,6 +6,7 @@
 	"file": "priority_update.py",
 	"module": "python.plugins.priority_update.priority_update",
 	"description": "Pre-empts the current display with an image for a while (the priority layer), then the display goes back to what it was showing.",
+	"describe": "{dataSource}",
 	"disabled": false,
 	"features": ["layer-priority", "media-image"],
 	"settings": {

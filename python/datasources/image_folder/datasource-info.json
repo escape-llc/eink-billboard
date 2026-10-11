@@ -6,6 +6,7 @@
 	"file": "image_folder.py",
 	"module": "python.datasources.image_folder.image_folder",
 	"description": "Image folder data source.",
+	"describe": "Images {folder}",
 	"disabled": false,
 	"features": ["filesystem", "layer-background", "media-list"],
 	"settings": {

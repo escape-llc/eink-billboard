@@ -6,6 +6,7 @@
 	"file": "calendar.py",
 	"module": "python.datasources.calendar.calendar",
 	"description": "A month grid or an agenda of the next days, from iCal links, CalDAV servers and holidays. One page per view.",
+	"describe": "Calendar {views}",
 	"disabled": false,
 	"features": ["internet", "layer-foreground", "media-list"],
 	"router": {

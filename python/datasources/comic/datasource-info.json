@@ -6,6 +6,7 @@
 	"file": "comic_feed.py",
 	"module": "python.datasources.comic.comic_feed",
 	"description": "A comic downloader.",
+	"describe": "Comic {comic}",
 	"disabled": false,
 	"features": ["internet", "layer-foreground", "media-list"],
 	"settings": {
