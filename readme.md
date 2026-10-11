@@ -80,7 +80,7 @@ After struggling with different ideas, we arrive at the following architecture, 
 	* Determined by the Data Source.
 * Overlay layer
 	* Timer Layer provides images for the overlay layer.
-	* Semi-transparent image "overlays" are composited onto the background (`ImageOverlay`: an image at a position, optionally with a "wash" that lightens the background under it; `text_overlay()` makes a centered text box).
+	* Semi-transparent image "overlays" are composited onto the background (`ImageOverlay`: an image at a position, optionally with a "wash": a blurred halo, in the shape of what it draws, that lightens the background around the text; `text_overlay()` makes a centered text box).
 	* The Compositor draws them; the Foreground and Priority layers hide them.
 	* The screen has six overlay **zones**, three across the top and three across the bottom (`top-left` ... `bottom-right`), laid out as the viewer sees the screen; the Display announces them at startup (`DisplaySettings.overlays`).
 	* The **Overlay** plugin runs as a timer task: it asks its data source (one with the `media-overlay` feature) for an image the size of its zone, and the overlay stays until the task's next run replaces it.

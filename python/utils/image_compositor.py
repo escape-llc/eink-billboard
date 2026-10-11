@@ -1,13 +1,15 @@
+import math
 from dataclasses import dataclass, replace
 from typing import Protocol, runtime_checkable
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from ..task.display_messages import DisplayImage
 
 @dataclass(frozen=True, eq=False)
 class ImageOverlay:
 	"""An image drawn over the background at `position` (top-left, in background pixels).
-	`wash` (0 to 1) lightens the background under the overlay toward white first, so light text reads over a busy picture (0.4 is a good start)."""
+	`wash` (0 to 1) lightens the background around what the overlay draws, toward white: the overlay's own shape (its text), blurred, is the mask, so a halo
+	follows the letters and the rest of the box stays as it is (0.4 is a good start)."""
 	image: Image.Image
 	position: tuple[int, int]
 	wash: float = 0.0
@@ -20,6 +22,17 @@ def _sized(font: FontType|None, size: int) -> FontType:
 	if isinstance(font, ImageFont.FreeTypeFont):
 		return font.font_variant(size=size)
 	return font # a bitmap font has one size
+
+def wash_mask(picture: Image.Image, wash: float) -> tuple[Image.Image, int]:
+	"""The wash as a mask and its margin: `picture`'s alpha (the text), blurred and boosted so the halo is solid beside the letters and fades outward, times `wash`.
+	The blur is a tenth of the overlay's height (the zone's text size follows its height), so the halo scales with the text. The mask is `margin` pixels larger
+	than the picture on every side, so a halo that reaches past the box fades out there instead of being cut at its edge."""
+	radius = max(1.5, picture.height * 0.1)
+	margin = math.ceil(radius * 3)
+	padded = Image.new("L", (picture.width + 2 * margin, picture.height + 2 * margin), 0)
+	padded.paste(picture.getchannel("A"), (margin, margin))
+	strength = min(max(wash, 0.0), 1.0)
+	return padded.filter(ImageFilter.GaussianBlur(radius)).point(lambda v: round(min(255, v * 3) * strength)), margin
 
 type TextRun = tuple[str, tuple[int, ...]]
 
@@ -148,14 +161,19 @@ class OverlayRenderPackage(RenderPackage):
 			# the part of the overlay that lies on the background: one that hangs off the edge is cut, not an error
 			left, top = max(x, 0), max(y, 0)
 			right, bottom = min(x + picture.width, canvas.width), min(y + picture.height, canvas.height)
+			if overlay.wash > 0:
+				mask, margin = wash_mask(picture, overlay.wash)
+				# the halo's area: the box and its margin, on the background
+				wl, wt = max(x - margin, 0), max(y - margin, 0)
+				wr, wb = min(x + picture.width + margin, canvas.width), min(y + picture.height + margin, canvas.height)
+				if wr > wl and wb > wt:
+					region = canvas.crop((wl, wt, wr, wb))
+					# the wash is white through the blurred shape of the overlay; the background's own transparency is kept
+					washed = Image.composite(Image.new("RGB", region.size, (255, 255, 255)), region.convert("RGB"), mask.crop((wl - x + margin, wt - y + margin, wr - x + margin, wb - y + margin))).convert("RGBA")
+					washed.putalpha(region.getchannel("A"))
+					canvas.paste(washed, (wl, wt))
 			if right <= left or bottom <= top:
 				continue
-			if overlay.wash > 0:
-				region = canvas.crop((left, top, right, bottom))
-				# CSS "lighten" against white is white, so the wash is a blend toward white; the background's own transparency is kept
-				washed = Image.blend(region.convert("RGB"), Image.new("RGB", region.size, (255, 255, 255)), min(overlay.wash, 1.0)).convert("RGBA")
-				washed.putalpha(region.getchannel("A"))
-				canvas.paste(washed, (left, top))
 			canvas.alpha_composite(picture.crop((left - x, top - y, right - x, bottom - y)), (left, top))
 		return (canvas.convert(self._base.img.mode), self._base.title)
 

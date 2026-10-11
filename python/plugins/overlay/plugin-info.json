@@ -54,7 +54,7 @@
 					"minFractionDigits": 0,
 					"maxFractionDigits": 2,
 					"title": "Wash",
-					"description": "How much to lighten the background under the overlay so it reads: 0 is none, 1 is white."
+					"description": "A soft white halo around the text so it reads over a busy picture: 0 is none, 1 is the strongest."
 				}
 			]
 		}
