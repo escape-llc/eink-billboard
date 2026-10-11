@@ -601,6 +601,22 @@ class TestSettingsValidation(WebApiTestBase):
 		body = _error_shape(self, self.client.put("/api/settings/system", json=doc), 422)
 		self.assertEqual(body["errors"][0]["path"], ["timeFormat"])
 
+class TestPaletteRoute(WebApiTestBase):
+	"""The Theme tab's swatches are the device's own palette for the values in the form."""
+	def test_every_role_is_computed_as_the_device_does(self):
+		from ..model.theme import Palette, inputs_from, palette_of
+		settings = { "theme": "triadic", "hue": 100, "saturation": 70, "lightness": 40 }
+		resp = self.client.post("/api/theme/palette", json=settings)
+		self.assertEqual(resp.status_code, 200, resp.text)
+		roles = resp.json()["roles"]
+		self.assertEqual([r["name"] for r in roles], Palette.roles())
+		computed = palette_of(inputs_from(settings))
+		self.assertEqual({r["name"]: r["color"] for r in roles}["bg-secondary-1-accent"], computed.bg_secondary_1_accent.css)
+		self.assertTrue(all(r["color"].startswith("hsl(") for r in roles))
+
+	def test_values_that_are_not_valid_read_as_the_defaults(self):
+		self.assertEqual(self.client.post("/api/theme/palette", json={ "hue": "x", "theme": "nope" }).json(), self.client.post("/api/theme/palette", json={}).json())
+
 class TestFontsRoute(WebApiTestBase):
 	"""The theme preview loads the shipped fonts; the file comes from our table, never from the URL."""
 	def test_a_shipped_font_is_served(self):

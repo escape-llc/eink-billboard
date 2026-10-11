@@ -516,6 +516,39 @@ class ConfigurationManager(ConfigurationObjectFactory):
 				continue
 			self._save_settings(dsm.settings_path(), settings)
 
+	def refresh_schemas(self) -> list[str]:
+		"""
+		Bring the storage's schema files up to date with the ones shipped (the NVE): a schema describes the code's settings, so it is not the user's to keep, and a
+		device that was seeded before a setting existed would otherwise never show it. Only `schemas/*.json` are touched, never a settings document or a schedule.
+		Returns the names that were replaced.
+		"""
+		source = os.path.join(self.NVE_PATH, "schemas")
+		if not os.path.isdir(source):
+			return []
+		os.makedirs(self.storage_schemas, exist_ok=True)
+		replaced: list[str] = []
+		with self._lock:
+			for name in sorted(os.listdir(source)):
+				if not name.endswith(".json"):
+					continue
+				with open(os.path.join(source, name), "rb") as f:
+					wanted = f.read()
+				target = os.path.join(self.storage_schemas, name)
+				try:
+					with open(target, "rb") as f:
+						if f.read() == wanted:
+							continue
+				except FileNotFoundError:
+					pass
+				temp = os.path.join(self.storage_schemas, f".tmp-{name}")
+				with open(temp, "wb") as f:
+					f.write(wanted)
+				os.replace(temp, target)
+				replaced.append(name)
+		if replaced:
+			logger.info(f"Schemas brought up to date: {', '.join(replaced)}")
+		return replaced
+
 	def ensure_folders(self):
 		"""Ensures that necessary directories exist.  Does not consider files."""
 		with self._lock:

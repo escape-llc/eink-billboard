@@ -67,6 +67,25 @@ class TestConfigurationManager(unittest.TestCase):
 			self.assertEqual(datasource.id, 'comic')
 			self.assertEqual(datasource.name, 'Comic')
 
+	def test_stale_schemas_are_refreshed_and_nothing_else_is_touched(self):
+		with tempfile.TemporaryDirectory() as tempdir:
+			cm = ConfigurationManager(storage_path=tempdir)
+			cm.hard_reset()
+			schema = os.path.join(tempdir, "schemas", "theme.json")
+			settings = os.path.join(tempdir, "settings", "theme-settings.json")
+			with open(schema, "w") as f:
+				f.write('{"old": true}')
+			with open(settings, "w") as f:
+				f.write('{"hue": 5}')
+			self.assertEqual(cm.refresh_schemas(), ["theme.json"])
+			with open(schema, "rb") as f, open(os.path.join(cm.NVE_PATH, "schemas", "theme.json"), "rb") as g:
+				self.assertEqual(f.read(), g.read())
+			with open(settings) as f:
+				self.assertEqual(f.read(), '{"hue": 5}')
+			# up to date: nothing to do
+			self.assertEqual(cm.refresh_schemas(), [])
+			self.assertEqual([n for n in os.listdir(os.path.join(tempdir, "schemas")) if n.startswith(".tmp")], [])
+
 	def test_load_save_plugin_state(self):
 		with tempfile.TemporaryDirectory() as tempdir:
 			# Use a temporary directory for storage to avoid side effects

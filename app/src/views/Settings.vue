@@ -46,14 +46,19 @@
 					/>
 				<div style="text-align: center">
 					<h2>Theme Colors</h2>
-					<div class="swatch-table">
-						<div class="swatch-label">Primary</div>
-						<div class="swatch" :style="`background-color:hsl(${previewHue},${previewSaturation}%,${previewLightness}%)`"></div>
-						<div class="swatch-label">Secondary 1</div>
-						<div class="swatch" :style="`background-color:hsl(${(previewHue + 180) % 360},${previewSaturation}%,${previewLightness}%)`"></div>
-						<div class="swatch-label">Secondary 2</div>
-						<div class="swatch" :style="`background-color:hsl(${(previewHue + 120) % 360},${previewSaturation}%,${previewLightness}%)`"></div>
-					</div>
+					<!-- every role of the palette, as the device computes it (POST /api/theme/palette), for the values in the form -->
+					<table class="palette" data-testid="palette">
+						<thead><tr><th></th><th v-for="c in PALETTE_COLUMNS" :key="c.key">{{ c.title }}</th></tr></thead>
+						<tbody>
+							<tr v-for="row in PALETTE_ROWS" :key="row.key">
+								<th>{{ row.title }}</th>
+								<td v-for="c in PALETTE_COLUMNS" :key="c.key">
+									<div class="swatch" :data-role="roleName(row.key, c.key)" :title="roleName(row.key, c.key)"
+										:style="{ backgroundColor: paletteColors[roleName(row.key, c.key)] ?? 'transparent' }"></div>
+								</td>
+							</tr>
+						</tbody>
+					</table>
 					<h2>Theme Typography</h2>
 					<!-- the fonts are the ones the device draws with (served by /api/fonts), so the sample is what the pages will look like -->
 					<component :is="'style'">{{ fontFaces }}</component>
@@ -159,7 +164,7 @@
 		</Tabs>
 </template>
 <script setup lang="ts">
-import { apiJson, ApiError } from "../components/ApiClient"
+import { apiJson, apiPost, ApiError } from "../components/ApiClient"
 
 import Tabs from 'primevue/tabs';
 import TabList from 'primevue/tablist';
@@ -190,6 +195,7 @@ const schemaDisplayUrl = `${API_URL}api/schemas/display`
 const schemaDisplay = ref<any>(undefined)
 const settingsDisplay = ref<any>(undefined)
 
+const previewScheme = ref("complementary")
 const previewHue = ref(0)
 const previewSaturation = ref(100)
 const previewLightness = ref(50)
@@ -201,6 +207,22 @@ const FONTS = [["Jost", ["normal", "bold"]], ["Napoli", ["normal"]], ["Dogica", 
 const fontFaces = FONTS.flatMap(([family, weights]) => weights.map(weight =>
 	`@font-face { font-family: "eink-${family}"; font-weight: ${weight}; src: url("${API_URL}api/fonts/${family}?weight=${weight}") format("truetype"); }`)).join(" ")
 const fontStack = (family: string) => `"eink-${family}", sans-serif`
+// the palette: the roles are the CSS classes of themes.css (text-primary, bg-secondary-1-accent, ...), computed by the server from the form's values
+const PALETTE_COLUMNS = [{ key: "primary", title: "Primary" }, { key: "secondary-1", title: "Secondary 1" }, { key: "secondary-2", title: "Secondary 2" }]
+const PALETTE_ROWS = [{ key: "text", title: "Text" }, { key: "text|light", title: "Text, light" }, { key: "bg", title: "Background" }, { key: "bg|accent", title: "Accent" }, { key: "bg|dark", title: "Background, dark" }]
+// "text|light" and "primary" make "text-primary-light"
+const roleName = (row: string, column: string) => { const [kind, tone] = row.split("|"); return `${kind}-${column}${tone ? `-${tone}` : ""}` }
+const paletteColors = ref<Record<string, string>>({})
+let paletteTimer: ReturnType<typeof setTimeout> | undefined
+function refreshPalette() {
+	if (paletteTimer) clearTimeout(paletteTimer)
+	paletteTimer = setTimeout(() => {
+		apiPost<{ roles: { name: string, color: string }[] }>(`${API_URL}api/theme/palette`, { theme: previewScheme.value, hue: previewHue.value, saturation: previewSaturation.value, lightness: previewLightness.value })
+			.then(answer => { paletteColors.value = Object.fromEntries(answer.roles.map(r => [r.name, r.color])) })
+			.catch(() => { /* the swatches keep what they showed */ })
+	}, 120)
+}
+onMounted(refreshPalette)
 
 const plugins = ref([])
 const dataSources = ref([])
@@ -311,6 +333,9 @@ watch(selectedDatasource, (nv) => {
 })
 const handleThemeSettings = (data:any) => {
 	if(!data) return;
+	if(typeof data.theme === "string") {
+		previewScheme.value = data.theme
+	}
 	if("hue" in data) {
 		previewHue.value = data.hue
 	}
@@ -329,6 +354,7 @@ const handleThemeSettings = (data:any) => {
 	if(typeof data.fontScale === "number") {
 		previewFontScale.value = data.fontScale
 	}
+	refreshPalette()
 }
 const handleValidate = (e: ValidateEventData) => {
 	console.log("validate", e)
@@ -349,6 +375,9 @@ const handleThemeValidate = (e: ValidateEventData) => {
 	console.log("theme.validate", e)
 	if(e.result.success) {
 		const data = e.result.data
+		if(typeof data.theme === "string") {
+			previewScheme.value = data.theme
+		}
 		if("hue" in data) {
 			previewHue.value = data.hue
 		}
@@ -367,6 +396,7 @@ const handleThemeValidate = (e: ValidateEventData) => {
 		if(typeof data.fontScale === "number") {
 			previewFontScale.value = data.fontScale
 		}
+		refreshPalette()
 	}
 }
 </script>
@@ -380,6 +410,24 @@ const handleThemeValidate = (e: ValidateEventData) => {
 	width: 100%;
 	max-width: 72rem;
 	margin: auto;
+}
+.palette {
+	margin: .5rem auto;
+	border-collapse: separate;
+	border-spacing: .4rem;
+}
+.palette th {
+	font-weight: normal;
+	font-size: .9rem;
+	text-align: left;
+}
+.palette thead th {
+	text-align: center;
+}
+.palette .swatch {
+	width: 5rem;
+	height: 2.5rem;
+	border: 1px solid var(--p-content-border-color);
 }
 .swatch-table {
 	display:flex;
