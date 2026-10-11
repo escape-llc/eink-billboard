@@ -96,9 +96,12 @@ class TestApplication(unittest.TestCase):
 		app.cm = MagicMock()
 		app.cm.area_of.return_value = "schedules"
 		app._configuration_watcher_event(ConfigurationWatcherEvent(NOW, "modified", "/s/schedules/a.json"))
-		route, msg = app.router.send.call_args.args
+		(route, msg), (told, telemetry) = [c.args for c in app.router.send.call_args_list]
 		self.assertEqual(route, "configuration")
 		self.assertEqual((msg.area, msg.type, msg.path), ("schedules", "modified", "/s/schedules/a.json"))
+		# the telemetry link hears of it too, by area: the path is the device's business
+		self.assertEqual((told, telemetry.name, telemetry.values["kind"], telemetry.values["area"]), ("telemetry", "application", "config-changed", "schedules"))
+		self.assertNotIn("/s/", str(telemetry.values))
 
 	def test_the_watcher_event_reaches_the_handler_through_the_task(self):
 		app = Application("app")

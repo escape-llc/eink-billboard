@@ -1,0 +1,212 @@
+<template>
+	<aside class="gutter" aria-label="Device activity">
+		<div class="gutter-head">
+			<strong>Activity</strong>
+			<Tag :severity="statusSeverity" :value="statusText" class="ml-auto" data-testid="link-status" />
+		</div>
+
+		<section v-if="current" class="gutter-now" aria-label="Now showing">
+			<div class="gutter-label">Now showing</div>
+			<button type="button" class="gutter-thumb" :aria-label="`Show ${title(current)} full size`" @click="full = current">
+				<img :src="link.imageUrl(current.values?.digest)" :alt="title(current)" />
+			</button>
+			<div class="gutter-title">{{ title(current) }}</div>
+			<div class="gutter-meta">
+				<span>{{ clockOf(current.ts) }}</span>
+				<Tag v-for="(layer, i) in current.values?.layers ?? []" :key="i" severity="secondary" class="gutter-chip"
+					:value="layer.layer === 'overlays' ? `overlays (${layer.count})` : layer.layer" />
+			</div>
+		</section>
+
+		<section v-if="recent.length > 1" class="gutter-recent" aria-label="Recently shown">
+			<div class="gutter-label">Recently shown</div>
+			<div class="gutter-strip">
+				<button v-for="e in recent.slice(1)" :key="e.seq" type="button" class="gutter-mini" :title="`${clockOf(e.ts)} ${title(e)}`"
+					:aria-label="`Show ${title(e)} full size`" @click="full = e">
+					<img :src="link.imageUrl(e.values?.digest)" :alt="title(e)" />
+				</button>
+			</div>
+		</section>
+
+		<section class="gutter-events" aria-label="Events">
+			<div class="gutter-filters">
+				<Select v-model="source" :options="sources" optionLabel="label" optionValue="value" size="small" aria-label="Source" />
+				<label class="gutter-toggle"><ToggleSwitch v-model="problemsOnly" aria-label="Problems only" /> Problems only</label>
+			</div>
+			<ol class="gutter-list">
+				<li v-for="(e, i) in shownEvents" :key="e.seq ?? `x${i}`" class="gutter-event" :class="{ problem: isProblem(e) }">
+					<span class="gutter-time">{{ clockOf(e.ts) }}</span>
+					<i :class="iconOf(e)" :title="e.source" aria-hidden="true"></i>
+					<span class="gutter-text">{{ describe(e) }}</span>
+				</li>
+				<li v-if="shownEvents.length === 0" class="gutter-empty">Nothing yet.</li>
+			</ol>
+		</section>
+
+		<Dialog :visible="full !== null" modal :header="full ? title(full) : ''" @update:visible="v => { if (!v) full = null }" style="max-width:95vw">
+			<img v-if="full" class="gutter-full" :src="link.imageUrl(full.values?.digest, 'full')" :alt="title(full)" />
+		</Dialog>
+	</aside>
+</template>
+<script setup lang="ts">
+/** The live view of the device: what the panel shows, what it showed, and what the tasks report (the telemetry link). */
+import { computed, onBeforeUnmount, onMounted, ref } from "vue"
+import { Dialog, Select, Tag, ToggleSwitch } from "primevue"
+import { clockOf, isProblem, useTelemetry, type TelemetryEvent } from "./TelemetryLink"
+
+const link = useTelemetry()
+const full = ref<TelemetryEvent | null>(null)
+const source = ref<string>("all")
+const problemsOnly = ref(false)
+const sources = [
+	{ label: "Everything", value: "all" },
+	{ label: "Playlist", value: "playlist_layer" },
+	{ label: "Timer tasks", value: "timer_layer" },
+	{ label: "Display", value: "display" },
+	{ label: "Settings", value: "application" },
+]
+onMounted(() => link.start())
+onBeforeUnmount(() => link.stop())
+
+const current = computed(() => link.state.current?.values?.digest ? link.state.current : null)
+const recent = computed(() => {
+	const seen = new Set<string>()
+	return [current.value, ...link.state.events.filter(e => e.kind === "shown")]
+		.filter((e): e is TelemetryEvent => !!e && !!e.values?.digest && !seen.has(e.values.digest) && !!seen.add(e.values.digest))
+		.slice(0, 7)
+})
+const shownEvents = computed(() => link.state.events.filter(e =>
+	(source.value === "all" || e.source === source.value) && (!problemsOnly.value || isProblem(e))))
+
+const statusText = computed(() => ({ live: "Live", connecting: "Connecting", offline: "Offline", "signed-out": "Sign in" })[link.state.status])
+const statusSeverity = computed(() => ({ live: "success", connecting: "info", offline: "warn", "signed-out": "danger" })[link.state.status])
+
+const title = (e: TelemetryEvent): string => String(e.values?.title ?? "")
+function iconOf(e: TelemetryEvent): string {
+	return { playlist_layer: "pi pi-play", timer_layer: "pi pi-clock", display: "pi pi-image", application: "pi pi-cog", telemetry: "pi pi-wifi" }[e.source] ?? "pi pi-circle"
+}
+/** Our own words for an event: its message when it has one, else what its values say. */
+function describe(e: TelemetryEvent): string {
+	if (e.message) return e.message
+	const v = e.values ?? {}
+	switch (e.kind) {
+		case "track-played": return `Played '${v.current_track ?? "a track"}'`
+		case "task-ran": return `Ran '${v.current_track ?? "a task"}'`
+		case "waiting": return `Waiting ${Math.round(Number(v.delta ?? 0) / 60)} min for the next timer task`
+		case "shown": return `Shown: '${v.title ?? ""}'`
+		case "stopped": return "The playlist stopped"
+		case "faulted": return "Every track failed: playback is stopped"
+		default: return e.kind
+	}
+}
+</script>
+<style scoped>
+.gutter {
+	display: flex;
+	flex-direction: column;
+	gap: .75rem;
+	width: 20rem;
+	flex: none;
+	padding: .5rem;
+	overflow-y: auto;
+	border-radius: var(--p-toolbar-border-radius);
+	border: solid 1px var(--p-toolbar-border-color);
+}
+.gutter-head {
+	display: flex;
+	align-items: center;
+	gap: .5rem;
+}
+.gutter-label {
+	font-size: .8rem;
+	font-weight: bold;
+	text-transform: uppercase;
+	letter-spacing: .05em;
+	opacity: .7;
+	margin-bottom: .25rem;
+}
+.gutter-thumb, .gutter-mini {
+	padding: 0;
+	border: 1px solid var(--p-content-border-color);
+	background: none;
+	cursor: zoom-in;
+	display: block;
+}
+.gutter-thumb img {
+	display: block;
+	width: 100%;
+}
+.gutter-title {
+	font-weight: bold;
+	margin-top: .25rem;
+}
+.gutter-meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: .25rem;
+	font-size: .85rem;
+}
+.gutter-chip {
+	font-size: .7rem;
+}
+.gutter-strip {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: .25rem;
+}
+.gutter-mini img {
+	display: block;
+	width: 100%;
+}
+.gutter-filters {
+	display: flex;
+	align-items: center;
+	gap: .5rem;
+	flex-wrap: wrap;
+	margin-bottom: .25rem;
+}
+.gutter-toggle {
+	display: flex;
+	align-items: center;
+	gap: .35rem;
+	font-size: .85rem;
+}
+.gutter-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	font-size: .85rem;
+}
+.gutter-event {
+	display: flex;
+	gap: .4rem;
+	align-items: baseline;
+	padding: .2rem 0;
+	border-bottom: 1px solid var(--p-content-border-color);
+}
+.gutter-event.problem {
+	color: var(--p-red-500);
+}
+.gutter-time {
+	font-variant-numeric: tabular-nums;
+	opacity: .7;
+	flex: none;
+}
+.gutter-text {
+	overflow-wrap: anywhere;
+}
+.gutter-empty {
+	opacity: .7;
+}
+.gutter-full {
+	max-width: 100%;
+	display: block;
+}
+@media (max-width: 768px) {
+	.gutter {
+		width: auto;
+		max-height: 40vh;
+	}
+}
+</style>

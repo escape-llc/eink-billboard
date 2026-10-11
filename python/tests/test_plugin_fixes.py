@@ -14,6 +14,7 @@ from ..plugins.slide_show.slide_show import SlideShowAsync
 from ..task.display import DisplayImage, PriorityImage
 from ..task.message_router import MessageRouter
 from ..task.timer import IProvideTimer
+from .test_web_api import WebApiTestBase
 
 class FakeRouter:
 	def __init__(self):
@@ -124,3 +125,17 @@ class TestPriorityUpdate(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
 	unittest.main()
+
+class TestDataSourceSettingsFolder(WebApiTestBase):
+	"""A slot reads its data source's settings from the folder the settings page writes: the descriptor's id, not its display name."""
+	def test_the_settings_a_slot_reads_are_the_ones_saved(self):
+		from ..datasources.data_source import DataSource
+		from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager
+		from ..model.service_container import ServiceContainer
+		from ..plugins.plugin_base import PluginExecutionContext
+		self.write_datasource_settings("rss", { "feeds": [{ "name": "News", "url": "https://news.example.test/feed.xml" }] })
+		root = ServiceContainer()
+		root.add_service(ConfigurationManager, self.cm)
+		dsec = PluginExecutionContext(root, (800, 480), datetime(2026, 10, 11, 12, 0)).create_datasource_context(DataSource("rss", "RSS Feed"))
+		_, settings = dsec.provider.required(DatasourceConfigurationManager).open().get()
+		self.assertEqual([f["name"] for f in (settings or {}).get("feeds", [])], ["News"])

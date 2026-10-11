@@ -1,7 +1,7 @@
 import threading
 from datetime import datetime
 
-from .messages import ConfigurationChanged, ConfigurationWatcherEvent, StartEvent, StartOptions, StopEvent, QuitMessage
+from .messages import ConfigurationChanged, ConfigurationWatcherEvent, StartEvent, StartOptions, StopEvent, QuitMessage, Telemetry
 from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
 from .protocols import MessageSink, IProvideTimer
 from .display import Display
@@ -45,6 +45,8 @@ class Application(DispatcherTask):
 		area = self.cm.area_of(msg.path)
 		self.logger.info(f"'{self.name}' configuration changed: {area} ({msg.type})")
 		self.router.send("configuration", ConfigurationChanged(msg.timestamp, area, msg.type, msg.path))
+		# the area only: a path in the storage folder is the device's business
+		self.router.send("telemetry", Telemetry(msg.timestamp, "application", { "kind": "config-changed", "area": area, "message": f"The {area} changed." }))
 	def _stop_event(self, msg: StopEvent):
 		try:
 			self._handleStop(msg.timestamp)

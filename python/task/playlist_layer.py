@@ -148,9 +148,9 @@ class PlaylistLayer(DispatcherTask):
 		self._strikes[key] = count
 		self._reasons[key] = safe_reason(e)
 		if count >= self.MAX_STRIKES:
-			self._error_with_telemetry(f"Track '{track.title}' struck out and is skipped until the configuration changes: {e}", ts)
+			self._error_with_telemetry(f"Track '{track.title}' struck out and is skipped until the configuration changes", ts, e)
 			return True
-		self._error_with_telemetry(f"Track '{track.title}' failed (strike {count} of {self.MAX_STRIKES}): {e}", ts)
+		self._error_with_telemetry(f"Track '{track.title}' failed (strike {count} of {self.MAX_STRIKES})", ts, e)
 		return False
 	def _slot_minutes(self, track: PlaylistSchedule) -> float:
 		data = track.content.data if track.content is not None else {}
@@ -192,11 +192,13 @@ class PlaylistLayer(DispatcherTask):
 		root.add_service(TimeOfDay, self.timebase)
 		root.add_service(MessageSink, self)
 		return root
-	def _error_with_telemetry(self, emsg:str, msg_ts:datetime):
-		self.logger.error(emsg, exc_info=True)
+	def _error_with_telemetry(self, emsg:str, msg_ts:datetime, error: BaseException|None = None):
+		"""Log the failure in full; the telemetry, which leaves the device, says our sentence and only a safe reason (see safe_reason)."""
+		self.logger.error(f"{emsg}: {error}" if error is not None else emsg, exc_info=True)
 		self.router.send("telemetry", Telemetry(msg_ts, "playlist_layer", {
 			"state": "error",
-			"message": emsg,
+			"kind": "track-failed" if error is not None and emsg.startswith("Track ") else "error",
+			"message": f"{emsg}: {safe_reason(error)}" if error is not None else emsg,
 			'current_playlist_index': 0,
 			'current_playlist': None,
 			'current_track_index': 0,
@@ -332,7 +334,7 @@ class PlaylistLayer(DispatcherTask):
 			return True
 		except Exception as e:
 			self.state = "error"
-			self._error_with_telemetry(f"Error invoke start layer task: {e}", timestamp)
+			self._error_with_telemetry("The playlist could not start", timestamp, e)
 			return False
 	def _async_task_completed(self, msg: AsyncTaskCompleted):
 		if not msg.fut.done():
@@ -377,7 +379,7 @@ class PlaylistLayer(DispatcherTask):
 		"""The layer coroutine raised (outside the per-track handling): report it and start the pass again after a backoff, so it cannot spin."""
 		self._clear_layer_task(msg.token, msg.donev)
 		self.state = 'stopped'
-		self._error_with_telemetry(f"Layer task failed: {e}", msg.timestamp)
+		self._error_with_telemetry("The playlist stopped on an error", msg.timestamp, e)
 		delay = self._next_backoff()
 		self.logger.warning(f"'{self.name}' restarting playback in {delay:g}s.")
 		self._cancel_restart()
@@ -418,7 +420,7 @@ class PlaylistLayer(DispatcherTask):
 			sm.validate(schedule_info)
 		except Exception as e:
 			self.logger.warning(f"'{self.name}' the changed schedules do not load, keeping the ones in use: {e}")
-			self._error_with_telemetry(f"The changed schedules do not load: {e}", msg.timestamp)
+			self._error_with_telemetry("The changed schedules do not load", msg.timestamp, e)
 			return
 		new_playlists = schedule_info.get("playlists", [])
 		if self.state != 'faulted' and self._signature(new_playlists) == self._signature(self.playlists):

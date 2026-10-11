@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 from ..model.service_container import IServiceProvider
 from .deps import require_token
 from .errors import ApiError, install_error_handlers
-from .routers import lookups, schedule, session, settings
+from .routers import lookups, schedule, session, settings, telemetry
 from .sessions import SessionStore
 
 logger = logging.getLogger(__name__)
@@ -37,6 +37,8 @@ def create_app(web: WebSettings, root_container: IServiceProvider|None = None, r
 	app.state.root_container = root_container
 	app.state.api_token = web.api_token
 	app.state.sessions = SessionStore()
+	# the telemetry WebSocket checks the page's origin against this one too (CORS does not cover a WebSocket)
+	app.state.cors_origin = web.cors_origin
 	install_error_handlers(app)
 
 	if web.cors_origin:
@@ -50,7 +52,7 @@ def create_app(web: WebSettings, root_container: IServiceProvider|None = None, r
 		)
 
 	api = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
-	for module in (settings, lookups, schedule):
+	for module in (settings, lookups, schedule, telemetry):
 		api.include_router(module.router)
 	for name, router in (routers or {}).items():
 		api.include_router(router)
@@ -66,6 +68,8 @@ def create_app(web: WebSettings, root_container: IServiceProvider|None = None, r
 	app.include_router(api)
 	# not behind the token check: signing in is how you get past it
 	app.include_router(session.router, prefix="/api")
+	# checks the session and the origin itself: a WebSocket has no request for the token dependency
+	app.include_router(telemetry.ws_router, prefix="/api")
 
 	# unknown API paths must stay JSON 404s and never fall through to the web app
 	@app.api_route("/api/{path:path}", methods=["GET", "PUT", "POST", "DELETE", "PATCH"], include_in_schema=False)

@@ -319,6 +319,29 @@ Use the following recipe to get started with development:
 * `--port` overrides the listening port (default `8080` with `--dev`, otherwise `80`).
 * Plugins and datasources may contribute an API router; name it in the `"router"` entry of their `*-info.json`.
 
+## Telemetry
+The web app's **Activity** button (top right) opens a gutter beside the page. It shows:
+* **Now showing:** a thumbnail of what the panel shows, with the layers it was composed of (background, blend, override, timer blend, priority, overlays). Click it for full size.
+* **Recently shown:** the last few pages.
+* **Events:** what the device reports, with a source filter and "Problems only".
+
+The gutter follows a WebSocket (`/api/telemetry/ws?since=<seq>`), which reconnects on its own and resumes after the last event it had. Times are the device's, not the browser's. The other routes:
+* `GET /api/telemetry?since=<seq>`: the kept events, the last 200, newest last;
+* `GET /api/display/current`: the last `shown` event;
+* `GET /api/display/images/<digest>?size=thumb|full`: a shown image as PNG. The device keeps the last 8, in memory only.
+
+An event is `{ seq, ts, source, kind, message?, values }`:
+
+| source | kinds |
+|---|---|
+| `playlist_layer` | `track-played`, `track-failed`, `faulted`, `stopped`, `error` |
+| `timer_layer` | `task-ran`, `task-failed`, `waiting`, `error` |
+| `display` | `shown` (title, digest, size, layers), `skipped` (identical to what is shown: not drawn again) |
+| `application` | `config-changed` (the area only), `configure-failed` |
+| `telemetry` | `gap` (a slow client missed some), `ping` |
+
+With `--token`, the WebSocket needs the session (or a Bearer header). It also refuses a page from another origin than the server's own or `--cors`.
+
 ## Debug
 
 To debug the processes:

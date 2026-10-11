@@ -2,6 +2,7 @@
 import { InputGroup, Toast, TieredMenu, Button, Toolbar, ConfirmDialog } from 'primevue';
 import { RouterLink, RouterView } from 'vue-router'
 import ThemeSelector from './components/ThemeSelector.vue'
+import TelemetryGutter from './components/TelemetryGutter.vue'
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 const router = useRouter();
@@ -10,6 +11,8 @@ const toggleMenu = (event:MouseEvent):void => {
 	menu.value?.toggle(event);
 }
 const version = ref(__APP_VERSION__)
+// the activity gutter: open or not lives as long as the page (the browser stores nothing but the theme)
+const gutterOpen = ref(false)
 const openSetup = (event:MouseEvent):void => {
 	console.log("openSetup", event);
 	router.push({ name: 'setup' }).catch(err => {
@@ -121,6 +124,15 @@ const items = ref([
 	</template>
 	<template #end>
 		<InputGroup>
+			<Button
+				icon="pi pi-wave-pulse"
+				class="p-button-sm"
+				:class="{ 'p-button-outlined': !gutterOpen }"
+				type="button"
+				aria-label="Activity"
+				:aria-pressed="gutterOpen"
+				@click="gutterOpen = !gutterOpen"
+				/>
 			<ThemeSelector class="p-button-sm"/>
 			<Button
 				icon="pi pi-cog"
@@ -133,15 +145,30 @@ const items = ref([
 			</InputGroup>
 	</template>
 	</Toolbar>
-	<RouterView class="router-view" />
+	<div class="main-area">
+		<RouterView class="router-view" />
+		<TelemetryGutter v-if="gutterOpen" />
+	</div>
 	<ConfirmDialog></ConfirmDialog>
 	<Toast position="bottom-left"/>
 </template>
 <style scoped>
+.main-area {
+	display: flex;
+	flex-grow: 1;
+	gap: .5rem;
+	min-height: 0;
+}
 .router-view {
 	flex-grow: 1;
+	min-width: 0;
 	border-radius: var(--p-toolbar-border-radius);
 	border: solid 1px var(--p-toolbar-border-color)
+}
+@media (max-width: 768px) {
+	.main-area {
+		flex-direction: column;
+	}
 }
 </style>
 <style>
