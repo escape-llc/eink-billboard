@@ -37,8 +37,8 @@ MAX_ITEMS = 20
 
 # a state the layers report, as the kind of event it is (when the values do not say)
 _KINDS = {
-	("playlist_layer", "playing"): "track-played",
-	("timer_layer", "playing"): "task-ran",
+	("playlist_layer", "playing"): "track-ended",
+	("timer_layer", "playing"): "task-ended",
 	("timer_layer", "waiting"): "waiting",
 }
 

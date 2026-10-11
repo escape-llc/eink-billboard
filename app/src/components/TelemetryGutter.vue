@@ -83,6 +83,9 @@ const statusSeverity = computed(() => ({ live: "success", connecting: "info", of
 
 const title = (e: TelemetryEvent): string => String(e.values?.title ?? "")
 function iconOf(e: TelemetryEvent): string {
+	// the first and last markers of a slot, not "play"
+	if (e.kind === "track-started" || e.kind === "task-started") return "pi pi-step-backward-alt"
+	if (e.kind === "track-ended" || e.kind === "task-ended") return "pi pi-step-forward-alt"
 	return { playlist_layer: "pi pi-play", timer_layer: "pi pi-clock", display: "pi pi-image", application: "pi pi-cog", telemetry: "pi pi-wifi" }[e.source] ?? "pi pi-circle"
 }
 /** Our own words for an event: its message when it has one, else what its values say. */
@@ -90,10 +93,13 @@ function describe(e: TelemetryEvent): string {
 	if (e.message) return e.message
 	const v = e.values ?? {}
 	switch (e.kind) {
-		case "track-played": return `Played '${v.current_track ?? "a track"}'`
-		case "task-ran": return `Ran '${v.current_track ?? "a task"}'`
+		case "track-started": return `Track started: '${v.current_track ?? "a track"}'`
+		case "track-ended": return `Track ended: '${v.current_track ?? "a track"}'`
+		case "task-started": return `Task started: '${v.current_track ?? "a task"}'`
+		case "task-ended": return `Task ended: '${v.current_track ?? "a task"}'`
+		case "showing": return `Showing '${v.title ?? ""}'`
 		case "waiting": return `Waiting ${Math.round(Number(v.delta ?? 0) / 60)} min for the next timer task`
-		case "shown": return `Shown: '${v.title ?? ""}'`
+		case "shown": return `Drawn on the panel: '${v.title ?? ""}'`
 		case "stopped": return "The playlist stopped"
 		case "faulted": return "Every track failed: playback is stopped"
 		default: return e.kind

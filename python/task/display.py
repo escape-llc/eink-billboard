@@ -379,6 +379,8 @@ class Display(DispatcherTask):
 			display_cob = self.cm.settings_manager().open("display")
 			_, display_settings = display_cob.get()
 			self.logger.info(f"Display '{msg.title}'")
+			# at the start of the slot; `shown` follows when the panel has been redrawn
+			self._telemetry("showing", { "title": msg.title, "layer": msg.layer, "message": f"Showing '{msg.title}'." })
 
 			if display_settings is not None:
 			# Resize and adjust orientation

@@ -252,6 +252,10 @@ class PlaylistLayer(DispatcherTask):
 						# the per-track event is its own: `donev` is the layer task's, set in the finally below, and waited on by _task_stop
 						track_done = threading.Event()
 						ctx = PluginExecutionContext(isp, self.dimensions, tod.current_time())
+						# the start of the slot is what a person following the device wants to see; the end follows when the plugin returns
+						self.router.send("telemetry", Telemetry(tod.current_time(), "playlist_layer", {
+							"kind": "track-started", "state": self.state, "current_playlist_index": plindex, "current_playlist": playlist,
+							"current_track_index": tkindex, "current_track": track }))
 						msg = await plugin.task_async(ctx, track, track_done)
 						self.logger.info(f"Plugin '{plugin.name}' for track '{track.title}' completed with message: {msg}")
 						succeeded += 1

@@ -34,7 +34,7 @@ class TestEvents(unittest.TestCase):
 		hub.accept(Telemetry(NOW, "playlist_layer", { "state": "playing", "current_track": track, "current_track_index": 0,
 			"current_playlist": { "info": type("P", (), { "name": "Main" })() }, "current_playlist_index": 0 }))
 		[event] = hub.since(0)
-		self.assertEqual(event, { "seq": 1, "ts": "2026-10-11T12:00:00-07:00", "source": "playlist_layer", "kind": "track-played",
+		self.assertEqual(event, { "seq": 1, "ts": "2026-10-11T12:00:00-07:00", "source": "playlist_layer", "kind": "track-ended",
 			"values": { "state": "playing", "current_track": "Morning slides", "current_track_index": 0, "current_playlist": "Main", "current_playlist_index": 0 } })
 
 	def test_the_kind_comes_from_the_values_or_the_state(self):
