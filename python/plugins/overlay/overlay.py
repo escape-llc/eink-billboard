@@ -43,6 +43,8 @@ class OverlayAsync(PluginAsync):
 			raise PermanentError(f"{data_source_name}: does not support async media item and render")
 		wash = settings.get("wash", 0.0)
 		wash = float(wash) if isinstance(wash, (int, float)) and not isinstance(wash, bool) else 0.0
+		wash_color = settings.get("washColor") if settings.get("washColor") in ("auto", "white", "black") else "auto"
+		wash_style = settings.get("washStyle") if settings.get("washStyle") in ("soft", "solid") else "soft"
 		# the data source sees the zone as its whole screen
 		zone_context = PluginExecutionContext(context.provider, zone.dimensions, context.timestamp)
 		dsec = zone_context.create_datasource_context(data_source)
@@ -57,7 +59,7 @@ class OverlayAsync(PluginAsync):
 			self.logger.info(f"{self.id} '{track.title}': nothing to show, revoking its overlay")
 			router.send("display", OverlayRevoke(dsec.timestamp, track.id))
 			return
-		router.send("display", OverlayImage(dsec.timestamp, track.id, zone.name, mrr.title if mrr.title is not None else track.title, mrr.image, wash))
+		router.send("display", OverlayImage(dsec.timestamp, track.id, zone.name, mrr.title if mrr.title is not None else track.title, mrr.image, wash, wash_color, wash_style))
 	async def task_async(self, context: PluginExecutionContext, track: TrackType, done: threading.Event) -> None:
 		self.logger.info(f"{self.id} start '{track.title}'")
 		try:

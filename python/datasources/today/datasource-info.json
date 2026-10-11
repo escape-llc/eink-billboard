@@ -47,6 +47,15 @@
 					"title": "Font",
 					"description": "The typeface. The colors come from the theme.",
 					"enum": ["Jost", "Napoli", "Dogica", "DS-Digital"]
+				},
+				{
+					"name": "weight",
+					"type": "string",
+					"required": false,
+					"default": "bold",
+					"title": "Weight",
+					"description": "How heavy the letters are. bold: the font's bold face. heavy: bolder than the font has it (each letter is stroked in its own color).",
+					"enum": ["normal", "bold", "heavy"]
 				}
 			]
 		}

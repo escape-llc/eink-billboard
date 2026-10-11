@@ -13,6 +13,10 @@ class ImageOverlay:
 	image: Image.Image
 	position: tuple[int, int]
 	wash: float = 0.0
+	# `auto` washes against white or black, whichever has the better WCAG contrast with the overlay's colors; or `white` / `black`
+	wash_color: str = "auto"
+	# `soft` is a blurred halo; `solid` is a hard-edged outline with no gradient (a color e-ink panel dithers a gradient into dots)
+	wash_style: str = "soft"
 
 FontType = ImageFont.FreeTypeFont | ImageFont.ImageFont
 
@@ -23,26 +27,68 @@ def _sized(font: FontType|None, size: int) -> FontType:
 		return font.font_variant(size=size)
 	return font # a bitmap font has one size
 
-def wash_mask(picture: Image.Image, wash: float) -> tuple[Image.Image, int]:
+def _linear(channel: int) -> float:
+	c = channel / 255.0
+	return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
+def relative_luminance(rgb: tuple[int, ...]) -> float:
+	"""WCAG 2 relative luminance of an sRGB color (0 black to 1 white)."""
+	return 0.2126 * _linear(rgb[0]) + 0.7152 * _linear(rgb[1]) + 0.0722 * _linear(rgb[2])
+
+def contrast_ratio(a: tuple[int, ...], b: tuple[int, ...]) -> float:
+	"""WCAG 2 contrast ratio of two colors, 1 (none) to 21 (black on white)."""
+	la, lb = relative_luminance(a), relative_luminance(b)
+	return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+
+def wash_rgb(picture: Image.Image, choice: str = "auto") -> tuple[int, int, int]:
+	"""
+	The color the wash lightens or darkens toward. `white` and `black` are as named; `auto` is the one with the higher WCAG contrast ratio against the *worst-off* color
+	the overlay draws (its opaque colors, so a highlighted word is counted too), because a halo that suits the text but swallows one word is no help.
+	"""
+	if choice == "white":
+		return WHITE
+	if choice == "black":
+		return BLACK
+	rgba = picture.convert("RGBA")
+	# the colors of the ink: opaque enough to read as drawn, not the anti-aliased fringe
+	counted = rgba.getcolors(maxcolors=picture.width * picture.height) or []
+	ink = [c[:3] for n, c in counted if c[3] >= 128]
+	if not ink:
+		return WHITE
+	against_white = min(contrast_ratio(c, WHITE) for c in ink)
+	against_black = min(contrast_ratio(c, BLACK) for c in ink)
+	return WHITE if against_white >= against_black else BLACK
+
+def wash_mask(picture: Image.Image, wash: float, style: str = "soft") -> tuple[Image.Image, int]:
 	"""The wash as a mask and its margin: the outline of what `picture` draws (its alpha, the text), grown a pixel or two and given a short Gaussian blur, times `wash`.
 	It hugs the letters: both the growth and the blur are small fractions of the overlay's height (the zone's text size follows its height), so the halo scales with the text.
 	The mask is `margin` pixels larger than the picture on every side, so a halo that reaches past the box fades out there instead of being cut at its edge."""
+	strength = min(max(wash, 0.0), 1.0)
+	if style == "solid":
+		# a rounded outline with a hard edge: the text blurred by the outline's width, then cut at a threshold, so nothing in it is a gradient
+		width = max(1.5, picture.height * 0.035)
+		margin = math.ceil(width * 2)
+		padded = Image.new("L", (picture.width + 2 * margin, picture.height + 2 * margin), 0)
+		padded.paste(picture.getchannel("A"), (margin, margin))
+		return padded.filter(ImageFilter.GaussianBlur(width * 0.8)).point(lambda v: round(255 * strength) if v >= 40 else 0), margin
 	grow = max(1, round(picture.height * 0.02))
 	radius = max(1.0, picture.height * 0.03)
 	margin = math.ceil(grow + radius * 3)
 	padded = Image.new("L", (picture.width + 2 * margin, picture.height + 2 * margin), 0)
 	padded.paste(picture.getchannel("A"), (margin, margin))
 	outline = padded.filter(ImageFilter.MaxFilter(2 * grow + 1))
-	strength = min(max(wash, 0.0), 1.0)
 	# a gain of 2 keeps the halo solid right at the letters, where the blur alone would thin it to half
 	return outline.filter(ImageFilter.GaussianBlur(radius)).point(lambda v: round(min(255, v * 2) * strength)), margin
 
 type TextRun = tuple[str, tuple[int, ...]]
 
-def text_overlay(text: str|list[TextRun], size: tuple[int, int], position: tuple[int, int], font: FontType|None = None, color: tuple[int, ...] = (255, 255, 255), wash: float = 0.0, max_font_size: int = 48, min_font_size: int = 8) -> ImageOverlay:
+def text_overlay(text: str|list[TextRun], size: tuple[int, int], position: tuple[int, int], font: FontType|None = None, color: tuple[int, ...] = (255, 255, 255), wash: float = 0.0, max_font_size: int = 48, min_font_size: int = 8, embolden: float = 0.0, wash_color: str = "auto", wash_style: str = "soft") -> ImageOverlay:
 	"""Text centered in a transparent `size` box, on one line. `text` is a string in `color`, or runs of `(text, color)` drawn one after another
 	(e.g. a highlighted word). The font is shrunk (from its own size, or `max_font_size`, down to `min_font_size`) until the line fits;
-	if it still does not fit at the minimum, it is clipped to the box. `font` is normally StaticConfigurationManager.get_font(...); without one the default font is used."""
+	if it still does not fit at the minimum, it is clipped to the box. `embolden` (a fraction of the font size, 0.02 is heavy) strokes each letter in its own color to make it bolder than the font has it. `font` is normally StaticConfigurationManager.get_font(...); without one the default font is used."""
 	runs: list[TextRun] = [(text, color)] if isinstance(text, str) else list(text)
 	line = "".join(part for part, _ in runs)
 	width, height = size
@@ -50,11 +96,13 @@ def text_overlay(text: str|list[TextRun], size: tuple[int, int], position: tuple
 	draw = ImageDraw.Draw(canvas)
 	start = int(font.size) if isinstance(font, ImageFont.FreeTypeFont) else max_font_size
 	chosen = _sized(font, min_font_size)
-	box = draw.textbbox((0, 0), line, font=chosen)
+	stroke = round(min_font_size * embolden)
+	box = draw.textbbox((0, 0), line, font=chosen, stroke_width=stroke)
 	for n in range(max(start, min_font_size), min_font_size - 1, -1):
 		candidate = _sized(font, n)
-		candidate_box = draw.textbbox((0, 0), line, font=candidate)
-		chosen, box = candidate, candidate_box
+		candidate_stroke = round(n * embolden)
+		candidate_box = draw.textbbox((0, 0), line, font=candidate, stroke_width=candidate_stroke)
+		chosen, box, stroke = candidate, candidate_box, candidate_stroke
 		if candidate_box[2] - candidate_box[0] <= width and candidate_box[3] - candidate_box[1] <= height:
 			break
 	# the bounding box does not start at the origin (side bearing, ascent): offset by it to center the ink, not the origin
@@ -63,9 +111,9 @@ def text_overlay(text: str|list[TextRun], size: tuple[int, int], position: tuple
 	# each run starts where the line so far ends (measured on the whole prefix, so the spacing is the same as one string's)
 	drawn = ""
 	for part, part_color in runs:
-		draw.text((x + draw.textlength(drawn, font=chosen), y), part, fill=part_color, font=chosen)
+		draw.text((x + draw.textlength(drawn, font=chosen), y), part, fill=part_color, font=chosen, stroke_width=stroke, stroke_fill=part_color)
 		drawn += part
-	return ImageOverlay(canvas, position, wash)
+	return ImageOverlay(canvas, position, wash, wash_color, wash_style)
 
 type LayerStackOp = tuple["LayerStack", "LayerStack"]
 @dataclass(frozen=True)
@@ -165,14 +213,14 @@ class OverlayRenderPackage(RenderPackage):
 			left, top = max(x, 0), max(y, 0)
 			right, bottom = min(x + picture.width, canvas.width), min(y + picture.height, canvas.height)
 			if overlay.wash > 0:
-				mask, margin = wash_mask(picture, overlay.wash)
+				mask, margin = wash_mask(picture, overlay.wash, overlay.wash_style)
 				# the halo's area: the box and its margin, on the background
 				wl, wt = max(x - margin, 0), max(y - margin, 0)
 				wr, wb = min(x + picture.width + margin, canvas.width), min(y + picture.height + margin, canvas.height)
 				if wr > wl and wb > wt:
 					region = canvas.crop((wl, wt, wr, wb))
 					# the wash is white through the blurred shape of the overlay; the background's own transparency is kept
-					washed = Image.composite(Image.new("RGB", region.size, (255, 255, 255)), region.convert("RGB"), mask.crop((wl - x + margin, wt - y + margin, wr - x + margin, wb - y + margin))).convert("RGBA")
+					washed = Image.composite(Image.new("RGB", region.size, wash_rgb(picture, overlay.wash_color)), region.convert("RGB"), mask.crop((wl - x + margin, wt - y + margin, wr - x + margin, wb - y + margin))).convert("RGBA")
 					washed.putalpha(region.getchannel("A"))
 					canvas.paste(washed, (wl, wt))
 			if right <= left or bottom <= top:

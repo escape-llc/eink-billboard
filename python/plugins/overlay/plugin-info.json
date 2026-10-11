@@ -54,7 +54,25 @@
 					"minFractionDigits": 0,
 					"maxFractionDigits": 2,
 					"title": "Wash",
-					"description": "A soft white halo around the text so it reads over a busy picture: 0 is none, 1 is the strongest."
+					"description": "A halo around the text so it reads over a busy picture: 0 is none, 1 is the strongest."
+				},
+				{
+					"name": "washColor",
+					"type": "string",
+					"required": false,
+					"default": "auto",
+					"title": "Wash Color",
+					"description": "auto: white or black, whichever has the better WCAG contrast with the text's colors (the worst-off color counts).",
+					"enum": ["auto", "white", "black"]
+				},
+				{
+					"name": "washStyle",
+					"type": "string",
+					"required": false,
+					"default": "soft",
+					"title": "Wash Style",
+					"description": "soft: a blurred halo. solid: a hard-edged outline with no gradient, which a color e-ink panel draws more cleanly (it turns a gradient into dots); use a wash of 1 with it.",
+					"enum": ["soft", "solid"]
 				}
 			]
 		}
