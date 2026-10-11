@@ -155,13 +155,16 @@ const items = ref([
 <style scoped>
 .main-area {
 	display: flex;
-	flex-grow: 1;
+	/* what is left of the window under the toolbar: the page and the gutter scroll inside it, instead of growing past the window (the body does not scroll) */
+	flex: 1 1 0;
 	gap: .5rem;
 	min-height: 0;
 }
 .router-view {
 	flex-grow: 1;
 	min-width: 0;
+	min-height: 0;
+	overflow: auto;
 	border-radius: var(--p-toolbar-border-radius);
 	border: solid 1px var(--p-toolbar-border-color)
 }
@@ -174,5 +177,9 @@ const items = ref([
 <style>
 :root {
 	--main-toolbar-height: 2.5rem;
+}
+/* a view is taller than the window when its content is: its parts keep their size and the page area scrolls (they must not shrink to fit, which squeezed the tab strip to nothing) */
+.router-view > * {
+	flex-shrink: 0;
 }
 </style>

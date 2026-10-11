@@ -107,6 +107,7 @@ function describe(e: TelemetryEvent): string {
 	gap: .75rem;
 	width: 20rem;
 	flex: none;
+	min-height: 0;
 	padding: .5rem;
 	overflow-y: auto;
 	border-radius: var(--p-toolbar-border-radius);
@@ -172,11 +173,21 @@ function describe(e: TelemetryEvent): string {
 	gap: .35rem;
 	font-size: .85rem;
 }
+/* the events take what the thumbnails leave and scroll inside it; the whole gutter scrolls only in a window too short for even a few of them */
+.gutter-events {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 0;
+	min-height: 10rem;
+}
 .gutter-list {
 	list-style: none;
 	margin: 0;
 	padding: 0;
 	font-size: .85rem;
+	flex: 1 1 0;
+	min-height: 0;
+	overflow-y: auto;
 }
 .gutter-event {
 	display: flex;
@@ -207,6 +218,7 @@ function describe(e: TelemetryEvent): string {
 	.gutter {
 		width: auto;
 		max-height: 40vh;
+		flex: 0 0 auto;
 	}
 }
 </style>
