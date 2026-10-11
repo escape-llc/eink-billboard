@@ -124,6 +124,8 @@ class Application(DispatcherTask):
 			# EINK_KEEP_SCHEMAS=1: the browser tests patch the storage's schemas with fields of their own
 			if os.environ.get("EINK_KEEP_SCHEMAS") != "1":
 				self.cm.refresh_schemas()
+			# the settings a stored document lacks, from the (refreshed) schemas and the descriptors
+			self.cm.upgrade_settings()
 		self.logger.info(f"'{self.name}' start tasks.")
 		# STEP 0 assemble tasks and routes
 		self.router = MessageRouter()

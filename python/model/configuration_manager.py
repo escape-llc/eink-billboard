@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import importlib
 import os
@@ -548,6 +549,49 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		if replaced:
 			logger.info(f"Schemas brought up to date: {', '.join(replaced)}")
 		return replaced
+
+	def upgrade_settings(self) -> list[str]:
+		"""
+		Add the settings a stored document lacks, from the defaults of its schema (the device's system, display and theme) or of its descriptor (a plugin's or a
+		data source's settings): a setting added after the storage was seeded would otherwise be in no document, and the form would not show it. Only keys that are
+		missing are added (with the default's value, `null` included, so the field is there to fill); a value the user set is never changed, and a document
+		that is not there or does not load is left alone. Returns the documents that changed, by their file name.
+		"""
+		changed: list[str] = []
+		def upgrade(path: str, defaults: object, label: str) -> None:
+			if not isinstance(defaults, dict) or not os.path.isfile(path):
+				return
+			stored = _internal_load(path)
+			if not isinstance(stored, dict):
+				return
+			missing = {k: v for k, v in defaults.items() if k not in stored and not k.startswith("_")}
+			if not missing:
+				return
+			_internal_save(path, { **stored, **copy.deepcopy(missing) })
+			changed.append(label)
+		with self._lock:
+			if os.path.isdir(self.storage_schemas):
+				for name in sorted(os.listdir(self.storage_schemas)):
+					if name.endswith(".json"):
+						schema = _internal_load(os.path.join(self.storage_schemas, name)) or {}
+						stem = Path(name).stem
+						upgrade(os.path.join(self.storage_settings, f"{stem}-settings.json"), schema.get("default"), f"{stem}-settings.json")
+			for pinfo in self.enum_plugins():
+				declared = pinfo["info"].get("id")
+				if declared:
+					upgrade(self.plugin_manager(declared).settings_path(), (pinfo["info"].get("settings") or {}).get("default"), f"plugins/{declared}")
+			for dinfo in self.enum_datasources():
+				declared = dinfo["info"].get("id")
+				if declared:
+					upgrade(self.datasource_manager(declared).settings_path(), (dinfo["info"].get("settings") or {}).get("default"), f"datasources/{declared}")
+		if changed:
+			logger.info(f"Settings upgraded with new fields: {', '.join(changed)}")
+			# a cached document is the old one
+			with self._lock:
+				cached = list(self._objectMap.values())
+			for ox in cached:
+				ox.evict()
+		return changed
 
 	def ensure_folders(self):
 		"""Ensures that necessary directories exist.  Does not consider files."""

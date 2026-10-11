@@ -86,6 +86,45 @@ class TestConfigurationManager(unittest.TestCase):
 			self.assertEqual(cm.refresh_schemas(), [])
 			self.assertEqual([n for n in os.listdir(os.path.join(tempdir, "schemas")) if n.startswith(".tmp")], [])
 
+	def test_settings_gain_the_fields_added_since_they_were_stored(self):
+		with tempfile.TemporaryDirectory() as tempdir:
+			cm = ConfigurationManager(storage_path=tempdir)
+			cm.hard_reset()
+			theme = os.path.join(tempdir, "settings", "theme-settings.json")
+			rss = os.path.join(tempdir, "datasources", "rss", "settings.json")
+			with open(theme, "w") as f:
+				json.dump({ "theme": "tetradic", "hue": 5, "saturation": 50, "lightness": 40 }, f)
+			with open(rss, "w") as f:
+				json.dump({}, f)
+			changed = cm.upgrade_settings()
+			self.assertIn("theme-settings.json", changed)
+			self.assertIn("datasources/rss", changed)
+			with open(theme) as f:
+				doc = json.load(f)
+			# what the user chose is kept, what is new has its default (a null too, so the field is there)
+			self.assertEqual((doc["theme"], doc["hue"], doc["lightness"]), ("tetradic", 5, 40))
+			self.assertEqual((doc["fontBody"], doc["fontScale"]), ("Jost", 1))
+			self.assertIn("fontHeading", doc)
+			with open(rss) as f:
+				self.assertEqual(json.load(f), { "feeds": [] })
+			# nothing more to add, and the cached documents read the new ones
+			self.assertEqual(cm.upgrade_settings(), [])
+			_, read = cm.settings_manager().open("theme").get()
+			assert read is not None
+			self.assertEqual(read["fontBody"], "Jost")
+
+	def test_a_missing_or_unreadable_settings_file_is_left_alone(self):
+		with tempfile.TemporaryDirectory() as tempdir:
+			cm = ConfigurationManager(storage_path=tempdir)
+			cm.hard_reset()
+			os.remove(os.path.join(tempdir, "settings", "theme-settings.json"))
+			with open(os.path.join(tempdir, "settings", "system-settings.json"), "w") as f:
+				f.write("not json")
+			cm.upgrade_settings()
+			self.assertFalse(os.path.exists(os.path.join(tempdir, "settings", "theme-settings.json")))
+			with open(os.path.join(tempdir, "settings", "system-settings.json")) as f:
+				self.assertEqual(f.read(), "not json")
+
 	def test_load_save_plugin_state(self):
 		with tempfile.TemporaryDirectory() as tempdir:
 			# Use a temporary directory for storage to avoid side effects
