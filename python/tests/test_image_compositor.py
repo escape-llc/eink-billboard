@@ -143,17 +143,30 @@ class TestOverlays(unittest.TestCase):
 		self.assertEqual(image.getpixel((3, 3)), (255, 255, 255))
 		self.assertEqual(image.getpixel((2, 2)), (10, 20, 30))
 
-	def test_wash_lightens_only_the_overlay_box(self):
+	def test_wash_is_a_blurred_halo_of_what_the_overlay_draws(self):
 		comp = ImageCompositor()
-		comp.set_layer_background(_di("Background", _create_rgb((100, 100, 100), size=(20, 20))))
-		clear = Image.new("RGBA", (6, 6), (0, 0, 0, 0))
-		comp.set_layer_overlays([ImageOverlay(clear, (4, 4), wash=0.4)])
+		comp.set_layer_background(_di("Background", _create_rgb((100, 100, 100), size=(80, 60))))
+		# a 40x40 overlay with a small opaque mark in the middle (the "text"), the rest of its box clear
+		mark = Image.new("RGBA", (40, 40), (0, 0, 0, 0))
+		mark.paste((0, 0, 0, 255), (17, 17, 23, 23))
+		comp.set_layer_overlays([ImageOverlay(mark, (20, 10), wash=0.8)])
 		image, _ = self._render(comp)
 		save_image(image, folder, 11, "overlay_wash")
-		# 40% of the way from 100 to 255
-		self.assertEqual(image.getpixel((5, 5)), (162, 162, 162))
-		self.assertEqual(image.getpixel((3, 3)), (100, 100, 100))
+		near = image.getpixel((20 + 15, 10 + 20))[0]   # two pixels from the mark
+		far = image.getpixel((20 + 1, 10 + 1))[0]      # a corner of the box
+		self.assertGreater(near, 150)
+		self.assertLess(far, 104)
+		self.assertEqual(image.getpixel((20 + 20, 10 + 20)), (0, 0, 0))
+		# outside the box nothing changes
 		self.assertEqual(image.getpixel((10, 10)), (100, 100, 100))
+		self.assertEqual(image.getpixel((70, 50)), (100, 100, 100))
+
+	def test_a_clear_overlay_washes_nothing(self):
+		comp = ImageCompositor()
+		comp.set_layer_background(_di("Background", _create_rgb((100, 100, 100), size=(20, 20))))
+		comp.set_layer_overlays([ImageOverlay(Image.new("RGBA", (6, 6), (0, 0, 0, 0)), (4, 4), wash=0.9)])
+		image, _ = self._render(comp)
+		self.assertEqual(image.getpixel((5, 5)), (100, 100, 100))
 
 	def test_overlay_hanging_off_the_edge_is_clipped(self):
 		comp = ImageCompositor()
