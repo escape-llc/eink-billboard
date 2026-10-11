@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass, replace
-from typing import Protocol, runtime_checkable
+from typing import Protocol, cast, runtime_checkable
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from ..task.display_messages import DisplayImage
@@ -54,8 +54,8 @@ def wash_rgb(picture: Image.Image, choice: str = "auto") -> tuple[int, int, int]
 		return BLACK
 	rgba = picture.convert("RGBA")
 	# the colors of the ink: opaque enough to read as drawn, not the anti-aliased fringe
-	counted = rgba.getcolors(maxcolors=picture.width * picture.height) or []
-	ink = [c[:3] for n, c in counted if c[3] >= 128]
+	counted = cast(list[tuple[int, tuple[int, int, int, int]]], rgba.getcolors(maxcolors=picture.width * picture.height) or [])
+	ink = [c[:3] for _, c in counted if c[3] >= 128]
 	if not ink:
 		return WHITE
 	against_white = min(contrast_ratio(c, WHITE) for c in ink)
