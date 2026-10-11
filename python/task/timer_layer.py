@@ -226,6 +226,8 @@ class TimerLayer(DispatcherTask):
 			# this task's own event: the one passed to the layer task is the layer's, and is set when the layer ends
 			task_done = threading.Event()
 			context = PluginExecutionContext(isp, self.dimensions, tod.current_time())
+			self.router.send("telemetry", Telemetry(tod.current_time(), "timer_layer", {
+				"kind": "task-started", "state": self.state, "current_playlist": playlist, "current_track": item, "current_track_index": index, "schedule_ts": sched_ts }))
 			plugin_result = await plugin.task_async(context, item, task_done)
 			self.state = 'playing'
 			self.logger.info(f"{kind.capitalize()} task '{item.title}' completed with result: {plugin_result}")

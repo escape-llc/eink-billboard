@@ -334,8 +334,8 @@ An event is `{ seq, ts, source, kind, message?, values }`:
 
 | source | kinds |
 |---|---|
-| `playlist_layer` | `track-played`, `track-failed`, `faulted`, `stopped`, `error` |
-| `timer_layer` | `task-ran`, `task-failed`, `waiting`, `error` |
+| `playlist_layer` | `track-started`, `track-ended`, `track-failed`, `faulted`, `stopped`, `error` |
+| `timer_layer` | `task-started`, `task-ended`, `task-failed`, `waiting`, `error` |
 | `display` | `shown` (title, digest, size, layers), `skipped` (identical to what is shown: not drawn again) |
 | `application` | `config-changed` (the area only), `configure-failed` |
 | `telemetry` | `gap` (a slow client missed some), `ping` |
