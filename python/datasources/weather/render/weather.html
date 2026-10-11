@@ -36,10 +36,10 @@
 		.wx-credit {
 			flex: none;
 			margin-top: .4em;
-			font-size: .55em;
-			letter-spacing: .08em;
+			font-size: .7em;
+			font-weight: bold;
+			letter-spacing: .06em;
 			text-align: right;
-			opacity: .7;
 		}
 		.wx-icon {
 			display: block;
@@ -74,6 +74,7 @@
 		}
 		.wx-now-text {
 			font-size: 1.3em;
+			font-weight: bold;
 			text-transform: capitalize;
 		}
 		.wx-now-details {
@@ -81,10 +82,11 @@
 			flex-wrap: wrap;
 			justify-content: center;
 			gap: .3em 1.4em;
-			font-size: .85em;
+			font-size: 1em;
+			font-weight: bold;
 		}
 		.wx-now-details span b {
-			font-size: .75em;
+			font-size: .8em;
 			letter-spacing: .08em;
 			text-transform: uppercase;
 			margin-right: .35em;
@@ -124,13 +126,15 @@
 			font-size: 1.3em;
 			font-weight: bold;
 		}
+		/* the small figures are heavy and not faded: thin or pale text turns to dots on a color e-ink panel */
 		.wx-cell-low {
-			font-size: .95em;
-			opacity: .7;
+			font-size: 1.1em;
+			font-weight: bold;
 		}
 		.wx-cell-rain {
-			font-size: .7em;
-			min-height: 1em;
+			font-size: .95em;
+			font-weight: bold;
+			min-height: 1.2em;
 		}
 		@media (orientation: portrait) {
 			.wx-row {
