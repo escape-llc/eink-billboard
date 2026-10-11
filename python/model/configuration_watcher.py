@@ -2,6 +2,7 @@ import logging
 import os
 import threading
 from watchdog.observers import Observer
+from watchdog.observers.polling import PollingObserver
 from watchdog.events import FileSystemEventHandler
 
 from .time_of_day import TimeOfDay
@@ -94,15 +95,19 @@ class MessageSinkHandler(FileSystemEventHandler):
 class ConfigurationWatcher:
 	"""
 	Watch the configuration root path for changes and send events to the provided MessageSink.
+	The operating system's change events (inotify) do not fire on every file system: a Windows folder mounted into a Linux container (9p) delivers none.
+	`poll` (seconds) compares the folder on that interval instead, which works everywhere and costs a scan of the storage each time.
 	"""
-	def __init__(self, tod: TimeOfDay, ms: MessageSink, root_path: str = ".", debounce: float = 1.0):
+	def __init__(self, tod: TimeOfDay, ms: MessageSink, root_path: str = ".", debounce: float = 1.0, poll: float|None = None):
 		self.root_path = root_path
+		self.poll = poll
 		self.event_handler = MessageSinkHandler(tod, ms, debounce)
 		self.observer = None
 	def start(self):
 		if self.observer is not None:
 			raise RuntimeError("Observer already started")
-		self.observer = Observer()
+		self.observer = PollingObserver(timeout=self.poll) if self.poll else Observer()
+		logger.info(f"Watching {self.root_path} by " + (f"polling every {self.poll:g}s." if self.poll else "file system events."))
 		self.observer.schedule(self.event_handler, path=self.root_path, recursive=True)
 		self.observer.start()
 	def stop(self):

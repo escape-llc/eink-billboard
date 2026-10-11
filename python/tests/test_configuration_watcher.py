@@ -119,5 +119,29 @@ class TestConfigurationWatcher(unittest.TestCase):
 		self.assertEqual(len(sink.messages), 1)
 		self.assertEqual(handler.timers, {})
 
+class TestPollingWatcher(unittest.TestCase):
+	def test_an_atomic_save_is_seen_without_file_system_events(self):
+		import os, tempfile
+		from ..model.configuration_watcher import ConfigurationWatcher
+		sink = _RecordingSink()
+		with tempfile.TemporaryDirectory() as root:
+			target = os.path.join(root, 'p.json')
+			with open(target, 'w') as f:
+				f.write('{}')
+			watcher = ConfigurationWatcher(ConstantTimeOfDay(datetime(2020, 1, 2, 3, 4, 5)), sink, root, 0.05, poll=0.1)
+			watcher.start()
+			try:
+				time.sleep(0.4)
+				tmp = os.path.join(root, '.tmp-p.json')
+				with open(tmp, 'w') as f:
+					f.write('{"a": 1}')
+				os.replace(tmp, target)
+				deadline = time.time() + 5
+				while time.time() < deadline and not any(m.path == target for m in sink.messages):
+					time.sleep(0.1)
+			finally:
+				watcher.stop()
+			self.assertTrue(any(m.path == target for m in sink.messages), sink.messages)
+
 if __name__ == '__main__':
 	unittest.main()
