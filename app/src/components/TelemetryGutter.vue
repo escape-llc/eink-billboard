@@ -86,6 +86,9 @@ function iconOf(e: TelemetryEvent): string {
 	// the first and last markers of a slot, not "play"
 	if (e.kind === "track-started" || e.kind === "task-started") return "pi pi-step-backward-alt"
 	if (e.kind === "track-ended" || e.kind === "task-ended") return "pi pi-step-forward-alt"
+	if (e.kind === "shown") return "pi pi-send"
+	// a page is shown on a layer: a picture is a background, a washed one is a blend, a text page covers everything (a document)
+	if (e.kind === "showing") return { background: "pi pi-image", blend: "pi pi-clone", override: "pi pi-file" }[String(e.values?.layer)] ?? "pi pi-image"
 	return { playlist_layer: "pi pi-play", timer_layer: "pi pi-clock", display: "pi pi-image", application: "pi pi-cog", telemetry: "pi pi-wifi" }[e.source] ?? "pi pi-circle"
 }
 /** Our own words for an event: its message when it has one, else what its values say. */
