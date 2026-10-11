@@ -31,6 +31,8 @@
 						:disabled="!!cellError(index, f.name)" />
 				</template>
 			</div>
+			<RowAction v-if="field.items?.action && baseUrl !== undefined" class="array-action" :action="field.items.action" :baseUrl="baseUrl"
+				:rowKey="field.items.key ? row[field.items.key] : undefined" :label="`${field.title} ${index + 1}`" />
 			<div class="array-buttons">
 				<Button icon="pi pi-arrow-up" size="small" class="p-button-text" :aria-label="`Move ${index + 1} up`" :disabled="index === 0" @click="move(index, -1)" />
 				<Button icon="pi pi-arrow-down" size="small" class="p-button-text" :aria-label="`Move ${index + 1} down`" :disabled="index === rows.length - 1" @click="move(index, 1)" />
@@ -48,6 +50,7 @@
 import { computed } from "vue"
 import { Button, InputNumber, InputText, Message, Select, ToggleSwitch } from "primevue"
 import ColorField from "./ColorField.vue"
+import RowAction from "./RowAction.vue"
 import TestUrlButton from "./TestUrlButton.vue"
 import { isVisible } from "./FormVisibility"
 
@@ -145,6 +148,12 @@ function cellError(index: number, name: string): string|undefined {
 }
 .stacked .array-cell.hidden {
 	display: none;
+}
+.array-action {
+	flex-basis: 100%;
+}
+.array-row:has(.array-action) {
+	flex-wrap: wrap;
 }
 .stacked .array-buttons {
 	flex-basis: 100%;

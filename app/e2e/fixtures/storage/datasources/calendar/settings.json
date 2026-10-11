@@ -2,10 +2,45 @@
 	"weekStart": "monday",
 	"weekNumbers": false,
 	"calendars": [
-		{ "name": "Family", "color": "#3366cc", "enabled": true, "source": "ical", "url": "https://calendar.example.test/family.ics", "auth": "none", "username": null, "password": null, "token": null },
-		{ "name": "Work", "color": "#cc3333", "enabled": true, "source": "caldav", "url": "https://dav.example.test/cal/work/", "auth": "none", "username": null, "password": null, "token": null }
+		{
+			"name": "Family",
+			"color": "#3366cc",
+			"enabled": true,
+			"source": "ical",
+			"url": "https://calendar.example.test/family.ics",
+			"auth": "none",
+			"username": null,
+			"password": null,
+			"token": null
+		},
+		{
+			"name": "Work",
+			"color": "#cc3333",
+			"enabled": true,
+			"source": "caldav",
+			"url": "https://dav.example.test/cal/work/",
+			"auth": "none",
+			"username": null,
+			"password": null,
+			"token": null
+		}
 	],
 	"holidays": [
-		{ "name": "US", "color": "#228833", "enabled": true, "country": "US", "subdivision": null }
+		{
+			"name": "US",
+			"color": "#228833",
+			"enabled": true,
+			"country": "US",
+			"subdivision": null
+		}
+	],
+	"accounts": [
+		{
+			"name": "Work account",
+			"provider": "microsoft",
+			"clientId": "00000000-e2e0-0000-0000-000000000000",
+			"clientSecret": null,
+			"tenant": "common"
+		}
 	]
 }

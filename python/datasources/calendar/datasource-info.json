@@ -17,7 +17,8 @@
 	"settings": {
 		"schema": {
 			"lookups": {
-				"country": { "url": "/api/datasource/calendar/lookups/countries" }
+				"country": { "url": "/api/datasource/calendar/lookups/countries" },
+				"account": { "settings": "accounts", "value": "name" }
 			},
 			"properties": [
 				{
@@ -51,12 +52,34 @@
 							{ "name": "name", "type": "string", "required": true, "title": "Name", "minLength": 1, "maxLength": 40 },
 							{ "name": "color", "type": "string", "format": "color", "required": false, "title": "Color" },
 							{ "name": "enabled", "type": "boolean", "required": false, "default": true, "title": "Enabled" },
-							{ "name": "source", "type": "string", "required": true, "default": "ical", "title": "Kind", "enum": ["ical", "caldav"] },
-							{ "name": "url", "type": "string", "format": "uri", "schemes": ["https", "http", "webcal"], "required": true, "title": "Address", "test": { "url": "/api/datasource/calendar/test" } },
-							{ "name": "auth", "type": "string", "required": true, "default": "none", "title": "Sign-in", "enum": ["none", "basic", "bearer"] },
-							{ "name": "username", "type": "string", "required": true, "title": "Username", "visibleIf": { "field": "auth", "const": "basic" } },
-							{ "name": "password", "type": "string", "required": true, "writeOnly": true, "title": "Password", "visibleIf": { "field": "auth", "const": "basic" } },
-							{ "name": "token", "type": "string", "required": true, "writeOnly": true, "title": "Token", "visibleIf": { "field": "auth", "const": "bearer" } }
+							{ "name": "source", "type": "string", "required": true, "default": "ical", "title": "Kind", "enum": ["ical", "caldav", "google", "microsoft"] },
+							{ "name": "url", "type": "string", "format": "uri", "schemes": ["https", "http", "webcal"], "required": true, "title": "Address", "test": { "url": "/api/datasource/calendar/test" }, "visibleIf": { "field": "source", "enum": ["ical", "caldav"] } },
+							{ "name": "auth", "type": "string", "required": true, "default": "none", "title": "Sign-in", "enum": ["none", "basic", "bearer"], "visibleIf": { "field": "source", "enum": ["ical", "caldav"] } },
+							{ "name": "username", "type": "string", "required": true, "title": "Username", "visibleIf": { "all": [{ "field": "source", "enum": ["ical", "caldav"] }, { "field": "auth", "const": "basic" }] } },
+							{ "name": "password", "type": "string", "required": true, "writeOnly": true, "title": "Password", "visibleIf": { "all": [{ "field": "source", "enum": ["ical", "caldav"] }, { "field": "auth", "const": "basic" }] } },
+							{ "name": "token", "type": "string", "required": true, "writeOnly": true, "title": "Token", "visibleIf": { "all": [{ "field": "source", "enum": ["ical", "caldav"] }, { "field": "auth", "const": "bearer" }] } },
+							{ "name": "account", "type": "string", "required": true, "title": "Account", "lookup": "account", "visibleIf": { "field": "source", "enum": ["google", "microsoft"] } },
+							{ "name": "calendarId", "type": "string", "required": false, "title": "Calendar ID", "maxLength": 300, "visibleIf": { "field": "source", "enum": ["google", "microsoft"] } }
+						]
+					}
+				},
+				{
+					"name": "accounts",
+					"type": "array",
+					"required": false,
+					"default": [],
+					"title": "Accounts",
+					"description": "Google and Microsoft accounts, for calendars of the kind google or microsoft. Each needs your own app registration (see the readme). Save, then Connect to sign in; Connect lists the account's calendars and their IDs.",
+					"items": {
+						"type": "object",
+						"key": "name",
+						"action": { "url": "/api/datasource/calendar/connect", "label": "Connect" },
+						"properties": [
+							{ "name": "name", "type": "string", "required": true, "title": "Name", "minLength": 1, "maxLength": 40 },
+							{ "name": "provider", "type": "string", "required": true, "default": "google", "title": "Provider", "enum": ["google", "microsoft"] },
+							{ "name": "clientId", "type": "string", "required": true, "title": "Client ID", "maxLength": 200 },
+							{ "name": "clientSecret", "type": "string", "required": true, "writeOnly": true, "title": "Client Secret", "visibleIf": { "field": "provider", "const": "google" } },
+							{ "name": "tenant", "type": "string", "required": true, "default": "common", "title": "Tenant", "pattern": "^[A-Za-z0-9.-]{1,64}$", "visibleIf": { "field": "provider", "const": "microsoft" } }
 						]
 					}
 				},
@@ -85,6 +108,7 @@
 			"weekStart": "monday",
 			"weekNumbers": false,
 			"calendars": [],
+			"accounts": [],
 			"holidays": []
 		}
 	},

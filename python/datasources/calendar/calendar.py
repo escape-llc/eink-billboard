@@ -21,6 +21,7 @@ from ...model.theme import ThemeInputs, current_inputs
 from ...plugins.plugin_base import PermanentError, RenderSession
 from ...task.async_http_worker_pool import client_var
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
+from .accounts import PROVIDERS, TokenStore, read_account_calendar
 from .sources import Event, NotACalendar, events_between, holiday_events, last_day, read_caldav, read_ical, safe_color
 
 VIEWS = ("month", "weeks", "agenda")
@@ -137,9 +138,11 @@ class CalendarAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
 
-	async def _read_one(self, client: httpx.AsyncClient, entry: dict, start: datetime, end: datetime, slot: Slot) -> list[Event]:
+	async def _read_one(self, client: httpx.AsyncClient, entry: dict, start: datetime, end: datetime, slot: Slot, settings: Mapping[str, Any], store: TokenStore) -> list[Event]:
 		name = entry["name"]
 		color = safe_color(entry.get("color"))
+		if entry.get("source") in PROVIDERS:
+			return await read_account_calendar(client, entry, settings, store, start, end, slot.zone)
 		if entry.get("source") == "caldav":
 			cals = await read_caldav(client, entry, start, end)
 			return [e for cal in cals for e in events_between(cal, start, end, slot.zone, name, color)]
@@ -153,7 +156,10 @@ class CalendarAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		now = device_now(dsec.timestamp)
 		views = chosen_views(params)
 		agenda_days = days_ahead(params)
-		_, settings = dsec.provider.required(DatasourceConfigurationManager).open().get()
+		dsm = dsec.provider.required(DatasourceConfigurationManager)
+		_, settings = dsm.open().get()
+		# the connected accounts' tokens are beside the settings, in the data source's storage folder
+		store = TokenStore(getattr(dsm, "ROOT_PATH", ""))
 		settings = settings or {}
 		slot = Slot(now.date(), now.tzinfo or now.astimezone().tzinfo,  # type: ignore[arg-type]
 			week_start="sunday" if settings.get("weekStart") == "sunday" else "monday", week_numbers=settings.get("weekNumbers") is True, now=now)
@@ -163,7 +169,7 @@ class CalendarAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		for entry in holiday_sets:
 			slot.events.extend(holiday_events(entry, range(start.year, end.year + 1), slot.zone))
 		client = client_var.get()
-		results = await asyncio.gather(*(self._read_one(client, entry, start, end, slot) for entry in calendars), return_exceptions=True)
+		results = await asyncio.gather(*(self._read_one(client, entry, start, end, slot, settings, store) for entry in calendars), return_exceptions=True)
 		failed: list[BaseException] = []
 		for entry, result in zip(calendars, results):
 			if isinstance(result, BaseException):
