@@ -224,7 +224,9 @@ class TestBackgroundInChromium(unittest.TestCase):
 		self.assertEqual(self._corner(background="black"), (0, 0, 0))
 		tinted = self._corner(background="tinted")
 		self.assertNotIn(tinted, ((255, 255, 255), (0, 0, 0)))
-		self.assertEqual(tinted, palette_of(inputs_from({ "theme": "analogous", "hue": 200, "saturation": 50, "lightness": 50, "background": "tinted" })).bg_page.rgb)
+		want = palette_of(inputs_from({ "theme": "analogous", "hue": 200, "saturation": 50, "lightness": 50, "background": "tinted" })).bg_page.rgb
+		# Chromium and Python round the derived color differently by a step at most
+		self.assertTrue(all(abs(a - b) <= 1 for a, b in zip(tinted, want)), (tinted, want))
 
 SWATCH = 20
 @unittest.skipUnless(HAVE_CHROME, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")

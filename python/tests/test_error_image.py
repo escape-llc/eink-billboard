@@ -4,6 +4,7 @@ import unittest
 from unittest import mock
 
 from ..model.configuration_manager import StaticConfigurationManager
+from ..model.theme import inputs_from
 from ..plugins.plugin_base import PermanentError
 from ..utils import error_image
 from ..utils.error_image import plain_error_image, render_error_image, safe_reason
@@ -47,12 +48,16 @@ class ThemedErrorImageTests(unittest.TestCase):
 
 	@unittest.skipUnless(HAVE_CHROME, "needs chromium-headless-shell on PATH")
 	def test_renders_through_the_browser_with_the_theme_and_is_repeatable(self):
-		first = render_error_image(self.stm, (800, 480), "Morning slides", ["folder: Required"])
-		second = render_error_image(self.stm, (800, 480), "Morning slides", ["folder: Required"])
+		tinted = inputs_from({ "theme": "analogous", "hue": 200, "saturation": 60, "lightness": 50, "background": "tinted" })
+		first = render_error_image(self.stm, (800, 480), "Morning slides", ["folder: Required"], tinted)
+		second = render_error_image(self.stm, (800, 480), "Morning slides", ["folder: Required"], tinted)
 		self.assertEqual(first.size, (800, 480))
 		self.assertEqual(first.tobytes(), second.tobytes())
-		# the theme's background, not the plain page's white
+		# the theme's background (here the tint), not the plain page's white
 		self.assertNotEqual(first.convert("RGB").getpixel((5, 5)), (255, 255, 255))
+		# the page is white by default and black in dark mode
+		self.assertEqual(render_error_image(self.stm, (800, 480), "Morning slides", ["folder: Required"]).convert("RGB").getpixel((5, 5)), (255, 255, 255))
+		self.assertEqual(render_error_image(self.stm, (800, 480), "Morning slides", ["x"], inputs_from({ "background": "black" })).convert("RGB").getpixel((5, 5)), (0, 0, 0))
 		self.assertNotEqual(first.tobytes(), plain_error_image((800, 480), "Morning slides", ["folder: Required"]).convert(first.mode).tobytes())
 
 	@unittest.skipUnless(HAVE_CHROME, "needs chromium-headless-shell on PATH")
