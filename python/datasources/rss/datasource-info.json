@@ -8,6 +8,12 @@
 	"description": "The stories of an RSS or Atom feed, one page per story, newest first.",
 	"disabled": false,
 	"features": ["internet", "layer-foreground", "media-list"],
+	"router": {
+		"id": "rss-router",
+		"class": "rss_router",
+		"file": "api.py",
+		"module": "python.datasources.rss.api"
+	},
 	"settings": {
 		"schema": {
 			"properties": [
@@ -17,13 +23,13 @@
 					"required": false,
 					"default": [],
 					"title": "Feeds",
-					"description": "The feeds a task can show. A task picks one by its name. Only http and https addresses.",
+					"description": "The feeds a task can show. A task picks one by its name. Only http and https addresses; Test opens the address and reads it as a feed.",
 					"items": {
 						"type": "object",
 						"key": "name",
 						"properties": [
 							{ "name": "name", "type": "string", "required": true, "title": "Name", "minLength": 1 },
-							{ "name": "url", "type": "string", "required": true, "title": "Feed URL", "pattern": "^https?://\\S+$" }
+							{ "name": "url", "type": "string", "format": "uri", "required": true, "title": "Feed URL", "test": { "url": "/api/datasource/rss/test" } }
 						]
 					}
 				}
