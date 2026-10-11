@@ -185,6 +185,21 @@ class ImageCompositor:
 		return (previous, self._current_stack)
 	def is_dirty(self) -> bool:
 		return self._startVersion != self._current_stack.version
+	def layers(self) -> list[dict]:
+		"""What `commit` draws now, back to front, as `{ layer, title }` (the overlays as `{ layer: "overlays", count }`): what the telemetry says was shown."""
+		stack = self._current_stack
+		if stack.priority is not None:
+			return [{ "layer": "priority", "title": stack.priority.title }]
+		if stack.forground is not None and stack.forground.layer != "blend":
+			return [{ "layer": "override", "title": stack.forground.title }]
+		shown: list[dict] = [{ "layer": "background", "title": stack.background.title }] if stack.background is not None else []
+		if stack.forground is not None:
+			shown.append({ "layer": "blend", "title": stack.forground.title })
+		if stack.blend is not None:
+			shown.append({ "layer": "timer-blend", "title": stack.blend.title })
+		if len(shown) == 1 and stack.background is not None and stack.overlays:
+			shown.append({ "layer": "overlays", "count": len(stack.overlays) })
+		return shown
 	def commit(self) -> RenderPackage|None:
 		if not self.is_dirty():
 			return None

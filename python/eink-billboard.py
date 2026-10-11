@@ -19,7 +19,7 @@ from .task.fanout_sink import FanoutSink
 from .model.time_of_day import ConfiguredTimeOfDay, TimeOfDay
 from .model.configuration_manager import ConfigurationManager
 
-from .task.telemetry_sink import TelemetrySink
+from .task.telemetry_hub import TelemetryHub
 from .task.application import Application, StartEvent
 from .task.messages import QuitMessage, StartOptions
 from .web.app import WebSettings, create_app
@@ -81,7 +81,8 @@ def run_application(args: argparse.Namespace) -> None:
 		routers=routers
 	)
 	# start the application layer
-	sink = TelemetrySink()
+	# the telemetry route's sink: the live view of the web app (python/task/telemetry_hub.py)
+	sink = TelemetryHub()
 	xapp: Application = Application(APPNAME, sink)
 	watcher_sink.add(xapp)
 	try:
@@ -98,7 +99,7 @@ def run_application(args: argparse.Namespace) -> None:
 		root = ServiceContainer()
 		root.add_service(ConfigurationManager, cm)
 		root.add_service(TimeOfDay, time_base)
-		root.add_service(TelemetrySink, sink)
+		root.add_service(TelemetryHub, sink)
 		root.add_service(Application, xapp)
 		xapp.accept(StartEvent(time_base.current_time(), options, root))
 		started = xapp.app_started.wait(timeout=5)
@@ -108,10 +109,8 @@ def run_application(args: argparse.Namespace) -> None:
 			logger.info("Application is started")
 		app.state.root_container = root
 
-		msg = sink.receive()
-		while msg is not None:
-			logger.warning(f"startup message {msg}")
-			msg = sink.receive()
+		for event in sink.since(0):
+			logger.warning(f"startup telemetry: {event.get('source')} {event.get('kind')} {event.get('message', '')}")
 
 		config_watcher.start()
 		# endpoints are plain functions: they run in uvicorn's thread pool and may block on the (locked) configuration files

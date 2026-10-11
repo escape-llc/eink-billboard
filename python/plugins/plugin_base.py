@@ -45,7 +45,8 @@ class PluginExecutionContext:
 		self._timestamp = new_ts
 	def create_datasource_context(self, ds:DataSource):
 		cm = self._isp.required(ConfigurationManager)
-		dscm = cm.datasource_manager(ds.name)
+		# its folder is its id (the descriptor's), as the settings routes use: the name is for people and may hold spaces
+		dscm = cm.datasource_manager(ds.id)
 		local = ServiceContainer(self._isp)
 		local.add_service(DatasourceConfigurationManager, dscm)
 		dsec = DataSourceExecutionContext(

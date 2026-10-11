@@ -13,7 +13,7 @@ from ..model.configuration_manager import ConfigurationManager
 from ..model.theme import current_palette
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..task.basic_task import DispatcherTask
-from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage
+from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage, Telemetry
 from ..task.configure_event import ConfigureEvent
 from ..task.protocols import IProvideTimer
 from ..task.protocols import CreateTimerResult, IProvideTimer
@@ -64,6 +64,13 @@ class Display(DispatcherTask):
 			donev.wait(timeout=2.0)
 		else:
 			self.logger.info(f"task completed.")
+	def _telemetry(self, kind: str, values: Mapping[str, Any]) -> None:
+		"""Tell the telemetry link (the `telemetry` route) what the panel did; a failure to tell must never stop the panel."""
+		try:
+			now = (self.timebase or SystemTimeOfDay()).current_time()
+			self.router.send("telemetry", Telemetry(now, "display", { "kind": kind, **values }))
+		except Exception as e:
+			self.logger.warning(f"Display telemetry could not be sent ({type(e).__name__}).")
 	def _configuration_changed(self, msg: ConfigurationChanged):
 		# the display settings are read when the display starts; reconfiguring it live is not supported yet
 		if msg.area in ("settings", "schemas"):
@@ -246,12 +253,14 @@ class Display(DispatcherTask):
 					if package is None:
 						self.logger.debug(f"Compositor no changes detected")
 						continue
+					shown_layers = compsitor.layers()
 					the_image, the_title = package.render()
 					if rotate: the_image = the_image.rotate(180)
 					the_image = apply_image_enhancement(the_image, display_settings)
 					digest = hashlib.sha256(the_image.tobytes() + repr(the_image.size).encode()).digest()
 					if digest == shown:
 						self.logger.info(f"Compositor v:{package.version} '{the_title}' looks the same as what is shown, not drawing it again")
+						self._telemetry("skipped", { "title": the_title, "version": package.version, "message": f"'{the_title}' looks the same as what is shown: not drawn again." })
 						continue
 
 					displayImageCount += 1
@@ -259,6 +268,9 @@ class Display(DispatcherTask):
 					# render() is synchronous and slow (an e-ink refresh takes seconds): keep it off the loop; awaiting it keeps it one at a time
 					await asyncio.to_thread(display.render, the_image, displayImageCount, the_title)
 					shown = digest
+					# what the panel shows now, for the telemetry link: the hub keeps the image by its digest, the event carries the digest
+					self._telemetry("shown", { "title": the_title, "version": package.version, "count": displayImageCount, "digest": digest.hex(),
+						"width": the_image.width, "height": the_image.height, "layers": shown_layers, "image": the_image })
 					self.logger.debug(f"Start blanking period")
 					await asyncio.sleep(60.0)
 					self.logger.debug(f"End blanking period")

@@ -204,6 +204,7 @@ class TestTimerLayerOverlays(unittest.TestCase):
 
 class FakeDataSource:
 	def __init__(self, name="today", result="image"):
+		self.id = name
 		self.name = name
 		self.result = result
 		self.dimensions = None

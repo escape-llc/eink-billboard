@@ -164,7 +164,7 @@ class TimerLayer(DispatcherTask):
 			self.logger.error(f"Failed to load/validate schedules: {e}", exc_info=True)
 			self.state = 'error'
 			msg.notify(True, e)
-			self._error_with_telemetry(f"ConfigureEvent failed: {e}", msg.timestamp)
+			self._error_with_telemetry("The timer tasks could not be configured", msg.timestamp, e)
 	def _display_settings(self, msg: DisplaySettings):
 		self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
 		self.dimensions = (msg.width, msg.height)
@@ -239,7 +239,7 @@ class TimerLayer(DispatcherTask):
 			self.router.send("telemetry", Telemetry(tod.current_time(), "timer_layer", cast(Mapping[str,Any], telemetry)))
 		except Exception as e:
 			self.state = 'error'
-			self._error_with_telemetry(f"Error during {kind} task '{item.title}': {e}", tod.current_time())
+			self._error_with_telemetry(f"The {kind} task '{item.title}' failed", tod.current_time(), e)
 			await self._show_error(item, safe_reason(e), tod.current_time())
 	async def _layer_task(self, isp: IServiceProvider, tasks: list[ScheduleLoaderDict], donev: threading.Event) -> BasicMessage|None:
 		"""
@@ -317,7 +317,7 @@ class TimerLayer(DispatcherTask):
 			return True
 		except Exception as e:
 			self.state = "error"
-			self._error_with_telemetry(f"Error invoke start layer task: {e}", timestamp)
+			self._error_with_telemetry("The timer tasks could not start", timestamp, e)
 			return False
 	def _layer_stop(self):
 		if self.layer_task is None:
@@ -353,7 +353,7 @@ class TimerLayer(DispatcherTask):
 			# the layer task died; keep the display alive by starting it again after a pause
 			self.state = 'error'
 			self.logger.error(f"Layer task failed: {type(e).__name__}: {e}", exc_info=(type(e), e, e.__traceback__))
-			self._error_with_telemetry(f"Layer task failed: {e}", msg.timestamp, log=False)
+			self._error_with_telemetry("The timer tasks stopped on an error", msg.timestamp, e, log=False)
 			self._schedule_restart(msg.timestamp)
 			return
 		self.logger.info(f"Plugin task result: {rmsg}")
@@ -388,7 +388,7 @@ class TimerLayer(DispatcherTask):
 			sm.validate(schedule_info)
 		except Exception as e:
 			self.logger.warning(f"'{self.name}' the changed schedules do not load, keeping the ones in use: {e}")
-			self._error_with_telemetry(f"The changed schedules do not load: {e}", msg.timestamp, log=False)
+			self._error_with_telemetry("The changed schedules do not load", msg.timestamp, e, log=False)
 			return
 		new_tasks = schedule_info.get("tasks", [])
 		if self._signature(new_tasks) == self._signature(self.tasks):
@@ -423,12 +423,14 @@ class TimerLayer(DispatcherTask):
 		self._restart_timer = threading.Timer(self.RESTART_DELAY_SECONDS, restart)
 		self._restart_timer.daemon = True
 		self._restart_timer.start()
-	def _error_with_telemetry(self, emsg:str, msg_ts:datetime, log: bool = True):
+	def _error_with_telemetry(self, emsg:str, msg_ts:datetime, error: BaseException|None = None, log: bool = True):
+		"""Log the failure in full; the telemetry, which leaves the device, says our sentence and only a safe reason (see safe_reason)."""
 		if log:
-			self.logger.error(emsg, exc_info=True)
+			self.logger.error(f"{emsg}: {error}" if error is not None else emsg, exc_info=True)
 		self.router.send("telemetry", Telemetry(msg_ts, "timer_layer", cast(Mapping[str,Any], {
 			"state": "error",
-			"message": emsg,
+			"kind": "task-failed" if error is not None and "task '" in emsg else "error",
+			"message": f"{emsg}: {safe_reason(error)}" if error is not None else emsg,
 			'current_playlist': None,
 			'current_track_index': None,
 			'current_track': None,
