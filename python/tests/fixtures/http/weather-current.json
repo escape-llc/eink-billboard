@@ -1,0 +1,41 @@
+{
+	"coord": {
+		"lon": -122.33,
+		"lat": 47.61
+	},
+	"weather": [
+		{
+			"id": 802,
+			"main": "Clouds",
+			"description": "scattered clouds",
+			"icon": "03d"
+		}
+	],
+	"base": "stations",
+	"main": {
+		"temp": 14.2,
+		"feels_like": 13.5,
+		"temp_min": 12.0,
+		"temp_max": 16.1,
+		"pressure": 1016,
+		"humidity": 71
+	},
+	"visibility": 10000,
+	"wind": {
+		"speed": 3.6,
+		"deg": 200
+	},
+	"clouds": {
+		"all": 40
+	},
+	"dt": 1791399600,
+	"sys": {
+		"country": "US",
+		"sunrise": 1791381720,
+		"sunset": 1791421740
+	},
+	"timezone": -25200,
+	"id": 5809844,
+	"name": "Seattle",
+	"cod": 200
+}

@@ -1,0 +1,78 @@
+{
+	"id": "weather",
+	"name": "Weather",
+	"version": "0.0.1",
+	"class": "WeatherAsync",
+	"file": "weather.py",
+	"module": "python.datasources.weather.weather",
+	"description": "The weather at the device's location from OpenWeatherMap: now, the next hours, the next days. One page per view.",
+	"describe": "Weather {views}",
+	"disabled": false,
+	"features": ["internet", "api-key", "layer-foreground", "media-list"],
+	"settings": {
+		"schema": {
+			"properties": [
+				{
+					"name": "apiKey",
+					"type": "string",
+					"required": false,
+					"writeOnly": true,
+					"default": null,
+					"title": "API Key",
+					"description": "Your OpenWeatherMap key. The free plan is enough. A new key can take a couple of hours to start working.",
+					"link": { "url": "https://home.openweathermap.org/users/sign_up", "label": "Get a free API key" }
+				},
+				{
+					"name": "units",
+					"type": "string",
+					"required": true,
+					"default": "auto",
+					"title": "Units",
+					"description": "auto: miles and Fahrenheit in the US timezones, kilometres and Celsius elsewhere.",
+					"enum": ["auto", "metric", "imperial"]
+				}
+			]
+		},
+		"default": {
+			"apiKey": null,
+			"units": "auto"
+		}
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {},
+			"properties": [
+				{
+					"name": "views",
+					"type": "array",
+					"required": false,
+					"default": ["current"],
+					"title": "Views",
+					"description": "One page per view, in this order: the weather now, the next day in steps of three hours, the next days. Two or three views make a slot of that many pages. The place is the device's location (System settings).",
+					"items": {
+						"type": "string",
+						"enum": ["current", "hours", "days"]
+					}
+				},
+				{
+					"name": "title",
+					"type": "string",
+					"required": false,
+					"default": null,
+					"title": "Title",
+					"description": "The heading above each page. Empty: the place's name.",
+					"maxLength": 80
+				},
+				{
+					"name": "fontSize",
+					"type": "string",
+					"required": false,
+					"default": "normal",
+					"title": "Text Size",
+					"description": "The size of the text on the page.",
+					"enum": ["x-small", "small", "normal", "large", "x-large"]
+				}
+			]
+		}
+	}
+}

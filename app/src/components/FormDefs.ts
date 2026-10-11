@@ -22,6 +22,8 @@ export type FieldDef = {
 	default?: unknown
 	/** shown under the field as help text */
 	description?: string
+	/** a button that opens a page of someone else's in a new tab (where to get an API key); an `https` address only */
+	link?: { url: string, label: string }
 	/** a predicate over the other fields' values: hidden (not validated, saved as null) when false; see FormVisibility.ts */
 	visibleIf?: Predicate
 	/** shown as a password input; the server never sends the stored value back */

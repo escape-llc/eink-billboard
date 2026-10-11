@@ -296,6 +296,13 @@ The device signs in with an app registration of your own; nothing is shared with
 
 The sign-in's tokens are kept in `datasources/calendar/tokens.json` in the storage folder, never in the settings (which the browser reads). Delete an account, or change its client ID, and it must be connected again.
 
+## Weather Data Source
+The weather at the device's location from [OpenWeatherMap](https://openweathermap.org), one page per chosen view: the weather **now**, the next day in steps of three **hours**, the next five **days**. Several views make a slot of that many pages.
+* **The place** is the `location` of the System settings (the GPS position; empty means the slot fails with a message telling you to set it).
+* **The key**: register for a free key (the settings page has a button to the sign-up page). It goes in the Weather data source's settings and is never sent back to the browser. A new key can take a couple of hours to start working: until then the slot says the key was refused.
+* **Units**: `auto` reads miles and Fahrenheit in the US timezones and kilometres and Celsius elsewhere, or choose `metric` or `imperial`. The clock follows the System settings' time format.
+* It uses the free plan's endpoints (`/data/2.5/weather` and `/data/2.5/forecast`), only the ones the chosen views need, once per slot. The icons are drawn by the page, so rendering needs no network. The key is in the address OpenWeatherMap wants, so the HTTP client's log lines have it hidden (`appid=***`).
+
 ## Storage Folder
 
 You must set up a separate `.storage` folder for the application to store its state.  See above for details.

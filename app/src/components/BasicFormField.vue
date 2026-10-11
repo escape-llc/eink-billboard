@@ -93,6 +93,9 @@
 		</slot>
 		<Message v-if="field.lookupError" severity="warn" size="small" variant="simple">{{ field.lookupError }}</Message>
 		<Message v-if="field.description" severity="secondary" size="small" variant="simple">{{ field.description }}</Message>
+		<div v-if="safeLink">
+			<Button as="a" :href="safeLink.url" target="_blank" rel="noopener noreferrer" :label="safeLink.label" icon="pi pi-external-link" size="small" variant="text" />
+		</div>
 		<template v-if="field.children?.length">
 			<BasicFormField 
 				v-for="child in field.children" 
@@ -112,7 +115,7 @@
 	</template>
 </template>
 <script setup lang="ts">
-import { Message, InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Select, DatePicker, MultiSelect } from 'primevue';
+import { Button, Message, InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Select, DatePicker, MultiSelect } from 'primevue';
 import FormField from '@primevue/forms/formfield';
 import LeafletPicker from './LeafletPicker.vue';
 import ArrayField from './ArrayField.vue';
@@ -158,6 +161,11 @@ function handleSchemaChange(event: any, field: any) {
 const fieldState = computed(() => props.formContext?.[props.field.name] || {});
 // the form's field states, read by name, are the values the predicates look at
 const visible = computed(() => isVisible(props.field, (name: string) => props.formContext?.[name]?.value))
+// a link opens in a new tab and only to a secure address (the descriptor is ours, but a page is not built from what it holds without a look)
+const safeLink = computed(() => {
+	const link = props.field.link
+	return link && typeof link.label === 'string' && /^https:\/\/[^\s]+$/.test(String(link.url)) ? link : null
+})
 const isInvalid = computed(() => !!fieldState.value.invalid);
 // a field as tall as a map or a list of rows: its label sits at the top, beside the first line, not in the middle of the block
 const tall = computed(() => props.field.type === 'location' || props.field.type === 'array');

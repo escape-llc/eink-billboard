@@ -154,7 +154,23 @@ def _caldav(request: httpx.Request) -> httpx.Response | None:
 		return httpx.Response(400, text="Expected a calendar-query REPORT with Depth 1 and a time range")
 	return httpx.Response(207, text=fixture_text("calendar-dav.xml"), headers={ "Content-Type": "application/xml" })
 
-ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _rss_feed, _rss_image, _calendar, _caldav]
+# OpenWeatherMap: the key says what is answered ("good-key" the fixtures, "busy-key" a 429, any other key a 401, as the real service does for a key it does not know)
+WEATHER_FIXTURES = { "/data/2.5/weather": "weather-current.json", "/data/2.5/forecast": "weather-forecast.json" }
+
+def _weather(request: httpx.Request) -> httpx.Response | None:
+	if request.url.host != "api.openweathermap.org":
+		return None
+	name = WEATHER_FIXTURES.get(request.url.path)
+	if name is None:
+		return httpx.Response(404, json={ "cod": "404", "message": "Internal error" })
+	key = request.url.params.get("appid")
+	if key == "busy-key":
+		return httpx.Response(429, json={ "cod": 429, "message": "Too many requests" })
+	if key != "good-key":
+		return httpx.Response(401, json={ "cod": 401, "message": "Invalid API key" })
+	return httpx.Response(200, text=fixture_text(name), headers={ "Content-Type": "application/json" })
+
+ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _rss_feed, _rss_image, _calendar, _caldav, _weather]
 
 def install() -> FakeInternet | None:
 	"""Make every `AsyncHttpWorkerPool` talk to the fake (unless EINK_TEST_LIVE is set)."""

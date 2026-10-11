@@ -237,6 +237,27 @@ class TestDescribe(unittest.TestCase):
 				self.assertLessEqual(set(re.findall(r"\{([^}]*)\}", template)), names)
 		self.assertGreater(described, 8)
 
+class TestLinks(unittest.TestCase):
+	"""A property's `link` (a button to someone else's page, such as where to get an API key) is a secure address and a label."""
+	def test_links_are_https_with_a_label(self):
+		import glob
+		root = os.path.dirname(os.path.dirname(__file__))
+		found = 0
+		for path in glob.glob(os.path.join(root, "plugins", "*", "*-info.json")) + glob.glob(os.path.join(root, "datasources", "*", "*-info.json")):
+			with open(path, "r", encoding="utf-8") as f:
+				doc = json.load(f)
+			for where, props in TestDescriptors._property_lists(doc, doc["id"]):
+				for prop in props:
+					link = prop.get("link")
+					if link is None:
+						continue
+					found += 1
+					with self.subTest(f"{where}/{prop['name']}"):
+						self.assertEqual(sorted(link), ["label", "url"])
+						self.assertRegex(link["url"], r"^https://[^\s]+$")
+						self.assertTrue(link["label"].strip())
+		self.assertGreaterEqual(found, 1)
+
 class TestDescriptorRules(unittest.TestCase):
 	"""Every descriptor in the repository: names the form can hold, types both validators know, defaults that pass their own rules."""
 	KNOWN_TYPES = ("string", "boolean", "number", "integer", "location", "schema", "array", "header")
