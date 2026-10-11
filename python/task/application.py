@@ -120,6 +120,7 @@ class Application(DispatcherTask):
 			self.cm.hard_reset()
 		else:
 			self.cm.ensure_folders()
+			self.cm.refresh_schemas()
 		self.logger.info(f"'{self.name}' start tasks.")
 		# STEP 0 assemble tasks and routes
 		self.router = MessageRouter()
