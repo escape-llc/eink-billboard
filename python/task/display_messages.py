@@ -60,6 +60,9 @@ class OverlayImage(BasicMessage):
 	title: str
 	img: Image.Image
 	wash: float = 0.0
+	# see ImageOverlay: `auto`, `white` or `black`; `soft` or `solid`
+	wash_color: str = "auto"
+	wash_style: str = "soft"
 
 @dataclass(frozen=True, slots=True)
 class OverlayRevoke(BasicMessage):

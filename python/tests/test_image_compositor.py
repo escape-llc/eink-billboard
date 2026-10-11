@@ -161,6 +161,50 @@ class TestOverlays(unittest.TestCase):
 		self.assertEqual(image.getpixel((10, 10)), (100, 100, 100))
 		self.assertEqual(image.getpixel((70, 50)), (100, 100, 100))
 
+	def test_wcag_contrast(self):
+		from ..utils.image_compositor import contrast_ratio, relative_luminance
+		self.assertAlmostEqual(contrast_ratio((0, 0, 0), (255, 255, 255)), 21.0, places=2)
+		self.assertAlmostEqual(contrast_ratio((255, 255, 255), (255, 255, 255)), 1.0, places=2)
+		self.assertAlmostEqual(relative_luminance((255, 0, 0)), 0.2126, places=4)
+		# #767676 is the lightest gray that reaches 4.5:1 on white
+		self.assertGreaterEqual(contrast_ratio((0x76, 0x76, 0x76), (255, 255, 255)), 4.5)
+		self.assertLess(contrast_ratio((0x77, 0x77, 0x77), (255, 255, 255)), 4.5)
+
+	def test_the_auto_wash_color_has_the_better_contrast_with_the_worst_off_color(self):
+		from ..utils.image_compositor import BLACK, WHITE, wash_rgb
+		def ink(*colors):
+			img = Image.new("RGBA", (10 * len(colors), 10), (0, 0, 0, 0))
+			for i, c in enumerate(colors):
+				img.paste(c + (255,), (i * 10, 0, i * 10 + 10, 10))
+			return img
+		self.assertEqual(wash_rgb(ink((20, 30, 90))), WHITE)      # dark text: a white halo
+		self.assertEqual(wash_rgb(ink((240, 240, 200))), BLACK)   # light text: a black halo
+		# a dark word and a light word: the halo that serves the worse of the two (mid blue 4.5 vs 4.7 is close: the ratio decides)
+		mixed = ink((10, 10, 10), (200, 200, 200))
+		self.assertIn(wash_rgb(mixed), (WHITE, BLACK))
+		self.assertEqual(wash_rgb(ink((250, 250, 250)), "white"), WHITE)
+		self.assertEqual(wash_rgb(ink((250, 250, 250)), "black"), BLACK)
+		self.assertEqual(wash_rgb(Image.new("RGBA", (4, 4), (0, 0, 0, 0))), WHITE)
+
+	def test_a_light_text_is_washed_dark(self):
+		comp = ImageCompositor()
+		comp.set_layer_background(_di("Background", _create_rgb((120, 120, 120), size=(80, 60))))
+		mark = Image.new("RGBA", (40, 40), (0, 0, 0, 0))
+		mark.paste((250, 250, 250, 255), (17, 17, 23, 23))
+		comp.set_layer_overlays([ImageOverlay(mark, (20, 10), wash=0.8)])
+		image, _ = self._render(comp)
+		self.assertLess(image.getpixel((20 + 15, 10 + 20))[0], 60)
+
+	def test_a_solid_wash_has_a_hard_edge_and_no_gradient(self):
+		from ..utils.image_compositor import wash_mask
+		mark = Image.new("RGBA", (60, 40), (0, 0, 0, 0))
+		mark.paste((0, 0, 0, 255), (25, 15, 35, 25))
+		mask, _ = wash_mask(mark, 1.0, "solid")
+		self.assertEqual(set(mask.getdata()), { 0, 255 })
+		self.assertEqual(set(wash_mask(mark, 0.5, "solid")[0].getdata()), { 0, 128 })
+		# the soft one is a gradient
+		self.assertGreater(len(set(wash_mask(mark, 1.0, "soft")[0].getdata())), 5)
+
 	def test_a_clear_overlay_washes_nothing(self):
 		comp = ImageCompositor()
 		comp.set_layer_background(_di("Background", _create_rgb((100, 100, 100), size=(20, 20))))
@@ -261,6 +305,13 @@ class TestTextOverlay(unittest.TestCase):
 		strong = [px for px in pixels if px[3] > 200]
 		self.assertTrue(strong)
 		self.assertTrue(all(px[:3] == (255, 0, 0) for px in strong))
+
+	def test_embolden_adds_ink_in_the_same_color(self):
+		plain = text_overlay("Wide", (120, 40), (0, 0), color=(255, 0, 0))
+		heavy = text_overlay("Wide", (120, 40), (0, 0), color=(255, 0, 0), embolden=0.04)
+		def ink(o): return sum(1 for px in o.image.getdata() if px[3] > 200)
+		self.assertGreater(ink(heavy), ink(plain) * 1.15)
+		self.assertTrue(all(px[:3] == (255, 0, 0) for px in heavy.image.getdata() if px[3] > 200))
 
 	def test_runs_of_colors_on_one_line(self):
 		overlay = text_overlay([("Fri", (255, 0, 0)), (", Oct 9", (0, 0, 255))], (200, 40), (0, 0))

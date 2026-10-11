@@ -50,10 +50,12 @@ class TodayAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 		# an overlay renders at the zone's size as given (never through target_dimensions)
 		width, height = dsec.dimensions
 		font_name = str(params.get("font") or "Jost")
+		weight = str(params.get("weight") or "bold")
 		try:
-			font = stm.get_font(font_name, max(8, int(height * 0.6)))
+			# bold is the font's own bold face where it has one; heavy strokes the letters on top of that
+			font = stm.get_font(font_name, max(8, int(height * 0.6)), "normal" if weight == "normal" else "bold")
 		except ValueError:
 			raise PermanentError(f"Font '{font_name}' is not available") from None
 		runs: list[TextRun] = [run for run in ((highlight, palette.text_secondary_1.rgb), (rest, palette.text_primary.rgb)) if run[0]]
-		overlay = text_overlay(runs, (width, height), (0, 0), font=font)
+		overlay = text_overlay(runs, (width, height), (0, 0), font=font, embolden=0.022 if weight == "heavy" else 0.0)
 		return MediaRenderResult(image=overlay.image, title=highlight + rest)
