@@ -27,6 +27,8 @@ export default defineConfig({
 			cwd: ROOT,
 			url: `${OPEN.url}/api/settings/system`,
 			reuseExistingServer: false,
+			// the schemas are patched by scripts/e2e_storage.py, so the server must not bring them back to the shipped ones
+			env: { EINK_KEEP_SCHEMAS: "1" },
 			timeout: 120_000,
 		},
 		{
@@ -35,6 +37,8 @@ export default defineConfig({
 			// a 401 means the server is up
 			url: `${PROTECTED.url}/api/settings/system`,
 			reuseExistingServer: false,
+			// the schemas are patched by scripts/e2e_storage.py, so the server must not bring them back to the shipped ones
+			env: { EINK_KEEP_SCHEMAS: "1" },
 			timeout: 120_000,
 		},
 	],

@@ -1,3 +1,4 @@
+import os
 import threading
 from datetime import datetime
 
@@ -120,7 +121,9 @@ class Application(DispatcherTask):
 			self.cm.hard_reset()
 		else:
 			self.cm.ensure_folders()
-			self.cm.refresh_schemas()
+			# EINK_KEEP_SCHEMAS=1: the browser tests patch the storage's schemas with fields of their own
+			if os.environ.get("EINK_KEEP_SCHEMAS") != "1":
+				self.cm.refresh_schemas()
 		self.logger.info(f"'{self.name}' start tasks.")
 		# STEP 0 assemble tasks and routes
 		self.router = MessageRouter()

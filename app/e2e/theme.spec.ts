@@ -41,3 +41,25 @@ test("the theme tab has a selector for each font and a swatch for every color of
 	await expect.poll(() => page.locator("[data-role=text-primary]").evaluate(e => getComputedStyle(e).backgroundColor)).not.toBe(before)
 	watch.expectNone()
 })
+
+test("the theme tab has a mock-up of a page in the theme's colors, fonts and size", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "Theme" }).click()
+	const mock = page.getByTestId("mockup")
+	await expect(mock).toBeVisible()
+	// the title wears the palette's text-primary, as the swatch of that role shows
+	const swatch = page.locator("[data-role=text-primary]")
+	await expect.poll(() => swatch.evaluate(e => getComputedStyle(e).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)")
+	const want = await swatch.evaluate(e => getComputedStyle(e).backgroundColor)
+	await expect(mock.locator(".mock-light .mock-title")).toHaveCSS("color", want)
+	await expect(mock.locator(".mock-light .mock-title")).toHaveCSS("font-family", /eink-Jost/)
+	// the text size multiplies the mock-up's text
+	const size = async () => parseFloat(await mock.locator(".mock-light .mock-title").evaluate(e => getComputedStyle(e).fontSize))
+	const before = await size()
+	const scale = page.getByRole("spinbutton", { name: "Text Size" })
+	await scale.fill("1.4")
+	await scale.blur()
+	await expect.poll(size).toBeGreaterThan(before * 1.3)
+	watch.expectNone()
+})
