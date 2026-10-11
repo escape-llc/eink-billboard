@@ -1,0 +1,11 @@
+{
+	"weekStart": "monday",
+	"weekNumbers": false,
+	"calendars": [
+		{ "name": "Family", "color": "#3366cc", "enabled": true, "source": "ical", "url": "https://calendar.example.test/family.ics", "auth": "none", "username": null, "password": null, "token": null },
+		{ "name": "Work", "color": "#cc3333", "enabled": true, "source": "caldav", "url": "https://dav.example.test/cal/work/", "auth": "none", "username": null, "password": null, "token": null }
+	],
+	"holidays": [
+		{ "name": "US", "color": "#228833", "enabled": true, "country": "US", "subdivision": null }
+	]
+}

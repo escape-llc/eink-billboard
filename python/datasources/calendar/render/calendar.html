@@ -1,0 +1,260 @@
+{% extends "plugin.html" %}
+
+{% block style %}
+	<style>
+		/* the sizes here are the ones Layout in calendar.py counts with: change both together */
+		.cal {
+			font-family: "Jost";
+			box-sizing: border-box;
+			height: 100%;
+			width: 100%;
+			padding: 4dvh 3dvw;
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+			font-size: {{ font_px }}px;
+		}
+		.cal-heading {
+			flex: none;
+			box-sizing: border-box;
+			height: 1.6em;
+			line-height: 1.5em;
+			font-weight: bold;
+			letter-spacing: .12em;
+			text-transform: uppercase;
+			border-bottom: .1em solid currentColor;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+		.cal-weekdays {
+			flex: none;
+			display: grid;
+			grid-template-columns: var(--columns);
+			height: 1.2em;
+			line-height: 1.2em;
+		}
+		.cal-weekdays div {
+			font-size: .7em;
+			font-weight: bold;
+			letter-spacing: .08em;
+			text-transform: uppercase;
+			text-align: center;
+		}
+		.cal-grid {
+			flex: 1 1 0;
+			min-height: 0;
+			display: grid;
+			grid-template-columns: var(--columns);
+			grid-auto-rows: minmax(0, 1fr);
+		}
+		.cal-day {
+			box-sizing: border-box;
+			min-width: 0;
+			overflow: hidden;
+			padding: 2px 3px;
+			border-right: 1px solid currentColor;
+			border-bottom: 1px solid currentColor;
+		}
+		/* the frame is the days': the first row and the first day of each row close it (the week numbers stand outside it) */
+		.cal-day.top {
+			border-top: 1px solid currentColor;
+		}
+		.cal-day.first {
+			border-left: 1px solid currentColor;
+		}
+		/* the week number column: no frame of its own, the number boxed at the top like a day's */
+		.cal-week {
+			box-sizing: border-box;
+			padding: 2px .4em 0 0;
+			text-align: center;
+		}
+		.cal-week span {
+			display: inline-block;
+			min-width: 1.5em;
+			padding: .3em .45em;
+			font-size: .62em;
+			font-weight: bold;
+			line-height: 1;
+			border: 1px solid currentColor;
+			border-radius: .35em;
+		}
+		/* the weekly view: every other month is tinted, and a month's first day is named */
+		.cal-day.alt {
+			background: color-mix(in srgb, currentColor 10%, transparent);
+		}
+		.cal-month {
+			font-size: .8em;
+			font-weight: bold;
+			text-transform: uppercase;
+			margin-right: .2em;
+		}
+		.portrait .cal-month {
+			font-size: .58em;
+			margin-right: .1em;
+		}
+		.cal-day.out {
+			opacity: .4;
+		}
+		.cal-num {
+			height: .95em;
+			line-height: .95em;
+		}
+		.cal-num span {
+			font-size: .8em;
+			font-weight: bold;
+			padding: 0 .25em;
+			border-radius: .6em;
+		}
+		.cal-item {
+			font-size: .72em;
+			line-height: 1.25;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+		.portrait .cal-item {
+			white-space: normal;
+			display: -webkit-box;
+			-webkit-box-orient: vertical;
+			-webkit-line-clamp: 2;
+			overflow-wrap: anywhere;
+			margin-bottom: 0;
+		}
+		.cal-item.bar {
+			border-left: .35em solid var(--event, currentColor);
+			background: color-mix(in srgb, var(--event, currentColor) 22%, transparent);
+			padding-left: .25em;
+			font-weight: bold;
+		}
+		.cal-item.holiday {
+			color: var(--event, currentColor);
+			font-style: italic;
+			font-weight: bold;
+		}
+		.dot {
+			display: inline-block;
+			width: .6em;
+			height: .6em;
+			border-radius: 50%;
+			margin-right: .2em;
+			background: var(--event, currentColor);
+		}
+		.time {
+			font-weight: bold;
+			margin-right: .2em;
+		}
+		.agenda {
+			flex: 1 1 0;
+			min-height: 0;
+			overflow: hidden;
+			margin-top: 1.2em;
+		}
+		.ag-day {
+			height: 1.45em;
+			line-height: 1.45em;
+			font-weight: bold;
+			letter-spacing: .06em;
+			text-transform: uppercase;
+			font-size: 1em;
+			border-bottom: 1px solid currentColor;
+		}
+		.ag-item {
+			display: flex;
+			align-items: center;
+			gap: .6em;
+			height: 1.45em;
+			white-space: nowrap;
+			overflow: hidden;
+		}
+		.ag-bar {
+			flex: none;
+			width: .35em;
+			height: 1.1em;
+			background: var(--event, currentColor);
+		}
+		.ag-time {
+			flex: none;
+			width: 7.2em;
+			font-size: .85em;
+		}
+		.ag-title {
+			font-weight: bold;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+		.ag-item.holiday .ag-title {
+			color: var(--event, currentColor);
+			font-style: italic;
+		}
+		.ag-location {
+			font-size: .8em;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+		.ag-empty {
+			margin-top: 1em;
+			font-size: 1.2em;
+		}
+		/* over before the slot began: still there, but faded */
+		.past {
+			opacity: .45;
+		}
+		.cal-more {
+			font-size: .72em;
+			font-weight: bold;
+		}
+		.cal-notes {
+			flex: none;
+			margin-top: .3em;
+			font-size: .6em;
+			line-height: 1.3;
+		}
+	</style>
+{% endblock %}
+{% macro color(item) %}{% if item.color %} style="--event: {{ item.color }}"{% endif %}{% endmacro %}
+{% block content %}
+<div class="cal{% if portrait %} portrait{% endif %}" style="--columns: {% if week_numbers %}2.4em {% endif %}repeat(7, minmax(0, 1fr))">
+	<div class="cal-heading text-secondary-1">{{ heading }}</div>
+	{% if view in ("month", "weeks") %}
+	<div class="cal-weekdays text-secondary-2">{% if week_numbers %}<div></div>{% endif %}{% for name in weekdays %}<div>{{ name }}</div>{% endfor %}</div>
+	<div class="cal-grid">
+		{% for week in weeks %}{% set row = loop.first %}{% if week_numbers %}<div class="cal-week text-secondary-2"><span>{{ week.number }}</span></div>{% endif %}{% for day in week.days %}
+		<div class="cal-day{% if row %} top{% endif %}{% if loop.first %} first{% endif %}{% if not day.in_month %} out{% endif %}{% if day.alt %} alt{% endif %}">
+			<div class="cal-num">{% if day.label %}<span class="cal-month text-secondary-1">{{ day.label }}</span>{% endif %}<span class="{% if day.today %}bg-secondary-1-accent{% elif day.weekend %}text-secondary-2{% endif %}">{{ day.day }}</span></div>
+			{% for item in day.entries %}
+			{% if item.holiday %}
+			<div class="cal-item holiday{% if item.past %} past{% endif %}"{{ color(item) }}>{{ item.title }}</div>
+			{% elif item.bar %}
+			<div class="cal-item bar{% if item.past %} past{% endif %}"{{ color(item) }}>{{ item.title }}</div>
+			{% else %}
+			<div class="cal-item{% if item.past %} past{% endif %}"{{ color(item) }}><span class="dot{% if not item.color %} bg-secondary-1-accent{% endif %}"></span>{% if item.time %}<span class="time">{{ item.time }}</span>{% endif %}{{ item.title }}</div>
+			{% endif %}
+			{% endfor %}
+			{% if day.more %}<div class="cal-more text-secondary-2">+{{ day.more }} more</div>{% endif %}
+		</div>
+		{% endfor %}{% endfor %}
+	</div>
+	{% else %}
+	<div class="agenda">
+		{% for day in days %}
+		<div class="ag-day {% if day.today %}text-secondary-1{% else %}text-secondary-2{% endif %}">{{ day.label }}</div>
+		{% for item in day.entries %}
+		<div class="ag-item{% if item.holiday %} holiday{% endif %}{% if item.past %} past{% endif %}"{{ color(item) }}>
+			<span class="ag-bar{% if not item.color %} bg-secondary-1-accent{% endif %}"></span>
+			<span class="ag-time">{{ item.range }}</span>
+			<span class="ag-title">{{ item.title }}</span>
+			{% if item.location %}<span class="ag-location">{{ item.location }}</span>{% endif %}
+		</div>
+		{% endfor %}
+		{% else %}
+		<div class="ag-empty text-secondary-2">Nothing scheduled</div>
+		{% endfor %}
+		{% if more %}<div class="cal-more text-secondary-2">and {{ more }} more</div>{% endif %}
+	</div>
+	{% endif %}
+	{% if notes %}
+	<div class="cal-notes text-secondary-2">{% for note in notes %}<div>{{ note }}</div>{% endfor %}</div>
+	{% endif %}
+</div>
+{% endblock %}

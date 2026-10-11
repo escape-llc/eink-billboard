@@ -125,7 +125,36 @@ def _rss_image(request: httpx.Request) -> httpx.Response | None:
 		return _image(640, 360, path.rsplit("/", 1)[-1], "JPEG" if path.endswith(".jpg") else "PNG")
 	return None
 
-ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _rss_feed, _rss_image]
+# invented calendars for the Calendar data source: URL (host, path) -> fixture file. "/private.ics" needs the Basic sign-in user:pass,
+# "/page" is an HTML page (no calendar); dav.example.test answers a CalDAV REPORT and checks that it is one
+CALENDARS = {
+	("calendar.example.test", "/family.ics"): "calendar-family.ics",
+	("calendar.example.test", "/season.ics"): "calendar-season.ics",
+	("calendar.example.test", "/ended.ics"): "calendar-ended.ics",
+}
+CALENDAR_SIGN_IN = "Basic dXNlcjpwYXNz"
+
+def _calendar(request: httpx.Request) -> httpx.Response | None:
+	if request.url.host != "calendar.example.test":
+		return None
+	if request.url.path == "/private.ics":
+		if request.headers.get("Authorization") != CALENDAR_SIGN_IN:
+			return httpx.Response(401, text="Sign in")
+		return httpx.Response(200, text=fixture_text("calendar-family.ics"), headers={ "Content-Type": "text/calendar" })
+	if request.url.path == "/page":
+		return httpx.Response(200, text="<html><body>Sign in to see this calendar</body></html>", headers={ "Content-Type": "text/html" })
+	name = CALENDARS.get((request.url.host, request.url.path))
+	return None if name is None else httpx.Response(200, text=fixture_text(name), headers={ "Content-Type": "text/calendar" })
+
+def _caldav(request: httpx.Request) -> httpx.Response | None:
+	if request.url.host != "dav.example.test":
+		return None
+	body = request.read().decode("utf-8")
+	if request.method != "REPORT" or request.headers.get("Depth") != "1" or "calendar-query" not in body or "time-range" not in body:
+		return httpx.Response(400, text="Expected a calendar-query REPORT with Depth 1 and a time range")
+	return httpx.Response(207, text=fixture_text("calendar-dav.xml"), headers={ "Content-Type": "application/xml" })
+
+ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _rss_feed, _rss_image, _calendar, _caldav]
 
 def install() -> FakeInternet | None:
 	"""Make every `AsyncHttpWorkerPool` talk to the fake (unless EINK_TEST_LIVE is set)."""

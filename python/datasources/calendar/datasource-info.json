@@ -1,0 +1,169 @@
+{
+	"id": "calendar",
+	"name": "Calendar",
+	"version": "0.0.1",
+	"class": "CalendarAsync",
+	"file": "calendar.py",
+	"module": "python.datasources.calendar.calendar",
+	"description": "A month grid or an agenda of the next days, from iCal links, CalDAV servers and holidays. One page per view.",
+	"disabled": false,
+	"features": ["internet", "layer-foreground", "media-list"],
+	"router": {
+		"id": "calendar-router",
+		"class": "calendar_router",
+		"file": "api.py",
+		"module": "python.datasources.calendar.api"
+	},
+	"settings": {
+		"schema": {
+			"lookups": {
+				"country": { "url": "/api/datasource/calendar/lookups/countries" }
+			},
+			"properties": [
+				{
+					"name": "weekStart",
+					"type": "string",
+					"required": true,
+					"default": "monday",
+					"title": "Week Starts",
+					"description": "The first day of each week in the month grid.",
+					"enum": ["monday", "sunday"]
+				},
+				{
+					"name": "weekNumbers",
+					"type": "boolean",
+					"required": false,
+					"default": false,
+					"title": "Week Numbers",
+					"description": "A column of week numbers (ISO 8601) at the left of the month grid."
+				},
+				{
+					"name": "calendars",
+					"type": "array",
+					"required": false,
+					"default": [],
+					"title": "Calendars",
+					"description": "The calendars a task can show. A public address is best: most calendar apps offer one (in Google Calendar, \"Public address in iCal format\" or the secret one). Test opens the address and reads it.",
+					"items": {
+						"type": "object",
+						"key": "name",
+						"properties": [
+							{ "name": "name", "type": "string", "required": true, "title": "Name", "minLength": 1, "maxLength": 40 },
+							{ "name": "color", "type": "string", "format": "color", "required": false, "title": "Color" },
+							{ "name": "enabled", "type": "boolean", "required": false, "default": true, "title": "Enabled" },
+							{ "name": "source", "type": "string", "required": true, "default": "ical", "title": "Kind", "enum": ["ical", "caldav"] },
+							{ "name": "url", "type": "string", "format": "uri", "schemes": ["https", "http", "webcal"], "required": true, "title": "Address", "test": { "url": "/api/datasource/calendar/test" } },
+							{ "name": "auth", "type": "string", "required": true, "default": "none", "title": "Sign-in", "enum": ["none", "basic", "bearer"] },
+							{ "name": "username", "type": "string", "required": true, "title": "Username", "visibleIf": { "field": "auth", "const": "basic" } },
+							{ "name": "password", "type": "string", "required": true, "writeOnly": true, "title": "Password", "visibleIf": { "field": "auth", "const": "basic" } },
+							{ "name": "token", "type": "string", "required": true, "writeOnly": true, "title": "Token", "visibleIf": { "field": "auth", "const": "bearer" } }
+						]
+					}
+				},
+				{
+					"name": "holidays",
+					"type": "array",
+					"required": false,
+					"default": [],
+					"title": "Holidays",
+					"description": "Sets of public holidays, by country (and optionally a state or province code, such as CA or ENG).",
+					"items": {
+						"type": "object",
+						"key": "name",
+						"properties": [
+							{ "name": "name", "type": "string", "required": true, "title": "Name", "minLength": 1, "maxLength": 40 },
+							{ "name": "color", "type": "string", "format": "color", "required": false, "title": "Color" },
+							{ "name": "enabled", "type": "boolean", "required": false, "default": true, "title": "Enabled" },
+							{ "name": "country", "type": "string", "required": true, "title": "Country", "lookup": "country" },
+							{ "name": "subdivision", "type": "string", "required": false, "title": "Subdivision", "maxLength": 10 }
+						]
+					}
+				}
+			]
+		},
+		"default": {
+			"weekStart": "monday",
+			"weekNumbers": false,
+			"calendars": [],
+			"holidays": []
+		}
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+				"calendar": { "settings": "calendars", "value": "name" },
+				"holidaySet": { "settings": "holidays", "value": "name" }
+			},
+			"properties": [
+				{
+					"name": "views",
+					"type": "array",
+					"required": false,
+					"default": ["month"],
+					"title": "Views",
+					"description": "One page per view, in this order: the month, the coming weeks as continuous rows, the agenda. Two or three views make a slot of that many pages.",
+					"items": { "type": "string", "enum": ["month", "weeks", "agenda"] }
+				},
+				{
+					"name": "calendars",
+					"type": "array",
+					"required": false,
+					"default": [],
+					"title": "Calendars",
+					"lookup": "calendar",
+					"description": "Which calendars to show. None chosen: all that are enabled. Add calendars in the Calendar data source settings.",
+					"items": { "type": "string" }
+				},
+				{
+					"name": "holidaySets",
+					"type": "array",
+					"required": false,
+					"default": [],
+					"title": "Holidays",
+					"lookup": "holidaySet",
+					"description": "Which holiday sets to show. None chosen: all that are enabled.",
+					"items": { "type": "string" }
+				},
+				{
+					"name": "weeksAhead",
+					"type": "integer",
+					"required": true,
+					"default": 4,
+					"minimum": 0,
+					"maximum": 8,
+					"title": "Weeks Ahead",
+					"description": "How many weeks the weekly view shows after the current one.",
+					"visibleIf": { "field": "views", "contains": "weeks" }
+				},
+				{
+					"name": "agendaDays",
+					"type": "integer",
+					"required": true,
+					"default": 7,
+					"minimum": 1,
+					"maximum": 31,
+					"title": "Agenda Days",
+					"description": "How many days the agenda shows, today included.",
+					"visibleIf": { "field": "views", "contains": "agenda" }
+				},
+				{
+					"name": "fontSize",
+					"type": "string",
+					"required": true,
+					"default": "normal",
+					"title": "Text Size",
+					"enum": ["x-small", "small", "normal", "large", "x-large"]
+				},
+				{
+					"name": "title",
+					"type": "string",
+					"required": false,
+					"default": null,
+					"title": "Title",
+					"description": "The heading. Empty: the month's name, or Agenda.",
+					"maxLength": 60
+				}
+			]
+		}
+	}
+}

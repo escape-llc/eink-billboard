@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "feedparser==6.0.14",
     "fastapi>=0.115",
+    "holidays==0.106",
     "httpx>=0.28.1",
     "icalendar==7.3.0",
     "jinja2>=3.1",
