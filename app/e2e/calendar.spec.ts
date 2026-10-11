@@ -60,7 +60,9 @@ test("a calendar row shows the sign-in fields its choice needs, and its password
 	await expect(password).toHaveValue("********")
 	await rows.getByRole("textbox", { name: "Name 2", exact: true }).fill("Office")
 	await saveButton(page).click()
-	await expect(page.getByText("Settings saved successfully")).toBeVisible()
+	// the first save's message may still be up: the newest is this one's
+	await expect(page.getByText("Settings saved successfully").last()).toBeVisible()
+	await expect.poll(() => JSON.parse(fs.readFileSync(FILE, "utf8")).calendars[1].name).toBe("Office")
 	expect(JSON.parse(fs.readFileSync(FILE, "utf8")).calendars[0].password).toBe("hunter2")
 	watch.expectNone()
 })
