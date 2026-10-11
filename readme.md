@@ -265,6 +265,21 @@ By default it is named `.storage` and is by default ignored in `.gitignore`. As 
 
 # DEV Mode
 
+## Calendar Data Source
+A month grid, the coming weeks, and/or an agenda of the coming days, from the calendars kept in the Calendar data source's settings:
+* **iCal links** (`https`, `http` or `webcal`): most calendar apps publish one. Google Calendar has a "Public address in iCal format" (the calendar must be public) or a "Secret address in iCal format" (treat it as a password). A link that needs a sign-in can use Basic (username and password) or a Bearer token.
+* **CalDAV servers** (Nextcloud, Fastmail, iCloud with an app password, Radicale): one query for the days the page shows.
+* **Holidays** by country (and state or province), from the `holidays` package, which needs no internet.
+
+The settings also choose the first day of the week and whether the grid shows ISO week numbers. A task chooses the views, each a page of its slot, in this order:
+* **month:** the month's grid;
+* **weeks:** the current week and the next few (Weeks Ahead, default 4) as continuous rows across month ends. Every other month is tinted and each month is named on its first day;
+* **agenda:** a list of the coming days (Agenda Days, default 7).
+
+It also chooses which calendars and holiday sets to show (none chosen means all that are enabled).
+Each address has a Test button. Besides how many events are coming, it warns when a calendar **runs out**: when nothing in it repeats, it is empty after its last event. A season's fixture list is like this, and the address usually changes for the next season. The page says the same in its footer once that day is in view.
+Google and Microsoft accounts (sign-in) are planned.
+
 ## Storage Folder
 
 You must set up a separate `.storage` folder for the application to store its state.  See above for details.

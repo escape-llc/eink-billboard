@@ -373,10 +373,17 @@ const handleFormFieldEvent = (data:any) => {
 			flatNames(field.children ?? []).forEach(name => form.value?.setFieldValue(name, null))
 			const chosen = data.selected?.schema?.schema as SchemaType|undefined
 			field.children = formProperties(chosen, data.selected?.owner)
-			applyDefaults(field.children).forEach(([name, value]) => form.value?.setFieldValue(name, value))
+			// the new fields register with the form when they render: a value set before then is dropped (setFieldValue ignores an unknown field),
+			// so each default is also where a new field reads its first value, and is set again once the fields are there
+			const defaults = applyDefaults(field.children)
+			defaults.forEach(([name, value]) => {
+				localValues.value[name] = value
+				form.value?.setFieldValue(name, value)
+			})
 			currentResolver = createResolver(localProperties.value)
 			startLookups(chosen as SchemaType, field.children)
 			nextTick().then(_ => {
+				defaults.forEach(([name, value]) => form.value?.setFieldValue(name, value))
 				form.value?.validate();
 			})
 		}
