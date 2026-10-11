@@ -24,15 +24,18 @@ def _sized(font: FontType|None, size: int) -> FontType:
 	return font # a bitmap font has one size
 
 def wash_mask(picture: Image.Image, wash: float) -> tuple[Image.Image, int]:
-	"""The wash as a mask and its margin: `picture`'s alpha (the text), blurred and boosted so the halo is solid beside the letters and fades outward, times `wash`.
-	The blur is a tenth of the overlay's height (the zone's text size follows its height), so the halo scales with the text. The mask is `margin` pixels larger
-	than the picture on every side, so a halo that reaches past the box fades out there instead of being cut at its edge."""
-	radius = max(1.5, picture.height * 0.1)
-	margin = math.ceil(radius * 3)
+	"""The wash as a mask and its margin: the outline of what `picture` draws (its alpha, the text), grown a pixel or two and given a short Gaussian blur, times `wash`.
+	It hugs the letters: both the growth and the blur are small fractions of the overlay's height (the zone's text size follows its height), so the halo scales with the text.
+	The mask is `margin` pixels larger than the picture on every side, so a halo that reaches past the box fades out there instead of being cut at its edge."""
+	grow = max(1, round(picture.height * 0.02))
+	radius = max(1.0, picture.height * 0.03)
+	margin = math.ceil(grow + radius * 3)
 	padded = Image.new("L", (picture.width + 2 * margin, picture.height + 2 * margin), 0)
 	padded.paste(picture.getchannel("A"), (margin, margin))
+	outline = padded.filter(ImageFilter.MaxFilter(2 * grow + 1))
 	strength = min(max(wash, 0.0), 1.0)
-	return padded.filter(ImageFilter.GaussianBlur(radius)).point(lambda v: round(min(255, v * 3) * strength)), margin
+	# a gain of 2 keeps the halo solid right at the letters, where the blur alone would thin it to half
+	return outline.filter(ImageFilter.GaussianBlur(radius)).point(lambda v: round(min(255, v * 2) * strength)), margin
 
 type TextRun = tuple[str, tuple[int, ...]]
 
