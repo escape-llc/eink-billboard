@@ -21,6 +21,41 @@ test.beforeEach(async ({ page }) => {
 })
 
 const dialog = (page: Page) => page.getByRole("dialog", { name: "Edit task" })
+test("the scheduler fills the window and only its hours scroll", async ({ page }) => {
+	await page.setViewportSize({ width: 1280, height: 700 })
+	await page.goto("/#/schedule")
+	await expect(page.locator(".event").first()).toBeVisible()
+	const sizes = await page.evaluate(() => {
+		const area = document.querySelector(".router-view") as HTMLElement
+		const hours = document.querySelector(".events-panel-scroll") as HTMLElement
+		return { areaScrolls: area.scrollHeight > area.clientHeight + 1, hoursScroll: hours.scrollHeight > hours.clientHeight + 1,
+			pageScrolls: document.documentElement.scrollHeight > window.innerHeight + 1, bottom: hours.getBoundingClientRect().bottom, area: area.getBoundingClientRect().bottom }
+	})
+	expect(sizes.areaScrolls).toBe(false)
+	expect(sizes.pageScrolls).toBe(false)
+	expect(sizes.hoursScroll).toBe(true)
+	// the hours reach the bottom of the page area
+	expect(sizes.area - sizes.bottom).toBeLessThan(20)
+})
+
+test("the playlist editor fills the window: the page does not scroll, its panes do", async ({ page }) => {
+	await page.setViewportSize({ width: 1280, height: 420 })
+	await page.goto("/#/playlist")
+	await page.locator(".track-row").first().click()
+	await expect(page.getByText("Track Settings")).toBeVisible()
+	await expect(page.getByText("Slide Duration Minutes")).toBeVisible()
+	const sizes = await page.evaluate(() => {
+		const area = document.querySelector(".router-view") as HTMLElement
+		const editor = document.querySelector(".track-editor") as HTMLElement
+		return { areaScrolls: area.scrollHeight > area.clientHeight + 1, pageScrolls: document.documentElement.scrollHeight > window.innerHeight + 1,
+			editorScrolls: editor.scrollHeight > editor.clientHeight + 1, editorBottom: editor.getBoundingClientRect().bottom, areaBottom: area.getBoundingClientRect().bottom }
+	})
+	expect(sizes.areaScrolls).toBe(false)
+	expect(sizes.pageScrolls).toBe(false)
+	expect(sizes.editorScrolls).toBe(true)
+	expect(sizes.areaBottom - sizes.editorBottom).toBeLessThan(20)
+})
+
 async function openFirstQuarterHourTask(page: Page) {
 	await page.goto("/#/schedule")
 	await page.locator(".event").filter({ hasText: "Quarter-hour clock" }).first().click()
