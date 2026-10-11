@@ -63,3 +63,18 @@ test("the theme tab has a mock-up of a page in the theme's colors, fonts and siz
 	await expect.poll(size).toBeGreaterThan(before * 1.3)
 	watch.expectNone()
 })
+
+test("the page background is white unless it is changed, and black is dark mode", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "Theme" }).click()
+	const pageSwatch = page.locator(".page-swatch")
+	await expect.poll(() => pageSwatch.evaluate(e => getComputedStyle(e).backgroundColor)).toBe("rgb(255, 255, 255)")
+	await expect(page.getByTestId("mockup").locator(".mock-light")).toHaveCSS("background-color", "rgb(255, 255, 255)")
+	await page.getByRole("tabpanel").locator(".p-select").filter({ hasText: "White" }).first().click()
+	await expect(page.getByRole("option")).toHaveText(["White", "Tinted (the theme's light color)", "Black (dark mode)"])
+	await page.getByRole("option", { name: "Black (dark mode)" }).click()
+	await expect.poll(() => pageSwatch.evaluate(e => getComputedStyle(e).backgroundColor)).toBe("rgb(0, 0, 0)")
+	await expect(page.getByTestId("mockup").locator(".mock-light")).toHaveCSS("background-color", "rgb(0, 0, 0)")
+	watch.expectNone()
+})

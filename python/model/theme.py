@@ -9,7 +9,7 @@ A test renders one swatch per role in Chromium and compares it with `Palette`, s
 """
 import colorsys
 import logging
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from typing import Any, Mapping
 
 from .configuration_manager import FONT_FAMILIES, SettingsConfigurationManager
@@ -27,7 +27,10 @@ SCHEMES: dict[str, tuple[float, float]] = {
 }
 MONOCHROME_SATURATION = 60.0
 # the factory defaults (python/storage/schemas/theme.json)
-DEFAULT_SETTINGS: Mapping[str, Any] = { "theme": "complementary", "hue": 220, "saturation": 80, "lightness": 50, "fontBody": "Jost", "fontHeading": None, "fontScale": 1.0 }
+DEFAULT_SETTINGS: Mapping[str, Any] = { "theme": "complementary", "hue": 220, "saturation": 80, "lightness": 50, "fontBody": "Jost", "fontHeading": None, "fontScale": 1.0, "background": "white" }
+# the page behind everything: plain white (the crispest on a color e-ink panel, whose palette is a few pure colors), the theme's light tint, or black (dark mode:
+# every light tone and dark tone trade places, so text reads light on dark and the panels of a page are dark)
+BACKGROUNDS = ("white", "tinted", "black")
 # the text size of every page is multiplied by `fontScale`, within these limits (a page is laid out to fit text a little larger or smaller, not much more)
 FONT_SCALE_MIN = 0.8
 FONT_SCALE_MAX = 1.4
@@ -68,6 +71,7 @@ class ThemeInputs:
 	font_body: str = "Jost"
 	font_heading: str = "Jost"
 	font_scale: float = 1.0
+	background: str = "white"
 
 @dataclass(frozen=True, slots=True)
 class Palette:
@@ -78,6 +82,7 @@ class Palette:
 	text_primary_light: Color
 	text_secondary_1_light: Color
 	text_secondary_2_light: Color
+	bg_page: Color
 	bg_primary: Color
 	bg_secondary_1: Color
 	bg_secondary_2: Color
@@ -130,7 +135,13 @@ def inputs_from(settings: Mapping[str, Any]|None) -> ThemeInputs:
 	scale = settings.get("fontScale")
 	if not (isinstance(scale, (int, float)) and not isinstance(scale, bool) and FONT_SCALE_MIN <= scale <= FONT_SCALE_MAX):
 		scale = float(DEFAULT_SETTINGS["fontScale"])
-	return ThemeInputs(scheme, hue % 360, saturation, h1, h2, lightness, font_body=str(body), font_heading=str(heading), font_scale=float(scale))
+	background = settings.get("background")
+	if background not in BACKGROUNDS:
+		background = str(DEFAULT_SETTINGS["background"])
+	inputs = ThemeInputs(scheme, hue % 360, saturation, h1, h2, lightness, font_body=str(body), font_heading=str(heading), font_scale=float(scale), background=str(background))
+	if background == "black":
+		inputs = replace(inputs, l_text_dark=L_TEXT_LIGHT, l_text_light=L_TEXT_DARK, l_bg_light=L_BG_DARK, l_bg_dark=L_BG_LIGHT)
+	return inputs
 
 def palette_of(inputs: ThemeInputs) -> Palette:
 	hues = { "primary": inputs.hue, "secondary_1": inputs.hue + inputs.h1_offset, "secondary_2": inputs.hue + inputs.h2_offset }
@@ -143,6 +154,7 @@ def palette_of(inputs: ThemeInputs) -> Palette:
 		text_primary_light=tone("primary", inputs.l_text_light),
 		text_secondary_1_light=tone("secondary_1", inputs.l_text_light),
 		text_secondary_2_light=tone("secondary_2", inputs.l_text_light),
+		bg_page=Color(0, 0, 100) if inputs.background == "white" else Color(0, 0, 0) if inputs.background == "black" else tone("primary", inputs.l_bg_light),
 		bg_primary=tone("primary", inputs.l_bg_light),
 		bg_secondary_1=tone("secondary_1", inputs.l_bg_light),
 		bg_secondary_2=tone("secondary_2", inputs.l_bg_light),
@@ -166,6 +178,8 @@ def css_vars(inputs: ThemeInputs) -> str:
 		"--l-text-dark": f"{_num(inputs.l_text_dark)}%",
 		"--l-text-light": f"{_num(inputs.l_text_light)}%",
 		# family names are ours (FONT_FAMILIES, plain identifiers), so they need no quotes: the page escapes quotes
+		# the page behind everything (the class `bg-page`)
+		"--page-bg": { "white": "hsl(0 0% 100%)", "black": "hsl(0 0% 0%)" }.get(inputs.background, "hsl(from var(--theme-base) h s var(--l-bg-light))"),
 		"--font-body": inputs.font_body,
 		"--font-heading": inputs.font_heading,
 		"--font-scale": _num(inputs.font_scale),

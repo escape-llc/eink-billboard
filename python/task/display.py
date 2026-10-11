@@ -248,7 +248,7 @@ class Display(DispatcherTask):
 					taskq.task_done()
 					# a page with no background under it shows the theme's color, read now so a theme change applies
 					if self.cm is not None:
-						compsitor.fill = current_palette(self.cm.settings_manager()).bg_primary.rgb
+						compsitor.fill = current_palette(self.cm.settings_manager()).bg_page.rgb
 					package = compsitor.commit()
 					if package is None:
 						self.logger.debug(f"Compositor no changes detected")

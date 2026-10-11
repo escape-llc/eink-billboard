@@ -45,6 +45,11 @@
 	color: hsl(from var(--theme-base) calc(h + var(--theme-h2-offset)) s var(--l-text-light));
 }
 
+/* The page behind everything: white, the theme's tint or black (python/model/theme.py writes --page-bg) */
+.bg-page {
+	background-color: var(--page-bg, hsl(0 0% 100%));
+}
+
 /* Background colors (light) */
 .bg-primary {
 	background-color: hsl(from var(--theme-base) h s var(--l-bg-light));
