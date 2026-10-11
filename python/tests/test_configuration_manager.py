@@ -442,3 +442,14 @@ class TestWatchLocking(unittest.TestCase):
 				release.set()
 				t1.join(5)
 				t2.join(5)
+
+class TestNeedsSeeding(unittest.TestCase):
+	"""A container's storage is a mounted volume, which exists (empty) on the first start: that must be seeded, anything else never."""
+	def test_missing_and_empty_folders_are_seeded_and_anything_else_is_not(self):
+		with tempfile.TemporaryDirectory() as tmp:
+			self.assertTrue(ConfigurationManager.needs_seeding(os.path.join(tmp, "missing")))
+			self.assertTrue(ConfigurationManager.needs_seeding(tmp), "an empty folder (a new volume)")
+			with open(os.path.join(tmp, "settings.json"), "w") as f:
+				f.write("{}")
+			self.assertFalse(ConfigurationManager.needs_seeding(tmp), "somebody's storage")
+			self.assertFalse(ConfigurationManager.needs_seeding(os.path.join(tmp, "settings.json")), "a file is not ours to replace")

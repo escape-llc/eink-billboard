@@ -422,6 +422,14 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		self._lock.release()
 		return False
 
+	@staticmethod
+	def needs_seeding(path: str) -> bool:
+		"""
+		True when there is nothing at `path` to keep: it does not exist, or it is an empty folder. A container's storage is a mounted volume,
+		which exists from the start, so "missing" alone would never seed it. A folder with anything in it is somebody's storage: never reset.
+		"""
+		return not os.path.exists(path) or (os.path.isdir(path) and not os.listdir(path))
+
 	def hard_reset(self):
 		"""Deletes all storage folders and recreates them."""
 		with self._lock:

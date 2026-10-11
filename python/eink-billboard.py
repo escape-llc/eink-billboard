@@ -89,9 +89,9 @@ def run_application(args: argparse.Namespace) -> None:
 		xapp.start()
 		force_reset: bool = False
 		if storage is not None:
-			force_reset = not os.path.exists(storage)
+			force_reset = ConfigurationManager.needs_seeding(storage)
 			if force_reset:
-				logger.info("No storage folder detected, force_reset")
+				logger.info("No storage detected (missing or empty folder), force_reset")
 		else:
 			logger.info("No storage folder specified, force_reset check bypassed")
 		# TODO pull force_reset logic into host application (this code)
