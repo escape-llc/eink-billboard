@@ -1,5 +1,5 @@
 <template>
-	<div class="flex flex-column" style="height:80vh;width:100%;justify-items: stretch;align-items: stretch;">
+	<div class="flex flex-column scheduler" style="width:100%;justify-items: stretch;align-items: stretch;">
 	<Toolbar class="p-0">
 		<template #start>
 			<div style="font-size:150%">Scheduler</div>
@@ -493,8 +493,13 @@ const handleSubmit = () => {
 }
 </script>
 <style scoped>
+/* the page area is the window under the toolbar: the calendar takes what the toolbar leaves and only its hours scroll (one scrollbar) */
+.scheduler {
+	overflow: hidden;
+}
 .calendar {
-	height: calc(var(--calendar-height));
+	flex: 1 1 0;
+	min-height: 0;
 }
 .day-header {
 	display: flex;
@@ -562,10 +567,5 @@ const handleSubmit = () => {
 	vertical-align: middle;
 	margin:0;
 	padding:0;
-}
-</style>
-<style>
-:root {
-	--calendar-height: 800px;
 }
 </style>

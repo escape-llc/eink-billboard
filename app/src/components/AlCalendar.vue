@@ -147,7 +147,9 @@ const eventsOf = (key: string): EventCellInfo[] => cellsByDay.value.get(key) ?? 
 .scheduler-container {
 	display: flex;
 	flex-direction: column;
-	margin: auto;
+	margin: 0 auto;
+	/* in a box of a set height the hours scroll inside it */
+	min-height: 0;
 }
 .grid-horizontal {
 	grid-template-columns: var(--time-column-width) repeat(var(--date-row-columns), 1fr);
@@ -163,6 +165,8 @@ const eventsOf = (key: string): EventCellInfo[] => cellsByDay.value.get(key) ?? 
 }
 .events-panel-scroll {
 	grid-row: 2;
+	flex: 1 1 0;
+	min-height: 0;
 	overflow-y: auto;
 	scrollbar-gutter: stable;
 }

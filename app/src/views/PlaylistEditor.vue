@@ -478,14 +478,20 @@ onMounted(() => {
 .label-panel {
 	width: 20rem;
 }
+/* the page area is the window under the toolbar: the track list and the track's form each scroll inside it, and the page itself does not */
 .playlist-editor {
 	padding: 0.5rem;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
 }
 
 .layout {
 	display: flex;
 	gap: .5rem;
 	margin-top: 0.5rem;
+	flex: 1 1 0;
+	min-height: 0;
 }
 
 .track-list {
@@ -494,7 +500,7 @@ onMounted(() => {
 	border-radius: 4px;
 	padding: 0.5rem;
 	background: #fafafa;
-	max-height: 70vh;
+	flex: none;
 	overflow: auto;
 }
 
@@ -556,7 +562,9 @@ onMounted(() => {
 	border: 1px solid #eee;
 	border-radius: 4px;
 	padding: 0.75rem;
-	min-height: 200px;
+	min-height: 0;
+	min-width: 0;
+	overflow: auto;
 	background: #fff;
 }
 
