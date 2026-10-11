@@ -28,6 +28,14 @@ z.config({
 })
 
 // "" and a value the document does not have are both "not set", which is how an optional field is stored (as the server reads a missing one)
+// `format: "uri"`: the same expression as `_URI` in python/web/documents.py
+const URI = /^([A-Za-z][A-Za-z0-9+.\-]*):\/\/([^/?#\s]+)(\S*)$/
+const DEFAULT_SCHEMES = ["http", "https"]
+export const isUri = (value: string, schemes: readonly string[] = DEFAULT_SCHEMES): boolean => {
+	const found = URI.exec(value)
+	return found !== null && schemes.includes(found[1]!.toLowerCase())
+}
+
 const emptyToNull = (val: unknown) => (val === "" || val === undefined ? null : val)
 
 /** Optional fields hold `null` when unset (that is how the server stores them), so null is valid unless the field is required. */
@@ -54,6 +62,10 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 			// the length and pattern rules apply to a value that is there: "" is unset, which `required` handles
 			if (px.minLength !== undefined) base = base.refine((v: unknown) => v === "" || (v as string).length >= px.minLength!, { error: messages.atLeast(px.minLength) })
 			if (px.maxLength !== undefined) base = base.refine((v: unknown) => (v as string).length <= px.maxLength!, { error: messages.atMost(px.maxLength) })
+			if (px.format === "uri") {
+				const schemes = px.schemes
+				base = base.refine((v: unknown) => v === "" || isUri(v as string, schemes), { error: messages.url })
+			}
 			if (px.pattern) {
 				const re = new RegExp(px.pattern)
 				base = base.refine((v: unknown) => v === "" || re.test(v as string), { error: messages.format })

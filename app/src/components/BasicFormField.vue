@@ -22,7 +22,7 @@
 					<!-- Registers the field with the form and nothing more: the PrimeVue inputs of the rows would each take the whole field's value if they were inside it.
 						The rows are edited outside it, and the form is told the new list. -->
 					<FormField :name="field.name" :validateOnValueUpdate="true" />
-					<ArrayField :field="field" :modelValue="fieldState.value" :errors="fieldState.errors"
+					<ArrayField :field="field" :baseUrl="baseUrl" :modelValue="fieldState.value" :errors="fieldState.errors"
 						@update:modelValue="(v: Record<string, unknown>[]) => emits('form-field-event', { type: 'set-value', field, value: v })" />
 				</InputGroupAddon>
 			</template>
@@ -66,11 +66,13 @@
 				</InputGroupAddon>
 			</template>
 			<template v-else>
-				<InputText style="flex-grow:1" :name="field.name" :id="field.name" :invalid="isInvalid" size="small" :type="field.writeOnly ? 'password' : 'text'"
+				<InputText style="flex-grow:1" :name="field.name" :id="field.name" :invalid="isInvalid" size="small" :type="field.writeOnly ? 'password' : field.format === 'uri' ? 'url' : 'text'"
 					:autocomplete="field.writeOnly ? 'new-password' : undefined"
 					:placeholder="field.title" fluid />
 			</template>
 		</InputGroup>
+		<TestUrlButton v-if="field.test?.url && field.type === 'string'" :route="field.test.url" :baseUrl="baseUrl ?? ''" :value="fieldState.value"
+			:label="field.title" :disabled="isInvalid" />
 		<slot name="message" v-bind="{ field, fieldState }">
 			<Message v-if="isInvalid && errorMessage"
 				severity="error" size="small" variant="simple">{{ errorMessage }}</Message>
@@ -84,6 +86,7 @@
 				:field="child"
 				:formContext="formContext"
 				:fieldNameWidth="fieldNameWidth"
+				:baseUrl="baseUrl"
 				@form-field-event="(data: FieldEventData) => emits('form-field-event', data)"
 			>
 				<!-- Forward all slots to descendants -->
@@ -99,6 +102,7 @@ import { Message, InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNum
 import FormField from '@primevue/forms/formfield';
 import LeafletPicker from './LeafletPicker.vue';
 import ArrayField from './ArrayField.vue';
+import TestUrlButton from './TestUrlButton.vue';
 import { isoToDate, dateToIso } from './FormDates';
 import { isVisible } from './FormVisibility';
 import { computed, toRaw } from 'vue';
@@ -107,6 +111,8 @@ export interface PropsType {
 	// pass the v-slot="$form" to this prop
 	formContext: any
 	fieldNameWidth?: string
+	/** where the API is, for a field's Test button */
+	baseUrl?: string
 }
 export interface SchemaChangeData {
 	type: 'schema-change'

@@ -11,8 +11,12 @@ export type FieldDef = {
 	name: string
 	title: string
 	type: "string" | "boolean" | "number" | "integer" | "location" | "schema" | "array"
-	/** of a string: `date` is a `YYYY-MM-DD` day (a date picker) */
-	format?: "date"
+	/** of a string: `date` is a `YYYY-MM-DD` day (a date picker), `uri` an address with a scheme and a host */
+	format?: "date" | "uri"
+	/** of a `uri`: the schemes it may use (default http and https) */
+	schemes?: string[]
+	/** of a string: a check the server runs on the value, behind a Test button (`url` is the route, which gets `{ value }` and answers `{ ok, message }`) */
+	test?: { url: string }
 	required: boolean
 	/** what a new item starts with (null or absent: nothing) */
 	default?: unknown

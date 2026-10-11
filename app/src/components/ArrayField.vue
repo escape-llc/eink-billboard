@@ -15,10 +15,12 @@
 					:min="f.minimum" :max="f.maximum" :step="f.step" :invalid="!!cellError(index, f.name)"
 					:minFractionDigits="f.type === 'integer' ? 0 : f.minFractionDigits" :maxFractionDigits="f.type === 'integer' ? 0 : f.maxFractionDigits"
 					@update:modelValue="(v: number|null) => change(index, f.name, v)" />
-				<InputText v-else size="small" fluid :modelValue="text(row, f.name)" :placeholder="f.title" :aria-label="`${f.title} ${index + 1}`"
+				<InputText v-else size="small" fluid :modelValue="text(row, f.name)" :placeholder="f.title" :aria-label="`${f.title} ${index + 1}`" :type="f.format === 'uri' ? 'url' : 'text'"
 					:invalid="!!cellError(index, f.name)"
 					@update:modelValue="(v: string|undefined) => change(index, f.name, v === '' || v === undefined ? null : v)" />
 				<Message v-if="cellError(index, f.name)" severity="error" size="small" variant="simple">{{ cellError(index, f.name) }}</Message>
+				<TestUrlButton v-if="f.test?.url && baseUrl !== undefined" :route="f.test.url" :baseUrl="baseUrl" :value="row[f.name]" :label="`${f.title} ${index + 1}`"
+					:disabled="!!cellError(index, f.name)" />
 			</div>
 			<div class="array-buttons">
 				<Button icon="pi pi-arrow-up" size="small" class="p-button-text" :aria-label="`Move ${index + 1} up`" :disabled="index === 0" @click="move(index, -1)" />
@@ -36,11 +38,14 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { Button, InputNumber, InputText, Message, Select, ToggleSwitch } from "primevue"
+import TestUrlButton from "./TestUrlButton.vue"
 
 type Row = Record<string, unknown>
 export interface PropsType {
 	/** the array property (`items.properties` are the fields of a row) */
 	field: any
+	/** where the API is, for a field's Test button */
+	baseUrl?: string
 	modelValue?: Row[] | null
 	/** the form's errors of this field: `path` (after the field's name) names the row and field of a problem; none means the list as a whole */
 	errors?: { message?: string, path?: string[] }[]

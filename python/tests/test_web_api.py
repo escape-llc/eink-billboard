@@ -220,7 +220,7 @@ class TestDescriptors(unittest.TestCase):
 class TestDescriptorRules(unittest.TestCase):
 	"""Every descriptor in the repository: names the form can hold, types both validators know, defaults that pass their own rules."""
 	KNOWN_TYPES = ("string", "boolean", "number", "integer", "location", "schema", "array", "header")
-	FORMATS = ("date",)
+	FORMATS = ("date", "uri")
 	# names the descriptors used before the JSON Schema ones; nothing accepts them any more
 	REMOVED = { "label": "title", "min": "minimum", "max": "maximum", "secret": "writeOnly" }
 	REMOVED_PREDICATE = { "eq": "const", "ne": "not + const", "in": "enum" }
@@ -252,6 +252,13 @@ class TestDescriptorRules(unittest.TestCase):
 				for old, new in self.REMOVED.items():
 					self.assertNotIn(old, prop, f"`{old}` is now `{new}`")
 				self.assertFalse(self._predicate_keys(prop.get("visibleIf")) & set(self.REMOVED_PREDICATE), "a visibleIf uses a removed operator")
+				if "schemes" in prop:
+					self.assertEqual(prop.get("format"), "uri", "`schemes` belongs to a `uri`")
+					self.assertTrue(prop["schemes"] and all(isinstance(x, str) and x for x in prop["schemes"]))
+				if "test" in prop:
+					# a check the server runs on the value (the Test button): a string field, and a route of our own API
+					self.assertEqual(prop.get("type"), "string")
+					self.assertTrue(isinstance(prop["test"].get("url"), str) and prop["test"]["url"].startswith("/api/"), "`test.url` is a route under /api/")
 				if "pattern" in prop:
 					# both JavaScript and Python read it: keep to what they share (no named groups, lookbehind or inline flags)
 					re.compile(prop["pattern"])

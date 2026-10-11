@@ -903,6 +903,146 @@
 				"2",
 				"name"
 			]
+		},
+		{
+			"name": "uri, http",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "uri"
+			},
+			"value": "http://example.test/feed.xml",
+			"error": null
+		},
+		{
+			"name": "uri, https with port and query",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "uri"
+			},
+			"value": "https://example.test:8443/a?b=c#d",
+			"error": null
+		},
+		{
+			"name": "uri, scheme in capitals",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "uri"
+			},
+			"value": "HTTP://EXAMPLE.TEST",
+			"error": null
+		},
+		{
+			"name": "uri, ipv6 host",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "uri"
+			},
+			"value": "http://[::1]:8080/",
+			"error": null
+		},
+		{
+			"name": "uri, empty is unset",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "uri"
+			},
+			"value": "",
+			"error": null
+		},
+		{
+			"name": "uri, no scheme",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "uri"
+			},
+			"value": "example.test/feed",
+			"error": "Enter a valid URL"
+		},
+		{
+			"name": "uri, no host",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "uri"
+			},
+			"value": "http:///feed",
+			"error": "Enter a valid URL"
+		},
+		{
+			"name": "uri, a space",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "uri"
+			},
+			"value": "https://example.test/a b",
+			"error": "Enter a valid URL"
+		},
+		{
+			"name": "uri, a scheme that is not allowed by default",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "uri"
+			},
+			"value": "ftp://example.test/f",
+			"error": "Enter a valid URL"
+		},
+		{
+			"name": "uri, schemes widen it",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "uri",
+				"schemes": [
+					"http",
+					"https",
+					"ftp"
+				]
+			},
+			"value": "ftp://example.test/f",
+			"error": null
+		},
+		{
+			"name": "uri, schemes narrow it",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "uri",
+				"schemes": [
+					"https"
+				]
+			},
+			"value": "http://example.test/f",
+			"error": "Enter a valid URL"
 		}
 	]
 }

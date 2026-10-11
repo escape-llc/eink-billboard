@@ -30,9 +30,10 @@ def _add_visibility_fields(target: str) -> None:
 	schema["schema"]["properties"] += [
 		{ "name": "e2eAdvanced", "type": "boolean", "title": "E2E Advanced", "required": False },
 		{ "name": "e2eDetail", "type": "string", "title": "E2E Detail", "required": True, "visibleIf": { "field": "e2eAdvanced", "const": True } },
+		{ "name": "e2eUrl", "type": "string", "format": "uri", "title": "E2E URL", "required": False, "test": { "url": "/api/e2e/test-url" } },
 		{ "name": "e2eFeeds", "type": "array", "title": "E2E Feeds", "required": False, "maxItems": 3, "items": { "type": "object", "key": "name", "properties": [
 			{ "name": "name", "type": "string", "title": "Name", "required": True },
-			{ "name": "url", "type": "string", "title": "URL", "required": False, "pattern": "^https?://" },
+			{ "name": "url", "type": "string", "format": "uri", "title": "URL", "required": False, "test": { "url": "/api/e2e/test-url" } },
 		] } },
 	]
 	with open(schema_file, "w", encoding="utf-8", newline="\n") as f:
