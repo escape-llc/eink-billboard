@@ -105,7 +105,27 @@ def _wikimedia_image(request: httpx.Request) -> httpx.Response | None:
 		return _image(1280, 853, request.url.path.rsplit("/", 1)[-1], "JPEG")
 	return None
 
-ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image]
+# invented feeds for the RSS Feed data source: URL (host, path) -> fixture file; "/page" answers 200 with HTML (a cookie wall), which is no feed
+RSS_FEEDS = {
+	("news.example.test", "/feed.xml"): "rss-news.xml",
+	("notes.example.test", "/atom.xml"): "rss-atom.xml",
+}
+
+def _rss_feed(request: httpx.Request) -> httpx.Response | None:
+	if request.url.host == "news.example.test" and request.url.path == "/page":
+		return httpx.Response(200, text="<html><body>Please accept cookies</body></html>", headers={ "Content-Type": "text/html" })
+	name = RSS_FEEDS.get((request.url.host, request.url.path))
+	if name is None:
+		return None
+	return httpx.Response(200, text=fixture_text(name), headers={ "Content-Type": "application/xml" })
+
+def _rss_image(request: httpx.Request) -> httpx.Response | None:
+	path = request.url.path.lower()
+	if request.url.host == "img.example.test" and path.endswith((".png", ".jpg", ".gif")):
+		return _image(640, 360, path.rsplit("/", 1)[-1], "JPEG" if path.endswith(".jpg") else "PNG")
+	return None
+
+ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _rss_feed, _rss_image]
 
 def install() -> FakeInternet | None:
 	"""Make every `AsyncHttpWorkerPool` talk to the fake (unless EINK_TEST_LIVE is set)."""

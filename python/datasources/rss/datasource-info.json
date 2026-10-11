@@ -1,0 +1,80 @@
+{
+	"id": "rss",
+	"name": "RSS Feed",
+	"version": "0.0.1",
+	"class": "RssAsync",
+	"file": "rss.py",
+	"module": "python.datasources.rss.rss",
+	"description": "The stories of an RSS or Atom feed, one page per story, newest first.",
+	"disabled": false,
+	"features": ["internet", "layer-foreground", "media-list"],
+	"settings": {
+		"schema": {
+			"properties": [
+				{
+					"name": "feeds",
+					"type": "array",
+					"required": false,
+					"default": [],
+					"title": "Feeds",
+					"description": "The feeds a task can show. A task picks one by its name. Only http and https addresses.",
+					"items": {
+						"type": "object",
+						"key": "name",
+						"properties": [
+							{ "name": "name", "type": "string", "required": true, "title": "Name", "minLength": 1 },
+							{ "name": "url", "type": "string", "required": true, "title": "Feed URL", "pattern": "^https?://\\S+$" }
+						]
+					}
+				}
+			]
+		},
+		"default": {
+			"feeds": []
+		}
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+				"feed": { "settings": "feeds", "value": "name" }
+			},
+			"properties": [
+				{
+					"name": "feed",
+					"type": "string",
+					"required": true,
+					"default": null,
+					"lookup": "feed",
+					"title": "Feed",
+					"description": "Which feed to show. Add feeds in the RSS Feed data source settings."
+				},
+				{
+					"name": "title",
+					"type": "string",
+					"required": false,
+					"default": null,
+					"title": "Title",
+					"description": "The heading above each story. Empty: the feed's name.",
+					"maxLength": 80
+				},
+				{
+					"name": "includeImages",
+					"type": "boolean",
+					"required": false,
+					"default": false,
+					"title": "Include Images",
+					"description": "Show a story's picture when the feed has one."
+				},
+				{
+					"name": "fontSize",
+					"type": "string",
+					"required": true,
+					"default": "normal",
+					"title": "Text Size",
+					"description": "The size of the text.",
+					"enum": ["x-small", "small", "normal", "large", "x-large"]
+				}
+			]
+		}
+	}
+}
