@@ -54,6 +54,13 @@
 						<div class="swatch-label">Secondary 2</div>
 						<div class="swatch" :style="`background-color:hsl(${(previewHue + 120) % 360},${previewSaturation}%,${previewLightness}%)`"></div>
 					</div>
+					<h2>Theme Typography</h2>
+					<!-- the fonts are the ones the device draws with (served by /api/fonts), so the sample is what the pages will look like -->
+					<component :is="'style'">{{ fontFaces }}</component>
+					<div class="type-sample" data-testid="type-sample" :style="{ fontFamily: fontStack(previewFontBody), fontSize: `${previewFontScale}em` }">
+						<div class="type-heading" :style="{ fontFamily: fontStack(previewFontHeading || previewFontBody) }">The quick brown fox</div>
+						<div>Jumps over the lazy dog, 0123456789</div>
+					</div>
 				</div>
 			</TabPanel>
 			<TabPanel value="3">
@@ -186,6 +193,14 @@ const settingsDisplay = ref<any>(undefined)
 const previewHue = ref(0)
 const previewSaturation = ref(100)
 const previewLightness = ref(50)
+const previewFontBody = ref("Jost")
+const previewFontHeading = ref<string|null>(null)
+const previewFontScale = ref(1)
+// the families the device ships, loaded under names of their own so they cannot be mistaken for a font of the computer
+const FONTS = [["Jost", ["normal", "bold"]], ["Napoli", ["normal"]], ["Dogica", ["normal", "bold"]], ["DS-Digital", ["normal"]]] as const
+const fontFaces = FONTS.flatMap(([family, weights]) => weights.map(weight =>
+	`@font-face { font-family: "eink-${family}"; font-weight: ${weight}; src: url("${API_URL}api/fonts/${family}?weight=${weight}") format("truetype"); }`)).join(" ")
+const fontStack = (family: string) => `"eink-${family}", sans-serif`
 
 const plugins = ref([])
 const dataSources = ref([])
@@ -305,6 +320,15 @@ const handleThemeSettings = (data:any) => {
 	if("lightness" in data) {
 		previewLightness.value = data.lightness
 	}
+	if("fontBody" in data && typeof data.fontBody === "string") {
+		previewFontBody.value = data.fontBody
+	}
+	if("fontHeading" in data) {
+		previewFontHeading.value = typeof data.fontHeading === "string" ? data.fontHeading : null
+	}
+	if(typeof data.fontScale === "number") {
+		previewFontScale.value = data.fontScale
+	}
 }
 const handleValidate = (e: ValidateEventData) => {
 	console.log("validate", e)
@@ -333,6 +357,15 @@ const handleThemeValidate = (e: ValidateEventData) => {
 		}
 		if("lightness" in data) {
 			previewLightness.value = data.lightness
+		}
+		if("fontBody" in data && typeof data.fontBody === "string") {
+			previewFontBody.value = data.fontBody
+		}
+		if("fontHeading" in data) {
+			previewFontHeading.value = typeof data.fontHeading === "string" ? data.fontHeading : null
+		}
+		if(typeof data.fontScale === "number") {
+			previewFontScale.value = data.fontScale
 		}
 	}
 }
@@ -364,5 +397,16 @@ const handleThemeValidate = (e: ValidateEventData) => {
 .swatch {
 	width: 3rem;
 	height: 3rem;
+}
+.type-sample {
+	margin: .5rem auto;
+	max-width: 36rem;
+	padding: .75rem 1rem;
+	border: 1px solid var(--p-content-border-color);
+	border-radius: 4px;
+}
+.type-heading {
+	font-size: 1.6em;
+	font-weight: bold;
 }
 </style>

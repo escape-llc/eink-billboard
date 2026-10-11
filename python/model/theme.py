@@ -12,7 +12,7 @@ import logging
 from dataclasses import dataclass, fields
 from typing import Any, Mapping
 
-from .configuration_manager import SettingsConfigurationManager
+from .configuration_manager import FONT_FAMILIES, SettingsConfigurationManager
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,10 @@ SCHEMES: dict[str, tuple[float, float]] = {
 }
 MONOCHROME_SATURATION = 60.0
 # the factory defaults (python/storage/schemas/theme.json)
-DEFAULT_SETTINGS: Mapping[str, Any] = { "theme": "complementary", "hue": 220, "saturation": 80, "lightness": 50 }
+DEFAULT_SETTINGS: Mapping[str, Any] = { "theme": "complementary", "hue": 220, "saturation": 80, "lightness": 50, "fontBody": "Jost", "fontHeading": None, "fontScale": 1.0 }
+# the text size of every page is multiplied by `fontScale`, within these limits (a page is laid out to fit text a little larger or smaller, not much more)
+FONT_SCALE_MIN = 0.8
+FONT_SCALE_MAX = 1.4
 # lightness of each tone, in percent: fixed for contrast, except the accent, which the setting moves
 L_BG_LIGHT = 80.0
 L_BG_DARK = 20.0
@@ -61,6 +64,10 @@ class ThemeInputs:
 	l_bg_dark: float = L_BG_DARK
 	l_text_dark: float = L_TEXT_DARK
 	l_text_light: float = L_TEXT_LIGHT
+	# the typography: families we ship (FONT_FAMILIES), and a multiplier for text sizes
+	font_body: str = "Jost"
+	font_heading: str = "Jost"
+	font_scale: float = 1.0
 
 @dataclass(frozen=True, slots=True)
 class Palette:
@@ -111,7 +118,19 @@ def inputs_from(settings: Mapping[str, Any]|None) -> ThemeInputs:
 	if scheme == "monochrome":
 		saturation = MONOCHROME_SATURATION
 	h1, h2 = SCHEMES[scheme]
-	return ThemeInputs(scheme, hue % 360, saturation, h1, h2, lightness)
+	body = settings.get("fontBody")
+	if body not in FONT_FAMILIES:
+		if body is not None:
+			logger.warning("Theme settings: the body font is not one we have; using the default")
+		body = str(DEFAULT_SETTINGS["fontBody"])
+	heading = settings.get("fontHeading")
+	if heading not in FONT_FAMILIES:
+		# unset: the headings wear the body font
+		heading = body
+	scale = settings.get("fontScale")
+	if not (isinstance(scale, (int, float)) and not isinstance(scale, bool) and FONT_SCALE_MIN <= scale <= FONT_SCALE_MAX):
+		scale = float(DEFAULT_SETTINGS["fontScale"])
+	return ThemeInputs(scheme, hue % 360, saturation, h1, h2, lightness, font_body=str(body), font_heading=str(heading), font_scale=float(scale))
 
 def palette_of(inputs: ThemeInputs) -> Palette:
 	hues = { "primary": inputs.hue, "secondary_1": inputs.hue + inputs.h1_offset, "secondary_2": inputs.hue + inputs.h2_offset }
@@ -146,6 +165,10 @@ def css_vars(inputs: ThemeInputs) -> str:
 		"--l-bg-dark": f"{_num(inputs.l_bg_dark)}%",
 		"--l-text-dark": f"{_num(inputs.l_text_dark)}%",
 		"--l-text-light": f"{_num(inputs.l_text_light)}%",
+		# family names are ours (FONT_FAMILIES, plain identifiers), so they need no quotes: the page escapes quotes
+		"--font-body": inputs.font_body,
+		"--font-heading": inputs.font_heading,
+		"--font-scale": _num(inputs.font_scale),
 	}
 	return " ".join(f"{name}: {value};" for name, value in values.items())
 
@@ -161,6 +184,20 @@ def current_inputs(scm: SettingsConfigurationManager|None) -> ThemeInputs:
 		logger.warning(f"Theme settings could not be read ({type(e).__name__}); using the default theme")
 		return DEFAULT_INPUTS
 	return inputs_from(settings)
+
+@dataclass(frozen=True, slots=True)
+class Typography:
+	"""What PIL code draws text with: the family names (as `StaticConfigurationManager.get_font` takes them) and the size multiplier."""
+	body: str
+	heading: str
+	scale: float
+
+def typography_of(inputs: ThemeInputs) -> Typography:
+	return Typography(inputs.font_body, inputs.font_heading, inputs.font_scale)
+
+def current_typography(scm: SettingsConfigurationManager|None) -> Typography:
+	"""The device's fonts now, read on every call like the palette."""
+	return typography_of(current_inputs(scm))
 
 def current_palette(scm: SettingsConfigurationManager|None) -> Palette:
 	return palette_of(current_inputs(scm))

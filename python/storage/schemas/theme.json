@@ -2,6 +2,14 @@
 	"_schema": "urn:inky:storage:schema:theme:1",
 	"schema": {
 		"lookups": {
+			"font": {
+				"items": [
+					{"name": "Jost", "value": "Jost" },
+					{"name": "Napoli", "value": "Napoli" },
+					{"name": "Dogica (pixel)", "value": "Dogica" },
+					{"name": "DS-Digital (segments)", "value": "DS-Digital" }
+				]
+			},
 			"theme": {
 				"items": [
 					{"name": "Analogous", "value": "analogous" },
@@ -47,6 +55,34 @@
 				"maximum": 80,
 				"step": 1,
 				"required": true
+			},
+			{
+				"name":"fontBody",
+				"type": "string",
+				"title": "Body Font",
+				"lookup": "font",
+				"required": false,
+				"description": "The font of the text on every page (Jost when unset). Pixel and segment fonts read poorly in a paragraph."
+			},
+			{
+				"name":"fontHeading",
+				"type": "string",
+				"title": "Heading Font",
+				"lookup": "font",
+				"required": false,
+				"description": "The font of headings and titles. Empty: the body font."
+			},
+			{
+				"name":"fontScale",
+				"type": "number",
+				"title": "Text Size",
+				"minimum": 0.8,
+				"maximum": 1.4,
+				"step": 0.05,
+				"minFractionDigits": 2,
+				"maxFractionDigits": 2,
+				"required": false,
+				"description": "Multiplies the size of the text on every page (1 is as designed)."
 			}
 		]
 	},
@@ -54,6 +90,9 @@
 		"theme": "complementary",
 		"hue": 220,
 		"saturation": 80,
-		"lightness": 50
+		"lightness": 50,
+		"fontBody": "Jost",
+		"fontHeading": null,
+		"fontScale": 1
 	}
 }

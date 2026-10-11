@@ -3,10 +3,11 @@ import re
 import shutil
 import tempfile
 import unittest
+from typing import Any, cast
 from unittest.mock import patch
 
 from ..model.configuration_manager import StaticConfigurationManager
-from ..model.theme import DEFAULT_INPUTS, SCHEMES, Color, Palette, css_vars, current_inputs, current_palette, inputs_from, palette_of
+from ..model.theme import DEFAULT_INPUTS, SCHEMES, Color, Palette, css_vars, current_inputs, current_palette, current_typography, inputs_from, palette_of
 from ..plugins import plugin_base
 from ..plugins.plugin_base import RenderSession
 from ..utils.image_utils import LINUX_CHROME_HEADLESS, WIN_CHROME_HEADLESS, os_type
@@ -79,6 +80,55 @@ class TestSettings(unittest.TestCase):
 		with self.assertLogs("python.model.theme", level="WARNING"):
 			self.assertEqual(current_inputs(FakeSettings(error=OSError("disk"))), DEFAULT_INPUTS)  # type: ignore[arg-type]
 
+class TestTypography(unittest.TestCase):
+	def test_the_defaults_are_jost_at_full_size(self):
+		self.assertEqual((DEFAULT_INPUTS.font_body, DEFAULT_INPUTS.font_heading, DEFAULT_INPUTS.font_scale), ("Jost", "Jost", 1.0))
+		# a document from before the fonts existed reads the same, and says nothing about it
+		with self.assertNoLogs("python.model.theme", level="WARNING"):
+			self.assertEqual(inputs_from({ "theme": "analogous", "hue": 10, "saturation": 50, "lightness": 50 }).font_body, "Jost")
+
+	def test_choices_are_read_and_the_heading_follows_the_body_when_unset(self):
+		inputs = inputs_from({ "fontBody": "Napoli", "fontHeading": None, "fontScale": 1.25 })
+		self.assertEqual((inputs.font_body, inputs.font_heading, inputs.font_scale), ("Napoli", "Napoli", 1.25))
+		inputs = inputs_from({ "fontBody": "Jost", "fontHeading": "Dogica", "fontScale": 0.8 })
+		self.assertEqual((inputs.font_body, inputs.font_heading, inputs.font_scale), ("Jost", "Dogica", 0.8))
+
+	def test_only_the_fonts_we_ship_and_sizes_in_range_are_used(self):
+		inputs = inputs_from({ "fontBody": "../../etc/passwd", "fontHeading": "Comic Sans", "fontScale": 9 })
+		self.assertEqual((inputs.font_body, inputs.font_heading, inputs.font_scale), ("Jost", "Jost", 1.0))
+		self.assertEqual(inputs_from({ "fontScale": 0.5 }).font_scale, 1.0)
+		self.assertEqual(inputs_from({ "fontScale": True }).font_scale, 1.0)
+
+	def test_the_css_gets_the_variables_without_quotes(self):
+		text = css_vars(inputs_from({ "fontBody": "DS-Digital", "fontHeading": "Napoli", "fontScale": 1.2 }))
+		self.assertIn("--font-body: DS-Digital;", text)
+		self.assertIn("--font-heading: Napoli;", text)
+		self.assertIn("--font-scale: 1.2;", text)
+		self.assertNotIn('"', text)
+
+	def test_pil_code_reads_the_same_choice_each_time(self):
+		scm = FakeSettings({ "fontBody": "Napoli", "fontScale": 1.2 })
+		self.assertEqual(current_typography(cast(Any, scm)).body, "Napoli")
+		scm.settings = { "fontBody": "Jost", "fontScale": 1.0 }
+		self.assertEqual((current_typography(cast(Any, scm)).body, current_typography(cast(Any, scm)).scale), ("Jost", 1.0))
+		self.assertEqual(current_typography(None).body, "Jost")
+
+class TestPagesUseTheTheme(unittest.TestCase):
+	"""No page sets a font of its own: the body font is the theme's (plugin.css), headings take var(--font-heading)."""
+	def test_no_page_names_a_font_family(self):
+		root = os.path.dirname(STATIC)
+		pages = [os.path.join(d, f) for top in ("datasources", "static") for d, _, files in os.walk(os.path.join(root, top)) for f in files if f.endswith(".html")]
+		self.assertGreater(len(pages), 4)
+		for page in pages:
+			with open(page, encoding="utf-8") as f:
+				text = f.read()
+			with self.subTest(os.path.relpath(page, root)):
+				for found in re.findall(r"font-family:\s*([^;]+);", text):
+					# the faces plugin.html declares are the only literal names; a page uses the variables
+					if os.path.basename(page) == "plugin.html":
+						continue
+					self.assertRegex(found, r"var\(--font-(body|heading)", f"{page} sets a font of its own")
+
 class TestCss(unittest.TestCase):
 	def test_css_vars_are_hsl_only(self):
 		text = css_vars(inputs_from({ "theme": "split-complementary", "hue": 10, "saturation": 85, "lightness": 45 }))
@@ -115,6 +165,25 @@ class TestCss(unittest.TestCase):
 		self.assertIn(css_vars(inputs), html)
 		self.assertGreater(html.index(css_vars(inputs)), html.index("themes.css"))
 		self.assertNotIn("theme-triadic", html)
+
+@unittest.skipUnless(HAVE_CHROME, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")
+class TestFontsInChromium(unittest.TestCase):
+	"""The theme's fonts reach a page: the same text in another body font, or at another size, draws differently."""
+	def _page(self, **theme):
+		with tempfile.TemporaryDirectory() as folder:
+			with open(os.path.join(folder, "page.html"), "w", encoding="utf-8") as f:
+				f.write('{% extends "plugin.html" %}{% block style %}<style>.t { font-size: calc(10dvh * var(--font-scale)); } .h { font-family: var(--font-heading); }</style>{% endblock %}'
+					'{% block content %}<div class="t">Hamburgefonstiv</div><div class="t h">Hamburgefonstiv</div>{% endblock %}')
+			image = RenderSession(StaticConfigurationManager(STATIC), folder, "page.html", inputs_from({ "theme": "analogous", "hue": 200, "saturation": 50, "lightness": 50, **theme })).render((400, 200), { "settings": {} })
+		assert image is not None
+		return image.convert("L").tobytes()
+
+	def test_font_and_scale_change_the_page(self):
+		base = self._page()
+		self.assertNotEqual(base, self._page(fontBody="Napoli"))
+		self.assertNotEqual(base, self._page(fontHeading="Dogica"))
+		self.assertNotEqual(base, self._page(fontScale=1.4))
+		self.assertEqual(base, self._page(fontBody="Jost", fontScale=1.0))
 
 SWATCH = 20
 @unittest.skipUnless(HAVE_CHROME, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")
