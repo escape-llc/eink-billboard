@@ -59,6 +59,36 @@
 							</tr>
 						</tbody>
 					</table>
+					<h2>Theme Preview</h2>
+					<!-- a page and a dark page in the palette, fonts and text size of the form, built from the same roles the device's pages use -->
+					<div class="mock-row" data-testid="mockup" :style="mockVars">
+						<div class="mock mock-light">
+							<div class="mock-kicker">Thursday</div>
+							<div class="mock-title">Sunday, October 11</div>
+							<div class="mock-split">
+								<div class="mock-now">
+									<div class="mock-sun"></div>
+									<div>
+										<div class="mock-temp">14°</div>
+										<div class="mock-small">Scattered clouds</div>
+									</div>
+								</div>
+								<div class="mock-month">
+									<span v-for="d in 14" :key="d" :class="{ today: d === 6 }">{{ d + 4 }}</span>
+								</div>
+							</div>
+							<div class="mock-events">
+								<div class="mock-event mock-event-1">10:00 Dentist</div>
+								<div class="mock-event mock-event-2">13:30 Team lunch</div>
+							</div>
+						</div>
+						<div class="mock mock-dark">
+							<div class="mock-kicker">Next up</div>
+							<div class="mock-title">Quarter-hour clock</div>
+							<div class="mock-small">The text size and fonts above apply to every page, light or dark.</div>
+							<div class="mock-bar"></div>
+						</div>
+					</div>
 					<h2>Theme Typography</h2>
 					<!-- the fonts are the ones the device draws with (served by /api/fonts), so the sample is what the pages will look like -->
 					<component :is="'style'">{{ fontFaces }}</component>
@@ -213,6 +243,13 @@ const PALETTE_ROWS = [{ key: "text", title: "Text" }, { key: "text|light", title
 // "text|light" and "primary" make "text-primary-light"
 const roleName = (row: string, column: string) => { const [kind, tone] = row.split("|"); return `${kind}-${column}${tone ? `-${tone}` : ""}` }
 const paletteColors = ref<Record<string, string>>({})
+// the mock-up reads the palette through variables, named like the roles
+const mockVars = computed(() => ({
+	...Object.fromEntries(Object.entries(paletteColors.value).map(([role, color]) => [`--m-${role}`, color])),
+	"--m-body": fontStack(previewFontBody.value),
+	"--m-heading": fontStack(previewFontHeading.value || previewFontBody.value),
+	"--m-scale": String(previewFontScale.value),
+}))
 let paletteTimer: ReturnType<typeof setTimeout> | undefined
 function refreshPalette() {
 	if (paletteTimer) clearTimeout(paletteTimer)
@@ -428,6 +465,110 @@ const handleThemeValidate = (e: ValidateEventData) => {
 	width: 5rem;
 	height: 2.5rem;
 	border: 1px solid var(--p-content-border-color);
+}
+.mock-row {
+	display: flex;
+	gap: 1rem;
+	flex-wrap: wrap;
+	justify-content: center;
+	margin: .5rem auto 1rem;
+}
+.mock {
+	box-sizing: border-box;
+	width: 24rem;
+	max-width: 100%;
+	aspect-ratio: 5 / 3;
+	padding: 1rem 1.25rem;
+	display: flex;
+	flex-direction: column;
+	gap: .4em;
+	overflow: hidden;
+	text-align: left;
+	font-family: var(--m-body);
+	font-size: calc(.85rem * var(--m-scale));
+	border: 1px solid var(--p-content-border-color);
+}
+.mock-light {
+	background: var(--m-bg-primary);
+	color: var(--m-text-secondary-2);
+}
+.mock-dark {
+	background: var(--m-bg-primary-dark);
+	color: var(--m-text-secondary-1-light);
+}
+.mock-kicker {
+	font-family: var(--m-heading);
+	font-size: .75em;
+	font-weight: bold;
+	letter-spacing: .15em;
+	text-transform: uppercase;
+	padding-bottom: .2em;
+	border-bottom: .12em solid currentColor;
+}
+.mock-light .mock-kicker { color: var(--m-text-secondary-1); }
+.mock-title {
+	font-family: var(--m-heading);
+	font-size: 1.6em;
+	font-weight: bold;
+	line-height: 1.1;
+}
+.mock-light .mock-title { color: var(--m-text-primary); }
+.mock-dark .mock-title { color: var(--m-text-primary-light); }
+.mock-split {
+	display: flex;
+	gap: 1em;
+	align-items: center;
+	justify-content: space-between;
+}
+.mock-now {
+	display: flex;
+	gap: .6em;
+	align-items: center;
+}
+.mock-sun {
+	width: 2.2em;
+	height: 2.2em;
+	border-radius: 50%;
+	background: var(--m-bg-secondary-2-accent);
+}
+.mock-temp {
+	font-family: var(--m-heading);
+	font-size: 1.8em;
+	font-weight: bold;
+	line-height: 1;
+	color: var(--m-text-primary);
+}
+.mock-small {
+	font-size: .8em;
+}
+.mock-month {
+	display: grid;
+	grid-template-columns: repeat(7, 1.5em);
+	gap: .15em;
+	font-size: .7em;
+	text-align: center;
+}
+.mock-month .today {
+	background: var(--m-bg-primary-accent);
+	color: var(--m-text-primary-light);
+	border-radius: .2em;
+}
+.mock-events {
+	display: flex;
+	flex-direction: column;
+	gap: .25em;
+	font-size: .8em;
+}
+.mock-event {
+	padding: .15em .5em;
+	border-left: .3em solid;
+}
+.mock-event-1 { background: var(--m-bg-secondary-1); border-color: var(--m-bg-secondary-1-accent); color: var(--m-text-secondary-1); }
+.mock-event-2 { background: var(--m-bg-secondary-2); border-color: var(--m-bg-secondary-2-accent); color: var(--m-text-secondary-2); }
+.mock-bar {
+	margin-top: auto;
+	height: 1.2em;
+	background: linear-gradient(to right, var(--m-bg-secondary-1-accent) 60%, var(--m-bg-secondary-2-dark) 60%);
 }
 .swatch-table {
 	display:flex;
