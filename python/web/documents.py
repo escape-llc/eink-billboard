@@ -8,6 +8,7 @@ import json
 import logging
 import math
 import re
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Callable, Iterable
 
@@ -21,39 +22,85 @@ NOT_FINITE = "Must be a finite number"
 ENTER_THE_KEY = "Enter the key"
 
 NOT_A_LIST = "Expected a list"
+NOT_AN_OBJECT = "Expected an object"
 NOT_UNIQUE = "Must be unique"
 
 # What clients see instead of a stored secret. Sending it back unchanged means "keep the stored value".
 SECRET_MASK = "********"
 
-def secret_fields(properties: Iterable[dict]|None) -> set[str]:
-	"""Names of the properties flagged `"writeOnly": true` in a schema descriptor."""
-	if not properties:
-		return set()
-	return { p["name"] for p in properties if isinstance(p, dict) and p.get("writeOnly") is True and "name" in p }
+@dataclass(frozen=True)
+class Secrets:
+	"""
+	The `writeOnly` fields of a descriptor: `names` at the top of the document, and `rows` for a list of objects whose rows hold some
+	(the list's name: its `items.key`, which matches a row sent back to the stored row it came from, and the row's secret fields).
+	"""
+	names: frozenset[str] = frozenset()
+	rows: dict[str, tuple[str|None, frozenset[str]]] = field(default_factory=dict)
 
-def redact(document: dict, secrets: set[str]) -> dict:
-	"""A copy of the document where non-empty secret values are replaced with the mask."""
-	out = dict(document)
-	for name in secrets:
+def secret_fields(properties: Iterable[dict]|None) -> Secrets:
+	"""The properties flagged `"writeOnly": true` in a schema descriptor, and those of the rows of its lists."""
+	names: set[str] = set()
+	rows: dict[str, tuple[str|None, frozenset[str]]] = {}
+	for p in properties or []:
+		if not isinstance(p, dict) or "name" not in p:
+			continue
+		if p.get("writeOnly") is True:
+			names.add(p["name"])
+		items = p.get("items") if p.get("type") == "array" else None
+		if isinstance(items, dict):
+			inner = frozenset(f["name"] for f in items.get("properties") or [] if isinstance(f, dict) and f.get("writeOnly") is True and "name" in f)
+			if inner:
+				rows[p["name"]] = (items.get("key"), inner)
+	return Secrets(frozenset(names), rows)
+
+def _mask(values: dict, names: Iterable[str]) -> dict:
+	out = dict(values)
+	for name in names:
 		if out.get(name):
 			out[name] = SECRET_MASK
 	return out
 
-def restore_secrets(document: dict, stored: dict|None, secrets: set[str]) -> dict:
-	"""
-	A copy of the incoming document where masked or omitted secrets are replaced by the stored values.
-	A mask with no stored value to restore is left as it is: `unrestored_masks` reports it, so the literal mask is never stored as a secret.
-	"""
-	out = dict(document)
-	for name in secrets:
+def redact(document: dict, secrets: Secrets) -> dict:
+	"""A copy of the document where non-empty secret values (in the rows of a list too) are replaced with the mask."""
+	out = _mask(document, secrets.names)
+	for list_name, (_, inner) in secrets.rows.items():
+		if isinstance(out.get(list_name), list):
+			out[list_name] = [_mask(row, inner) if isinstance(row, dict) else row for row in out[list_name]]
+	return out
+
+def _restore(values: dict, stored: dict|None, names: Iterable[str]) -> dict:
+	out = dict(values)
+	for name in names:
 		if out.get(name, SECRET_MASK) == SECRET_MASK and stored is not None and name in stored:
 			out[name] = stored[name]
 	return out
 
-def unrestored_masks(document: dict, secrets: set[str]) -> list[dict]:
+def restore_secrets(document: dict, stored: dict|None, secrets: Secrets) -> dict:
+	"""
+	A copy of the incoming document where masked or omitted secrets are replaced by the stored values.
+	A row of a list takes its secrets from the stored row with the same key (its position may have changed); a row whose key is new
+	has nothing to restore. A mask with no stored value to restore is left as it is: `unrestored_masks` reports it, so the literal mask
+	is never stored as a secret.
+	"""
+	out = _restore(document, stored, secrets.names)
+	for list_name, (key, inner) in secrets.rows.items():
+		rows = out.get(list_name)
+		if not isinstance(rows, list):
+			continue
+		before = (stored or {}).get(list_name)
+		by_key = { row.get(key): row for row in (before if isinstance(before, list) else []) if key and isinstance(row, dict) and isinstance(row.get(key), str) }
+		out[list_name] = [_restore(row, by_key.get(row.get(key)) if key else None, inner) if isinstance(row, dict) else row for row in rows]
+	return out
+
+def unrestored_masks(document: dict, secrets: Secrets) -> list[dict]:
 	"""Errors for secrets that still hold the literal mask after `restore_secrets` (nothing stored to keep): the user must type the value."""
-	return [{ "path": [name], "message": ENTER_THE_KEY } for name in sorted(secrets) if document.get(name) == SECRET_MASK]
+	errors = [{ "path": [name], "message": ENTER_THE_KEY } for name in sorted(secrets.names) if document.get(name) == SECRET_MASK]
+	for list_name, (_, inner) in sorted(secrets.rows.items()):
+		rows = document.get(list_name)
+		for index, row in enumerate(rows if isinstance(rows, list) else []):
+			if isinstance(row, dict):
+				errors.extend({ "path": [list_name, str(index), name], "message": ENTER_THE_KEY } for name in sorted(inner) if row.get(name) == SECRET_MASK)
+	return errors
 
 def find_non_finite(value: Any, path: list[str]|None = None) -> list[dict]:
 	"""
@@ -79,6 +126,9 @@ _ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # `format: "uri"`: a scheme, `://`, then a host part with no space. One expression here and in FormValidation.ts, so both sides read an address the same way.
 _URI = re.compile(r"^([A-Za-z][A-Za-z0-9+.\-]*)://([^/?#\s]+)(\S*)$")
 DEFAULT_SCHEMES = ("http", "https")
+# `format: "color"`: `#rgb` or `#rrggbb` (the same expression in FormValidation.ts)
+_COLOR = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+NOT_A_COLOR = "Enter a color like #3366cc"
 
 def _is_uri(value: str, schemes: Iterable[str]|None) -> bool:
 	found = _URI.match(value)
@@ -113,6 +163,8 @@ def _check_value(prop: dict, value: Any, lookups: dict) -> str|None:
 			return None if value == "" or _is_iso_date(value) else "Expected a date (YYYY-MM-DD)"
 		if prop.get("format") == "uri" and value != "" and not _is_uri(value, prop.get("schemes")):
 			return "Enter a valid URL"
+		if prop.get("format") == "color" and value != "" and not _COLOR.match(value):
+			return NOT_A_COLOR
 		if value != "":
 			if prop.get("minLength") is not None and len(value) < prop["minLength"]:
 				return f"At least {prop['minLength']} characters"
@@ -151,11 +203,16 @@ def _check_value(prop: dict, value: Any, lookups: dict) -> str|None:
 			return "Expected string"
 	return None
 
+def is_multi_select(prop: dict) -> bool:
+	"""An `array` of strings: the values chosen from the field's `lookup` or from `items.enum`."""
+	return prop.get("type") == "array" and isinstance(prop.get("items"), dict) and prop["items"].get("type") == "string"
+
 def _array_errors(prop: dict, value: Any, lookups: dict) -> list[dict]:
 	"""
 	Errors for the value of an `array` property, with paths relative to the property: `[]` for the list as a whole,
-	`[index, name]` for a field of one item. The items' fields follow the same rules as any other property.
-	`items.key` names the field whose value identifies an item: it must be unique (the later item is the one reported).
+	`[index, name]` for a field of one item. The items' fields follow the same rules as any other property, and a row's
+	`visibleIf` reads the fields of that row. `items.key` names the field whose value identifies an item: it must be unique
+	(the later item is the one reported). A multi-select (`items.type` string) is a list of chosen values: `[index]` for one that is not a choice.
 	"""
 	if not isinstance(value, list):
 		return [{ "path": [], "message": NOT_A_LIST }]
@@ -166,12 +223,19 @@ def _array_errors(prop: dict, value: Any, lookups: dict) -> list[dict]:
 	if maximum is not None and len(value) > maximum:
 		errors.append({ "path": [], "message": f"At most {maximum} items" })
 	items = prop.get("items") or {}
+	if is_multi_select(prop):
+		choice = { "type": "string", "enum": items.get("enum"), "lookup": prop.get("lookup") }
+		for index, chosen in enumerate(value):
+			message = _check_value(choice, chosen, lookups) if chosen is not None else "Required"
+			if message:
+				errors.append({ "path": [str(index)], "message": message })
+		return errors
 	item_props = items.get("properties") or []
 	key = items.get("key")
 	seen: set = set()
 	for index, item in enumerate(value):
 		if not isinstance(item, dict):
-			errors.append({ "path": [str(index)], "message": "Expected an object" })
+			errors.append({ "path": [str(index)], "message": NOT_AN_OBJECT })
 			continue
 		for e in validate_properties(item, item_props, lookups):
 			errors.append({ "path": [str(index), *e["path"]], "message": e["message"] })
@@ -218,22 +282,23 @@ def load_schema_properties(schema_path: str) -> list[dict]:
 	except (OSError, ValueError):
 		return []
 
-def get_document(id: str, cob: ConfigurationObject, secrets: set[str]|None = None) -> dict:
+def get_document(id: str, cob: ConfigurationObject, secrets: Secrets|None = None) -> dict:
 	"""The stored document (secrets masked) with `_id` and `_rev` added; 404 when nothing is stored."""
 	rev, document = cob.get()
 	if document is None:
 		raise ApiError(404, f"{id}: not found", id, rev=None)
-	document = redact(document, secrets or set())
+	document = redact(document, secrets or Secrets())
 	document[HASH_KEY] = rev
 	document[ID_KEY] = id
 	return document
 
-def put_document(id: str, body: dict[str, Any], cob: ConfigurationObject, properties: Iterable[dict]|None = None, secrets: set[str]|None = None, lookups: dict|None = None) -> dict:
+def put_document(id: str, body: dict[str, Any], cob: ConfigurationObject, properties: Iterable[dict]|None = None, secrets: Secrets|None = None, lookups: dict|None = None) -> dict:
 	"""
 	Validate and store the incoming document.
 	`_id` is optional, but when present it must match. `_rev` must match the stored revision (absent when nothing is stored yet).
+	A `settings` lookup among `lookups` chooses from a list of this same document: the one being saved.
 	"""
-	secrets = secrets or set()
+	secrets = secrets or Secrets()
 	xid = body.get(ID_KEY, None)
 	rev = body.get(HASH_KEY, None)
 	if xid is not None and xid != id:
@@ -246,7 +311,7 @@ def put_document(id: str, body: dict[str, Any], cob: ConfigurationObject, proper
 	document = null_hidden(document, properties or [])
 	errors = find_non_finite(document) + unrestored_masks(document, secrets)
 	reported = { tuple(e["path"]) for e in errors }
-	errors += [e for e in validate_properties(document, properties, lookups) if tuple(e["path"]) not in reported]
+	errors += [e for e in validate_properties(document, properties, resolve_settings_lookups(lookups or {}, document)) if tuple(e["path"]) not in reported]
 	if errors:
 		raise ApiError(422, "Settings validation failed", id, errors=errors)
 	committed, new_rev = cob.save(rev, document)

@@ -1,5 +1,5 @@
 import z from "zod"
-import type { PropertiesDef } from "./FormDefs"
+import type { FieldDef, PropertiesDef } from "./FormDefs"
 import { messages } from "./FormMessages"
 import { hiddenNames, type ValueSource } from "./FormVisibility"
 
@@ -36,6 +36,9 @@ export const isUri = (value: string, schemes: readonly string[] = DEFAULT_SCHEME
 	return found !== null && schemes.includes(found[1]!.toLowerCase())
 }
 
+// `format: "color"`: the same expression as `_COLOR` in python/web/documents.py
+const COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+
 const emptyToNull = (val: unknown) => (val === "" || val === undefined ? null : val)
 
 /** Optional fields hold `null` when unset (that is how the server stores them), so null is valid unless the field is required. */
@@ -66,6 +69,9 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 				const schemes = px.schemes
 				base = base.refine((v: unknown) => v === "" || isUri(v as string, schemes), { error: messages.url })
 			}
+			if (px.format === "color") {
+				base = base.refine((v: unknown) => v === "" || COLOR.test(v as string), { error: messages.color })
+			}
 			if (px.pattern) {
 				const re = new RegExp(px.pattern)
 				base = base.refine((v: unknown) => v === "" || re.test(v as string), { error: messages.format })
@@ -90,29 +96,43 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 			return optionalUnless(required, base)
 		}
 		case "array": {
-			const key = px.items?.key
-			// an item without an optional field has none set (as on the server), so those rules accept a missing key too
-			const itemFields = (px.items?.properties ?? []) as FormField[]
-			const shape = fieldRules(itemFields)
-			for (const f of itemFields) {
-				if (shape[f.name] && (f as { required?: boolean }).required !== true) shape[f.name] = shape[f.name]!.optional()
+			if (px.items?.type === "string") {
+				// a multi-select: each value one of the choices (`items.enum`, or the lookup's list once it is loaded)
+				const choice = schemaFor({ name: px.name, title: px.title, type: "string", required: true, enum: px.items.enum, list: px.list } as FormField)!
+				let chosen = z.array(choice)
+				if (px.minItems !== undefined) chosen = chosen.min(px.minItems, { error: messages.atLeastItems(px.minItems) })
+				if (px.maxItems !== undefined) chosen = chosen.max(px.maxItems, { error: messages.atMostItems(px.maxItems) })
+				return optionalUnless(required, chosen)
 			}
-			let list = z.array(z.object(shape))
+			const items = px.items as { key?: string, properties?: FieldDef[] } | undefined
+			const key = items?.key
+			const itemFields = (items?.properties ?? []) as FormField[]
+			// each row has its own rules: a row's `visibleIf` reads the fields of that row, and a hidden field is not checked (and is saved as null)
+			let list = z.array(z.record(z.string(), z.unknown(), { error: messages.object }))
 			if (px.minItems !== undefined) list = list.min(px.minItems, { error: messages.atLeastItems(px.minItems) })
 			if (px.maxItems !== undefined) list = list.max(px.maxItems, { error: messages.atMostItems(px.maxItems) })
-			const unique = key
-				? list.superRefine((items, ctx) => {
+			const rows = list
+				.superRefine((rows, ctx) => {
 					const seen = new Set<unknown>()
-					items.forEach((item, index) => {
-						const identity = (item as Record<string, unknown>)[key]
-						if (typeof identity === "string" && identity !== "") {
+					rows.forEach((row, index) => {
+						const r = rowRules(itemFields, row).safeParse(row)
+						if (!r.success) {
+							for (const issue of r.error.issues) ctx.addIssue({ code: "custom", message: issue.message, path: [index, ...issue.path] })
+						}
+						const identity = key ? row[key] : undefined
+						if (key && typeof identity === "string" && identity !== "") {
 							if (seen.has(identity)) ctx.addIssue({ code: "custom", message: messages.unique, path: [index, key] })
 							seen.add(identity)
 						}
 					})
 				})
-				: list
-			return optionalUnless(required, unique)
+				.transform(rows => rows.map(row => {
+					const r = rowRules(itemFields, row).safeParse(row)
+					const out = { ...(r.success ? r.data as Record<string, unknown> : row) }
+					hiddenNames(itemFields, row).forEach(name => { out[name] = null })
+					return out
+				}))
+			return optionalUnless(required, rows)
 		}
 		case "location": {
 			const base = z.object({
@@ -135,6 +155,15 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 			return z.any()
 		}
 	}
+}
+
+/** The rules of one row of a list of objects: an item without an optional field has none set (as on the server), so those rules accept a missing key too. */
+function rowRules(itemFields: FormField[], row: Record<string, unknown>): z.ZodObject {
+	const shape = fieldRules(itemFields, {}, row)
+	for (const f of itemFields) {
+		if (shape[f.name] && (f as { required?: boolean }).required !== true) shape[f.name] = shape[f.name]!.optional()
+	}
+	return z.object(shape)
 }
 
 /**

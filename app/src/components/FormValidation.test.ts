@@ -121,6 +121,21 @@ describe("what a form submits", () => {
 		expect(submit(slideShow, values)).toEqual({ slideMax: 4, slideMinutes: 2 })
 		expect(submit(priorityUpdate, values)).toEqual({ slideMinutes: 2 })
 	})
+	it("saves a hidden field of a list's row as null, row by row", () => {
+		const rows = field({ name: "calendars", type: "array", required: false, items: { type: "object", key: "name", properties: [
+			field({ name: "name", type: "string" }),
+			field({ name: "auth", type: "string", enum: ["none", "basic"] }),
+			field({ name: "password", type: "string", visibleIf: { field: "auth", const: "basic" } }),
+		] } })
+		const values = { calendars: [{ name: "a", auth: "none", password: "left over" }, { name: "b", auth: "basic", password: "p" }] }
+		expect(submit([rows], values)).toEqual({ calendars: [{ name: "a", auth: "none", password: null }, { name: "b", auth: "basic", password: "p" }] })
+	})
+	it("checks a multi-select against its lookup once the list is loaded", () => {
+		const chosen = field({ name: "calendars", type: "array", required: false, lookup: "calendar", items: { type: "string" }, list: [{ value: "a" }, { value: "b" }] })
+		expect(check(chosen, ["a", "b"])).toBeNull()
+		expect(firstPath(chosen, ["a", "gone"])).toEqual(["1"])
+		expect(check({ ...chosen, list: [] } as FormField, ["anything"])).toBeNull()
+	})
 	it("leaves out a hidden field (the form then saves it as null)", () => {
 		const fields = [field({ name: "on", type: "boolean" }), field({ name: "detail", type: "string", visibleIf: { field: "on", const: true } })]
 		expect(submit(fields, { on: false, detail: "kept?" })).toEqual({ on: false })

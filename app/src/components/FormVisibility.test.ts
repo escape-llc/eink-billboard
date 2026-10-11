@@ -33,7 +33,7 @@ describe("findProblems", () => {
 	})
 	it("reports unknown fields, malformed predicates and cycles", () => {
 		expect(findProblems([f("b", { visibleIf: { field: "nope", const: 1 } })])[0]).toMatch(/unknown field 'nope'/)
-		expect(findProblems([f("b", { visibleIf: { field: "b" } })]).join()).toMatch(/needs const, enum or set/)
+		expect(findProblems([f("b", { visibleIf: { field: "b" } })]).join()).toMatch(/needs const, enum, set or contains/)
 		expect(findProblems([f("a", { visibleIf: { field: "b", set: true } }), f("b", { visibleIf: { field: "a", set: true } })]).join()).toMatch(/cycle: a -> b -> a|cycle: b -> a -> b/)
 	})
 })

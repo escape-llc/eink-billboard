@@ -2,7 +2,7 @@
  * Conditional visibility: a property may carry `visibleIf`, a small JSON predicate over the other fields' values.
  * The server applies the same rules (`python/web/visibility.py`); the cases both must pass are in `python/tests/form_visibility.json`.
  *
- *   { "field": "randomizeDate", "const": false }    const | enum | set (true: has a value, false: has none)
+ *   { "field": "randomizeDate", "const": false }    const | enum | set (true: has a value, false: has none) | contains (a list value holds it)
  *   { "all": [ ... ] }  { "any": [ ... ] }  { "not": { ... } }
  *
  * Names are the form's field names (children of a `schema` field share the same namespace). An unset value (undefined, null, "")
@@ -11,7 +11,7 @@
 import type { FormField } from "./FormValidation"
 
 export type Predicate =
-	| { field: string, const?: unknown, enum?: unknown[], set?: boolean }
+	| { field: string, const?: unknown, enum?: unknown[], set?: boolean, contains?: unknown }
 	| { all: Predicate[] }
 	| { any: Predicate[] }
 	| { not: Predicate }
@@ -35,6 +35,7 @@ export function evaluate(p: unknown, values: ValueSource): boolean {
 		if ("const" in o) return v === (o.const === undefined ? null : o.const)
 		if (Array.isArray(o.enum)) return o.enum.includes(v)
 		if (typeof o.set === "boolean") return (v !== null) === o.set
+		if ("contains" in o) return Array.isArray(v) && v.includes(o.contains)
 	}
 	return true
 }
@@ -62,7 +63,7 @@ export function referencedFields(p: unknown): string[] {
 	return typeof o.field === "string" ? [o.field] : []
 }
 
-const OPERATORS = ["const", "enum", "set"]
+const OPERATORS = ["const", "enum", "set", "contains"]
 function shapeProblem(p: unknown): string | null {
 	if (!p || typeof p !== "object" || Array.isArray(p)) return "is not an object"
 	const o = p as Record<string, unknown>
@@ -75,7 +76,7 @@ function shapeProblem(p: unknown): string | null {
 	}
 	if ("not" in o) return shapeProblem(o.not)
 	if (typeof o.field !== "string") return "needs a field, all, any or not"
-	return OPERATORS.some(op => op in o) ? null : "needs const, enum or set"
+	return OPERATORS.some(op => op in o) ? null : "needs const, enum, set or contains"
 }
 
 /** What is wrong with the `visibleIf` of these properties: a malformed predicate, a name that is no field, or a cycle. Empty when fine. */

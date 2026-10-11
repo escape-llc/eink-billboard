@@ -11,8 +11,8 @@ export type FieldDef = {
 	name: string
 	title: string
 	type: "string" | "boolean" | "number" | "integer" | "location" | "schema" | "array"
-	/** of a string: `date` is a `YYYY-MM-DD` day (a date picker), `uri` an address with a scheme and a host */
-	format?: "date" | "uri"
+	/** of a string: `date` is a `YYYY-MM-DD` day (a date picker), `uri` an address with a scheme and a host, `color` a `#rrggbb` (a color picker) */
+	format?: "date" | "uri" | "color"
 	/** of a `uri`: the schemes it may use (default http and https) */
 	schemes?: string[]
 	/** of a string: a check the server runs on the value, behind a Test button (`url` is the route, which gets `{ value }` and answers `{ ok, message }`) */
@@ -31,10 +31,13 @@ export type FieldDef = {
 	enum?: string[]
 	minimum?: number
 	maximum?: number
-	/** of an array: how many items, and the object each is (flat fields only); `key` names the field that identifies an item and must be unique */
+	/**
+	 * of an array: how many items, and what each is. A list of objects (`type: "object"`, flat fields; `key` names the field that identifies a row
+	 * and must be unique); or a multi-select (`type: "string"`), the values chosen from the field's `lookup` or from `items.enum`
+	 */
 	minItems?: number
 	maxItems?: number
-	items?: { type: "object", key?: string, properties: FieldDef[] }
+	items?: { type: "object", key?: string, properties: FieldDef[] } | { type: "string", enum?: string[] }
 	minLength?: number
 	maxLength?: number
 	/** a regular expression both JavaScript and Python read the same way */
