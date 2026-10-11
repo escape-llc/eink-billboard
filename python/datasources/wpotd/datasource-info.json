@@ -6,6 +6,7 @@
 	"file": "wpotd.py",
 	"module": "python.datasources.wpotd.wpotd",
 	"description": "A Wikipedia PotD downloader.",
+	"describe": "Wikipedia picture of the day",
 	"disabled": false,
 	"features": ["internet", "layer-background", "media-image"],
 	"settings": {

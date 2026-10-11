@@ -6,6 +6,7 @@
 	"file": "overlay.py",
 	"module": "python.plugins.overlay.overlay",
 	"description": "Shows a data source's image in a zone of the screen, over the background, until the next run replaces it or the data source has nothing to show.",
+	"describe": "{dataSource}",
 	"disabled": false,
 	"features": ["layer-overlay"],
 	"settings": {

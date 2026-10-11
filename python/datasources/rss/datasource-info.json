@@ -6,6 +6,7 @@
 	"file": "rss.py",
 	"module": "python.datasources.rss.rss",
 	"description": "The stories of an RSS or Atom feed, one page per story, newest first.",
+	"describe": "RSS {feed}",
 	"disabled": false,
 	"features": ["internet", "layer-foreground", "media-list"],
 	"router": {

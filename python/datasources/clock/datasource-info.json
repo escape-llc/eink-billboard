@@ -6,6 +6,7 @@
 	"file": "clock.py",
 	"module": "python.datasources.clock.clock",
 	"description": "A clock with various faces.",
+	"describe": "Clock {clockFace}",
 	"disabled": false,
 	"features": ["layer-priority", "layer-foreground", "media-image"],
 	"settings": {

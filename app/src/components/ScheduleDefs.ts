@@ -7,6 +7,8 @@ export type PluginDef = {
 	name: string
 	version?: string
 	description?: string
+	/** one line for a use of it, with {field} placeholders (Describe.ts) */
+	describe?: string
 	disabled?: boolean
 	color?: string
 	/** what the plugin does: layer-background, layer-foreground (playlist), layer-priority, layer-overlay (timer), media-* (what it takes) */

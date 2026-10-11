@@ -33,7 +33,7 @@
 						<div class="track-row" @click="selectTrack(idx)">
 							<div class="track-meta">
 								<div class="title">{{  t.title  }}</div>
-								<div>{{ pluginName(t.plugin_name) || 'Unknown Plugin' }}</div>
+								<div>{{ describeOf(t) }}</div>
 							</div>
 							<div class="actions">
 								<Button icon="pi pi-arrow-up" aria-label="Move up" size="small" class="p-button-text" :disabled="idx === 0" @click.stop="moveTrack(idx, -1)" />
@@ -121,6 +121,7 @@ import { ref, reactive, computed, onMounted, provide } from 'vue'
 import { InputGroup, InputGroupAddon, Toolbar, Button, Select, InputText, Dialog, Message, useToast } from 'primevue'
 import BasicForm, { type ValidateEventData } from '../components/BasicForm.vue'
 import type { PlaylistItem, PluginDef } from '../components/ScheduleDefs'
+import { describeTrack, type Describable } from '../components/Describe'
 const API_URL = import.meta.env.VITE_API_URL
 const PLAYLIST_URL = `${API_URL}api/schedule/playlist`
 const toast = useToast()
@@ -194,9 +195,10 @@ const handleSubmit = () => {
 }
 
 // helpers
-function pluginName(id?: string) {
-	const p = pluginList.value.find(x => x.id === id)
-	return p ? p.name : null
+/** The line under a track's title: what the track plays ("Comic XKCD"), not only which plugin does it. */
+function describeOf(t: PlaylistItem): string {
+	const plugin = pluginList.value.find(x => x.id === t.plugin_name)
+	return describeTrack(plugin, t.content ?? {}, dataSources.value as Describable[]) || 'Unknown Plugin'
 }
 function resetMessages() {
 	conflict.value = null

@@ -217,6 +217,26 @@ class TestDescriptors(unittest.TestCase):
 					self.assertEqual(find_problems(props), [])
 		self.assertGreater(checked, 5)
 
+class TestDescribe(unittest.TestCase):
+	"""A descriptor's `describe` template (the playlist editor's one line per track) names only fields of its own instanceSettings."""
+	def test_placeholders_are_known_fields(self):
+		import glob, re
+		root = os.path.dirname(os.path.dirname(__file__))
+		files = glob.glob(os.path.join(root, "plugins", "*", "*-info.json")) + glob.glob(os.path.join(root, "datasources", "*", "*-info.json"))
+		described = 0
+		for path in files:
+			with open(path, "r", encoding="utf-8") as f:
+				doc = json.load(f)
+			template = doc.get("describe")
+			if template is None:
+				continue
+			described += 1
+			names = {p["name"] for p in ((doc.get("instanceSettings") or {}).get("schema") or {}).get("properties", [])}
+			with self.subTest(doc["id"]):
+				self.assertIsInstance(template, str)
+				self.assertLessEqual(set(re.findall(r"\{([^}]*)\}", template)), names)
+		self.assertGreater(described, 8)
+
 class TestDescriptorRules(unittest.TestCase):
 	"""Every descriptor in the repository: names the form can hold, types both validators know, defaults that pass their own rules."""
 	KNOWN_TYPES = ("string", "boolean", "number", "integer", "location", "schema", "array", "header")
