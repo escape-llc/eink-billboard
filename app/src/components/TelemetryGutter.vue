@@ -99,7 +99,7 @@ function describe(e: TelemetryEvent): string {
 		case "task-ended": return `Task ended: '${v.current_track ?? "a task"}'`
 		case "showing": return `Showing '${v.title ?? ""}'`
 		case "waiting": return `Waiting ${Math.round(Number(v.delta ?? 0) / 60)} min for the next timer task`
-		case "shown": return `Drawn on the panel: '${v.title ?? ""}'`
+		case "shown": return `Sent to panel: '${v.title ?? ""}'`
 		case "stopped": return "The playlist stopped"
 		case "faulted": return "Every track failed: playback is stopped"
 		default: return e.kind
