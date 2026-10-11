@@ -21,7 +21,7 @@
 			font-weight: bold;
 			letter-spacing: .15em;
 			text-transform: uppercase;
-			border-bottom: .12em solid currentColor;
+			border-bottom: .16em solid currentColor;
 			white-space: nowrap;
 			overflow: hidden;
 			text-overflow: ellipsis;
@@ -106,8 +106,9 @@
 			gap: .25em;
 			min-width: 0;
 			padding: .5em .2em;
-			border: .08em solid currentColor;
-			border-radius: .4em;
+			/* a line of about 3px at 800x480: a color e-ink panel does not draw a hairline cleanly */
+			border: .14em solid currentColor;
+			border-radius: .45em;
 		}
 		.wx-cell-label {
 			font-size: .8em;
