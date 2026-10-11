@@ -1,0 +1,201 @@
+{% extends "plugin.html" %}
+
+{% block style %}
+	<style>
+		.wx {
+			font-family: "Jost";
+			box-sizing: border-box;
+			height: 100%;
+			width: 100%;
+			padding: 4dvh 4dvw;
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+			font-size: calc(min(4.8dvh, 4.8dvw) * {{ font_scale }});
+		}
+		.wx-heading {
+			flex: none;
+			margin: 0 0 .5em 0;
+			padding-bottom: .3em;
+			font-size: .8em;
+			font-weight: bold;
+			letter-spacing: .15em;
+			text-transform: uppercase;
+			border-bottom: .12em solid currentColor;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+		.wx-body {
+			flex: 1 1 auto;
+			min-height: 0;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+		.wx-credit {
+			flex: none;
+			margin-top: .4em;
+			font-size: .55em;
+			letter-spacing: .08em;
+			text-align: right;
+			opacity: .7;
+		}
+		.wx-icon {
+			display: block;
+			width: 100%;
+			height: 100%;
+		}
+		/* the weather now: a big picture and temperature, the details under it */
+		.wx-now {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: .4em;
+			min-height: 0;
+			max-height: 100%;
+		}
+		.wx-now-main {
+			display: flex;
+			align-items: center;
+			gap: .6em;
+			min-height: 0;
+		}
+		.wx-now-icon {
+			width: 4.5em;
+			height: 4.5em;
+			flex: none;
+		}
+		.wx-now-temp {
+			font-size: 4.2em;
+			font-weight: bold;
+			line-height: 1;
+		}
+		.wx-now-text {
+			font-size: 1.3em;
+			text-transform: capitalize;
+		}
+		.wx-now-details {
+			display: flex;
+			flex-wrap: wrap;
+			justify-content: center;
+			gap: .3em 1.4em;
+			font-size: .85em;
+		}
+		.wx-now-details span b {
+			font-size: .75em;
+			letter-spacing: .08em;
+			text-transform: uppercase;
+			margin-right: .35em;
+		}
+		/* the hours and the days: a row of columns, each a label, a picture and the numbers */
+		.wx-row {
+			width: 100%;
+			height: 100%;
+			display: grid;
+			grid-auto-flow: column;
+			grid-auto-columns: 1fr;
+			gap: .4em;
+			align-items: center;
+		}
+		.wx-cell {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: .25em;
+			min-width: 0;
+			padding: .5em .2em;
+			border: .08em solid currentColor;
+			border-radius: .4em;
+		}
+		.wx-cell-label {
+			font-size: .8em;
+			font-weight: bold;
+			letter-spacing: .08em;
+			text-transform: uppercase;
+		}
+		.wx-cell-icon {
+			width: 2.6em;
+			height: 2.6em;
+		}
+		.wx-cell-temp {
+			font-size: 1.3em;
+			font-weight: bold;
+		}
+		.wx-cell-low {
+			font-size: .95em;
+			opacity: .7;
+		}
+		.wx-cell-rain {
+			font-size: .7em;
+			min-height: 1em;
+		}
+		@media (orientation: portrait) {
+			.wx-row {
+				grid-auto-flow: row;
+				grid-auto-columns: auto;
+				align-content: center;
+			}
+			.wx-cell {
+				flex-direction: row;
+				justify-content: space-between;
+				padding: .3em .8em;
+			}
+			.wx-cell-icon {
+				width: 1.8em;
+				height: 1.8em;
+			}
+		}
+	</style>
+{% endblock %}
+{% block content %}
+<div class="wx">
+	<div class="wx-heading text-secondary-1">{{ heading }}</div>
+	<div class="wx-body">
+		{% if view == "current" %}
+			{% if temp %}
+			<div class="wx-now">
+				<div class="wx-now-main">
+					<div class="wx-now-icon text-secondary-2">{{ icon | safe }}</div>
+					<div>
+						<div class="wx-now-temp text-primary">{{ temp }}<small>{{ unit[-1:] }}</small></div>
+						<div class="wx-now-text">{{ text }}</div>
+					</div>
+				</div>
+				<div class="wx-now-details">
+					{% if feels %}<span><b>Feels like</b>{{ feels }}</span>{% endif %}
+					{% if humidity %}<span><b>Humidity</b>{{ humidity }}</span>{% endif %}
+					{% if wind %}<span><b>Wind</b>{{ wind }}</span>{% endif %}
+					{% if sunrise %}<span><b>Sunrise</b>{{ sunrise }}</span>{% endif %}
+					{% if sunset %}<span><b>Sunset</b>{{ sunset }}</span>{% endif %}
+				</div>
+			</div>
+			{% endif %}
+		{% elif view == "hours" %}
+			<div class="wx-row">
+				{% for h in hours %}
+				<div class="wx-cell">
+					<div class="wx-cell-label text-secondary-1">{{ h.label }}</div>
+					<div class="wx-cell-icon text-secondary-2">{{ h.icon | safe }}</div>
+					<div class="wx-cell-temp text-primary">{{ h.temp }}</div>
+					<div class="wx-cell-rain">{% if h.rain %}{{ h.rain }}{% else %}&nbsp;{% endif %}</div>
+				</div>
+				{% endfor %}
+			</div>
+		{% else %}
+			<div class="wx-row">
+				{% for d in days %}
+				<div class="wx-cell">
+					<div class="wx-cell-label text-secondary-1">{{ d.label }}</div>
+					<div class="wx-cell-icon text-secondary-2">{{ d.icon | safe }}</div>
+					<div class="wx-cell-temp text-primary">{{ d.high }}</div>
+					<div class="wx-cell-low">{{ d.low }}</div>
+					<div class="wx-cell-rain">{% if d.rain %}{{ d.rain }}{% else %}&nbsp;{% endif %}</div>
+				</div>
+				{% endfor %}
+			</div>
+		{% endif %}
+	</div>
+	<div class="wx-credit">Weather data: OpenWeatherMap</div>
+</div>
+{% endblock %}
