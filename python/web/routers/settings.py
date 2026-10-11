@@ -79,7 +79,9 @@ def get_device_schema(name: str, cm: CM):
 	# FileResponse does not raise for a missing file when it is built, only later while sending, which would be a 500
 	if not os.path.isfile(path):
 		raise ApiError(404, "File not found.", f"{name}-schema")
-	return FileResponse(path, media_type="application/json")
+	# the file has a modification time and no lifetime, so a browser would keep an old copy for days (a schema that gained settings showed none):
+	# no-cache is "ask each time" (the ETag makes that cheap)
+	return FileResponse(path, media_type="application/json", headers={ "Cache-Control": "no-cache" })
 
 @router.get('/plugins/list')
 def plugins_list(cm: CM):
