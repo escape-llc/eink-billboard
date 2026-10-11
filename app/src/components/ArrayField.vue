@@ -131,6 +131,12 @@ function cellError(index: number, name: string): string|undefined {
 	flex: 1 1 0;
 	min-width: 0;
 }
+/* the editor sits inside an InputGroup, whose rule (.p-inputgroup .p-inputtext: width 1%) outweighs the controls' own `fluid`: a row's controls fill their cell */
+.array-cell > :deep(.p-inputtext),
+.array-cell > :deep(.p-select),
+.array-cell > :deep(.p-inputnumber) {
+	width: 100%;
+}
 .array-buttons {
 	display: flex;
 	flex: 0 0 auto;

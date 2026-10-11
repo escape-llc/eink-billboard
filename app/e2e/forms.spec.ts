@@ -78,6 +78,10 @@ test("a list of rows: add, edit and reorder rows, a repeated name is refused on 
 	await add.click()
 	await page.getByRole("textbox", { name: "Name 1", exact: true }).fill("first")
 	await page.getByRole("textbox", { name: "URL 1", exact: true }).fill("http://first.example/feed")
+	// a row's controls fill their cells (inside an input group PrimeVue gives inputs `width: 1%`, which once left them a few pixels wide)
+	const wide = async (name: string) => expect((await page.getByRole("textbox", { name, exact: true }).boundingBox())!.width).toBeGreaterThan(120)
+	await wide("Name 1")
+	await wide("URL 1")
 	await add.click()
 	await page.getByRole("textbox", { name: "Name 2", exact: true }).fill("first")
 	// the name identifies a row, so a repeat is refused where it was typed and nothing can be saved
