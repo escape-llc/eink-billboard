@@ -113,6 +113,30 @@ class TestTypography(unittest.TestCase):
 		self.assertEqual((current_typography(cast(Any, scm)).body, current_typography(cast(Any, scm)).scale), ("Jost", 1.0))
 		self.assertEqual(current_typography(None).body, "Jost")
 
+class TestBackground(unittest.TestCase):
+	def test_the_page_is_white_unless_asked_otherwise(self):
+		self.assertEqual(DEFAULT_INPUTS.background, "white")
+		self.assertEqual(inputs_from({ "theme": "analogous", "hue": 10, "saturation": 50, "lightness": 50 }).background, "white")
+		self.assertEqual(inputs_from({ "background": "plaid" }).background, "white")
+		self.assertEqual(palette_of(DEFAULT_INPUTS).bg_page.rgb, (255, 255, 255))
+		self.assertIn("--page-bg: hsl(0 0% 100%);", css_vars(DEFAULT_INPUTS))
+
+	def test_tinted_is_the_themes_light_color(self):
+		inputs = inputs_from({ "theme": "analogous", "hue": 200, "saturation": 60, "lightness": 50, "background": "tinted" })
+		self.assertEqual(palette_of(inputs).bg_page, palette_of(inputs).bg_primary)
+		self.assertIn("--page-bg: hsl(from var(--theme-base) h s var(--l-bg-light));", css_vars(inputs))
+
+	def test_black_is_dark_mode_with_the_tones_traded(self):
+		light = inputs_from({ "theme": "analogous", "hue": 200, "saturation": 60, "lightness": 50 })
+		dark = inputs_from({ "theme": "analogous", "hue": 200, "saturation": 60, "lightness": 50, "background": "black" })
+		self.assertEqual(palette_of(dark).bg_page.rgb, (0, 0, 0))
+		self.assertIn("--page-bg: hsl(0 0% 0%);", css_vars(dark))
+		# text that was dark is light, a panel that was light is dark, and the other way round
+		self.assertEqual((dark.l_text_dark, dark.l_text_light, dark.l_bg_light, dark.l_bg_dark), (light.l_text_light, light.l_text_dark, light.l_bg_dark, light.l_bg_light))
+		self.assertGreater(palette_of(dark).text_primary.l, 80)
+		self.assertLess(palette_of(dark).bg_primary.l, 30)
+		self.assertEqual(palette_of(dark).bg_primary_accent, palette_of(light).bg_primary_accent)
+
 class TestPagesUseTheTheme(unittest.TestCase):
 	"""No page sets a font of its own: the body font is the theme's (plugin.css), headings take var(--font-heading)."""
 	def test_no_page_names_a_font_family(self):
@@ -184,6 +208,25 @@ class TestFontsInChromium(unittest.TestCase):
 		self.assertNotEqual(base, self._page(fontHeading="Dogica"))
 		self.assertNotEqual(base, self._page(fontScale=1.4))
 		self.assertEqual(base, self._page(fontBody="Jost", fontScale=1.0))
+
+@unittest.skipUnless(HAVE_CHROME, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")
+class TestBackgroundInChromium(unittest.TestCase):
+	def _corner(self, **theme):
+		with tempfile.TemporaryDirectory() as folder:
+			with open(os.path.join(folder, "page.html"), "w", encoding="utf-8") as f:
+				f.write('{% extends "plugin.html" %}{% block content %}<div style="font-size:30px">Hello</div>{% endblock %}')
+			image = RenderSession(StaticConfigurationManager(STATIC), folder, "page.html", inputs_from({ "theme": "analogous", "hue": 200, "saturation": 50, "lightness": 50, **theme })).render((200, 100), { "settings": {} })
+		assert image is not None
+		return image.convert("RGB").getpixel((190, 90))
+
+	def test_the_page_behind_is_white_tinted_or_black(self):
+		self.assertEqual(self._corner(), (255, 255, 255))
+		self.assertEqual(self._corner(background="black"), (0, 0, 0))
+		tinted = self._corner(background="tinted")
+		self.assertNotIn(tinted, ((255, 255, 255), (0, 0, 0)))
+		want = palette_of(inputs_from({ "theme": "analogous", "hue": 200, "saturation": 50, "lightness": 50, "background": "tinted" })).bg_page.rgb
+		# Chromium and Python round the derived color differently by a step at most
+		self.assertTrue(all(abs(a - b) <= 1 for a, b in zip(tinted, want)), (tinted, want))
 
 SWATCH = 20
 @unittest.skipUnless(HAVE_CHROME, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")

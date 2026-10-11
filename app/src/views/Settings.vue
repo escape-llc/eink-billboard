@@ -59,6 +59,7 @@
 							</tr>
 						</tbody>
 					</table>
+					<div class="page-row">Page background <span class="page-swatch" data-role="bg-page" :style="{ backgroundColor: paletteColors['bg-page'] ?? 'transparent' }"></span></div>
 					<h2>Theme Preview</h2>
 					<!-- a page and a dark page in the palette, fonts and text size of the form, built from the same roles the device's pages use -->
 					<div class="mock-row" data-testid="mockup" :style="mockVars">
@@ -226,6 +227,7 @@ const schemaDisplay = ref<any>(undefined)
 const settingsDisplay = ref<any>(undefined)
 
 const previewScheme = ref("complementary")
+const previewBackground = ref("white")
 const previewHue = ref(0)
 const previewSaturation = ref(100)
 const previewLightness = ref(50)
@@ -254,7 +256,7 @@ let paletteTimer: ReturnType<typeof setTimeout> | undefined
 function refreshPalette() {
 	if (paletteTimer) clearTimeout(paletteTimer)
 	paletteTimer = setTimeout(() => {
-		apiPost<{ roles: { name: string, color: string }[] }>(`${API_URL}api/theme/palette`, { theme: previewScheme.value, hue: previewHue.value, saturation: previewSaturation.value, lightness: previewLightness.value })
+		apiPost<{ roles: { name: string, color: string }[] }>(`${API_URL}api/theme/palette`, { theme: previewScheme.value, hue: previewHue.value, saturation: previewSaturation.value, lightness: previewLightness.value, background: previewBackground.value })
 			.then(answer => { paletteColors.value = Object.fromEntries(answer.roles.map(r => [r.name, r.color])) })
 			.catch(() => { /* the swatches keep what they showed */ })
 	}, 120)
@@ -391,6 +393,7 @@ const handleThemeSettings = (data:any) => {
 	if(typeof data.fontScale === "number") {
 		previewFontScale.value = data.fontScale
 	}
+	previewBackground.value = typeof data.background === "string" ? data.background : "white"
 	refreshPalette()
 }
 const handleValidate = (e: ValidateEventData) => {
@@ -433,6 +436,7 @@ const handleThemeValidate = (e: ValidateEventData) => {
 		if(typeof data.fontScale === "number") {
 			previewFontScale.value = data.fontScale
 		}
+		previewBackground.value = typeof data.background === "string" ? data.background : "white"
 		refreshPalette()
 	}
 }
@@ -489,12 +493,23 @@ const handleThemeValidate = (e: ValidateEventData) => {
 	border: 1px solid var(--p-content-border-color);
 }
 .mock-light {
-	background: var(--m-bg-primary);
+	background: var(--m-bg-page);
 	color: var(--m-text-secondary-2);
 }
 .mock-dark {
 	background: var(--m-bg-primary-dark);
 	color: var(--m-text-secondary-1-light);
+}
+.page-row {
+	display: flex;
+	gap: .6rem;
+	align-items: center;
+	justify-content: center;
+}
+.page-swatch {
+	width: 5rem;
+	height: 1.5rem;
+	border: 1px solid var(--p-content-border-color);
 }
 .mock-kicker {
 	font-family: var(--m-heading);

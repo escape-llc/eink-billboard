@@ -2,6 +2,13 @@
 	"_schema": "urn:inky:storage:schema:theme:1",
 	"schema": {
 		"lookups": {
+			"background": {
+				"items": [
+					{"name": "White", "value": "white" },
+					{"name": "Tinted (the theme's light color)", "value": "tinted" },
+					{"name": "Black (dark mode)", "value": "black" }
+				]
+			},
 			"font": {
 				"items": [
 					{"name": "Jost", "value": "Jost" },
@@ -57,6 +64,14 @@
 				"required": true
 			},
 			{
+				"name":"background",
+				"type": "string",
+				"title": "Page Background",
+				"lookup": "background",
+				"required": false,
+				"description": "White is the crispest on a color e-ink panel, which has only a few pure colors and dithers a tint. Tinted uses the theme's light color. Black is dark mode: text and panels trade light for dark."
+			},
+			{
 				"name":"fontBody",
 				"type": "string",
 				"title": "Body Font",
@@ -91,6 +106,7 @@
 		"hue": 220,
 		"saturation": 80,
 		"lightness": 50,
+		"background": "white",
 		"fontBody": "Jost",
 		"fontHeading": null,
 		"fontScale": 1
