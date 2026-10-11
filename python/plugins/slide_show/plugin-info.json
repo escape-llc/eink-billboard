@@ -50,7 +50,8 @@
 					"minimum": 1,
 					"title": "Slide Duration Minutes",
 					"description": "Minutes per image."
-				}
+				},
+				{ "name": "showAs", "type": "string", "required": false, "default": "auto", "title": "Show As", "description": "auto: as the data source says (a text page overrides, a picture is a background). background: the overlays are drawn on it. blend: washes over the page before it, without the overlays. override: covers everything (only a priority image is drawn over it).", "enum": ["auto", "background", "blend", "override"]}
 			]
 		}
 	}

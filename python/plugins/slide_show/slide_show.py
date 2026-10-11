@@ -6,9 +6,11 @@ from typing import Any, Mapping, TypedDict, cast
 
 from ..plugin_base import PluginAsync, PluginExecutionContext, TrackType
 from ...datasources.data_source import DataSourceManager, MediaListAsync, MediaRenderAsync
+from ...model.configuration_manager import ConfigurationManager
 from ...model.schedule import PlaylistSchedule
 from ...task.messages import BasicMessage
 from ...task.display import DisplayImage
+from ...task.display_messages import DISPLAY_LAYERS, DisplayLayer
 from ...task.message_router import MessageRouter
 from ...task.timer import IProvideTimer
 
@@ -16,6 +18,23 @@ class SettingsDict(TypedDict):
 	dataSource: str
 	slideMinutes: int
 	slideMax: int
+	showAs: str
+
+def page_layer(context: PluginExecutionContext, datasource_id: str, show_as: str|None) -> DisplayLayer:
+	"""
+	How the slide show's pages are shown: the task's `showAs` (background, blend, override), or with `auto` (or nothing) what the data source's
+	descriptor says: `layer-foreground` in its `features` overrides, anything else is a background page.
+	"""
+	for layer in DISPLAY_LAYERS:
+		if show_as == layer:
+			return layer
+	cm = context.provider.get_service(ConfigurationManager)
+	if cm is not None:
+		for item in cm.enum_datasources():
+			info = item["info"]
+			if info.get("id") == datasource_id:
+				return "override" if "layer-foreground" in (info.get("features") or []) else "background"
+	return "background"
 
 class SlideShowAsync(PluginAsync):
 	def __init__(self, id, name):
@@ -44,6 +63,7 @@ class SlideShowAsync(PluginAsync):
 			raise RuntimeError(f"dataSource '{dataSourceName}' is not available")
 		if isinstance(dataSource, MediaListAsync) and isinstance(dataSource, MediaRenderAsync):
 			dsec = context.create_datasource_context(dataSource)
+			layer = page_layer(context, dataSourceName, settings.get("showAs"))
 			# TODO check for existing state to resume from?
 			state = await dataSource.open_async(dsec, cast(Mapping[str,Any], settings))
 			if len(state) == 0:
@@ -69,7 +89,7 @@ class SlideShowAsync(PluginAsync):
 						continue
 					count += 1
 					if mrr is not None:
-						router.send("display", DisplayImage(context.timestamp, mrr.title if mrr.title is not None else track.title, mrr.image))
+						router.send("display", DisplayImage(context.timestamp, mrr.title if mrr.title is not None else track.title, mrr.image, layer=layer))
 						await timer.sleep(timedelta(minutes=slideMinutes))
 			except asyncio.CancelledError as e:
 				self.logger.info(f"{self.id} cancelled {len(state)} remaining")

@@ -41,7 +41,8 @@
 					"minimum": 1,
 					"title": "Slide Duration Minutes",
 					"description": "Minutes for image."
-				}
+				},
+				{ "name": "showAs", "type": "string", "required": false, "default": "priority", "title": "Show As", "description": "priority: covers the whole screen. blend: washes over what the playlist shows, and hides the overlays, for the same time.", "enum": ["priority", "blend"]}
 			]
 		}
 	}

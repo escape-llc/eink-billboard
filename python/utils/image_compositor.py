@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol, runtime_checkable
 from PIL import Image, ImageDraw, ImageFont
 
@@ -54,19 +54,33 @@ def text_overlay(text: str|list[TextRun], size: tuple[int, int], position: tuple
 type LayerStackOp = tuple["LayerStack", "LayerStack"]
 @dataclass(frozen=True)
 class LayerStack:
+	"""
+	The layers (the readme's "Display Architecture"). What is shown, back to front:
+	- `background`, or the theme's color when there is none;
+	- `forground`, the playlist's page above the background: an `override` page is shown alone (on the theme's color) and nothing below it is
+	  drawn; a `blend` page washes over the background;
+	- `blend`, a timer task's image for a while, washing over what is under it (a playlist override hides it);
+	- the `overlays`, only when nothing above the background is showing;
+	- `priority`, over everything.
+	"""
 	version: int
 	background: DisplayImage|None
 	overlays: list[ImageOverlay]
 	forground: DisplayImage|None
 	priority: DisplayImage|None
+	blend: DisplayImage|None = None
+	def _with(self, **changes) -> LayerStackOp:
+		return (self, replace(self, version=self.version + 1, **changes))
 	def set_foreground(self, di: DisplayImage|None) -> LayerStackOp:
-		return (self, LayerStack(self.version + 1, self.background, self.overlays, di, self.priority))
+		return self._with(forground=di)
 	def set_background(self, di: DisplayImage|None) -> LayerStackOp:
-		return (self, LayerStack(self.version + 1, di, self.overlays, self.forground, self.priority))
+		return self._with(background=di)
 	def set_priority(self, di: DisplayImage|None) -> LayerStackOp:
-		return (self, LayerStack(self.version + 1, self.background, self.overlays, self.forground, di))
+		return self._with(priority=di)
+	def set_blend(self, di: DisplayImage|None) -> LayerStackOp:
+		return self._with(blend=di)
 	def set_overlays(self, overlays: list[ImageOverlay]) -> LayerStackOp:
-		return (self, LayerStack(self.version + 1, self.background, overlays, self.forground, self.priority))
+		return self._with(overlays=overlays)
 
 type RenderInfo = tuple[Image.Image, str]
 @runtime_checkable
@@ -89,21 +103,31 @@ class SimpleRenderPackage(RenderPackage):
 	def render(self) -> RenderInfo:
 		return (self._di.img.copy(), self._di.title)
 
-class BgFgRenderPackage(RenderPackage):
-	def __init__(self, version:int, bg: DisplayImage, fg: DisplayImage):
-		if bg is None or fg is None:
-			raise ValueError("BgFgRenderPackage requires both background and foreground images")
-		if bg.img.size != fg.img.size:
-			raise ValueError("BgFgRenderPackage requires background and foreground images to be the same size")
+class StackRenderPackage(RenderPackage):
+	"""
+	Images alpha-composited in order over a base: the background, or the theme's color (`fill`) when there is none. What is transparent in an
+	image shows what is under it; an opaque one covers it. The title is the top image's. A layer of another size than the base is fitted to it.
+	"""
+	def __init__(self, version:int, base: DisplayImage|None, layers: list[DisplayImage], fill: tuple[int, int, int]):
+		if not layers:
+			raise ValueError("StackRenderPackage requires at least one image to draw")
 		self._version = version
-		self._bg = bg
-		self._fg = fg
+		self._base = base
+		self._layers = list(layers)
+		self._fill = fill
 	@property
 	def version(self) -> int:
 		return self._version
 	def render(self) -> RenderInfo:
-		img = Image.alpha_composite(self._bg.img.convert("RGBA"), self._fg.img.convert("RGBA"))
-		return (img, self._fg.title)
+		size = self._base.img.size if self._base is not None else self._layers[0].img.size
+		canvas = self._base.img.convert("RGBA") if self._base is not None else Image.new("RGBA", size, (*self._fill, 255))
+		for layer in self._layers:
+			picture = layer.img.convert("RGBA")
+			if picture.size != size:
+				picture = picture.resize(size)
+			canvas.alpha_composite(picture)
+		mode = self._base.img.mode if self._base is not None and self._base.img.mode in ("RGB", "RGBA", "L") else "RGB"
+		return (canvas.convert(mode), self._layers[-1].title)
 
 class OverlayRenderPackage(RenderPackage):
 	"""The background with the overlays drawn over it, in order; the title is the background's."""
@@ -139,6 +163,8 @@ class ImageCompositor:
 	def __init__(self):
 		self._current_stack: LayerStack = LayerStack(0, None, [], None, None)
 		self._startVersion = self._current_stack.version
+		# the theme's background color, under a page that has no background (or transparency over nothing); the display sets it before each commit
+		self.fill: tuple[int, int, int] = (255, 255, 255)
 	@property
 	def current_version(self) -> int:
 		return self._current_stack.version
@@ -154,20 +180,27 @@ class ImageCompositor:
 	def set_layer_priority(self, pri: DisplayImage|None) -> LayerStackOp:
 		previous, self._current_stack = self._current_stack.set_priority(pri)
 		return (previous, self._current_stack)
+	def set_layer_blend(self, blend: DisplayImage|None) -> LayerStackOp:
+		previous, self._current_stack = self._current_stack.set_blend(blend)
+		return (previous, self._current_stack)
 	def is_dirty(self) -> bool:
 		return self._startVersion != self._current_stack.version
 	def commit(self) -> RenderPackage|None:
 		if not self.is_dirty():
 			return None
 		self._startVersion = self._current_stack.version
-		if self._current_stack.priority is not None:
-			return SimpleRenderPackage(self._current_stack.version, self._current_stack.priority)
-#		elif self._current_stack.forground is not None and self._current_stack.background is not None:
-#			return BgFgRenderPackage(self._current_stack.version, self._current_stack.background, self._current_stack.forground)
-		elif self._current_stack.forground is not None:
-			return SimpleRenderPackage(self._current_stack.version, self._current_stack.forground)
-		elif self._current_stack.background is not None and self._current_stack.overlays:
-			return OverlayRenderPackage(self._current_stack.version, self._current_stack.background, self._current_stack.overlays)
-		elif self._current_stack.background is not None:
-			return SimpleRenderPackage(self._current_stack.version, self._current_stack.background)
+		stack = self._current_stack
+		if stack.priority is not None:
+			return SimpleRenderPackage(stack.version, stack.priority)
+		if stack.forground is not None and stack.forground.layer != "blend":
+			# obscures everything under it, a timer blend included; transparency shows the theme's color, not the background
+			return StackRenderPackage(stack.version, None, [stack.forground], self.fill)
+		washes = [di for di in (stack.forground, stack.blend) if di is not None]
+		if washes:
+			# a playlist blend page and then a timer blend, over the background; the overlays are not drawn
+			return StackRenderPackage(stack.version, stack.background, washes, self.fill)
+		if stack.background is not None and stack.overlays:
+			return OverlayRenderPackage(stack.version, stack.background, stack.overlays)
+		if stack.background is not None:
+			return SimpleRenderPackage(stack.version, stack.background)
 		return None
