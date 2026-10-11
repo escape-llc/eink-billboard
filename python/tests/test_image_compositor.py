@@ -281,7 +281,10 @@ class TestTextOverlay(unittest.TestCase):
 		image, _ = package.render()
 		save_image(image, folder, 12, "text_overlay")
 		self.assertEqual(image.getpixel((0, 0)), (0, 0, 0))
-		self.assertNotEqual(image.getpixel((101, 71)), (0, 0, 0))
+		# the text and the halo around it are in the box, and the wash does not lighten the box's empty corner
+		box = image.crop((100, 70, 200, 100))
+		self.assertTrue(any(px != (0, 0, 0) for px in box.getdata()))
+		self.assertEqual(image.getpixel((100, 70)), (0, 0, 0))
 
 if __name__ == "__main__":
     unittest.main()
