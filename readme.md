@@ -278,7 +278,23 @@ The settings also choose the first day of the week and whether the grid shows IS
 
 It also chooses which calendars and holiday sets to show (none chosen means all that are enabled).
 Each address has a Test button. Besides how many events are coming, it warns when a calendar **runs out**: when nothing in it repeats, it is empty after its last event. A season's fixture list is like this, and the address usually changes for the next season. The page says the same in its footer once that day is in view.
-Google and Microsoft accounts (sign-in) are planned.
+* **Google and Microsoft accounts:** add the account under Accounts, save, then press **Connect**. A calendar row of the kind `google` or `microsoft` names the account and, optionally, a calendar ID; Connect lists the account's calendars and their IDs. Empty means the main calendar.
+
+### Registering your own app (once per account)
+The device signs in with an app registration of your own; nothing is shared with anyone else.
+* **Google:**
+  1. In the Google Cloud console, create a project, enable the **Google Calendar API**, and create an **OAuth client ID** of type **Desktop app**.
+  2. Put its client ID and client secret in the account row.
+  3. On the OAuth consent screen, **publish** the app. An app left in "Testing" gets sign-ins that expire after 7 days. An unverified app works for your own account: Google warns once.
+  4. Connect opens Google's sign-in. Afterwards your browser goes to a `http://localhost/...` address that does not load: copy that whole address back into the settings page.
+* **Microsoft:**
+  1. In the Microsoft Entra admin center, register an app.
+  2. Under Authentication, allow **public client flows**.
+  3. Add the delegated permissions **Calendars.Read** and **offline_access**.
+  4. Put its application (client) ID in the account row. The tenant is `common` for a personal or any work account, or your tenant's name or ID.
+  5. Connect shows a code: open microsoft.com/devicelogin on any device, enter it and sign in, and the page finishes on its own.
+
+The sign-in's tokens are kept in `datasources/calendar/tokens.json` in the storage folder, never in the settings (which the browser reads). Delete an account, or change its client ID, and it must be connected again.
 
 ## Storage Folder
 

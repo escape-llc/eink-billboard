@@ -118,3 +118,46 @@ test("a track picks views and calendars from the settings, and the agenda's days
 	fs.writeFileSync(path.join(OPEN.storage, "schedules", "playlist.json"), JSON.stringify({ ...JSON.parse(fs.readFileSync(path.join(OPEN.storage, "schedules", "playlist.json"), "utf8")), items: items.filter((x: { title: string }) => x.title !== "Calendar") }, null, "\t"))
 	watch.expectNone()
 })
+
+test("an account calendar names its account instead of an address", async ({ page }) => {
+	const watch = watchProblems(page)
+	await openCalendarSettings(page)
+	const rows = calendars(page)
+	await rows.getByRole("combobox", { name: "Kind 1" }).click()
+	await page.getByRole("option", { name: "microsoft", exact: true }).click()
+	await expect(rows.getByRole("textbox", { name: "Address 1", exact: true })).toHaveCount(0)
+	await expect(rows.getByRole("combobox", { name: "Sign-in 1" })).toHaveCount(0)
+	await rows.getByRole("combobox", { name: "Account 1" }).click()
+	await expect(page.getByRole("option")).toHaveText(["Work account"])
+	await page.getByRole("option", { name: "Work account" }).click()
+	await saveButton(page).click()
+	await expect(page.getByText("Settings saved successfully")).toBeVisible()
+	expect(JSON.parse(fs.readFileSync(FILE, "utf8")).calendars[0]).toMatchObject({ source: "microsoft", account: "Work account", url: null, auth: null })
+	watch.expectNone()
+})
+
+test("Connect runs the sign-in steps the server gives: a code to enter, then waiting until it is done", async ({ page }) => {
+	const watch = watchProblems(page)
+	// the server's steps talk to Microsoft, which a test must not: these answers stand in for our own routes (the unit tests run the real ones)
+	const asked: { step: string, body: unknown }[] = []
+	let polls = 0
+	await page.route("**/api/datasource/calendar/connect/*", async route => {
+		const step = route.request().url().split("/").pop()!
+		asked.push({ step, body: route.request().postDataJSON() })
+		const answer = step === "start"
+			? { done: false, ok: true, session: "s-1", message: "Open the address, sign in, and enter this code.", link: "https://microsoft.com/devicelogin", code: "ABCD-EFGH", poll: 1 }
+			: ++polls < 2 ? { done: false, poll: 1 } : { done: true, ok: true, message: "'Work account' is connected. Its calendars: Calendar (AAMk-1)" }
+		await route.fulfill({ json: answer })
+	})
+	await openCalendarSettings(page)
+	const accounts = page.getByRole("group", { name: "Accounts" })
+	await accounts.getByRole("button", { name: "Connect Accounts 1" }).click()
+	await expect(page.getByLabel("Code for Accounts 1")).toHaveText("ABCD-EFGH")
+	await expect(accounts.getByRole("link", { name: "microsoft.com" })).toHaveAttribute("href", "https://microsoft.com/devicelogin")
+	await expect(accounts.getByText("'Work account' is connected. Its calendars: Calendar (AAMk-1)")).toBeVisible({ timeout: 10000 })
+	await expect(page.getByLabel("Code for Accounts 1")).toHaveCount(0)
+	expect(asked.map(a => a.step)).toEqual(["start", "poll", "poll"])
+	expect(asked[0]!.body).toEqual({ key: "Work account" })
+	expect(asked[1]!.body).toEqual({ session: "s-1" })
+	watch.expectNone()
+})

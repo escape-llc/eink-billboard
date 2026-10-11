@@ -309,6 +309,12 @@ class TestDescriptorRules(unittest.TestCase):
 					self.assertEqual(len(names), len(set(names)))
 					if items.get("key"):
 						self.assertIn(items["key"], names)
+					if "action" in items:
+						# a step of ours run for a saved row (it is found by its key): a route under /api/, and a button label
+						action = items["action"]
+						self.assertTrue(items.get("key"), "a row action finds the saved row by its key")
+						self.assertTrue(isinstance(action.get("url"), str) and action["url"].startswith("/api/"))
+						self.assertTrue(isinstance(action.get("label"), str) and action["label"])
 					for field in fields:
 						# flat scalars, checked by the rules every other field has (a row's `visibleIf` names the row's fields: TestDescriptors checks them)
 						self.assertIn(field.get("type"), self.ITEM_TYPES)

@@ -8,7 +8,8 @@ from fastapi import APIRouter, Body
 
 from ...task.async_http_worker_pool import AsyncHttpWorkerPool
 from ...utils.url_guard import UrlRefused, fetch_checked
-from ...web.deps import TOD
+from ...web.deps import CM, TOD
+from .accounts import SESSIONS, AccountError, TokenStore, account_names, find_account, finish_google, poll_microsoft, start
 from .calendar import device_now
 from .sources import HEADERS, MAX_CALENDAR_BYTES, NotACalendar, country_names, events_between, last_day, parse_calendar, web_url
 
@@ -72,3 +73,55 @@ def test_calendar(tod: TOD, body: dict[str, Any] = Body(...)):
 @calendar_router.get('/lookups/countries')
 def countries():
 	return country_names()
+
+# ---- connecting a Google or Microsoft account (the row action of an account in the settings) ----------------------------------------
+# The steps work from the *saved* settings: the account's secret is never in the browser, so the server reads the row by its name.
+
+def _stored(cm) -> tuple[dict, TokenStore]:
+	dsm = cm.datasource_manager("calendar")
+	_, settings = dsm.open().get()
+	return settings or {}, TokenStore(dsm.ROOT_PATH)
+
+def _refused(problem: AccountError) -> dict:
+	return { "done": True, "ok": False, "message": str(problem) }
+
+async def _client_run(step) -> dict:
+	async with httpx.AsyncClient(timeout=TIMEOUT, transport=AsyncHttpWorkerPool.default_transport) as client:
+		try:
+			return await step(client)
+		except AccountError as problem:
+			return _refused(problem)
+		except httpx.HTTPError as failed:
+			logger.warning(f"A connect step failed ({type(failed).__name__}).")
+			return _refused(AccountError(f"Could not reach the provider ({type(failed).__name__}). Try again."))
+
+@calendar_router.post('/connect/start')
+def connect_start(cm: CM, body: dict[str, Any] = Body(...)):
+	"""Start signing in the account named `key` (as saved). Always 200: `{ session, message, link?, code?, input?, poll? }` or `{ done, ok: false, message }`."""
+	settings, _ = _stored(cm)
+	account = find_account(settings, body.get("key"))
+	if account is None:
+		return _refused(AccountError("Save the settings first: Connect uses the saved account."))
+	async def step(client):
+		return { "done": False, "ok": True, **await start(client, account) }
+	return asyncio.run(_client_run(step))
+
+@calendar_router.post('/connect/continue')
+def connect_continue(cm: CM, body: dict[str, Any] = Body(...)):
+	"""Google's second step: `value` is the address the browser was sent to."""
+	settings, store = _stored(cm)
+	async def step(client):
+		session = SESSIONS.get(body.get("session"))
+		account = find_account(settings, session.account)
+		if account is None:
+			raise AccountError("The account is no longer in the saved settings.")
+		return await finish_google(client, body.get("session"), body.get("value"), account, store, account_names(settings))
+	return asyncio.run(_client_run(step))
+
+@calendar_router.post('/connect/poll')
+def connect_poll(cm: CM, body: dict[str, Any] = Body(...)):
+	"""Microsoft's waiting step: `{ done: false, poll }` until the sign-in is finished."""
+	settings, store = _stored(cm)
+	async def step(client):
+		return await poll_microsoft(client, body.get("session"), store, account_names(settings))
+	return asyncio.run(_client_run(step))

@@ -37,7 +37,7 @@ export type FieldDef = {
 	 */
 	minItems?: number
 	maxItems?: number
-	items?: { type: "object", key?: string, properties: FieldDef[] } | { type: "string", enum?: string[] }
+	items?: { type: "object", key?: string, properties: FieldDef[], action?: RowActionDef } | { type: "string", enum?: string[] }
 	minLength?: number
 	maxLength?: number
 	/** a regular expression both JavaScript and Python read the same way */
@@ -45,6 +45,15 @@ export type FieldDef = {
 	step?: number
 	minFractionDigits?: number
 	maxFractionDigits?: number
+}
+/**
+ * A button on each row of a list, which runs a few steps against our own route for the *saved* row (found by its key), such as signing in an account:
+ * `POST {url}/start { key }` answers what to show (`message`, `link`, `code`, `input`, `poll` seconds) and a `session`; then `{url}/continue { session, value }`
+ * (with what was typed in `input`) or `{url}/poll { session }` until the answer is `done`, with `ok` and a `message`.
+ */
+export type RowActionDef = {
+	url: string
+	label: string
 }
 export type LookupSchema = {
 	schema: string
