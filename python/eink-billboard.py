@@ -71,7 +71,14 @@ def run_application(args: argparse.Namespace) -> None:
 	time_base = ConfiguredTimeOfDay(system_timezone_name)
 	# the cache is evicted first, so that whoever hears of a change next reads the new file; the application is added once it exists
 	watcher_sink = FanoutSink(ConfigurationManagerEvictionSink(cm))
-	config_watcher = ConfigurationWatcher(time_base, watcher_sink, cm.STORAGE_PATH)
+	# EINK_WATCH_POLL (seconds) for a storage whose file system sends no change events (a Windows folder mounted into a container)
+	poll_text = os.environ.get("EINK_WATCH_POLL", "").strip()
+	try:
+		poll: float|None = float(poll_text) if poll_text else None
+	except ValueError:
+		logger.warning("EINK_WATCH_POLL is not a number of seconds, using file system events.")
+		poll = None
+	config_watcher = ConfigurationWatcher(time_base, watcher_sink, cm.STORAGE_PATH, poll=poll if poll and poll > 0 else None)
 	# plugins and datasources may contribute API routers
 	routers: dict[str, Any] = {}
 	routers.update(cm.load_routers(cm.enum_plugins()))
