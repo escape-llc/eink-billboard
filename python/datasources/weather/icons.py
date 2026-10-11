@@ -19,7 +19,7 @@ _FLAKES = "".join(f'<circle cx="{x}" cy="{y}" r="1.6"/>' for x, y in ((24, 52), 
 _MIST = "".join(f'<line x1="{x1}" y1="{y}" x2="{x2}" y2="{y}"/>' for x1, x2, y in ((12, 52, 22), (18, 56, 32), (12, 48, 42)))
 
 def _svg(body: str) -> str:
-	return ('<svg class="wx-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" '
+	return ('<svg class="wx-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" '
 		f'aria-hidden="true">{body}</svg>')
 
 _GROUPS = {
