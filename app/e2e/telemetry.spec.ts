@@ -37,3 +37,36 @@ test("on the server with a token, the link connects once the page has signed in"
 	await expect(page.getByTestId("link-status")).toHaveText("Live", { timeout: 15000 })
 	watch.expectNone()
 })
+
+test("in a short window the page and the gutter stay inside it and scroll, so the last events can be reached", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.setViewportSize({ width: 1200, height: 450 })
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "Data Sources" }).click()
+	await page.getByRole("tabpanel").locator(".p-select").first().click()
+	await page.getByRole("option", { name: /^calendar/ }).click()
+	await page.getByRole("button", { name: "Activity" }).click()
+	const gutter = page.getByRole("complementary", { name: "Device activity" })
+	await expect(gutter.getByTestId("link-status")).toHaveText("Live")
+	await expect(gutter.getByRole("region", { name: "Events" }).getByRole("listitem").first()).toBeVisible({ timeout: 20000 })
+
+	// nothing is taller than the window ...
+	const heights = await page.evaluate(() => ({
+		window: innerHeight,
+		gutter: document.querySelector(".gutter")!.getBoundingClientRect().bottom,
+		router: document.querySelector(".router-view")!.getBoundingClientRect().bottom,
+	}))
+	expect(heights.gutter).toBeLessThanOrEqual(heights.window)
+	expect(heights.router).toBeLessThanOrEqual(heights.window)
+	// ... the long settings page scrolls inside its area, to its end ...
+	const router = page.locator(".router-view")
+	expect(await router.evaluate(e => e.scrollHeight - e.clientHeight)).toBeGreaterThan(0)
+	await router.evaluate(e => { e.scrollTop = e.scrollHeight })
+	await expect(page.getByRole("button", { name: "Add to Holidays" })).toBeInViewport()
+	// ... and so does the gutter: its last event can be scrolled to
+	await gutter.evaluate(e => { e.scrollTop = e.scrollHeight })
+	const last = gutter.getByRole("region", { name: "Events" }).getByRole("listitem").last()
+	await last.evaluate(e => { e.scrollIntoView({ block: "end" }) })
+	await expect(last).toBeInViewport()
+	watch.expectNone()
+})
