@@ -6,7 +6,7 @@
 	</template>
 	<template v-else-if="visible">
 		<InputGroup>
-			<InputGroupAddon>
+			<InputGroupAddon :class="{ 'label-top': tall }">
 				<slot name="label" v-bind="{ field, fieldState }">
 					<label :style="{'width': props.fieldNameWidth, 'max-width': props.fieldNameWidth }"
 						style="flex-shrink:0;flex-grow:1" :for="field.name">{{ field.title }}</label>
@@ -159,6 +159,8 @@ const fieldState = computed(() => props.formContext?.[props.field.name] || {});
 // the form's field states, read by name, are the values the predicates look at
 const visible = computed(() => isVisible(props.field, (name: string) => props.formContext?.[name]?.value))
 const isInvalid = computed(() => !!fieldState.value.invalid);
+// a field as tall as a map or a list of rows: its label sits at the top, beside the first line, not in the middle of the block
+const tall = computed(() => props.field.type === 'location' || props.field.type === 'array');
 // a multi-select's choices: fixed ones as `{ name, value }`, like a lookup's list
 const choices = computed(() => props.field.items?.enum ? props.field.items.enum.map((v: string) => ({ name: v, value: v })) : (props.field.list ?? []));
 // a problem with one row of a list is shown on that row (by `ArrayField`); the message under the field is for the field as a whole
@@ -170,4 +172,7 @@ const errorMessage = computed(() => {
 });
 </script>
 <style scoped>
+.label-top {
+	align-items: flex-start;
+}
 </style>

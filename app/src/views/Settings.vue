@@ -343,7 +343,9 @@ const handleThemeValidate = (e: ValidateEventData) => {
 	font-size: 120%;
 }
 .form {
-	width: 50%;
+	/* the whole tab, up to a width where a row of fields is still easy to read */
+	width: 100%;
+	max-width: 72rem;
 	margin: auto;
 }
 .swatch-table {

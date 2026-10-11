@@ -36,6 +36,10 @@ test("a calendar row shows the sign-in fields its choice needs, and its password
 	// each row is a block of labelled fields (more than four), with a color picker
 	await expect(rows.getByText("Address").first()).toBeVisible()
 	await expect(rows.getByRole("textbox", { name: "Color 1", exact: true })).toHaveValue("#3366cc")
+	// the controls of a stacked row fill their cells, the select as well as the text boxes
+	for (const box of [rows.getByRole("textbox", { name: "Name 1", exact: true }), rows.getByRole("textbox", { name: "Address 1", exact: true }), rows.getByRole("combobox", { name: "Kind 1" })]) {
+		expect((await box.boundingBox())!.width).toBeGreaterThan(120)
+	}
 
 	await rows.getByRole("combobox", { name: "Sign-in 1" }).click()
 	await page.getByRole("option", { name: "bearer", exact: true }).click()
