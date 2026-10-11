@@ -1,5 +1,5 @@
 <template>
-	<BasicForm ref="bf" :form :initialValues :baseUrl="baseUrl" @validate="handleValidate" @submit="submitForm">
+	<BasicForm ref="bf" :form :initialValues :baseUrl="baseUrl" :owner="owner" @validate="handleValidate" @submit="submitForm">
 		<template #empty>
 			<p style="margin:auto">No Settings defined.</p>
 		</template>
@@ -35,7 +35,7 @@ import { ref, watch, nextTick, onMounted, onBeforeUnmount } from "vue"
 import { onBeforeRouteLeave } from "vue-router"
 import { useConfirm } from "primevue/useconfirm"
 import BasicForm from "./BasicForm.vue"
-import type { ValidateEventData } from "./BasicForm.vue"
+import type { Owner, ValidateEventData } from "./BasicForm.vue"
 import type { FormDef } from "./FormDefs"
 import { InputGroup, Button, Toolbar, Message } from 'primevue';
 
@@ -45,6 +45,8 @@ export interface PropsType {
 	settingsUrl: string
 	settings?: any
 	schema: any
+	/** the plugin or data source whose settings these are: a `settings` lookup of a field chooses from its stored lists */
+	owner?: Owner
 }
 export type SubmitEventData = {
 	result: unknown|null

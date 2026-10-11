@@ -1043,6 +1043,485 @@
 			},
 			"value": "http://example.test/f",
 			"error": "Enter a valid URL"
+		},
+		{
+			"name": "color, six digits",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "color"
+			},
+			"value": "#3366cc",
+			"error": null
+		},
+		{
+			"name": "color, three digits",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "color"
+			},
+			"value": "#36C",
+			"error": null
+		},
+		{
+			"name": "color, a name is not a color",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "color"
+			},
+			"value": "blue",
+			"error": "Enter a color like #3366cc"
+		},
+		{
+			"name": "color, no hash",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "color"
+			},
+			"value": "3366cc",
+			"error": "Enter a color like #3366cc"
+		},
+		{
+			"name": "color optional, empty is unset",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "string",
+				"format": "color"
+			},
+			"value": "",
+			"error": null
+		},
+		{
+			"name": "multi-select, members",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"items": {
+					"type": "string",
+					"enum": [
+						"month",
+						"agenda"
+					]
+				}
+			},
+			"value": [
+				"month",
+				"agenda"
+			],
+			"error": null
+		},
+		{
+			"name": "multi-select, empty is none chosen",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"items": {
+					"type": "string",
+					"enum": [
+						"month",
+						"agenda"
+					]
+				}
+			},
+			"value": [],
+			"error": null
+		},
+		{
+			"name": "multi-select, a value that is not a choice",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"items": {
+					"type": "string",
+					"enum": [
+						"month",
+						"agenda"
+					]
+				}
+			},
+			"value": [
+				"month",
+				"week"
+			],
+			"error": "Not one of the allowed values",
+			"path": [
+				"1"
+			]
+		},
+		{
+			"name": "multi-select, a null in the list",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"items": {
+					"type": "string",
+					"enum": [
+						"month",
+						"agenda"
+					]
+				}
+			},
+			"value": [
+				null
+			],
+			"error": "Required",
+			"path": [
+				"0"
+			]
+		},
+		{
+			"name": "multi-select, not a list",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"items": {
+					"type": "string",
+					"enum": [
+						"month",
+						"agenda"
+					]
+				}
+			},
+			"value": "month",
+			"error": "Expected a list"
+		},
+		{
+			"name": "multi-select, maxItems",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"items": {
+					"type": "string",
+					"enum": [
+						"month",
+						"agenda"
+					]
+				},
+				"maxItems": 1
+			},
+			"value": [
+				"month",
+				"agenda"
+			],
+			"error": "At most 1 items"
+		},
+		{
+			"name": "row, a hidden field is not checked",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"items": {
+					"type": "object",
+					"key": "name",
+					"properties": [
+						{
+							"name": "name",
+							"title": "Name",
+							"type": "string",
+							"required": true
+						},
+						{
+							"name": "auth",
+							"title": "Auth",
+							"type": "string",
+							"required": true,
+							"enum": [
+								"none",
+								"basic"
+							]
+						},
+						{
+							"name": "password",
+							"title": "Password",
+							"type": "string",
+							"required": true,
+							"visibleIf": {
+								"field": "auth",
+								"const": "basic"
+							}
+						},
+						{
+							"name": "color",
+							"title": "Color",
+							"type": "string",
+							"format": "color",
+							"required": false
+						}
+					]
+				}
+			},
+			"value": [
+				{
+					"name": "a",
+					"auth": "none"
+				}
+			],
+			"error": null
+		},
+		{
+			"name": "row, a shown field is checked",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"items": {
+					"type": "object",
+					"key": "name",
+					"properties": [
+						{
+							"name": "name",
+							"title": "Name",
+							"type": "string",
+							"required": true
+						},
+						{
+							"name": "auth",
+							"title": "Auth",
+							"type": "string",
+							"required": true,
+							"enum": [
+								"none",
+								"basic"
+							]
+						},
+						{
+							"name": "password",
+							"title": "Password",
+							"type": "string",
+							"required": true,
+							"visibleIf": {
+								"field": "auth",
+								"const": "basic"
+							}
+						},
+						{
+							"name": "color",
+							"title": "Color",
+							"type": "string",
+							"format": "color",
+							"required": false
+						}
+					]
+				}
+			},
+			"value": [
+				{
+					"name": "a",
+					"auth": "none"
+				},
+				{
+					"name": "b",
+					"auth": "basic"
+				}
+			],
+			"error": "Required",
+			"path": [
+				"1",
+				"password"
+			]
+		},
+		{
+			"name": "row, each row reads its own fields",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"items": {
+					"type": "object",
+					"key": "name",
+					"properties": [
+						{
+							"name": "name",
+							"title": "Name",
+							"type": "string",
+							"required": true
+						},
+						{
+							"name": "auth",
+							"title": "Auth",
+							"type": "string",
+							"required": true,
+							"enum": [
+								"none",
+								"basic"
+							]
+						},
+						{
+							"name": "password",
+							"title": "Password",
+							"type": "string",
+							"required": true,
+							"visibleIf": {
+								"field": "auth",
+								"const": "basic"
+							}
+						},
+						{
+							"name": "color",
+							"title": "Color",
+							"type": "string",
+							"format": "color",
+							"required": false
+						}
+					]
+				}
+			},
+			"value": [
+				{
+					"name": "a",
+					"auth": "basic",
+					"password": "x"
+				},
+				{
+					"name": "b",
+					"auth": "none"
+				}
+			],
+			"error": null
+		},
+		{
+			"name": "row, a color",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"items": {
+					"type": "object",
+					"key": "name",
+					"properties": [
+						{
+							"name": "name",
+							"title": "Name",
+							"type": "string",
+							"required": true
+						},
+						{
+							"name": "auth",
+							"title": "Auth",
+							"type": "string",
+							"required": true,
+							"enum": [
+								"none",
+								"basic"
+							]
+						},
+						{
+							"name": "password",
+							"title": "Password",
+							"type": "string",
+							"required": true,
+							"visibleIf": {
+								"field": "auth",
+								"const": "basic"
+							}
+						},
+						{
+							"name": "color",
+							"title": "Color",
+							"type": "string",
+							"format": "color",
+							"required": false
+						}
+					]
+				}
+			},
+			"value": [
+				{
+					"name": "a",
+					"auth": "none",
+					"color": "red"
+				}
+			],
+			"error": "Enter a color like #3366cc",
+			"path": [
+				"0",
+				"color"
+			]
+		},
+		{
+			"name": "row, not an object",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"items": {
+					"type": "object",
+					"key": "name",
+					"properties": [
+						{
+							"name": "name",
+							"title": "Name",
+							"type": "string",
+							"required": true
+						},
+						{
+							"name": "auth",
+							"title": "Auth",
+							"type": "string",
+							"required": true,
+							"enum": [
+								"none",
+								"basic"
+							]
+						},
+						{
+							"name": "password",
+							"title": "Password",
+							"type": "string",
+							"required": true,
+							"visibleIf": {
+								"field": "auth",
+								"const": "basic"
+							}
+						},
+						{
+							"name": "color",
+							"title": "Color",
+							"type": "string",
+							"format": "color",
+							"required": false
+						}
+					]
+				}
+			},
+			"value": [
+				"a"
+			],
+			"error": "Expected an object",
+			"path": [
+				"0"
+			]
 		}
 	]
 }

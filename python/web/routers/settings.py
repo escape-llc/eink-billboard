@@ -49,11 +49,12 @@ def _settings_lookups(item: CollectInfoDict) -> dict:
 
 def _settings_lookup_choices(item: CollectInfoDict, lookup_name: str, stored: dict|None) -> list[dict]:
 	"""
-	The choices of one of the item's `settings` lookups, from the settings it keeps. Only a lookup the descriptor declares (with a `settings` list) is served;
+	The choices of one of the item's `settings` lookups (of its instance settings or its settings), from the settings it keeps. Only a lookup the descriptor declares (with a `settings` list) is served;
 	what is read is our own declared name, never the URL's string.
 	"""
+	# a task's fields choose from the lists, and so may a field of the settings themselves (a row naming an entry of another list)
 	_, lookups = instance_properties(cast(dict, item))
-	for declared, definition in lookups.items():
+	for declared, definition in [*lookups.items(), *_settings_lookups(item).items()]:
 		if declared == lookup_name and isinstance(definition, dict) and "settings" in definition:
 			return settings_lookup_items(definition, stored)
 	raise ApiError(404, "Unknown lookup.", None)

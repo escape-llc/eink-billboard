@@ -126,6 +126,10 @@ function startLookups(schema: SchemaType, values: any[]): void {
 		if(px.children) {
 			startLookups(schema, px.children)
 		}
+		// the fields of a list's rows may choose from a lookup too
+		if(px.type === "array" && px.items?.properties) {
+			startLookups(schema, px.items.properties)
+		}
 	})
 }
 function schemaFilterFeatures(features: string[], check: string[]|undefined): boolean {
@@ -136,8 +140,11 @@ function schemaFilterFeatures(features: string[], check: string[]|undefined): bo
 function formProperties(schema: SchemaType|undefined, owner: Owner|undefined) :any[] {
 	if(schema?.properties) {
 		const retv:any[] = []
-		schema.properties.forEach(px => {
+		const resolve = (px: any): any => {
 			const fx:any = { ...px }
+			if(px.type === "array" && px.items?.properties) {
+				fx.items = { ...px.items, properties: px.items.properties.map(resolve) }
+			}
 			if("lookup" in px && px.lookup) {
 				if(isLookupItems(schema, px.lookup, "items")) {
 					fx.list = lookupItems(schema, px.lookup)
@@ -163,6 +170,10 @@ function formProperties(schema: SchemaType|undefined, owner: Owner|undefined) :a
 					console.warn("Unknown lookup type", px.lookup)
 				}
 			}
+			return fx
+		}
+		schema.properties.forEach(px => {
+			const fx:any = resolve(px)
 			if(px.type === "schema" && "list" in fx && fx.listType === "schema") {
 				const svalue = localValues.value[px.name]
 				if(svalue) {
@@ -245,11 +256,12 @@ function lookupUrl(target: any): void {
 		})
 	})
 }
-/** A stored value the list does not offer (renamed, or the list failed to load) must still show, not silently look unset. */
+/** A stored value the list does not offer (renamed, or the list failed to load) must still show, not silently look unset; each of a multi-select's too. */
 function withCurrentValue(list: LookupValue[], name: string): LookupValue[] {
-	const current = localValues.value?.[name]
-	if(current === undefined || current === null || current === "" || list.some(lx => lx.value === current)) return list
-	return [...list, { name: String(current), value: current }]
+	const value = localValues.value?.[name]
+	const missing = (Array.isArray(value) ? value : [value])
+		.filter(current => current !== undefined && current !== null && current !== "" && !list.some(lx => lx.value === current))
+	return [...list, ...missing.map(current => ({ name: String(current), value: current }))]
 }
 function createResolver(fields: FormField[]): (values: Record<string, any>) => z.ZodTypeAny {
 	return (values) => {

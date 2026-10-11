@@ -3,13 +3,13 @@ Conditional visibility of schema properties: the same rules as `app/src/componen
 (the cases both must pass are in `python/tests/form_visibility.json`).
 
 A property may carry `visibleIf`, a small JSON predicate over the other properties' values:
-	{ "field": "randomizeDate", "const": false }    const | enum | set (true: has a value, false: has none)
+	{ "field": "randomizeDate", "const": false }    const | enum | set (true: has a value, false: has none) | contains (a list value holds it)
 	{ "all": [ ... ] }   { "any": [ ... ] }   { "not": { ... } }
 An unset value (missing, null, "") reads as null. A hidden property is not applicable: it is not validated and is stored as null.
 """
 from typing import Any, Iterable
 
-_OPERATORS = ("const", "enum", "set")
+_OPERATORS = ("const", "enum", "set", "contains")
 
 def _read(values: dict, name: str) -> Any:
 	v = values.get(name)
@@ -41,6 +41,8 @@ def evaluate(p: Any, values: dict) -> bool:
 			return any(_same(v, x) for x in p["enum"])
 		if isinstance(p.get("set"), bool):
 			return (v is not None) == p["set"]
+		if "contains" in p:
+			return isinstance(v, list) and any(_same(x, p["contains"]) for x in v)
 	return True
 
 def hidden_names(properties: Iterable[dict], values: dict) -> set[str]:
@@ -53,9 +55,21 @@ def hidden_names(properties: Iterable[dict], values: dict) -> set[str]:
 	return hidden
 
 def null_hidden(document: dict, properties: Iterable[dict]) -> dict:
-	"""A copy of the document with every hidden property set to null."""
+	"""
+	A copy of the document with every hidden property set to null. The rows of a list of objects are read the same way, each on its own:
+	a row's `visibleIf` names the fields of that row.
+	"""
+	properties = list(properties or [])
 	hidden = hidden_names(properties, document)
-	return { k: (None if k in hidden else v) for k, v in document.items() } | { n: None for n in hidden }
+	out = { k: (None if k in hidden else v) for k, v in document.items() } | { n: None for n in hidden }
+	for prop in properties:
+		name = prop.get("name") if isinstance(prop, dict) else None
+		items = prop.get("items") if isinstance(prop, dict) and prop.get("type") == "array" else None
+		item_props = items.get("properties") if isinstance(items, dict) else None
+		rows = out.get(name) if name else None
+		if name and isinstance(item_props, list) and item_props and isinstance(rows, list):
+			out[name] = [null_hidden(row, item_props) if isinstance(row, dict) else row for row in rows]
+	return out
 
 def _referenced(p: Any) -> list[str]:
 	if not isinstance(p, dict):
@@ -77,7 +91,7 @@ def _shape_problem(p: Any) -> str|None:
 		return _shape_problem(p["not"])
 	if not isinstance(p.get("field"), str):
 		return "needs a field, all, any or not"
-	return None if any(op in p for op in _OPERATORS) else "needs const, enum or set"
+	return None if any(op in p for op in _OPERATORS) else "needs const, enum, set or contains"
 
 def find_problems(properties: Iterable[dict]) -> list[str]:
 	"""What is wrong with the `visibleIf` of these properties: a malformed predicate, a name that is no property, or a cycle."""

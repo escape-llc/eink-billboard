@@ -249,6 +249,92 @@
 				"a": true
 			},
 			"visible": false
+		},
+		{
+			"name": "contains, a member",
+			"predicate": {
+				"field": "views",
+				"contains": "agenda"
+			},
+			"values": {
+				"views": [
+					"month",
+					"agenda"
+				]
+			},
+			"visible": true
+		},
+		{
+			"name": "contains, not a member",
+			"predicate": {
+				"field": "views",
+				"contains": "agenda"
+			},
+			"values": {
+				"views": [
+					"month"
+				]
+			},
+			"visible": false
+		},
+		{
+			"name": "contains, an empty list",
+			"predicate": {
+				"field": "views",
+				"contains": "agenda"
+			},
+			"values": {
+				"views": []
+			},
+			"visible": false
+		},
+		{
+			"name": "contains, unset",
+			"predicate": {
+				"field": "views",
+				"contains": "agenda"
+			},
+			"values": {},
+			"visible": false
+		},
+		{
+			"name": "contains, a value that is not a list",
+			"predicate": {
+				"field": "views",
+				"contains": "agenda"
+			},
+			"values": {
+				"views": "agenda"
+			},
+			"visible": false
+		},
+		{
+			"name": "contains, a number is not a boolean",
+			"predicate": {
+				"field": "n",
+				"contains": 1
+			},
+			"values": {
+				"n": [
+					true
+				]
+			},
+			"visible": false
+		},
+		{
+			"name": "not contains",
+			"predicate": {
+				"not": {
+					"field": "views",
+					"contains": "agenda"
+				}
+			},
+			"values": {
+				"views": [
+					"month"
+				]
+			},
+			"visible": true
 		}
 	]
 }

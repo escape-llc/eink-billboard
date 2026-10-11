@@ -17,6 +17,12 @@
 					<ToggleSwitch :name="field.name" :inputId="field.name" size="small" fluid />
 				</InputGroupAddon>
 			</template>
+			<template v-else-if="field.type === 'array' && field.items?.type === 'string'">
+				<!-- a multi-select: the values chosen from `items.enum` or from the field's lookup -->
+				<MultiSelect size="small" :name="field.name" :inputId="field.name" :invalid="isInvalid" :options="choices"
+					optionLabel="name" optionValue="value" display="chip" :showClear="field.required !== true"
+					:placeholder="field.title" fluid />
+			</template>
 			<template v-else-if="field.type === 'array'">
 				<InputGroupAddon style="flex-grow:1;padding:0">
 					<!-- Registers the field with the form and nothing more: the PrimeVue inputs of the rows would each take the whole field's value if they were inside it.
@@ -37,6 +43,14 @@
 						<DatePicker size="small" fluid showIcon showButtonBar dateFormat="yy-mm-dd" :inputId="field.name" :invalid="isInvalid"
 							:modelValue="isoToDate($field.value)" :placeholder="field.title"
 							@update:modelValue="(d: Date|(Date|null)[]|null|undefined) => $field.props.onChange(dateToIso(Array.isArray(d) ? d[0] : d))" />
+					</FormField>
+				</InputGroupAddon>
+			</template>
+			<template v-else-if="field.type === 'string' && field.format === 'color'">
+				<InputGroupAddon style="flex-grow:1">
+					<FormField style="width:100%" :name="field.name" v-slot="$field" :validateOnValueUpdate="true">
+						<ColorField :inputId="field.name" :label="field.title" :invalid="isInvalid" :modelValue="$field.value"
+							@update:modelValue="(v: string|null) => $field.props.onChange({ value: v })" />
 					</FormField>
 				</InputGroupAddon>
 			</template>
@@ -98,10 +112,11 @@
 	</template>
 </template>
 <script setup lang="ts">
-import { Message, InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Select, DatePicker } from 'primevue';
+import { Message, InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Select, DatePicker, MultiSelect } from 'primevue';
 import FormField from '@primevue/forms/formfield';
 import LeafletPicker from './LeafletPicker.vue';
 import ArrayField from './ArrayField.vue';
+import ColorField from './ColorField.vue';
 import TestUrlButton from './TestUrlButton.vue';
 import { isoToDate, dateToIso } from './FormDates';
 import { isVisible } from './FormVisibility';
@@ -144,9 +159,13 @@ const fieldState = computed(() => props.formContext?.[props.field.name] || {});
 // the form's field states, read by name, are the values the predicates look at
 const visible = computed(() => isVisible(props.field, (name: string) => props.formContext?.[name]?.value))
 const isInvalid = computed(() => !!fieldState.value.invalid);
+// a multi-select's choices: fixed ones as `{ name, value }`, like a lookup's list
+const choices = computed(() => props.field.items?.enum ? props.field.items.enum.map((v: string) => ({ name: v, value: v })) : (props.field.list ?? []));
 // a problem with one row of a list is shown on that row (by `ArrayField`); the message under the field is for the field as a whole
 const errorMessage = computed(() => {
 	const errors: { message?: string, path?: string[] }[] = fieldState.value.errors ?? []
+	// a multi-select has no rows: a problem with one of its values is shown under it
+	if (props.field.items?.type === 'string') return errors[0]?.message ?? fieldState.value.error?.message
 	return errors.length > 0 ? errors.find(e => !e.path?.length)?.message : fieldState.value.error?.message
 });
 </script>

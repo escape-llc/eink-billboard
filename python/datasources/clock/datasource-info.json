@@ -37,7 +37,7 @@
 				{
 					"name": "primaryColor",
 					"type": "string",
-					"pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+					"format": "color",
 					"required": true,
 					"default": null,
 					"title": "Primary Color",
@@ -46,7 +46,7 @@
 				{
 					"name": "secondaryColor",
 					"type": "string",
-					"pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+					"format": "color",
 					"required": true,
 					"default": null,
 					"title": "Secondary Color",

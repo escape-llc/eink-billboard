@@ -1,26 +1,35 @@
 <template>
-	<div class="array-field" role="group" :aria-label="field.title">
-		<div v-if="rows.length > 0" class="array-row array-head">
+	<div class="array-field" :class="{ stacked }" role="group" :aria-label="field.title">
+		<div v-if="rows.length > 0 && !stacked" class="array-row array-head">
 			<div v-for="f in itemFields" :key="f.name" class="array-cell">{{ f.title }}</div>
 			<div class="array-buttons"></div>
 		</div>
 		<div v-for="(row, index) in rows" :key="index" class="array-row">
-			<div v-for="f in itemFields" :key="f.name" class="array-cell">
-				<ToggleSwitch v-if="f.type === 'boolean'" size="small" :modelValue="row[f.name] === true" :aria-label="`${f.title} ${index + 1}`"
-					@update:modelValue="(v: boolean) => change(index, f.name, v)" />
-				<Select v-else-if="f.enum" size="small" fluid :options="f.enum" :modelValue="row[f.name]" :placeholder="f.title" :aria-label="`${f.title} ${index + 1}`"
-					:showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
-					@update:modelValue="(v: unknown) => change(index, f.name, v ?? null)" />
-				<InputNumber v-else-if="f.type === 'number' || f.type === 'integer'" size="small" fluid :modelValue="numeric(row, f.name)" :aria-label="`${f.title} ${index + 1}`"
-					:min="f.minimum" :max="f.maximum" :step="f.step" :invalid="!!cellError(index, f.name)"
-					:minFractionDigits="f.type === 'integer' ? 0 : f.minFractionDigits" :maxFractionDigits="f.type === 'integer' ? 0 : f.maxFractionDigits"
-					@update:modelValue="(v: number|null) => change(index, f.name, v)" />
-				<InputText v-else size="small" fluid :modelValue="text(row, f.name)" :placeholder="f.title" :aria-label="`${f.title} ${index + 1}`" :type="f.format === 'uri' ? 'url' : 'text'"
-					:invalid="!!cellError(index, f.name)"
-					@update:modelValue="(v: string|undefined) => change(index, f.name, v === '' || v === undefined ? null : v)" />
-				<Message v-if="cellError(index, f.name)" severity="error" size="small" variant="simple">{{ cellError(index, f.name) }}</Message>
-				<TestUrlButton v-if="f.test?.url && baseUrl !== undefined" :route="f.test.url" :baseUrl="baseUrl" :value="row[f.name]" :label="`${f.title} ${index + 1}`"
-					:disabled="!!cellError(index, f.name)" />
+			<div v-for="f in itemFields" :key="f.name" class="array-cell" :class="{ hidden: !isVisible(f, row) }">
+				<template v-if="isVisible(f, row)">
+					<label v-if="stacked" class="array-label">{{ f.title }}</label>
+					<ToggleSwitch v-if="f.type === 'boolean'" size="small" :modelValue="row[f.name] === true" :aria-label="`${f.title} ${index + 1}`"
+						@update:modelValue="(v: boolean) => change(index, f.name, v)" />
+					<Select v-else-if="f.enum" size="small" fluid :options="f.enum" :modelValue="row[f.name]" :placeholder="f.title" :aria-label="`${f.title} ${index + 1}`"
+						:showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
+						@update:modelValue="(v: unknown) => change(index, f.name, v ?? null)" />
+					<Select v-else-if="f.lookup" size="small" fluid :options="choices(f, row)" optionLabel="name" optionValue="value" :modelValue="row[f.name]"
+						:placeholder="f.title" :aria-label="`${f.title} ${index + 1}`" :showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
+						@update:modelValue="(v: unknown) => change(index, f.name, v ?? null)" />
+					<InputNumber v-else-if="f.type === 'number' || f.type === 'integer'" size="small" fluid :modelValue="numeric(row, f.name)" :aria-label="`${f.title} ${index + 1}`"
+						:min="f.minimum" :max="f.maximum" :step="f.step" :invalid="!!cellError(index, f.name)"
+						:minFractionDigits="f.type === 'integer' ? 0 : f.minFractionDigits" :maxFractionDigits="f.type === 'integer' ? 0 : f.maxFractionDigits"
+						@update:modelValue="(v: number|null) => change(index, f.name, v)" />
+					<ColorField v-else-if="f.format === 'color'" :modelValue="text(row, f.name) || null" :label="`${f.title} ${index + 1}`" :invalid="!!cellError(index, f.name)"
+						@update:modelValue="(v: string|null) => change(index, f.name, v)" />
+					<InputText v-else size="small" fluid :modelValue="text(row, f.name)" :placeholder="f.title" :aria-label="`${f.title} ${index + 1}`"
+						:type="f.writeOnly ? 'password' : f.format === 'uri' ? 'url' : 'text'" :autocomplete="f.writeOnly ? 'new-password' : undefined"
+						:invalid="!!cellError(index, f.name)"
+						@update:modelValue="(v: string|undefined) => change(index, f.name, v === '' || v === undefined ? null : v)" />
+					<Message v-if="cellError(index, f.name)" severity="error" size="small" variant="simple">{{ cellError(index, f.name) }}</Message>
+					<TestUrlButton v-if="f.test?.url && baseUrl !== undefined" :route="f.test.url" :baseUrl="baseUrl" :value="row[f.name]" :label="`${f.title} ${index + 1}`"
+						:disabled="!!cellError(index, f.name)" />
+				</template>
 			</div>
 			<div class="array-buttons">
 				<Button icon="pi pi-arrow-up" size="small" class="p-button-text" :aria-label="`Move ${index + 1} up`" :disabled="index === 0" @click="move(index, -1)" />
@@ -38,11 +47,14 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { Button, InputNumber, InputText, Message, Select, ToggleSwitch } from "primevue"
+import ColorField from "./ColorField.vue"
 import TestUrlButton from "./TestUrlButton.vue"
+import { isVisible } from "./FormVisibility"
 
 type Row = Record<string, unknown>
+type Choice = { name: string, value: unknown }
 export interface PropsType {
-	/** the array property (`items.properties` are the fields of a row) */
+	/** the array property (`items.properties` are the fields of a row; a field with a `lookup` carries its resolved `list`) */
 	field: any
 	/** where the API is, for a field's Test button */
 	baseUrl?: string
@@ -55,9 +67,18 @@ const emits = defineEmits<{ (e: "update:modelValue", value: Row[]): void }>()
 
 const itemFields = computed<any[]>(() => props.field.items?.properties ?? [])
 const rows = computed<Row[]>(() => Array.isArray(props.modelValue) ? props.modelValue : [])
+// more fields than fit across: each row is a block of labelled fields instead of a line under one header
+const stacked = computed(() => itemFields.value.length > 4)
 
 const text = (row: Row, name: string): string => typeof row[name] === "string" ? row[name] : ""
 const numeric = (row: Row, name: string): number|null => typeof row[name] === "number" ? row[name] : null
+/** A lookup's choices, with the row's value kept when the list does not offer it (renamed, deleted, or not loaded): it must not look unset. */
+function choices(f: any, row: Row): Choice[] {
+	const list: Choice[] = Array.isArray(f.list) ? f.list : []
+	const current = row[f.name]
+	if (current === undefined || current === null || current === "" || list.some(c => c.value === current)) return list
+	return [...list, { name: String(current), value: current }]
+}
 function emptyRow(): Row {
 	const row: Row = {}
 	for (const f of itemFields.value) {
@@ -111,5 +132,28 @@ function cellError(index: number, name: string): string|undefined {
 	display: flex;
 	flex: 0 0 auto;
 	min-width: 7.5rem;
+}
+.stacked .array-row {
+	flex-wrap: wrap;
+	gap: .5rem;
+	padding: .5rem;
+	border: 1px solid var(--p-content-border-color);
+	border-radius: var(--p-content-border-radius);
+}
+.stacked .array-cell {
+	flex: 1 1 12rem;
+}
+.stacked .array-cell.hidden {
+	display: none;
+}
+.stacked .array-buttons {
+	flex-basis: 100%;
+	justify-content: flex-end;
+}
+.array-label {
+	display: block;
+	font-size: 85%;
+	font-weight: bold;
+	margin-bottom: .125rem;
 }
 </style>

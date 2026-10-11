@@ -14,7 +14,7 @@ from ..model.configuration_manager import ConfigurationManager, _internal_save
 from ..model.service_container import ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..web.app import WebSettings, create_app
-from ..web.documents import SECRET_MASK, plugin_content_errors, resolve_settings_lookups, settings_lookup_items, validate_properties
+from ..web.documents import SECRET_MASK, plugin_content_errors, redact, resolve_settings_lookups, restore_secrets, secret_fields, settings_lookup_items, unrestored_masks, validate_properties
 from ..web.routers.settings import _settings_lookups
 from ..web.sessions import SessionStore
 from ..web.visibility import evaluate, find_problems, hidden_names, null_hidden
@@ -182,7 +182,7 @@ class TestVisibility(unittest.TestCase):
 	def test_find_problems(self):
 		self.assertEqual(find_problems(self.PROPS), [])
 		self.assertIn("unknown field 'nope'", find_problems([{ "name": "a", "visibleIf": { "field": "nope", "const": 1 } }])[0])
-		self.assertIn("needs const, enum or set", find_problems([{ "name": "a", "visibleIf": { "field": "a" } }])[0])
+		self.assertIn("needs const, enum, set or contains", find_problems([{ "name": "a", "visibleIf": { "field": "a" } }])[0])
 		cyc = [{ "name": "a", "visibleIf": { "field": "b", "set": True } }, { "name": "b", "visibleIf": { "field": "a", "set": True } }]
 		self.assertTrue(any("cycle" in m for m in find_problems(cyc)))
 
@@ -220,7 +220,7 @@ class TestDescriptors(unittest.TestCase):
 class TestDescriptorRules(unittest.TestCase):
 	"""Every descriptor in the repository: names the form can hold, types both validators know, defaults that pass their own rules."""
 	KNOWN_TYPES = ("string", "boolean", "number", "integer", "location", "schema", "array", "header")
-	FORMATS = ("date", "uri")
+	FORMATS = ("date", "uri", "color")
 	# names the descriptors used before the JSON Schema ones; nothing accepts them any more
 	REMOVED = { "label": "title", "min": "minimum", "max": "maximum", "secret": "writeOnly" }
 	REMOVED_PREDICATE = { "eq": "const", "ne": "not + const", "in": "enum" }
@@ -295,6 +295,13 @@ class TestDescriptorRules(unittest.TestCase):
 					continue
 				with self.subTest(f"{where}/{prop['name']}"):
 					items = prop.get("items") or {}
+					if items.get("type") == "string":
+						# a multi-select: the values come from `items.enum` or the field's own lookup, and nothing else is in the items
+						self.assertTrue(items.get("enum") or prop.get("lookup"), "a multi-select needs `items.enum` or a `lookup`")
+						self.assertLessEqual(set(items), { "type", "enum" })
+						for chosen in prop.get("default") or []:
+							self.assertIn(chosen, items.get("enum") or [chosen])
+						continue
 					self.assertEqual(items.get("type"), "object")
 					fields = items.get("properties") or []
 					self.assertTrue(fields, "an array of objects lists the fields of an object")
@@ -303,10 +310,12 @@ class TestDescriptorRules(unittest.TestCase):
 					if items.get("key"):
 						self.assertIn(items["key"], names)
 					for field in fields:
-						# a first version: flat scalars, checked by the rules every other field has
+						# flat scalars, checked by the rules every other field has (a row's `visibleIf` names the row's fields: TestDescriptors checks them)
 						self.assertIn(field.get("type"), self.ITEM_TYPES)
-						for unsupported in ("writeOnly", "visibleIf", "lookup", "items"):
-							self.assertNotIn(unsupported, field, f"{field['name']}: `{unsupported}` is not supported inside an array item")
+						self.assertNotIn("items", field, f"{field['name']}: a list inside a row is not supported")
+						if field.get("writeOnly"):
+							# a secret sent back masked is matched to its stored row by the key
+							self.assertTrue(items.get("key"), f"{field['name']}: a secret in a row needs `items.key`")
 			for lookups in self._lookup_maps(info):
 				for lname, lk in lookups.items():
 					if isinstance(lk, dict) and "settings" in lk:
@@ -447,6 +456,92 @@ class TestSettingsLookupRoutes(WebApiTestBase):
 		])
 		doc["feeds"] = [{ "name": "a", "url": "http://a" }, { "name": "b", "url": "https://b" }]
 		self.assertEqual(self.client.put("/api/datasources/feed-source/settings", json=doc).status_code, 200)
+
+def _calendar_like_source():
+	"""A data source whose settings rows hold a secret, a field shown for one choice, and a choice from another list of the same settings."""
+	return { "path": "x", "info": { "id": "rows-source", "name": "Rows", "features": ["media-image"], "settings": { "schema": {
+		"lookups": { "account": { "settings": "accounts", "value": "name" } },
+		"properties": [
+			{ "name": "accounts", "type": "array", "required": False, "items": { "type": "object", "key": "name", "properties": [
+				{ "name": "name", "type": "string", "required": True },
+			] } },
+			{ "name": "calendars", "type": "array", "required": False, "items": { "type": "object", "key": "name", "properties": [
+				{ "name": "name", "type": "string", "required": True },
+				{ "name": "auth", "type": "string", "required": True, "enum": ["none", "basic"] },
+				{ "name": "password", "type": "string", "required": True, "writeOnly": True, "visibleIf": { "field": "auth", "const": "basic" } },
+				{ "name": "account", "type": "string", "required": False, "lookup": "account" },
+			] } },
+		] } } } }
+
+class TestRowSecrets(unittest.TestCase):
+	PROPS = _calendar_like_source()["info"]["settings"]["schema"]["properties"]
+
+	def test_the_secrets_of_rows_are_found_with_their_lists_key(self):
+		secrets = secret_fields(self.PROPS)
+		self.assertEqual(secrets.names, frozenset())
+		self.assertEqual(secrets.rows, { "calendars": ("name", frozenset({ "password" })) })
+
+	def test_masked_in_every_row_and_restored_from_the_row_with_the_same_key(self):
+		secrets = secret_fields(self.PROPS)
+		stored = { "calendars": [{ "name": "a", "password": "pa" }, { "name": "b", "password": "pb" }, { "name": "c", "password": None }] }
+		shown = redact(stored, secrets)
+		self.assertEqual([r["password"] for r in shown["calendars"]], [SECRET_MASK, SECRET_MASK, None])
+		self.assertEqual(stored["calendars"][0]["password"], "pa", "the stored document is not changed")
+		# moved, one left out, one with a new value, and one whose secret was omitted
+		back = { "calendars": [{ "name": "b", "password": SECRET_MASK }, { "name": "a" }, { "name": "c", "password": "new" }] }
+		restored = restore_secrets(back, stored, secrets)
+		self.assertEqual([r["password"] for r in restored["calendars"]], ["pb", "pa", "new"])
+		self.assertEqual(unrestored_masks(restored, secrets), [])
+
+	def test_a_renamed_row_cannot_be_matched_and_must_be_typed_again(self):
+		secrets = secret_fields(self.PROPS)
+		stored = { "calendars": [{ "name": "a", "password": "pa" }] }
+		restored = restore_secrets({ "calendars": [{ "name": "renamed", "password": SECRET_MASK }] }, stored, secrets)
+		self.assertEqual(unrestored_masks(restored, secrets), [{ "path": ["calendars", "0", "password"], "message": "Enter the key" }])
+
+	def test_a_hidden_field_of_a_row_is_stored_as_null(self):
+		doc = { "calendars": [{ "name": "a", "auth": "none", "password": "left over" }, { "name": "b", "auth": "basic", "password": "p" }] }
+		self.assertEqual([r["password"] for r in null_hidden(doc, self.PROPS)["calendars"]], [None, "p"])
+
+class TestRowSettingsRoutes(WebApiTestBase):
+	def setUp(self):
+		super().setUp()
+		patcher = mock.patch.object(ConfigurationManager, "enum_datasources", lambda cm_self: [_calendar_like_source()])
+		patcher.start()
+		self.addCleanup(patcher.stop)
+		self.write_datasource_settings("rows-source", { "accounts": [{ "name": "home" }], "calendars": [
+			{ "name": "a", "auth": "basic", "password": "secret-a", "account": "home" },
+		] })
+
+	def stored(self) -> dict:
+		_, doc = self.cm.datasource_manager("rows-source").open().get()
+		return doc
+
+	def test_a_row_secret_is_never_sent_and_is_kept_when_sent_back_masked(self):
+		doc = self.client.get("/api/datasources/rows-source/settings").json()
+		self.assertNotIn("secret-a", json.dumps(doc))
+		self.assertEqual(doc["calendars"][0]["password"], SECRET_MASK)
+		doc["calendars"].insert(0, { "name": "b", "auth": "none", "password": None, "account": None })
+		self.assertEqual(self.client.put("/api/datasources/rows-source/settings", json=doc).status_code, 200)
+		self.assertEqual([(r["name"], r["password"]) for r in self.stored()["calendars"]], [("b", None), ("a", "secret-a")])
+
+	def test_a_renamed_row_with_a_masked_secret_is_422_at_the_row(self):
+		doc = self.client.get("/api/datasources/rows-source/settings").json()
+		doc["calendars"][0]["name"] = "renamed"
+		body = _error_shape(self, self.client.put("/api/datasources/rows-source/settings", json=doc), 422)
+		self.assertEqual(body["errors"], [{ "path": ["calendars", "0", "password"], "message": "Enter the key" }])
+		self.assertEqual(self.stored()["calendars"][0]["password"], "secret-a")
+
+	def test_a_row_chooses_from_another_list_of_the_settings_being_saved(self):
+		doc = self.client.get("/api/datasources/rows-source/settings").json()
+		doc["calendars"][0]["account"] = "work"
+		body = _error_shape(self, self.client.put("/api/datasources/rows-source/settings", json=doc), 422)
+		self.assertEqual(body["errors"], [{ "path": ["calendars", "0", "account"], "message": "Not one of the allowed values" }])
+		# added in the same save: the choice is there
+		doc["accounts"].append({ "name": "work" })
+		self.assertEqual(self.client.put("/api/datasources/rows-source/settings", json=doc).status_code, 200)
+		resp = self.client.get("/api/datasources/rows-source/lookups/account")
+		self.assertEqual(resp.json(), [{ "name": "home", "value": "home" }, { "name": "work", "value": "work" }])
 
 class TestSettingsValidation(WebApiTestBase):
 	def test_put_out_of_range_and_unknown_choice_are_422_with_the_field_path(self):
