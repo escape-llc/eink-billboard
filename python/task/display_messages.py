@@ -1,16 +1,34 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
+from typing import Literal
 from PIL import Image
 
 from .messages import BasicMessage
 
+# how a playlist page is shown (the readme's "Display Architecture"):
+# - "background": the page, with the overlays drawn on it when nothing above it is showing;
+# - "blend": washes over the current background (the previous page), hiding the overlays;
+# - "override": obscures everything under it (only a priority image is drawn over it).
+type DisplayLayer = Literal["background", "blend", "override"]
+DISPLAY_LAYERS: tuple[DisplayLayer, ...] = ("background", "blend", "override")
+
 @dataclass(frozen=True, slots=True)
 class DisplayImage(BasicMessage):
+	"""
+	A playlist page. A `background` page ends the page above it (a blend or override), so the next background track, an error page
+	or "Playback stopped" is never hidden behind an old one; a `blend` or `override` page replaces the one before it and keeps the background.
+	"""
 	title: str
 	img: Image.Image
+	layer: DisplayLayer = field(default="background", kw_only=True)
 
 @dataclass(frozen=True, slots=True)
 class PriorityImage(DisplayImage):
+	duration: timedelta
+
+@dataclass(frozen=True, slots=True)
+class BlendImage(DisplayImage):
+	"""A timer task's image that washes over the current background for `duration`, hiding the overlays meanwhile. Blends queue like priority images."""
 	duration: timedelta
 
 @dataclass(frozen=True, slots=True)

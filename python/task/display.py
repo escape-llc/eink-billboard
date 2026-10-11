@@ -3,13 +3,14 @@ import hashlib
 from concurrent.futures import Future, TimeoutError as FutureTimeoutError
 import logging
 import threading
-from typing import Any, Mapping, cast
+from typing import Any, Callable, Mapping, cast
 
-from .display_messages import ComputedImage, DisplayImage, DisplaySettings, OverlayImage, OverlayRevoke, PriorityImage
+from .display_messages import BlendImage, ComputedImage, DisplayImage, DisplaySettings, OverlayImage, OverlayRevoke, PriorityImage
 from .overlay_zones import ZONE_NAMES, Zone, zones_for
 from ..display.mock_display import MockDisplay
 from ..display.display_base import DisplayBase
 from ..model.configuration_manager import ConfigurationManager
+from ..model.theme import current_palette
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..task.basic_task import DispatcherTask
 from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage
@@ -44,8 +45,10 @@ class Display(DispatcherTask):
 		self.resolution = (800, 480)
 		self.commitq: asyncio.Queue[BasicMessage] | None = None
 		self.priorityq: asyncio.Queue[PriorityImage] | None = None
+		self.blendq: asyncio.Queue[BlendImage] | None = None
 		self.task_commit: tuple[Future, threading.Event] | None = None
 		self.task_priority: tuple[Future, threading.Event] | None = None
+		self.task_blend: tuple[Future, threading.Event] | None = None
 		self.task_render: tuple[Future, threading.Event] | None = None
 		# overlays: the zones (set at configure) and, per zone, who put up what is there (only touched on the pool loop)
 		self.zones: dict[str, Zone] = {}
@@ -69,7 +72,7 @@ class Display(DispatcherTask):
 		# every step runs even if an earlier one (or the configuration) failed: the pool and the display must always be shut down
 		try:
 			try:
-				for attr in ("task_commit", "task_priority", "task_render"):
+				for attr in ("task_commit", "task_priority", "task_blend", "task_render"):
 					task = getattr(self, attr)
 					if task is not None:
 						setattr(self, attr, None)
@@ -83,6 +86,7 @@ class Display(DispatcherTask):
 						pool, self.task_pool = self.task_pool, None
 						self.commitq = None
 						self.priorityq = None
+						self.blendq = None
 						pool.shutdown()
 				except Exception as e:
 					self.logger.error(f"shutdown.pool: {e}", exc_info=True)
@@ -134,7 +138,7 @@ class Display(DispatcherTask):
 		self.task_pool = AsyncWorkerPool()
 		self.task_pool.start()
 		task_future = self.task_pool.submit(self._task_create_queues(), None)
-		self.commitq, renderq, self.priorityq = task_future.result(timeout=self.RESULT_TIMEOUT_SECONDS)
+		self.commitq, renderq, self.priorityq, self.blendq = task_future.result(timeout=self.RESULT_TIMEOUT_SECONDS)
 
 		donev = threading.Event()
 		def commit_callback(fut):
@@ -145,20 +149,32 @@ class Display(DispatcherTask):
 		def priority_callback(fut):
 			if not self.is_stopped():
 				self.accept(AsyncTaskCompleted(timebase.current_time(), "priority_task", fut, donev2))
-		self.task_priority = (self.task_pool.submit(self._task_priority_image(cast(asyncio.Queue[PriorityImage], self.priorityq), cast(asyncio.Queue[BasicMessage], self.commitq), self.resolution, display_settings, donev2), callback=priority_callback), donev2)
+		self.task_priority = (self.task_pool.submit(self._task_timed_layer(cast(asyncio.Queue[DisplayImage], self.priorityq), cast(asyncio.Queue[BasicMessage], self.commitq), self.resolution, display_settings, donev2, compositor.set_layer_priority, "priority"), callback=priority_callback), donev2)
+		donev4 = threading.Event()
+		def blend_callback(fut):
+			if not self.is_stopped():
+				self.accept(AsyncTaskCompleted(timebase.current_time(), "blend_task", fut, donev4))
+		self.task_blend = (self.task_pool.submit(self._task_timed_layer(cast(asyncio.Queue[DisplayImage], self.blendq), cast(asyncio.Queue[BasicMessage], self.commitq), self.resolution, display_settings, donev4, compositor.set_layer_blend, "blend"), callback=blend_callback), donev4)
 		donev3 = threading.Event()
 		def render_callback(fut):
 			if not self.is_stopped():
 				self.accept(AsyncTaskCompleted(timebase.current_time(), "render_task", fut, donev3))
 		self.task_render = (self.task_pool.submit(self._task_render_and_display(renderq, compositor, display, display_settings, donev3), callback=render_callback), donev3)
 		pass
-	async def _task_create_queues(self) -> tuple[asyncio.Queue[BasicMessage], asyncio.Queue[BasicMessage], asyncio.Queue[PriorityImage]]:
+	async def _task_create_queues(self) -> tuple[asyncio.Queue[BasicMessage], asyncio.Queue[BasicMessage], asyncio.Queue[PriorityImage], asyncio.Queue[BlendImage]]:
 		commitq: asyncio.Queue[BasicMessage] = asyncio.Queue()
 		renderq: asyncio.Queue[BasicMessage] = asyncio.Queue()
 		priorityq: asyncio.Queue[PriorityImage] = asyncio.Queue()
-		return (commitq, renderq, priorityq)
+		blendq: asyncio.Queue[BlendImage] = asyncio.Queue()
+		return (commitq, renderq, priorityq, blendq)
 	async def _task_background_layer(self, commitq: asyncio.Queue[BasicMessage], compositor: ImageCompositor, msg: DisplayImage):
 		compositor.set_layer_background(msg)
+		# a background page ends the playlist page above it: the next track, an error page or "Playback stopped" is never hidden behind it
+		compositor.set_layer_forground(None)
+		await commitq.put(BasicMessage(msg.timestamp))
+	async def _task_foreground_layer(self, commitq: asyncio.Queue[BasicMessage], compositor: ImageCompositor, msg: DisplayImage):
+		# a blend or override page: above the background, which stays (a blend washes over it); the overlays are kept but not drawn
+		compositor.set_layer_forground(msg)
 		await commitq.put(BasicMessage(msg.timestamp))
 	async def _task_overlay_layer(self, commitq: asyncio.Queue[BasicMessage], compositor: ImageCompositor, msg: OverlayImage):
 		zone = self.zones.get(msg.zone)
@@ -186,6 +202,8 @@ class Display(DispatcherTask):
 		compositor.set_layer_overlays([self.overlays[name][1] for name in ZONE_NAMES if name in self.overlays])
 	async def _task_priority_layer(self, priorityq: asyncio.Queue[PriorityImage], msg: PriorityImage):
 		await priorityq.put(msg)
+	async def _task_blend_layer(self, blendq: asyncio.Queue[BlendImage], msg: BlendImage):
+		await blendq.put(msg)
 	async def _task_commit_timer(self, commitq: asyncio.Queue[BasicMessage], renderq: asyncio.Queue[BasicMessage], timebase: TimeOfDay, donev: threading.Event):
 		try:
 			while True:
@@ -221,6 +239,9 @@ class Display(DispatcherTask):
 				try:
 					_ = await taskq.get()
 					taskq.task_done()
+					# a page with no background under it shows the theme's color, read now so a theme change applies
+					if self.cm is not None:
+						compsitor.fill = current_palette(self.cm.settings_manager()).bg_primary.rgb
 					package = compsitor.commit()
 					if package is None:
 						self.logger.debug(f"Compositor no changes detected")
@@ -249,7 +270,9 @@ class Display(DispatcherTask):
 			raise
 		finally:
 			donev.set()
-	async def _task_priority_image(self, taskq: asyncio.Queue[PriorityImage], commitq: asyncio.Queue[BasicMessage], resolution: tuple[int, int], display_settings: Mapping[str, Any]|None, donev: threading.Event):
+	async def _task_timed_layer(self, taskq: asyncio.Queue[DisplayImage], commitq: asyncio.Queue[BasicMessage], resolution: tuple[int, int], display_settings: Mapping[str, Any]|None, donev: threading.Event,
+			set_layer: Callable[[DisplayImage|None], Any], what: str):
+		"""Shows each queued image (priority or blend) on its layer for its `duration`, one after another, then clears the layer."""
 		try:
 			ori:str = display_settings.get("orientation", "landscape") if display_settings is not None else "landscape"
 			while True:
@@ -259,18 +282,18 @@ class Display(DispatcherTask):
 					image = change_orientation(msg.img, ori)
 					image = resize_image(image, resolution)
 					di = msg if image == msg.img else ComputedImage(msg.timestamp, msg.title, image, msg)
-					self.compsitor.set_layer_priority(di)
+					set_layer(di)
 					taskq.task_done()
 					await commitq.put(BasicMessage(msg.timestamp))
-					# TODO await the callback from the display task that the image was rendered before starting timer for the priority image
-					await asyncio.sleep(msg.duration.total_seconds())
-					self.compsitor.set_layer_priority(None)
+					# TODO await the callback from the display task that the image was rendered before starting the timer
+					await asyncio.sleep(cast(PriorityImage|BlendImage, msg).duration.total_seconds())
+					set_layer(None)
 					await commitq.put(BasicMessage(msg.timestamp))
 				except Exception as e:
-					self.logger.error(f"priority_image.unhandled: {str(e)}", exc_info=True)
+					self.logger.error(f"{what}_image.unhandled: {str(e)}", exc_info=True)
 					await asyncio.sleep(self.ERROR_BACKOFF_SECONDS)
 		except asyncio.CancelledError:
-			self.logger.info("priority image task cancelled")
+			self.logger.info(f"{what} image task cancelled")
 			raise
 		finally:
 			donev.set()
@@ -306,6 +329,14 @@ class Display(DispatcherTask):
 			self._wait_for(fut, f"priority '{msg.title}'")
 		except Exception as e:
 			self.logger.error(f"priorityimage.unhandled: {e}", exc_info=True)
+	def _blend_image(self, msg: BlendImage):
+		"""A timer task's image that washes over the background for a while (queued like priority images)."""
+		if self.task_pool is None or self.blendq is None:
+			self.logger.error(f"Blend '{msg.title}': the display is not running")
+			return
+		self.logger.info(f"Blend '{msg.title}' ({msg.duration})")
+		fut = self.task_pool.submit(self._task_blend_layer(self.blendq, msg), None)
+		self._wait_for(fut, f"blend '{msg.title}'")
 	def _overlay_image(self, msg: OverlayImage):
 		"""An overlay for a zone: it stays until its sender (`key`) replaces or revokes it."""
 		if self.task_pool is None or self.commitq is None:
@@ -341,12 +372,12 @@ class Display(DispatcherTask):
 			# Resize and adjust orientation
 				image = change_orientation(msg.img, display_settings.get("orientation", "landscape"))
 				image = resize_image(image, self.resolution)
-				di = msg if image == msg.img else ComputedImage(msg.timestamp, msg.title, image, msg)
-				fut  = self.task_pool.submit(self._task_background_layer(self.commitq, self.compsitor, di), None)
-				self._wait_for(fut, f"display '{msg.title}'")
+				di = msg if image == msg.img else ComputedImage(msg.timestamp, msg.title, image, msg, layer=msg.layer)
 			else:
-				fut  = self.task_pool.submit(self._task_background_layer(self.commitq, self.compsitor, msg), None)
-				self._wait_for(fut, f"display '{msg.title}'")
+				di = msg
+			task = self._task_background_layer if di.layer == "background" else self._task_foreground_layer
+			fut  = self.task_pool.submit(task(self.commitq, self.compsitor, di), None)
+			self._wait_for(fut, f"display '{msg.title}' ({di.layer})")
 		except Exception as e:
 			self.logger.error(f"displayimage.unhandled: {e}", exc_info=True)
 	def _async_task_completed(self, msg: AsyncTaskCompleted):

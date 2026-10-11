@@ -91,11 +91,14 @@ After struggling with different ideas, we arrive at the following architecture, 
 	* Persistent (date/weather) or time-sensitive (reminders).
 	* Determined by the Data Source.
 * Foreground layer
-	* Playlist Layer provides images for the foreground layer.
-	* Overrides both Background and Overlay layers.
-	* Content that is HTML-rendered, usually text, not expected to be overlaid with other information, e.g. RSS Feed.
-	* Determined by the Data Source.
-	* Foreground layer with transparency will "blend over" the current Background image.
+	* Playlist Layer provides images for the foreground layer, and the Timer Layer can too (blend).
+	* Content that is HTML-rendered, usually text, not expected to be overlaid with other information, e.g. RSS Feed, Calendar.
+	* Comes in two varieties:
+		* **override**: a playlist page that covers everything under it (only a Priority image is drawn over it). Transparent parts show the theme's background color, not the background page.
+		* **blend**: washes over the current background (alpha compositing: what is transparent shows the page under it). A playlist page can blend over the page of the slot before it; a timer task can blend for a while (Priority Update with Show As `blend`) over whatever the playlist shows. With no background, it washes over the theme's background color.
+	* A playlist page's variety is the Slide Show's **Show As** (`auto`, `background`, `blend`, `override`); `auto` follows the Data Source: `layer-foreground` in its features overrides, anything else is a background page.
+	* A playlist background page ends the playlist's foreground page (the next track, an error page or "Playback stopped" is never hidden behind it). A timer blend ends on its own time.
+* Overlays appear only in **lock screen** mode: a background page and nothing above it. A playlist blend or override page, a timer blend or a priority image takes them off the screen (they are kept, not removed), and they come back when lock screen mode resumes. Foreground pages carry text of their own; overlay text is not drawn on them.
 * Priority layer
 	* Timer Layer provides images for the priority layer.
 	* Like "Breaking News" that Interrupts All Layers, display for a timed period.

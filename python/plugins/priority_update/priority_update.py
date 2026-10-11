@@ -6,12 +6,14 @@ from typing import Any, Mapping, TypedDict, cast
 from ...datasources.data_source import DataSourceManager, MediaItemAsync, MediaRenderAsync
 from ...model.schedule import TimerTaskItem
 from ...task.display import PriorityImage
+from ...task.display_messages import BlendImage
 from ...task.message_router import MessageRouter
 from ..plugin_base import PluginAsync, PluginExecutionContext, TrackType
 
 class SettingsDict(TypedDict):
 	dataSource: str
 	slideMinutes: int
+	showAs: str
 
 class PriorityUpdateAsync(PluginAsync):
 	def __init__(self, id, name):
@@ -50,9 +52,11 @@ class PriorityUpdateAsync(PluginAsync):
 				self.logger.error(f"{self.id} '{track.title}' failed ({type(e).__name__}: {e})", exc_info=True)
 				raise
 			if mrr is not None:
-				# send priority display message
 				slideMinutes = settings.get("slideMinutes", 1)
-				router.send("display", PriorityImage(dsec.timestamp, mrr.title if mrr.title is not None else track.title, mrr.image, timedelta(minutes=slideMinutes)))
+				title = mrr.title if mrr.title is not None else track.title
+				# `priority` covers the whole screen; `blend` washes over what the playlist shows (and hides the overlays), for the same while
+				kind = BlendImage if settings.get("showAs") == "blend" else PriorityImage
+				router.send("display", kind(dsec.timestamp, title, mrr.image, timedelta(minutes=slideMinutes)))
 		else:
 			raise RuntimeError(f"{dataSourceName}: does not support async media item and render")
 	async def task_async(self, context: PluginExecutionContext, track: TrackType, done: threading.Event) -> None:
