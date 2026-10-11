@@ -21,7 +21,7 @@
 						</slot>
 					</template>
 					<template v-else>
-						<BasicFormField :field="field" :formContext="$form" :fieldNameWidth="fieldNameWidth" @form-field-event="handleFormFieldEvent">
+						<BasicFormField :field="field" :formContext="$form" :fieldNameWidth="fieldNameWidth" :baseUrl="baseUrl" @form-field-event="handleFormFieldEvent">
 						</BasicFormField>
 					</template>
 				</template>

@@ -76,6 +76,13 @@ def _is_number(v) -> bool:
 	return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 _ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# `format: "uri"`: a scheme, `://`, then a host part with no space. One expression here and in FormValidation.ts, so both sides read an address the same way.
+_URI = re.compile(r"^([A-Za-z][A-Za-z0-9+.\-]*)://([^/?#\s]+)(\S*)$")
+DEFAULT_SCHEMES = ("http", "https")
+
+def _is_uri(value: str, schemes: Iterable[str]|None) -> bool:
+	found = _URI.match(value)
+	return found is not None and found.group(1).lower() in (schemes or DEFAULT_SCHEMES)
 
 def _is_iso_date(v) -> bool:
 	if not isinstance(v, str) or not _ISO_DATE.match(v):
@@ -104,6 +111,8 @@ def _check_value(prop: dict, value: Any, lookups: dict) -> str|None:
 			return "Expected string"
 		if prop.get("format") == "date":
 			return None if value == "" or _is_iso_date(value) else "Expected a date (YYYY-MM-DD)"
+		if prop.get("format") == "uri" and value != "" and not _is_uri(value, prop.get("schemes")):
+			return "Enter a valid URL"
 		if value != "":
 			if prop.get("minLength") is not None and len(value) < prop["minLength"]:
 				return f"At least {prop['minLength']} characters"

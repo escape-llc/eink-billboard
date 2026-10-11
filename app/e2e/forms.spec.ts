@@ -85,7 +85,7 @@ test("a list of rows: add, edit and reorder rows, a repeated name is refused on 
 	await expect(save).toBeDisabled()
 	await page.getByRole("textbox", { name: "Name 2", exact: true }).fill("second")
 	await page.getByRole("textbox", { name: "URL 2", exact: true }).fill("ftp://second.example")
-	await expect(page.getByText("Not in the expected format")).toBeVisible()
+	await expect(page.getByText("Enter a valid URL")).toBeVisible()
 	await page.getByRole("textbox", { name: "URL 2", exact: true }).fill("https://second.example")
 	await expect(save).toBeEnabled()
 	// the second row moves above the first
@@ -104,5 +104,56 @@ test("a list of rows: add, edit and reorder rows, a repeated name is refused on 
 	await expect(save).toBeEnabled()
 	await save.click()
 	await expect.poll(stored).toEqual([{ name: "first", url: "http://first.example/feed" }])
+	watch.expectNone()
+})
+
+test("an address is checked as one, and its Test button asks the server (and only for a valid address)", async ({ page }) => {
+	const watch = watchProblems(page)
+	const asked: unknown[] = []
+	let answer = { ok: true, message: "6 stories" }
+	await page.route("**/api/e2e/test-url", async route => {
+		asked.push(route.request().postDataJSON())
+		await route.fulfill({ json: answer })
+	})
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "Display" }).click()
+	const url = page.getByPlaceholder("E2E URL")
+	const test = page.getByRole("button", { name: "Test E2E URL" })
+	await expect(url).toHaveAttribute("type", "url")
+	await expect(test).toBeDisabled()
+	await url.fill("not an address")
+	await url.blur()
+	await expect(page.getByText("Enter a valid URL")).toBeVisible()
+	await expect(test).toBeDisabled()
+
+	await url.fill("https://feed.example.test/rss")
+	await expect(test).toBeEnabled()
+	await test.click()
+	await expect(page.getByText("6 stories")).toBeVisible()
+	// the server is told the address; the page itself does not fetch it
+	expect(asked).toEqual([{ value: "https://feed.example.test/rss" }])
+	// an answer is about the address that was sent: editing it clears the answer
+	await url.fill("https://feed.example.test/other")
+	await expect(page.getByText("6 stories")).toHaveCount(0)
+	answer = { ok: false, message: "Not a feed" }
+	await test.click()
+	await expect(page.getByText("Not a feed")).toBeVisible()
+	watch.expectNone()
+})
+
+test("a row of a list has its own Test button", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.route("**/api/e2e/test-url", route => route.fulfill({ json: { ok: true, message: "reachable" } }))
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "Display" }).click()
+	// rows saved by an earlier test may be there: the new one is the next
+	const number = (await page.getByRole("textbox", { name: /^Name \d+$/ }).count()) + 1
+	await page.getByRole("button", { name: "Add to E2E Feeds" }).click()
+	await page.getByRole("textbox", { name: `Name ${number}`, exact: true }).fill("one more")
+	const test = page.getByRole("button", { name: `Test URL ${number}` })
+	await expect(test).toBeDisabled()
+	await page.getByRole("textbox", { name: `URL ${number}`, exact: true }).fill("https://one.example.test/feed")
+	await test.click()
+	await expect(page.getByText("reachable")).toBeVisible()
 	watch.expectNone()
 })
