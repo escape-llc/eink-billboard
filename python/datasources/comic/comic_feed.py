@@ -2,6 +2,7 @@ from typing import IO, Any, Mapping
 from PIL import Image, ImageDraw, ImageFont
 
 from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
+from ...model.theme import current_typography
 from ...task.async_http_worker_pool import client_var
 from ...utils.image_utils import stream_to_buffer, to_rgb
 from .comic_parser import get_items_async
@@ -80,7 +81,9 @@ class ComicFeedAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		is_caption = params.get("titleCaption") in (True, "true")
 		caption_font_size = params.get("fontSize", 16)
 		width, height = target_dimensions(context, display_settings)
-		caption_font = stm.get_font("Jost", font_size=int(caption_font_size)) if is_caption else None
+		# the caption wears the device theme's body font and text size
+		typography = current_typography(scm)
+		caption_font = stm.get_font(typography.body, font_size=max(1, round(int(caption_font_size) * typography.scale))) if is_caption else None
 		img = await self._download_and_compose_image(item, caption_font, width, height)
 		return MediaRenderResult(image=img, title=item.get("title", "Comic"))
 	async def _download_and_compose_image(self, item, caption_font, width, height):

@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 from ..model.service_container import IServiceProvider
 from .deps import require_token
 from .errors import ApiError, install_error_handlers
-from .routers import lookups, schedule, session, settings, telemetry
+from .routers import fonts, lookups, schedule, session, settings, telemetry
 from .sessions import SessionStore
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ def create_app(web: WebSettings, root_container: IServiceProvider|None = None, r
 		)
 
 	api = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
-	for module in (settings, lookups, schedule, telemetry):
+	for module in (settings, lookups, schedule, telemetry, fonts):
 		api.include_router(module.router)
 	for name, router in (routers or {}).items():
 		api.include_router(router)

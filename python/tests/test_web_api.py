@@ -601,6 +601,23 @@ class TestSettingsValidation(WebApiTestBase):
 		body = _error_shape(self, self.client.put("/api/settings/system", json=doc), 422)
 		self.assertEqual(body["errors"][0]["path"], ["timeFormat"])
 
+class TestFontsRoute(WebApiTestBase):
+	"""The theme preview loads the shipped fonts; the file comes from our table, never from the URL."""
+	def test_a_shipped_font_is_served(self):
+		for family, weight in (("Jost", "normal"), ("Jost", "bold"), ("DS-Digital", "normal"), ("Dogica", "bold")):
+			with self.subTest(family=family, weight=weight):
+				resp = self.client.get(f"/api/fonts/{family}", params={ "weight": weight })
+				self.assertEqual(resp.status_code, 200)
+				self.assertEqual(resp.headers["content-type"], "font/ttf")
+				self.assertGreater(len(resp.content), 1000)
+
+	def test_anything_else_is_not_found(self):
+		for family in ("Comic Sans", "..", "%2e%2e%2fschemas", "jost"):
+			with self.subTest(family=family):
+				self.assertEqual(self.client.get(f"/api/fonts/{family}").status_code, 404)
+		# an unknown weight is the family's first face
+		self.assertEqual(self.client.get("/api/fonts/Napoli", params={ "weight": "../../x" }).status_code, 200)
+
 class TestNonFiniteNumbers(WebApiTestBase):
 	"""Starlette's JSON parser accepts NaN, Infinity and 1e999; a stored NaN made every later GET a 500 (JSONResponse refuses it)."""
 	RAW = '{"theme": "complementary", "hue": %s, "saturation": 80, "lightness": 50}'

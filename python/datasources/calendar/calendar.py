@@ -196,7 +196,7 @@ class CalendarAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			raise ValueError("Display settings is None")
 		_, system = scm.open("system").get()
 		dimensions = target_dimensions(dsec, display_config)
-		layout = Layout(dimensions, FONT_SCALES.get(str(params.get("fontSize")), 1.0), (system or {}).get("timeFormat") == "12h", len(state.slot.notes))
+		layout = Layout(dimensions, FONT_SCALES.get(str(params.get("fontSize")), 1.0) * current_inputs(scm).font_scale, (system or {}).get("timeFormat") == "12h", len(state.slot.notes))
 		template_params = page_params(state, params, layout)
 		return await asyncio.to_thread(generate_image, stm, dimensions, template_params, current_inputs(scm))
 
