@@ -601,6 +601,13 @@ class TestSettingsValidation(WebApiTestBase):
 		body = _error_shape(self, self.client.put("/api/settings/system", json=doc), 422)
 		self.assertEqual(body["errors"][0]["path"], ["timeFormat"])
 
+class TestSchemaCaching(WebApiTestBase):
+	def test_a_schema_is_revalidated_not_kept(self):
+		resp = self.client.get("/api/schemas/theme")
+		self.assertEqual(resp.status_code, 200)
+		self.assertEqual(resp.headers["cache-control"], "no-cache")
+		self.assertIn("etag", resp.headers)
+
 class TestPaletteRoute(WebApiTestBase):
 	"""The Theme tab's swatches are the device's own palette for the values in the form."""
 	def test_every_role_is_computed_as_the_device_does(self):
