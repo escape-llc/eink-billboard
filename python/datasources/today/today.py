@@ -57,5 +57,10 @@ class TodayAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 		except ValueError:
 			raise PermanentError(f"Font '{font_name}' is not available") from None
 		runs: list[TextRun] = [run for run in ((highlight, palette.text_secondary_1.rgb), (rest, palette.text_primary.rgb)) if run[0]]
-		overlay = text_overlay(runs, (width, height), (0, 0), font=font, embolden=0.022 if weight == "heavy" else 0.0)
+		# the zones are bands along the top and the bottom of the screen: the line sits near the screen's edge, `offset` pixels from it, not in the middle of the band
+		zone = str(params.get("zone") or "")
+		valign = "top" if zone.startswith("top") else "bottom" if zone.startswith("bottom") else "center"
+		offset = params.get("offset")
+		margin = int(offset) if isinstance(offset, (int, float)) and not isinstance(offset, bool) and offset >= 0 else 6
+		overlay = text_overlay(runs, (width, height), (0, 0), font=font, embolden=0.022 if weight == "heavy" else 0.0, valign=valign, margin=margin)
 		return MediaRenderResult(image=overlay.image, title=highlight + rest)

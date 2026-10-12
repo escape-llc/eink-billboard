@@ -69,6 +69,24 @@ class TestRender(unittest.TestCase):
 		dsec = DataSourceExecutionContext(provider(), size, DAY)
 		return asyncio.run(TodayAsync("today", "Today").render_async(dsec, params, {}))
 
+	def test_the_text_sits_near_the_screens_edge_not_in_the_middle_of_the_band(self):
+		def ink(params):
+			result = self._render({ "format": "short", "font": "Jost", **params }, (246, 96))
+			assert result is not None
+			box = result.image.getchannel("A").point(lambda v: 255 if v > 40 else 0).getbbox()
+			assert box is not None
+			return box
+		top = ink({ "zone": "top-left", "offset": 6 })
+		bottom = ink({ "zone": "bottom-right", "offset": 6 })
+		self.assertEqual(top[1], 6)
+		self.assertEqual(96 - bottom[3], 6)
+		# the offset moves it, in a top zone down from the edge and in a bottom zone up from it
+		self.assertEqual(ink({ "zone": "top-center", "offset": 20 })[1], 20)
+		self.assertEqual(96 - ink({ "zone": "bottom-center", "offset": 20 })[3], 20)
+		# no zone (a data source used elsewhere): centered as before
+		middle = ink({})
+		self.assertLess(abs((middle[1] + middle[3]) / 2 - 48), 4)
+
 	def test_the_date_is_drawn_in_the_theme_colors_on_a_transparent_box(self):
 		result = self._render({ "format": "long", "font": "Jost" })
 		self.assertIsNotNone(result)

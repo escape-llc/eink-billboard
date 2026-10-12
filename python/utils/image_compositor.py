@@ -85,10 +85,10 @@ def wash_mask(picture: Image.Image, wash: float, style: str = "soft") -> tuple[I
 
 type TextRun = tuple[str, tuple[int, ...]]
 
-def text_overlay(text: str|list[TextRun], size: tuple[int, int], position: tuple[int, int], font: FontType|None = None, color: tuple[int, ...] = (255, 255, 255), wash: float = 0.0, max_font_size: int = 48, min_font_size: int = 8, embolden: float = 0.0, wash_color: str = "auto", wash_style: str = "soft") -> ImageOverlay:
+def text_overlay(text: str|list[TextRun], size: tuple[int, int], position: tuple[int, int], font: FontType|None = None, color: tuple[int, ...] = (255, 255, 255), wash: float = 0.0, max_font_size: int = 48, min_font_size: int = 8, embolden: float = 0.0, wash_color: str = "auto", wash_style: str = "soft", valign: str = "center", margin: int = 0) -> ImageOverlay:
 	"""Text centered in a transparent `size` box, on one line. `text` is a string in `color`, or runs of `(text, color)` drawn one after another
 	(e.g. a highlighted word). The font is shrunk (from its own size, or `max_font_size`, down to `min_font_size`) until the line fits;
-	if it still does not fit at the minimum, it is clipped to the box. `embolden` (a fraction of the font size, 0.02 is heavy) strokes each letter in its own color to make it bolder than the font has it. `font` is normally StaticConfigurationManager.get_font(...); without one the default font is used."""
+	if it still does not fit at the minimum, it is clipped to the box. `valign` is where the line sits in the box: `center`, or `top` / `bottom` with `margin` pixels between the ink and that edge. `embolden` (a fraction of the font size, 0.02 is heavy) strokes each letter in its own color to make it bolder than the font has it. `font` is normally StaticConfigurationManager.get_font(...); without one the default font is used."""
 	runs: list[TextRun] = [(text, color)] if isinstance(text, str) else list(text)
 	line = "".join(part for part, _ in runs)
 	width, height = size
@@ -107,7 +107,12 @@ def text_overlay(text: str|list[TextRun], size: tuple[int, int], position: tuple
 			break
 	# the bounding box does not start at the origin (side bearing, ascent): offset by it to center the ink, not the origin
 	x = (width - (box[2] - box[0])) // 2 - box[0]
-	y = (height - (box[3] - box[1])) // 2 - box[1]
+	if valign == "top":
+		y = margin - box[1]
+	elif valign == "bottom":
+		y = height - margin - box[3]
+	else:
+		y = (height - (box[3] - box[1])) // 2 - box[1]
 	# each run starts where the line so far ends (measured on the whole prefix, so the spacing is the same as one string's)
 	drawn = ""
 	for part, part_color in runs:
