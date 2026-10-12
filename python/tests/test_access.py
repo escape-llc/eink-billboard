@@ -82,6 +82,14 @@ class TestNewDeviceOnTheNetwork(AccessBase):
 		self.assertEqual(self.client.get("/api/settings/system").status_code, 200)
 		self.assertEqual(self.client.post("/api/access/setup", json={ "code": CODE, "password": PASSWORD }).status_code, 409, "claimed once")
 
+	def test_claiming_takes_the_setup_page_off_the_panel(self):
+		calls = []
+		self.app.state.access.on_claimed = lambda: calls.append(1)
+		self.client.post("/api/access/setup", json={ "code": "0000 0000", "password": PASSWORD })
+		self.assertEqual(calls, [], "a wrong code claims nothing")
+		self.client.post("/api/access/setup", json={ "code": CODE, "password": PASSWORD })
+		self.assertEqual(calls, [1])
+
 	def test_the_hash_is_stored_and_never_served(self):
 		self.client.post("/api/access/setup", json={ "code": CODE, "password": PASSWORD })
 		record = self.stored()["passwordHash"]
@@ -210,6 +218,15 @@ class TestSetupPageOnThePanel(unittest.TestCase):
 		self.assertEqual(route, "display")
 		self.assertIsInstance(message, PriorityImage)
 		self.assertEqual((message.title, message.img.size), ("Set up this device", (800, 480)))
+
+	def test_claiming_revokes_the_setup_page(self):
+		from ..task.display_messages import PriorityRevoke
+		app, _ = self.application(lambda: None)
+		app.setup_done()
+		route, message = app.router.send.call_args.args
+		self.assertEqual(route, "display")
+		self.assertIsInstance(message, PriorityRevoke)
+		self.assertEqual(message.title, "Set up this device")
 
 	def test_a_claimed_device_shows_nothing(self):
 		app, now = self.application(lambda: None)

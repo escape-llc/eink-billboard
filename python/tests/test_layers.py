@@ -181,6 +181,17 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.layer._start_playback(StartPlayback(datetime.now()))
 		self.assertEqual(self.layer.state, 'loaded')
 
+	def test_no_playlists_shows_a_page_that_says_so(self):
+		from ..task.display_messages import DisplayImage
+		self.layer.playlists = []
+		self.layer.state = 'loaded'
+		self.layer.router = mock.MagicMock()
+		self.layer._start_playback(StartPlayback(datetime.now()))
+		route, message = self.layer.router.send.call_args.args
+		self.assertEqual(route, "display")
+		self.assertIsInstance(message, DisplayImage)
+		self.assertEqual((message.title, message.layer), ("Nothing to show", "background"))
+
 	def test_a_failing_pass_holds_each_slot_instead_of_spinning(self):
 		import asyncio, time
 		class Boom:

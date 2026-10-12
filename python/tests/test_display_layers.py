@@ -224,3 +224,45 @@ class TestPriorityUpdateShowAs(unittest.TestCase):
 		[msg] = self.run_task("blend")
 		self.assertIs(type(msg), BlendImage)
 		self.assertEqual(msg.duration, datetime.timedelta(minutes=3))
+
+class TestPriorityRevoke(unittest.TestCase):
+	"""A priority image can be taken down before its time is up (the setup page, once the device is claimed)."""
+	def run_layer(self, body):
+		display = Display("d", MessageRouter())
+		comp = ImageCompositor()
+		async def go():
+			priorityq: asyncio.Queue = asyncio.Queue()
+			commitq: asyncio.Queue = asyncio.Queue()
+			layer = asyncio.create_task(display._task_timed_layer(priorityq, commitq, SIZE, None, MagicMock(), comp.set_layer_priority, "priority", display.priority_control))
+			try:
+				await body(display, priorityq, comp)
+			finally:
+				layer.cancel()
+		asyncio.run(go())
+
+	def test_a_showing_image_is_taken_down_at_once(self):
+		async def body(display, q, comp):
+			await q.put(priority(RED))
+			await asyncio.sleep(0.05)
+			self.assertIsNotNone(comp._current_stack.priority)
+			await display._task_priority_revoke(q, "priority")
+			await asyncio.sleep(0.05)
+			self.assertIsNone(comp._current_stack.priority)
+		self.run_layer(body)
+
+	def test_a_queued_image_is_never_shown(self):
+		async def body(display, q, comp):
+			await q.put(priority(RED))
+			await asyncio.sleep(0.05)
+			await q.put(PriorityImage(NOW, "later", solid(GREEN), datetime.timedelta(minutes=1)))
+			await display._task_priority_revoke(q, "later")
+			await display._task_priority_revoke(q, "priority")
+			await asyncio.sleep(0.05)
+			self.assertIsNone(comp._current_stack.priority)
+		self.run_layer(body)
+
+	def test_revoking_what_is_not_there_does_nothing(self):
+		async def body(display, q, comp):
+			await display._task_priority_revoke(q, "nothing")
+			self.assertEqual(display.priority_control.revoked, set())
+		self.run_layer(body)

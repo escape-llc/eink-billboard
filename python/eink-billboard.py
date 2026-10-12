@@ -122,6 +122,7 @@ def run_application(args: argparse.Namespace) -> None:
 	sink = TelemetryHub()
 	xapp: Application = Application(APPNAME, sink)
 	xapp.setup_notice = lambda: setup_notice(app.state.access, port)
+	app.state.access.on_claimed = xapp.setup_done
 	watcher_sink.add(xapp)
 	try:
 		xapp.start()

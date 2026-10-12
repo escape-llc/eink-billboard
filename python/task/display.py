@@ -5,7 +5,7 @@ import logging
 import threading
 from typing import Any, Callable, Mapping, cast
 
-from .display_messages import BlendImage, ComputedImage, DisplayImage, DisplaySettings, OverlayImage, OverlayRevoke, PriorityImage
+from .display_messages import BlendImage, ComputedImage, DisplayImage, DisplaySettings, OverlayImage, OverlayRevoke, PriorityImage, PriorityRevoke
 from .overlay_zones import ZONE_NAMES, Zone, zones_for
 from ..display.mock_display import MockDisplay
 from ..display.display_base import DisplayBase
@@ -22,6 +22,13 @@ from ..task.async_worker_pool import AsyncWorkerPool
 from .message_router import MessageRouter
 from ..utils.image_compositor import ImageCompositor, ImageOverlay
 from ..utils.image_utils import apply_image_enhancement, change_orientation, resize_image
+
+class TimedLayerControl:
+	"""What a timed layer (priority, blend) shows now, so a revoke can end it early, and the titles revoked while still queued. Only touched on the pool loop."""
+	def __init__(self):
+		self.title: str|None = None
+		self.ended: asyncio.Event|None = None
+		self.revoked: set[str] = set()
 
 class Display(DispatcherTask):
 	# how long the dispatcher waits for the pool loop to take a frame before it drops the frame
@@ -46,6 +53,8 @@ class Display(DispatcherTask):
 		self.commitq: asyncio.Queue[BasicMessage] | None = None
 		self.priorityq: asyncio.Queue[PriorityImage] | None = None
 		self.blendq: asyncio.Queue[BlendImage] | None = None
+		self.priority_control = TimedLayerControl()
+		self.blend_control = TimedLayerControl()
 		self.task_commit: tuple[Future, threading.Event] | None = None
 		self.task_priority: tuple[Future, threading.Event] | None = None
 		self.task_blend: tuple[Future, threading.Event] | None = None
@@ -156,12 +165,12 @@ class Display(DispatcherTask):
 		def priority_callback(fut):
 			if not self.is_stopped():
 				self.accept(AsyncTaskCompleted(timebase.current_time(), "priority_task", fut, donev2))
-		self.task_priority = (self.task_pool.submit(self._task_timed_layer(cast(asyncio.Queue[DisplayImage], self.priorityq), cast(asyncio.Queue[BasicMessage], self.commitq), self.resolution, display_settings, donev2, compositor.set_layer_priority, "priority"), callback=priority_callback), donev2)
+		self.task_priority = (self.task_pool.submit(self._task_timed_layer(cast(asyncio.Queue[DisplayImage], self.priorityq), cast(asyncio.Queue[BasicMessage], self.commitq), self.resolution, display_settings, donev2, compositor.set_layer_priority, "priority", self.priority_control), callback=priority_callback), donev2)
 		donev4 = threading.Event()
 		def blend_callback(fut):
 			if not self.is_stopped():
 				self.accept(AsyncTaskCompleted(timebase.current_time(), "blend_task", fut, donev4))
-		self.task_blend = (self.task_pool.submit(self._task_timed_layer(cast(asyncio.Queue[DisplayImage], self.blendq), cast(asyncio.Queue[BasicMessage], self.commitq), self.resolution, display_settings, donev4, compositor.set_layer_blend, "blend"), callback=blend_callback), donev4)
+		self.task_blend = (self.task_pool.submit(self._task_timed_layer(cast(asyncio.Queue[DisplayImage], self.blendq), cast(asyncio.Queue[BasicMessage], self.commitq), self.resolution, display_settings, donev4, compositor.set_layer_blend, "blend", self.blend_control), callback=blend_callback), donev4)
 		donev3 = threading.Event()
 		def render_callback(fut):
 			if not self.is_stopped():
@@ -211,6 +220,12 @@ class Display(DispatcherTask):
 		await priorityq.put(msg)
 	async def _task_blend_layer(self, blendq: asyncio.Queue[BlendImage], msg: BlendImage):
 		await blendq.put(msg)
+	async def _task_priority_revoke(self, priorityq: asyncio.Queue[PriorityImage], title: str):
+		control = self.priority_control
+		if control.title == title and control.ended is not None:
+			control.ended.set()
+		elif priorityq.qsize() > 0:
+			control.revoked.add(title)
 	async def _task_commit_timer(self, commitq: asyncio.Queue[BasicMessage], renderq: asyncio.Queue[BasicMessage], timebase: TimeOfDay, donev: threading.Event):
 		try:
 			while True:
@@ -283,13 +298,18 @@ class Display(DispatcherTask):
 		finally:
 			donev.set()
 	async def _task_timed_layer(self, taskq: asyncio.Queue[DisplayImage], commitq: asyncio.Queue[BasicMessage], resolution: tuple[int, int], display_settings: Mapping[str, Any]|None, donev: threading.Event,
-			set_layer: Callable[[DisplayImage|None], Any], what: str):
-		"""Shows each queued image (priority or blend) on its layer for its `duration`, one after another, then clears the layer."""
+			set_layer: Callable[[DisplayImage|None], Any], what: str, control: TimedLayerControl|None = None):
+		"""Shows each queued image (priority or blend) on its layer for its `duration` (or until it is revoked), one after another, then clears the layer."""
+		control = control or TimedLayerControl()
 		try:
 			ori:str = display_settings.get("orientation", "landscape") if display_settings is not None else "landscape"
 			while True:
 				try:
 					msg = await taskq.get()
+					if msg.title in control.revoked:
+						control.revoked.discard(msg.title)
+						taskq.task_done()
+						continue
 					# Resize and adjust orientation
 					image = change_orientation(msg.img, ori)
 					image = resize_image(image, resolution)
@@ -298,7 +318,13 @@ class Display(DispatcherTask):
 					taskq.task_done()
 					await commitq.put(BasicMessage(msg.timestamp))
 					# TODO await the callback from the display task that the image was rendered before starting the timer
-					await asyncio.sleep(cast(PriorityImage|BlendImage, msg).duration.total_seconds())
+					control.title, control.ended = msg.title, asyncio.Event()
+					try:
+						await asyncio.wait_for(control.ended.wait(), cast(PriorityImage|BlendImage, msg).duration.total_seconds())
+					except asyncio.TimeoutError:
+						pass
+					finally:
+						control.title, control.ended = None, None
 					set_layer(None)
 					await commitq.put(BasicMessage(msg.timestamp))
 				except Exception as e:
@@ -341,6 +367,11 @@ class Display(DispatcherTask):
 			self._wait_for(fut, f"priority '{msg.title}'")
 		except Exception as e:
 			self.logger.error(f"priorityimage.unhandled: {e}", exc_info=True)
+	def _priority_revoke(self, msg: PriorityRevoke):
+		if self.task_pool is None or self.priorityq is None:
+			return
+		fut = self.task_pool.submit(self._task_priority_revoke(self.priorityq, msg.title), None)
+		self._wait_for(fut, f"priority revoke '{msg.title}'")
 	def _blend_image(self, msg: BlendImage):
 		"""A timer task's image that washes over the background for a while (queued like priority images)."""
 		if self.task_pool is None or self.blendq is None:

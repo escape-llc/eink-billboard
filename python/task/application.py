@@ -7,17 +7,20 @@ from .messages import ConfigurationChanged, ConfigurationWatcherEvent, StartEven
 from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
 from .protocols import MessageSink, IProvideTimer
 from .display import Display
+from ..display.mock_display import MockDisplay
 from .basic_task import DispatcherTask, QuitMessage
 from .message_router import MessageRouter, Route
 from ..model.configuration_manager import ConfigurationManager
 from ..model.service_container import IServiceProvider, ServiceContainer
 from ..model.time_of_day import TimeOfDay
-from ..task.display_messages import DisplaySettings, PriorityImage
+from ..task.display_messages import DisplaySettings, PriorityImage, PriorityRevoke
 from ..model.theme import current_inputs
 from ..utils.error_image import render_error_image
 from ..task.playlist_layer import PlaylistLayer
 from ..task.timer import IProvideTimer
 from ..task.timer_layer import TimerLayer
+
+SETUP_TITLE = "Set up this device"
 
 class Application(DispatcherTask):
 	def __init__(self, name = None, sink: MessageSink|None = None):
@@ -88,10 +91,19 @@ class Application(DispatcherTask):
 			lines = self.setup_notice() if self.setup_notice is not None else None
 			if not lines or self.cm is None:
 				return
-			image = render_error_image(self.cm.static_manager(), (width, height), "Set up this device", lines, current_inputs(self.cm.settings_manager()))
-			self.router.send("display", PriorityImage(timestamp, "Set up this device", image, timedelta(minutes=10)))  # type: ignore[union-attr]
+			image = render_error_image(self.cm.static_manager(), (width, height), SETUP_TITLE, lines, current_inputs(self.cm.settings_manager()))
+			self.router.send("display", PriorityImage(timestamp, SETUP_TITLE, image, timedelta(minutes=10)))  # type: ignore[union-attr]
+			shown_on = self.display.display if self.display is not None else None
+			if isinstance(shown_on, MockDisplay):
+				self.logger.warning(f"The mock display has no panel to read the setup code from: it is in the log line 'This device is not set up yet', and the page is saved in {shown_on.output_folder}")
 		except Exception as e:
 			self.logger.error(f"Could not show the setup page: {type(e).__name__}")
+	def setup_done(self) -> None:
+		"""The device was claimed: the setup page comes off the panel now, not when its ten minutes are up."""
+		if self.router is None:
+			return
+		tod = self.root_container.get_service(TimeOfDay) if self.root_container is not None else None
+		self.router.send("display", PriorityRevoke(tod.current_time() if tod else datetime.now().astimezone(), SETUP_TITLE))
 	def _configure_notify(self, msg: ConfigureNotify):
 		# STEP 4 playback started if layer configured successfully
 		self.logger.info(f"'{self.name}' ConfigureNotify {msg.token} {msg.error} {msg.content}.")
