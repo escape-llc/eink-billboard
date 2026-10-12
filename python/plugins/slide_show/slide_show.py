@@ -6,6 +6,7 @@ from typing import Any, Mapping, TypedDict, cast
 
 from ..plugin_base import PluginAsync, PluginExecutionContext, TrackType
 from ...datasources.data_source import DataSourceManager, MediaListAsync, MediaRenderAsync
+from ...datasources.list_state import NoItem, open_cursor
 from ...model.configuration_manager import ConfigurationManager
 from ...model.schedule import PlaylistSchedule
 from ...task.messages import BasicMessage
@@ -64,37 +65,37 @@ class SlideShowAsync(PluginAsync):
 		if isinstance(dataSource, MediaListAsync) and isinstance(dataSource, MediaRenderAsync):
 			dsec = context.create_datasource_context(dataSource)
 			layer = page_layer(context, dataSourceName, settings.get("showAs"))
-			# TODO check for existing state to resume from?
-			state = await dataSource.open_async(dsec, cast(Mapping[str,Any], settings))
-			if len(state) == 0:
-				raise RuntimeError(f"{dataSourceName}: No media items found for slide show")
+			# the list of this visit: a kept one (what the other slots left of it) when the data source keeps its lists, else a new one (list_state.py)
+			cursor = await open_cursor(dsec, dataSource, cast(Mapping[str,Any], settings))
 			slideMinutes = settings.get("slideMinutes", 15)
 			slideMax = settings.get("slideMax", 0)
 			count = 0
-			startlen = len(state) if slideMax == 0 else slideMax
 			failures = 0
 			last_error: Exception|None = None
 			try:
-				while len(state) > 0 and (slideMax == 0 or count < slideMax):
-					self.logger.info(f"{self.id} playing '{track.title}' {count + 1}/{startlen}")
-					item = state[0]
-					state.pop(0)
+				while slideMax == 0 or count < slideMax:
+					item = await cursor.next()
+					if isinstance(item, NoItem):
+						break
+					self.logger.info(f"{self.id} playing '{track.title}' {count + 1}/{slideMax if slideMax else 'all'}")
 					try:
 						mrr = await dataSource.render_async(dsec, cast(Mapping[str,Any], settings), item)
 					except Exception as e:
 						# one dead item (URL, file, ...) must not abort the whole show; a failed item is not a slide
 						failures += 1
 						last_error = e
-						self.logger.error(f"{self.id} '{track.title}' item failed ({type(e).__name__}: {e}); {len(state)} remaining", exc_info=True)
+						self.logger.error(f"{self.id} '{track.title}' item failed ({type(e).__name__}: {e})", exc_info=True)
 						continue
 					count += 1
 					if mrr is not None:
 						router.send("display", DisplayImage(context.timestamp, mrr.title if mrr.title is not None else track.title, mrr.image, layer=layer))
 						await timer.sleep(timedelta(minutes=slideMinutes))
 			except asyncio.CancelledError as e:
-				self.logger.info(f"{self.id} cancelled {len(state)} remaining")
-				# TODO save state for next time?
+				# a kept list was saved item by item: the next visit goes on from here
+				self.logger.info(f"{self.id} cancelled")
 				raise
+			if count == 0 and failures == 0:
+				raise RuntimeError(f"{dataSourceName}: No media items found for slide show")
 			if failures > 0 and count == 0:
 				raise RuntimeError(f"{dataSourceName}: All {failures} slide show items failed; last error: {last_error}")
 		pass

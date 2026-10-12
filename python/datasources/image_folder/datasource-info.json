@@ -27,11 +27,31 @@
 							{ "name": "path", "type": "string", "required": true, "title": "Folder Path", "minLength": 1 }
 						]
 					}
+				},
+				{
+					"name": "listMode",
+					"type": "string",
+					"required": true,
+					"default": "continue",
+					"title": "Slides in a List",
+					"description": "continue: every slot takes the next items of the list where the last one stopped, and the list is fetched again when it is used up. restart: every slot starts at the top of a new list.",
+					"enum": ["continue", "restart"]
+				},
+				{
+					"name": "staleDays",
+					"type": "integer",
+					"required": true,
+					"default": 30,
+					"minimum": 0,
+					"title": "Forget Unused Lists After (days)",
+					"description": "A kept list that no slot has used for this many days is removed (a feed or folder you stopped showing). 0: never."
 				}
 			]
 		},
 		"default": {
-			"folders": []
+			"folders": [],
+			"listMode": "continue",
+			"staleDays": 30
 		}
 	},
 	"instanceSettings": {

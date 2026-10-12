@@ -54,6 +54,10 @@ class ImageFolderAsync(DataSource, MediaListAsync, MediaRenderAsync):
 				return entry["path"]
 		# nothing to retry: the folder was renamed or removed from the settings
 		raise PermanentError(f"The folder '{name}' is not in the Image Folder settings.")
+	def list_state_key(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> str|None:
+		"""The identity of the list a task would get (list_state.py): the folder's name and where it is, so a folder that was pointed elsewhere is a new list."""
+		name = params.get('folder')
+		return f"folder|{name}|{self._folder_path(dsec, name)}" if name else None
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
 		name = params.get('folder')
 		if not name:
