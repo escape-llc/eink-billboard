@@ -15,6 +15,7 @@ import stop from "@material-symbols/svg-400/outlined/stop.svg?raw"
 import image from "@material-symbols/svg-400/outlined/image.svg?raw"
 import cloud_off from "@material-symbols/svg-400/outlined/cloud_off.svg?raw"
 import wb_sunny from "@material-symbols/svg-400/outlined/wb_sunny.svg?raw"
+import screenshot_monitor from "@material-symbols/svg-400/outlined/screenshot_monitor.svg?raw"
 
-export const MATERIAL_ICONS = { playlist_play, schedule, layers, warning, error, play_arrow, skip_next, stop, image, cloud_off, wb_sunny } as const
+export const MATERIAL_ICONS = { playlist_play, schedule, layers, warning, error, play_arrow, skip_next, stop, image, cloud_off, wb_sunny, screenshot_monitor } as const
 export type MaterialIconName = keyof typeof MATERIAL_ICONS
