@@ -14,6 +14,7 @@ from .coalescer import Coalescer
 from .messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage, ReloadSchedules, Telemetry
 from .configure_event import ConfigureEvent
 from .message_router import MessageRouter
+from .source_router import SourceRouter, image_source
 from .protocols import IProvideTimer, MessageSink
 from .basic_task import DispatcherTask
 from ..datasources.data_source import DataSourceManager
@@ -164,7 +165,7 @@ class PlaylistLayer(DispatcherTask):
 		"""The slot of a track that failed shows an error page, for the time the track would have taken. The display skips it when the panel already shows it."""
 		stm = self.cm.static_manager() if self.cm is not None else None
 		image = await asyncio.to_thread(render_error_image, stm, self.dimensions, track.title, [self._reasons.get(key, "Failed")], self._theme())
-		self.router.send("display", DisplayImage(ts, f"Error: {track.title}", image))
+		self.router.send("display", DisplayImage(ts, f"Error: {track.title}", image, origin=image_source("playlist", track.title, track.plugin_name)))
 		if self.timer is None:
 			await asyncio.sleep(self.BACKOFF_INITIAL_SECONDS)
 		else:
@@ -186,6 +187,11 @@ class PlaylistLayer(DispatcherTask):
 			self.router.send("display", DisplayImage(ts, "Nothing to show", self._nothing_image()))
 		except Exception as e:
 			self.logger.error(f"Could not show the empty page: {type(e).__name__}")
+	def _marked(self, isp: IServiceProvider, source: dict[str, str]) -> IServiceProvider:
+		"""The services of `isp`, with a router that marks the images sent through it (see source_router.py)."""
+		marked = ServiceContainer(isp)
+		marked.add_service(MessageRouter, SourceRouter(self.router, source))
+		return marked
 	def _struck_out(self, key: tuple[int, int]) -> bool:
 		return self._strikes.get(key, 0) >= self.MAX_STRIKES
 	def _create_container(self) -> ServiceContainer:
@@ -264,7 +270,9 @@ class PlaylistLayer(DispatcherTask):
 					try:
 						# the per-track event is its own: `donev` is the layer task's, set in the finally below, and waited on by _task_stop
 						track_done = threading.Event()
-						ctx = PluginExecutionContext(isp, self.dimensions, tod.current_time())
+						# the images this track sends are marked with where they come from (the telemetry says which track made what is on the panel)
+						pname = (plugins.get(track.plugin_name) or {}).get("info", {}).get("name") or track.plugin_name
+						ctx = PluginExecutionContext(self._marked(isp, image_source("playlist", track.title, pname, playlist.name)), self.dimensions, tod.current_time())
 						# the start of the slot is what a person following the device wants to see; the end follows when the plugin returns
 						self.router.send("telemetry", Telemetry(tod.current_time(), "playlist_layer", {
 							"kind": "track-started", "state": self.state, "current_playlist_index": plindex, "current_playlist": playlist,

@@ -49,6 +49,25 @@ export function clockOf(ts: string | undefined): string {
 	return found ? `${found[1]}:${found[2]}:${found[3]}` : ""
 }
 
+/** Who made an image (python/task/source_router.py): a playlist track or a timer task. */
+export type Origin = { kind: string; title: string; plugin: string; name?: string }
+export type OriginLine = { layer: string; text: string; kind: string }
+
+/** The words for an origin: `Main › Morning Joe (Slide Show)` for a track of the playlist `Main`, `Clock (Overlay)` for a timer task. */
+export function originText(o: Origin): string {
+	return `${o.kind === "playlist" && o.name ? `${o.name} › ` : ""}${o.title} (${o.plugin})`
+}
+
+/** Which track or task made each layer of what the panel shows (a `shown` event's layers), back to front; a layer nobody marked has no line. */
+export function originsOf(e: TelemetryEvent | null | undefined): OriginLine[] {
+	const lines: OriginLine[] = []
+	for (const layer of (e?.values?.layers ?? []) as any[]) {
+		if (layer?.origin) lines.push({ layer: String(layer.layer), text: originText(layer.origin), kind: String(layer.origin.kind) })
+		for (const o of (layer?.origins ?? []) as Origin[]) lines.push({ layer: "overlay", text: originText(o), kind: String(o.kind) })
+	}
+	return lines
+}
+
 /** An event that says something went wrong. */
 export function isProblem(e: TelemetryEvent): boolean {
 	return ["track-failed", "task-failed", "error", "faulted", "configure-failed", "gap"].includes(e.kind)

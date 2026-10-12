@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import Literal
+from typing import Literal, Mapping
 from PIL import Image
 
 from .messages import BasicMessage
@@ -21,6 +21,8 @@ class DisplayImage(BasicMessage):
 	title: str
 	img: Image.Image
 	layer: DisplayLayer = field(default="background", kw_only=True)
+	# who made the image (see source_router.py): `kind`, `title`, `plugin`, and the playlist's `name`; None when nobody says
+	origin: Mapping[str, str]|None = field(default=None, kw_only=True)
 
 @dataclass(frozen=True, slots=True)
 class PriorityImage(DisplayImage):
@@ -68,6 +70,7 @@ class OverlayImage(BasicMessage):
 	# see ImageOverlay: `auto`, `white` or `black`; `soft` or `solid`
 	wash_color: str = "auto"
 	wash_style: str = "soft"
+	origin: Mapping[str, str]|None = None
 
 @dataclass(frozen=True, slots=True)
 class OverlayRevoke(BasicMessage):

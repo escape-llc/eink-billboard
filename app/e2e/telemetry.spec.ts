@@ -17,6 +17,9 @@ test("the gutter goes live, shows what the panel shows, and reports a change of 
 	await expect(now).toBeVisible({ timeout: 20000 })
 	await expect.poll(() => now.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
 
+	// and which track made it: the playlist, the track and the plugin
+	await expect(gutter.getByTestId("origins")).toContainText(/.+ › .+ \(.+\)/)
+
 	// somebody saves the system settings: the change reaches the gutter by area, not by path
 	const current = await (await request.get("/api/settings/system")).json()
 	expect((await request.put("/api/settings/system", { data: current })).ok()).toBeTruthy()

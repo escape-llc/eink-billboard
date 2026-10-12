@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass, replace
-from typing import Protocol, cast, runtime_checkable
+from typing import Mapping, Protocol, cast, runtime_checkable
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from ..task.display_messages import DisplayImage
@@ -17,6 +17,8 @@ class ImageOverlay:
 	wash_color: str = "auto"
 	# `soft` is a blurred halo; `solid` is a hard-edged outline with no gradient (a color e-ink panel dithers a gradient into dots)
 	wash_style: str = "soft"
+	# who made it (the telemetry says so); see python/task/source_router.py
+	origin: Mapping[str, str]|None = None
 
 FontType = ImageFont.FreeTypeFont | ImageFont.ImageFont
 
@@ -262,17 +264,20 @@ class ImageCompositor:
 	def layers(self) -> list[dict]:
 		"""What `commit` draws now, back to front, as `{ layer, title }` (the overlays as `{ layer: "overlays", count }`): what the telemetry says was shown."""
 		stack = self._current_stack
+		def entry(layer: str, di: DisplayImage) -> dict:
+			return { "layer": layer, "title": di.title, **({ "origin": dict(di.origin) } if di.origin else {}) }
 		if stack.priority is not None:
-			return [{ "layer": "priority", "title": stack.priority.title }]
+			return [entry("priority", stack.priority)]
 		if stack.forground is not None and stack.forground.layer != "blend":
-			return [{ "layer": "override", "title": stack.forground.title }]
-		shown: list[dict] = [{ "layer": "background", "title": stack.background.title }] if stack.background is not None else []
+			return [entry("override", stack.forground)]
+		shown: list[dict] = [entry("background", stack.background)] if stack.background is not None else []
 		if stack.forground is not None:
-			shown.append({ "layer": "blend", "title": stack.forground.title })
+			shown.append(entry("blend", stack.forground))
 		if stack.blend is not None:
-			shown.append({ "layer": "timer-blend", "title": stack.blend.title })
+			shown.append(entry("timer-blend", stack.blend))
 		if len(shown) == 1 and stack.background is not None and stack.overlays:
-			shown.append({ "layer": "overlays", "count": len(stack.overlays) })
+			origins = [dict(o.origin) for o in stack.overlays if o.origin]
+			shown.append({ "layer": "overlays", "count": len(stack.overlays), **({ "origins": origins } if origins else {}) })
 		return shown
 	def commit(self) -> RenderPackage|None:
 		if not self.is_dirty():

@@ -54,8 +54,8 @@ class TestEvents(unittest.TestCase):
 		class Secretive:
 			def __str__(self):
 				return "https://x/?key=SECRET"
-		self.assertEqual(safe_value({ "a": Secretive(), "b": [1, "x" * 1000], "c": { "d": { "e": { "f": 1 } } } }),
-			{ "a": "Secretive", "b": [1, "x" * 299 + "…"], "c": { "d": { "e": "dict" } } })
+		self.assertEqual(safe_value({ "a": Secretive(), "b": [1, "x" * 1000], "c": { "d": { "e": { "f": { "g": { "h": 1 } } } } } }),
+			{ "a": "Secretive", "b": [1, "x" * 299 + "…"], "c": { "d": { "e": { "f": { "g": "dict" } } } } })
 
 	def test_a_configuration_that_failed_is_an_event_and_other_messages_are_not(self):
 		hub = TelemetryHub()

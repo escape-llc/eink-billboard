@@ -63,8 +63,8 @@ def safe_value(value: Any, depth: int = 0) -> Any:
 		return _instant(value)
 	if isinstance(value, timedelta):
 		return value.total_seconds()
-	# an event's values, a list in them (the shown layers), and the objects of that list: deeper is not needed
-	if depth >= 3:
+	# an event's values, a list in them (the shown layers), the objects of that list, and their origins (a list of them for the overlays): deeper is not needed
+	if depth >= 5:
 		return type(value).__name__
 	if isinstance(value, Mapping):
 		return { str(k): safe_value(v, depth + 1) for k, v in list(value.items())[:MAX_ITEMS] }
