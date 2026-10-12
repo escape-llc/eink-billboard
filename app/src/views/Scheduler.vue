@@ -90,16 +90,10 @@
 						<Checkbox v-model="editModel.enabled" fluid binary name="enabled" />
 					</InputGroupAddon>
 				</InputGroup>
-				<InputGroup>
-					<InputGroupAddon>
-						<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" fluid style="flex-shrink:0;flex-grow:1">Trigger</label>
-					</InputGroupAddon>
-					<InputGroupAddon style="flex-grow:1;justify-content:flex-start">
-						<FormField name="trigger" v-slot="$field" :validateOnValueUpdate="true" :initialValue="editModel.trigger" style="display:flex;flex-grow:1">
+				<div class="trigger-heading">Trigger</div>
+				<FormField name="trigger" v-slot="$field" :validateOnValueUpdate="true" :initialValue="editModel.trigger" style="display:flex;flex-grow:1">
 							<TimedTrigger :modelValue="$field.value" parentPropName="trigger." :fieldNameWidth="fieldNameWidth" @change="$field.props.onChange" />
 						</FormField>
-					</InputGroupAddon>
-				</InputGroup>
 				<InputGroup>
 					<InputGroupAddon>
 						<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" style="flex-shrink:0;flex-grow:1">Plugin</label>
@@ -497,6 +491,10 @@ const handleSubmit = () => {
 }
 </script>
 <style scoped>
+.trigger-heading {
+	margin-top: .5rem;
+	font-weight: bold;
+}
 /* the page area is the window under the toolbar: the calendar takes what the toolbar leaves and only its hours scroll (one scrollbar) */
 .scheduler {
 	overflow: hidden;
