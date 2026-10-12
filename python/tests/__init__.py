@@ -24,8 +24,12 @@ def setup_test_logging():
 # Execute the setup
 setup_test_logging()
 
+import os
 import sys
 from unittest.mock import MagicMock
+
+# Starlette's TestClient sends Host: testserver; the server answers only to names it expects (python/web/hosts.py)
+os.environ.setdefault("EINK_ALLOW_HOSTS", "testserver,testclient")
 
 # Mock both the high-level and low-level modules
 sys.modules["_tkinter"] = MagicMock()

@@ -46,6 +46,7 @@ def parse_args(argv: list[str]|None = None) -> argparse.Namespace:
 	parser.add_argument('--app', default=DEFAULT_APP_PATH, help='Path to web app bundle; a relative path is relative to the current working directory (default: app/dist of this repository)')
 	parser.add_argument('--storage', help='Path to storage folder; a relative path is relative to the current working directory')
 	parser.add_argument('--cors', help='Activate CORS and set the allowed host URL')
+	parser.add_argument('--allow-host', action='append', default=[], help="A name this server answers to, besides localhost, addresses and the machine's own (repeatable; or EINK_ALLOW_HOSTS, comma separated)")
 	parser.add_argument('--token', help=f'Require this Bearer token on /api requests (default: the {TOKEN_ENV} environment variable)')
 	args = parser.parse_args(argv)
 	args.app = os.path.abspath(args.app)
@@ -84,7 +85,7 @@ def run_application(args: argparse.Namespace) -> None:
 	routers.update(cm.load_routers(cm.enum_plugins()))
 	routers.update(cm.load_routers(cm.enum_datasources()))
 	app = create_app(
-		WebSettings(app_path=args.app, cors_origin=args.cors, api_token=token),
+		WebSettings(app_path=args.app, cors_origin=args.cors, api_token=token, allowed_hosts=tuple(args.allow_host)),
 		routers=routers
 	)
 	# start the application layer
