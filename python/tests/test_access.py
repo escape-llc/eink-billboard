@@ -194,6 +194,28 @@ class TestSwitches(AccessBase):
 		self.assertEqual(self.client.get("/api/settings/system").json()["setup"], True)
 		self.assertEqual(self.client.get("/api/access").json()["localOnly"], True)
 
+class TestPublicUrl(unittest.TestCase):
+	def setUp(self):
+		import importlib
+		self.main = importlib.import_module("python.eink-billboard")
+
+	def test_only_an_http_address_with_a_host_counts(self):
+		of = self.main.public_url_of
+		self.assertEqual(of(" http://localhost:8080/ "), "http://localhost:8080")
+		self.assertEqual(of("https://billboard.home.arpa/app/"), "https://billboard.home.arpa/app")
+		for bad in (None, "", "  ", "localhost:8080", "ftp://x", "javascript:alert(1)", "http://", "http://user:pw@host"):
+			self.assertIsNone(of(bad), bad)
+
+	def test_the_setup_page_and_the_log_use_it(self):
+		from unittest.mock import MagicMock
+		self.assertEqual(self.main.setup_address(8080, "http://localhost:8080"), "http://localhost:8080")
+		access = MagicMock()
+		access.setup_code.return_value = "1234 5678"
+		self.assertEqual(self.main.setup_notice(access, 8080, "http://localhost:8080"), ["Open http://localhost:8080", "Setup code 1234 5678"])
+		with self.assertLogs(self.main.logger, "WARNING") as logged:
+			self.main.announce_setup_code(access, 8080, "http://localhost:8080")
+		self.assertIn("Open http://localhost:8080 and enter", logged.output[0])
+
 class TestSetupPageOnThePanel(unittest.TestCase):
 	def application(self, notice):
 		import tempfile

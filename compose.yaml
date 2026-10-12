@@ -18,6 +18,8 @@ services:
       - "127.0.0.1:8080:8080"   # localhost only; widen deliberately, and set a token if you do
     environment:
       EINK_API_TOKEN: ${EINK_API_TOKEN:-}
+      # the address the setup page and the log tell you to open: inside the container the server only knows its network address, which the host cannot reach
+      EINK_PUBLIC_URL: ${EINK_PUBLIC_URL:-http://localhost:8080}
       # a folder of a Windows host sends no change events into the container, so look for them (seconds; empty for events only)
       EINK_WATCH_POLL: ${EINK_WATCH_POLL:-2}
     volumes:

@@ -338,6 +338,8 @@ EINK_API_TOKEN=a-long-random-string
 EINK_ALLOW_HOSTS=billboard.home.arpa
 ```
 
+**The address on the setup page.** The server tells you where to open the app (the log, and the panel) from the address it sees for itself, which is wrong in a container or behind a proxy. Set the one people really use with `--public-url` or `EINK_PUBLIC_URL` (for example `http://billboard.home.arpa`); its name is also one the server answers to. The compose file sets `http://localhost:8080`.
+
 **What the server accepts.** It answers only to `localhost`, IP addresses, the Pi's name and `<name>.local`: a request for any other name is refused (421), which stops a web page on another site from reaching the device by DNS rebinding. Reaching the Pi by a name of your own (a router's DNS entry, a reverse proxy) needs `EINK_ALLOW_HOSTS` or `--allow-host`. A client that gets the password or token wrong repeatedly has to wait (429), and each failure is in the log.
 
 **On a network you trust, with no password:** `--no-auth` keeps the old open behavior (it logs a warning at every start).
