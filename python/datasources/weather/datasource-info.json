@@ -30,12 +30,36 @@
 					"title": "Units",
 					"description": "auto: miles and Fahrenheit in the US timezones, kilometres and Celsius elsewhere.",
 					"enum": ["auto", "metric", "imperial"]
+				},
+				{
+					"name": "cacheHours",
+					"type": "number",
+					"required": true,
+					"default": 6,
+					"minimum": 0,
+					"maximum": 168,
+					"step": 0.5,
+					"minFractionDigits": 0,
+					"maxFractionDigits": 1,
+					"title": "Keep an Answer (hours)",
+					"description": "How long what OpenWeatherMap answered is kept and shared by every page and task, so the free plan's calls are for new answers only. 0: ask every time. The weather now can be this old, so a shorter time suits a page that shows it."
+				},
+				{
+					"name": "staleDays",
+					"type": "integer",
+					"required": true,
+					"default": 30,
+					"minimum": 0,
+					"title": "Forget Unused Answers After (days)",
+					"description": "A kept answer nobody has used for this many days (a place you moved away from) is removed. 0: never."
 				}
 			]
 		},
 		"default": {
 			"apiKey": null,
-			"units": "auto"
+			"units": "auto",
+			"cacheHours": 6,
+			"staleDays": 30
 		}
 	},
 	"instanceSettings": {

@@ -1,7 +1,11 @@
+import asyncio
+import atexit
+import json
 import logging
 from dataclasses import replace
 import os
 import shutil
+import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -15,13 +19,14 @@ from ..datasources.data_source import DataSourceExecutionContext
 from ..datasources.weather import weather as weather_module
 from ..datasources.weather.icons import icon_svg
 from ..datasources.weather.weather import HideKey, Page, Report, Units, WeatherAsync, api_error, chosen_views, page_params, parse_current, parse_forecast, units_for
-from ..model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
+from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
 from ..plugins.plugin_base import PermanentError
 from ..task.async_http_worker_pool import client_var
 from ..utils.image_utils import LINUX_CHROME_HEADLESS, WIN_CHROME_HEADLESS, os_type
 from .fake_internet import FakeInternet, fixture_text
-from .test_datasource_fixes import STATIC, FakeDatasourceSettings, FakeRenderSession, _Cob
+from .test_datasource_fixes import STATIC, FakeRenderSession, _Cob
+from .utils import save_datasource_settings
 
 # the display is on the US west coast in October (daylight time); "now" is Wednesday 7 October 2026, noon, which is where the fixtures start
 ZONE = timezone(timedelta(hours=-7))
@@ -37,12 +42,21 @@ class FakeSettings:
 	def open(self, name: str):
 		return _Cob(self.docs.get(name))
 
-def make_context(settings: dict|None = None, orientation: str = "landscape", **system) -> DataSourceExecutionContext:
+def weather_settings(settings: dict|None = None) -> DatasourceConfigurationManager:
+	"""The data source's own folder in a private storage, with its settings written (`cacheHours` 0 unless a test asks: most tests count calls)."""
+	folder = tempfile.mkdtemp(prefix="eink-weather-test-")
+	atexit.register(shutil.rmtree, folder, True)
+	cm = ConfigurationManager(storage_path=folder)
+	cm.hard_reset()
+	save_datasource_settings(cm, "weather", { "apiKey": KEY, "units": "auto", "cacheHours": 0, **(settings or {}) })
+	return cm.datasource_manager("weather")
+
+def make_context(settings: dict|None = None, orientation: str = "landscape", dscm: DatasourceConfigurationManager|None = None, now: datetime = NOW, **system) -> DataSourceExecutionContext:
 	root = ServiceContainer()
-	root.add_service(DatasourceConfigurationManager, cast(Any, FakeDatasourceSettings({ "apiKey": KEY, "units": "auto", **(settings or {}) })))
+	root.add_service(DatasourceConfigurationManager, dscm or weather_settings(settings))
 	root.add_service(SettingsConfigurationManager, cast(Any, FakeSettings(orientation, **system)))
 	root.add_service(StaticConfigurationManager, StaticConfigurationManager(STATIC))
-	return DataSourceExecutionContext(root, (800, 480), NOW)
+	return DataSourceExecutionContext(root, (800, 480), now)
 
 def report(**more) -> Report:
 	import json
@@ -160,6 +174,67 @@ class TestPages(unittest.TestCase):
 	def test_every_icon_code_has_a_drawing(self):
 		for code in ("01d", "01n", "02d", "02n", "03d", "04n", "09d", "10d", "11d", "13n", "50d", "", "99x"):
 			self.assertTrue(icon_svg(code).startswith("<svg"), code)
+
+class TestCache(unittest.IsolatedAsyncioTestCase):
+	"""The API's answers are kept for the data source's `cacheHours`, shared by every page and task, and the free plan's calls are for new answers only."""
+	def setUp(self):
+		self.fake = FakeInternet()
+		client_var.set(httpx.AsyncClient(transport=self.fake))
+
+	def asked(self) -> list[str]:
+		return [r.url.path.rsplit("/", 1)[-1] for r in self.fake.requests]
+
+	async def open(self, dscm, views, now=NOW):
+		return await WeatherAsync("weather", "Weather").open_async(make_context(dscm=dscm, now=now), { "views": views })
+
+	async def test_a_second_visit_in_six_hours_asks_nobody(self):
+		dscm = weather_settings({ "cacheHours": 6 })
+		await self.open(dscm, ["current", "hours"])
+		await self.open(dscm, ["current", "days"], NOW + timedelta(hours=5))
+		self.assertEqual(sorted(self.asked()), ["forecast", "weather"], "one call of each, for every page")
+		await self.open(dscm, ["current"], NOW + timedelta(hours=7))
+		self.assertEqual(sorted(self.asked()), ["forecast", "weather", "weather"], "the current answer was older than six hours")
+
+	async def test_the_default_is_six_hours_and_zero_asks_every_time(self):
+		dscm = weather_settings()
+		self.assertEqual(dscm.open().get()[1]['cacheHours'], 0)
+		cm_settings = weather_settings({ "cacheHours": 6 })
+		await self.open(cm_settings, ["current"])
+		await self.open(cm_settings, ["current"])
+		self.assertEqual(self.asked(), ["weather"])
+		await self.open(dscm, ["current"])
+		await self.open(dscm, ["current"])
+		self.assertEqual(self.asked()[1:], ["weather", "weather"])
+
+	async def test_a_place_or_units_that_changed_is_a_new_question(self):
+		dscm = weather_settings({ "cacheHours": 6 })
+		ds = WeatherAsync("weather", "Weather")
+		await ds.open_async(make_context(dscm=dscm), { "views": ["current"] })
+		await ds.open_async(make_context(dscm=dscm, location={ "latitude": 40.0, "longitude": -74.0 }), { "views": ["current"] })
+		self.assertEqual(self.asked(), ["weather", "weather"])
+
+	async def test_the_key_is_never_kept_or_named_in_the_cache(self):
+		dscm = weather_settings({ "cacheHours": 6 })
+		await self.open(dscm, ["current", "days"])
+		names = dscm.list_files("cache-")
+		self.assertEqual(len(names), 2)
+		for name in names:
+			self.assertRegex(name, r"^cache-[0-9a-f]{16}$")
+			self.assertNotIn(KEY, json.dumps(dscm.file(name).get()[1]))
+
+	async def test_when_the_api_is_down_the_old_answer_is_used(self):
+		dscm = weather_settings({ "cacheHours": 1 })
+		await self.open(dscm, ["current"])
+		def down(request: httpx.Request) -> httpx.Response:
+			raise httpx.ConnectError("down")
+		client_var.set(httpx.AsyncClient(transport=httpx.MockTransport(down)))
+		pages = await self.open(dscm, ["current"], NOW + timedelta(hours=3))
+		self.assertEqual([p.view for p in pages], ["current"], "the old answer")
+
+	async def test_five_slots_at_once_ask_once(self):
+		dscm = weather_settings({ "cacheHours": 6 })
+		await asyncio.gather(*(self.open(dscm, ["current"]) for _ in range(5)))
+		self.assertEqual(self.asked(), ["weather"])
 
 class TestOpen(unittest.IsolatedAsyncioTestCase):
 	def setUp(self):

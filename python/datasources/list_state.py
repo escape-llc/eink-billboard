@@ -73,7 +73,7 @@ _refill_locks: dict[str, threading.Lock] = {}
 _refill_locks_guard = threading.Lock()
 REFILL_WAIT_SECONDS = 120.0
 
-def _refill_lock(name: str) -> threading.Lock:
+def refill_lock(name: str) -> threading.Lock:
 	with _refill_locks_guard:
 		return _refill_locks.setdefault(name, threading.Lock())
 
@@ -195,7 +195,7 @@ async def open_cursor(dsec: DataSourceExecutionContext, source: MediaListAsync, 
 		if not empty and not _too_old(doc, now, max_age):
 			return StateCursor(cob, now)
 		# the list is used up (or too old): back to the origin. One task at a time does that; the others wait for its list (without holding up their loop)
-		lock = _refill_lock(cob.moniker)
+		lock = refill_lock(cob.moniker)
 		if not lock.acquire(blocking=False):
 			deadline = time.monotonic() + REFILL_WAIT_SECONDS
 			while time.monotonic() < deadline:
