@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { TelemetryLink, clockOf, isProblem, socketUrl, type SocketLike } from "./TelemetryLink"
+import { TelemetryLink, clockOf, isProblem, originsOf, socketUrl, type SocketLike } from "./TelemetryLink"
 
 class FakeSocket implements SocketLike {
 	onopen: ((ev: any) => void) | null = null
@@ -98,5 +98,25 @@ describe("the link", () => {
 		sockets[0]!.drop()
 		vi.advanceTimersByTime(60000)
 		expect(sockets.length).toBe(1)
+	})
+})
+
+describe("who made the image", () => {
+	const track = { kind: "playlist", title: "Morning Joe", plugin: "Slide Show", name: "Main" }
+	const task = { kind: "timer", title: "Clock", plugin: "Overlay" }
+	it("names the playlist and track, or the timer task, for each layer", () => {
+		const e = { source: "display", kind: "shown", values: { layers: [
+			{ layer: "background", title: "Photo", origin: track },
+			{ layer: "overlays", count: 2, origins: [task, { ...task, title: "Date" }] },
+		] } }
+		expect(originsOf(e)).toEqual([
+			{ layer: "background", text: "Main › Morning Joe (Slide Show)", kind: "playlist" },
+			{ layer: "overlay", text: "Clock (Overlay)", kind: "timer" },
+			{ layer: "overlay", text: "Date (Overlay)", kind: "timer" },
+		])
+	})
+	it("says nothing for a layer nobody marked, or no event", () => {
+		expect(originsOf({ source: "display", kind: "shown", values: { layers: [{ layer: "background", title: "Setup" }] } })).toEqual([])
+		expect(originsOf(null)).toEqual([])
 	})
 })

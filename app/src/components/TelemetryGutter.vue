@@ -16,6 +16,12 @@
 				<Tag v-for="(layer, i) in current.values?.layers ?? []" :key="i" severity="secondary" class="gutter-chip"
 					:value="layer.layer === 'overlays' ? `overlays (${layer.count})` : layer.layer" />
 			</div>
+			<ul v-if="currentOrigins.length" class="gutter-origins" aria-label="Made by" data-testid="origins">
+				<li v-for="(line, i) in currentOrigins" :key="i">
+					<i :class="line.kind === 'timer' ? 'pi pi-clock' : 'pi pi-list'" aria-hidden="true"></i>
+					<span class="gutter-origin-layer">{{ line.layer }}</span> {{ line.text }}
+				</li>
+			</ul>
 		</section>
 
 		<section v-if="recent.length > 1" class="gutter-recent" aria-label="Recently shown">
@@ -52,7 +58,7 @@
 /** The live view of the device: what the panel shows, what it showed, and what the tasks report (the telemetry link). */
 import { computed, onBeforeUnmount, onMounted, ref } from "vue"
 import { Dialog, Select, Tag, ToggleSwitch } from "primevue"
-import { clockOf, isProblem, useTelemetry, type TelemetryEvent } from "./TelemetryLink"
+import { clockOf, isProblem, originsOf, useTelemetry, type TelemetryEvent } from "./TelemetryLink"
 
 const link = useTelemetry()
 const full = ref<TelemetryEvent | null>(null)
@@ -69,6 +75,7 @@ onMounted(() => link.start())
 onBeforeUnmount(() => link.stop())
 
 const current = computed(() => link.state.current?.values?.digest ? link.state.current : null)
+const currentOrigins = computed(() => originsOf(current.value))
 const recent = computed(() => {
 	const seen = new Set<string>()
 	return [current.value, ...link.state.events.filter(e => e.kind === "shown")]
@@ -157,6 +164,23 @@ function describe(e: TelemetryEvent): string {
 	align-items: center;
 	gap: .25rem;
 	font-size: .85rem;
+}
+.gutter-origins {
+	list-style: none;
+	margin: .25rem 0 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: .15rem;
+	font-size: .85em;
+}
+.gutter-origins i {
+	margin-right: .3rem;
+	color: var(--p-text-muted-color);
+}
+.gutter-origin-layer {
+	color: var(--p-text-muted-color);
+	margin-right: .25rem;
 }
 .gutter-chip {
 	font-size: .7rem;

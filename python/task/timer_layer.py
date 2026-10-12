@@ -17,6 +17,8 @@ from ..task.async_http_worker_pool import AsyncHttpWorkerPool
 from ..task.basic_task import DispatcherTask
 from ..task.display_messages import DisplaySettings, OverlayDefinition, OverlayImage, OverlayRevoke, OverlayZones, PriorityImage
 from ..task.coalescer import Coalescer
+from ..task.message_router import MessageRouter
+from ..task.source_router import SourceRouter, image_source
 from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage, ReloadSchedules, Telemetry
 from ..task.protocols import IProvideTimer, IRequireShutdown, MessageSink
 from ..task.configure_event import ConfigureEvent
@@ -204,13 +206,13 @@ class TimerLayer(DispatcherTask):
 			zone = self._overlay_zone(item)
 			if zone is not None:
 				image = await asyncio.to_thread(render_error_image, stm, zone.dimensions, item.title, [reason], self._theme(), True)
-				self.router.send("display", OverlayImage(ts, item.id, zone.name, f"Error: {item.title}", image))
+				self.router.send("display", OverlayImage(ts, item.id, zone.name, f"Error: {item.title}", image, origin=image_source("timer", item.title, item.task.plugin_name)))
 				return
 			image = await asyncio.to_thread(render_error_image, stm, self.dimensions, item.title, [reason], self._theme())
 			content = item.task.content if isinstance(item.task.content, dict) else {}
 			minutes = content.get("slideMinutes")
 			duration = timedelta(minutes=float(minutes) if isinstance(minutes, (int, float)) and minutes > 0 else 1.0)
-			self.router.send("display", PriorityImage(ts, f"Error: {item.title}", image, duration))
+			self.router.send("display", PriorityImage(ts, f"Error: {item.title}", image, duration, origin=image_source("timer", item.title, item.task.plugin_name)))
 		except Exception as e:
 			self.logger.error(f"Could not show the error page for task '{item.title}': {type(e).__name__}")
 	async def _run_task_item(self, isp: IServiceProvider, tod: TimeOfDay, item: TimerTaskItem, kind: str, index: int, playlist: Playlist|None, sched_ts: datetime|None):
@@ -225,7 +227,11 @@ class TimerLayer(DispatcherTask):
 			self.logger.info(f"Starting {kind} task '{item.title}' using plugin '{item.task.plugin_name}'.")
 			# this task's own event: the one passed to the layer task is the layer's, and is set when the layer ends
 			task_done = threading.Event()
-			context = PluginExecutionContext(isp, self.dimensions, tod.current_time())
+			# the images this task sends are marked with where they come from (the telemetry says which task made what is on the panel)
+			pinfo = next((px["info"] for px in (self.plugin_info or []) if px["info"].get("id") == item.task.plugin_name), None)
+			marked = ServiceContainer(isp)
+			marked.add_service(MessageRouter, SourceRouter(self.router, image_source("timer", item.title, str((pinfo.get("name") if pinfo else None) or item.task.plugin_name))))
+			context = PluginExecutionContext(marked, self.dimensions, tod.current_time())
 			self.router.send("telemetry", Telemetry(tod.current_time(), "timer_layer", {
 				"kind": "task-started", "state": self.state, "current_playlist": playlist, "current_track": item, "current_track_index": index, "schedule_ts": sched_ts }))
 			plugin_result = await plugin.task_async(context, item, task_done)

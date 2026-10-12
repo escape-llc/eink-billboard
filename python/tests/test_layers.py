@@ -214,6 +214,30 @@ class PlaylistLayerTests(unittest.TestCase):
 		# 0.2 minutes of model time at 60x is 0.2 s
 		self.assertGreaterEqual(time.monotonic() - start, 0.15)
 
+	def test_an_image_a_track_sends_says_which_track_made_it(self):
+		import asyncio
+		from ..task.display_messages import DisplayImage
+		from ..task.message_router import MessageRouter, Route
+		got: list = []
+		class Catcher:
+			def accept(self, msg): got.append(msg)
+		class Draws:
+			def __init__(self, id, name):
+				self.id, self.name = id, name
+			async def task_async(self, ctx, track, donev):
+				ctx.provider.required(MessageRouter).send("display", DisplayImage(ctx.timestamp, "Picture", Image.new("RGB", (8, 8))))
+		layer = self.layer
+		layer.router = MessageRouter()
+		layer.router.addRoute(Route("display", [Catcher()]))
+		track = PlaylistSchedule("p1", "t1", "Morning Joe", PlaylistScheduleData({}))
+		playlists = cast(list[ScheduleLoaderDict], [{"info": Playlist("pl1", "Main", items=[track]), "name": "x", "path": "/x", "type": SCHEMA_PLAYLIST}])
+		layer._evaluate_plugin = lambda t: {"plugin": Draws("p1", "Plugin"), "track": t}  # type: ignore
+		root = ServiceContainer()
+		root.add_service(TimeOfDay, layer.timebase)
+		asyncio.run(layer._layer_task(root, playlists, Event()))
+		self.assertEqual(len(got), 1)
+		self.assertEqual(dict(got[0].origin), { "kind": "playlist", "title": "Morning Joe", "plugin": "p1", "name": "Main" })
+
 	def _strike_setup(self, plugin_factory, track_count=1):
 		"""A layer whose tracks all run `plugin_factory`'s plugin; returns (layer, playlists, services, calls)."""
 		layer = self.layer

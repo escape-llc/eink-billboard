@@ -203,7 +203,7 @@ class Display(DispatcherTask):
 		# a sender owns one zone: one that moved to another zone leaves nothing behind in the old one
 		for name in [name for name, (key, _) in self.overlays.items() if key == msg.key and name != zone.name]:
 			del self.overlays[name]
-		self.overlays[zone.name] = (msg.key, ImageOverlay(image, (zone.panel_box[0], zone.panel_box[1]), msg.wash, msg.wash_color, msg.wash_style))
+		self.overlays[zone.name] = (msg.key, ImageOverlay(image, (zone.panel_box[0], zone.panel_box[1]), msg.wash, msg.wash_color, msg.wash_style, msg.origin))
 		self._set_overlays(compositor)
 		await commitq.put(BasicMessage(msg.timestamp))
 	async def _task_overlay_revoke(self, commitq: asyncio.Queue[BasicMessage], compositor: ImageCompositor, msg: OverlayRevoke):
@@ -313,7 +313,7 @@ class Display(DispatcherTask):
 					# Resize and adjust orientation
 					image = change_orientation(msg.img, ori)
 					image = resize_image(image, resolution)
-					di = msg if image == msg.img else ComputedImage(msg.timestamp, msg.title, image, msg)
+					di = msg if image == msg.img else ComputedImage(msg.timestamp, msg.title, image, msg, origin=msg.origin)
 					set_layer(di)
 					taskq.task_done()
 					await commitq.put(BasicMessage(msg.timestamp))
@@ -417,7 +417,7 @@ class Display(DispatcherTask):
 			# Resize and adjust orientation
 				image = change_orientation(msg.img, display_settings.get("orientation", "landscape"))
 				image = resize_image(image, self.resolution)
-				di = msg if image == msg.img else ComputedImage(msg.timestamp, msg.title, image, msg, layer=msg.layer)
+				di = msg if image == msg.img else ComputedImage(msg.timestamp, msg.title, image, msg, layer=msg.layer, origin=msg.origin)
 			else:
 				di = msg
 			task = self._task_background_layer if di.layer == "background" else self._task_foreground_layer
