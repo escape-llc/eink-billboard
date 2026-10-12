@@ -17,6 +17,7 @@ import icalendar
 import recurring_ical_events
 
 from ...plugins.plugin_base import PermanentError
+from ...utils.url_guard import stream_checked
 
 # a calendar file is text: a big family calendar with years of history is a few megabytes
 MAX_CALENDAR_BYTES = 5 * 1024 * 1024
@@ -158,7 +159,7 @@ def caldav_calendars(body: bytes) -> list[icalendar.Calendar]:
 
 async def download(client: httpx.AsyncClient, method: str, url: str, headers: Mapping[str, str], content: bytes|None = None, max_bytes: int = MAX_CALENDAR_BYTES) -> bytes:
 	"""The body of a GET or REPORT, refused (RuntimeError) past `max_bytes`; an error status raises httpx.HTTPStatusError."""
-	async with client.stream(method, url, headers=headers, content=content, follow_redirects=True) as resp:
+	async with stream_checked(client, method, url, headers, content) as resp:
 		resp.raise_for_status()
 		body = bytearray()
 		async for chunk in resp.aiter_bytes():

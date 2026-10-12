@@ -39,7 +39,7 @@ class TestCheckUrl(unittest.IsolatedAsyncioTestCase):
 			await check_url("https://ok.test/feed")
 			await check_url("http://lan.test:8080/feed")
 			for url in ("https://inside.test/", "http://both.test/"):
-				with self.subTest(url), self.assertRaisesRegex(UrlRefused, "cannot be tested here"):
+				with self.subTest(url), self.assertRaisesRegex(UrlRefused, "cannot be used here"):
 					await check_url(url)
 			with self.assertRaisesRegex(UrlRefused, "could not be found"):
 				await check_url("https://unknown.test/")
@@ -103,3 +103,41 @@ class TestFetchChecked(unittest.IsolatedAsyncioTestCase):
 			await self.fetch(lambda r: httpx.Response(503), "https://a.test/feed")
 		with self.assertRaisesRegex(RuntimeError, "too large"):
 			await self.fetch(lambda r: httpx.Response(200, content=b"x" * 101), "https://a.test/feed", max_bytes=100)
+
+class TestRunTimeFetches(unittest.IsolatedAsyncioTestCase):
+	"""Addresses from a feed or an answer are fetched through the guard too (#189), not only by the Test buttons."""
+	async def download(self, handler, url: str):
+		from ..utils.image_utils import stream_to_buffer
+		async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+			with patch.object(url_guard, "_resolve", resolver({ "a.test": [PUBLIC], "inside.test": ["127.0.0.1"] })):
+				return (await stream_to_buffer(client, url)).read()
+
+	async def test_a_public_download_works_and_follows_a_redirect(self):
+		def handler(request: httpx.Request) -> httpx.Response:
+			return httpx.Response(302, headers={ "Location": "/there" }) if request.url.path == "/start" else httpx.Response(200, content=b"picture")
+		self.assertEqual(await self.download(handler, "https://a.test/start"), b"picture")
+
+	async def test_this_device_and_the_metadata_address_are_never_requested(self):
+		seen: list[str] = []
+		def handler(request: httpx.Request) -> httpx.Response:
+			seen.append(request.url.host)
+			return httpx.Response(200, content=b"x")
+		for url in ("http://127.0.0.1:8080/api/settings/system", "http://169.254.169.254/latest/meta-data/", "http://inside.test/p.jpg", "http://[::1]/x"):
+			with self.subTest(url), self.assertRaises(UrlRefused):
+				await self.download(handler, url)
+		self.assertEqual(seen, [], "nothing was requested")
+
+	async def test_a_redirect_from_a_public_host_to_this_device_is_stopped(self):
+		seen: list[str] = []
+		def handler(request: httpx.Request) -> httpx.Response:
+			seen.append(request.url.host)
+			return httpx.Response(302, headers={ "Location": "http://169.254.169.254/latest/meta-data/" })
+		with self.assertRaises(UrlRefused):
+			await self.download(handler, "https://a.test/pic.jpg")
+		self.assertEqual(seen, ["a.test"])
+
+	async def test_the_calendar_download_goes_through_the_guard(self):
+		from ..datasources.calendar.sources import download
+		async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, content=b"BEGIN:VCALENDAR"))) as client:
+			with self.assertRaises(UrlRefused):
+				await download(client, "GET", "http://127.0.0.1/cal.ics", {})

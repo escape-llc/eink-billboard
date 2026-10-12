@@ -91,7 +91,7 @@ test("a calendar address is tested through the real route, which refuses this de
 	const rows = calendars(page)
 	await rows.getByRole("textbox", { name: "Address 1", exact: true }).fill("webcal://127.0.0.1:1/x.ics")
 	await rows.getByRole("button", { name: "Test Address 1" }).click()
-	await expect(page.getByText("cannot be tested here")).toBeVisible()
+	await expect(page.getByText("cannot be used here")).toBeVisible()
 	watch.expectNone()
 })
 

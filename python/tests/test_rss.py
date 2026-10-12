@@ -169,6 +169,19 @@ class TestRender(unittest.IsolatedAsyncioTestCase):
 		assert result is not None and session is not None
 		self.assertIsNone(session.params["story"]["picture"])
 
+	async def test_a_picture_on_this_device_is_never_requested_and_the_story_still_shows(self):
+		seen: list[str] = []
+		def handler(request: httpx.Request) -> httpx.Response:
+			seen.append(request.url.host)
+			return httpx.Response(200, content=b"x", headers={ "Content-Type": "image/jpeg" })
+		client_var.set(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+		for url in ("http://127.0.0.1:8080/api/settings/system", "http://169.254.169.254/latest/meta-data/"):
+			story = { "feed": "News", "feed_title": "", "title": "T", "summary": "S", "published": "", "picture_url": url }
+			result, session = await self.render({ "feed": "News", "includeImages": True }, story)
+			assert result is not None and session is not None
+			self.assertIsNone(session.params["story"]["picture"])
+		self.assertEqual(seen, [])
+
 	async def test_nothing_to_show_is_none(self):
 		with patch.object(rss, "RenderSession", FakeRenderSession):
 			self.assertIsNone(await RssAsync("rss", "rss").render_async(make_context(), { "feed": "News" }, None))
@@ -269,7 +282,7 @@ class TestFeedTestRoute(WebApiTestBase):
 		self.assertEqual(asked, ["news.example.test"])
 
 	def test_only_http_and_nothing_at_all_are_refused_in_words(self):
-		self.assertEqual(self.ask("ftp://news.example.test/f")["message"], "Only http and https addresses can be tested.")
+		self.assertEqual(self.ask("ftp://news.example.test/f")["message"], "Only http and https addresses can be used.")
 		for nothing in ("", "   ", None, 7, ["https://news.example.test/feed.xml"]):
 			with self.subTest(nothing):
 				self.assertEqual(self.ask(nothing), { "ok": False, "message": "Enter an address first." })
