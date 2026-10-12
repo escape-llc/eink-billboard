@@ -90,3 +90,32 @@ class ThemedErrorImageTests(unittest.TestCase):
 	def test_without_static_resources_it_is_the_plain_page(self):
 		image = render_error_image(None, (800, 480), "T", ["x"])
 		self.assertEqual(image.tobytes(), plain_error_image((800, 480), "T", ["x"]).tobytes())
+
+class TestPageSecurityPolicy(unittest.TestCase):
+	"""Chromium runs with --no-sandbox, so a rendered page may run no script and load nothing but our files (#190)."""
+	def render(self, content: str):
+		import tempfile
+		from ..plugins.plugin_base import RenderSession
+		tmp = tempfile.TemporaryDirectory()
+		self.addCleanup(tmp.cleanup)
+		with open(os.path.join(tmp.name, "probe.html"), "w", encoding="utf-8") as f:
+			f.write('{% extends "plugin.html" %}{% block content %}' + content + '{% endblock %}')
+		return RenderSession(StaticConfigurationManager(STATIC), tmp.name, "probe.html", None)
+
+	def test_every_page_carries_the_policy(self):
+		html = self.render("<p>x</p>").env.get_template("probe.html").render({ "settings": {}, "style_sheets": [], "font_faces": [], "width": 10, "height": 10 })
+		self.assertIn('http-equiv="Content-Security-Policy"', html)
+		self.assertIn("default-src 'none'", html)
+		self.assertNotIn("backgroundImageFile", html)
+
+	@unittest.skipUnless(HAVE_CHROME, "needs chromium-headless-shell")
+	def test_a_script_in_a_page_does_not_run_but_styles_still_apply(self):
+		red_cover = "<script>var d=document.createElement('div');d.style='position:fixed;left:0;top:0;width:100%;height:100%;background:#f00';document.body.appendChild(d)</script>"
+		green = '<div style="position:fixed;left:0;top:0;width:20px;height:20px;background:#00ff00"></div>'
+		image = self.render(green + red_cover).render((200, 100), { "settings": {} })
+		assert image is not None
+		rgb = image.convert("RGB")
+		self.assertEqual(rgb.getpixel((150, 80)), (255, 255, 255), "the script must not have drawn over the page")
+		red, green_px, blue = rgb.getpixel((5, 5))
+		self.assertGreater(green_px, 200)
+		self.assertLess(red, 60)
