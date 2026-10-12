@@ -35,6 +35,9 @@ THUMB_WIDTH = 320
 MAX_TEXT = 300
 MAX_ITEMS = 20
 
+# the steps that bring the device up, as ConfigureEvent names them
+COMPONENTS = ("display", "playlist-layer", "timer-layer")
+
 # a state the layers report, as the kind of event it is (when the values do not say)
 _KINDS = {
 	("playlist_layer", "playing"): "track-ended",
@@ -115,9 +118,13 @@ class TelemetryHub(MessageSink):
 		self._images: collections.OrderedDict[str, Snapshot] = collections.OrderedDict()
 		self._max_images = max_images
 		self._current: dict|None = None
+		self._status: dict[str, str] = {}
 
 	# ---- in ----
 	def accept(self, msg: BasicMessage) -> None:
+		if isinstance(msg, ConfigureNotify) and msg.token in COMPONENTS:
+			with self._lock:
+				self._status[msg.token] = "failed" if msg.error else "ok"
 		event = self._event(msg)
 		if event is None:
 			return
@@ -170,6 +177,24 @@ class TelemetryHub(MessageSink):
 		"""The kept events newer than `seq`, oldest first."""
 		with self._lock:
 			return [e for e in self._events if e["seq"] > seq]
+
+	def status(self) -> dict:
+		"""How bringing each component up went: `ok`, `failed`, or `starting` (not reported yet, or waiting for the display). The words are ours, never the error's."""
+		with self._lock:
+			state = dict(self._status)
+		components = {}
+		for name in COMPONENTS:
+			current = state.get(name, "starting")
+			if current == "failed":
+				message = "Could not be set up. See the log, fix the settings, then restart."
+			elif current == "ok":
+				message = "Running."
+			elif name != "display" and state.get("display") == "failed":
+				message = "Waiting for the display."
+			else:
+				message = "Starting."
+			components[name] = { "state": current, "message": message }
+		return { "ok": all(c["state"] == "ok" for c in components.values()), "components": components }
 
 	def current(self) -> dict|None:
 		"""The last `shown` event: what the panel shows now (None until something was drawn)."""

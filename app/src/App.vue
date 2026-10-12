@@ -3,6 +3,7 @@ import { InputGroup, Toast, TieredMenu, Button, Toolbar, ConfirmDialog } from 'p
 import { RouterLink, RouterView } from 'vue-router'
 import ThemeSelector from './components/ThemeSelector.vue'
 import TelemetryGutter from './components/TelemetryGutter.vue'
+import StatusIndicator from './components/StatusIndicator.vue'
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 const router = useRouter();
@@ -124,6 +125,7 @@ const items = ref([
 	</template>
 	<template #end>
 		<InputGroup>
+			<StatusIndicator />
 			<Button
 				icon="pi pi-wave-pulse"
 				class="p-button-sm"

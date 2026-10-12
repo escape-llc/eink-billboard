@@ -193,6 +193,7 @@ The same repo is worked on from three places. The rules above are the same every
   The cookie is `Secure` only when the app itself sees `https`: behind a TLS-terminating proxy it sees plain `http`, so the cookie is not marked `Secure` (forwarded headers are deliberately not trusted). There is no rate limiting on `POST /api/session`; that is a documented tradeoff for a home-network device.
 - **After swapping a framework or library, check what it was installing for you.** Removing Flask silently removed `jinja2` (and `markupsafe`), which four modules still imported; only the tests noticed.
   Grep the imports against `pyproject.toml` and declare every third-party package you import directly.
+- **Test an object for `None`, not for truth.** A class with `__len__` is falsy while empty: `if self.sink:` dropped every message to a hub that had no events yet, including the first failure (found building `GET /api/status`). Use `is not None`.
 - **A failure's cause is usually in what the change touched indirectly:** the watcher, the CI storage, a transitive dependency. Reproduce under CI conditions before concluding anything.
 
 ## Boundaries this repo has actually hit

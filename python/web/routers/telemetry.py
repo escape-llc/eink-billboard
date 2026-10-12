@@ -44,6 +44,11 @@ def recent(request: Request, since: int = Query(0, ge=0)):
 	"""The kept events newer than `since`, oldest first (a first paint, a script, or catching up)."""
 	return _required_hub(request).since(since)
 
+@router.get('/status')
+def status(request: Request):
+	"""Whether the display and the two layers came up: `{ ok, components: { name: { state: ok|failed|starting, message } } }`. Our words only."""
+	return _required_hub(request).status()
+
 @router.get('/display/current')
 def current(request: Request):
 	"""What the panel shows now: the last `shown` event, or null before anything was drawn."""

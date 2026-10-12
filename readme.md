@@ -334,6 +334,7 @@ The web app's **Activity** button (top right) opens a gutter beside the page. It
 
 The gutter follows a WebSocket (`/api/telemetry/ws?since=<seq>`), which reconnects on its own and resumes after the last event it had. Times are the device's, not the browser's. The other routes:
 * `GET /api/telemetry?since=<seq>`: the kept events, the last 200, newest last;
+* `GET /api/status`: how bringing up the display and the two layers went, `{ ok, components: { display | playlist-layer | timer-layer: { state: ok | failed | starting, message } } }`, in our words (a failure says to see the log); the header's status button reads it every 10 s. A failed display is not retried when its settings change (live reconfiguration is not built): fix the settings and restart;
 * `GET /api/display/current`: the last `shown` event;
 * `GET /api/display/images/<digest>?size=thumb|full`: a shown image as PNG. The device keeps the last 8, in memory only.
 
