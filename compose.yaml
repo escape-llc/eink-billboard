@@ -2,7 +2,7 @@
 #   podman compose run --rm test        # ruff + mypy + unit tests on Linux, as CI does
 #   podman compose up --build app       # the server with the web app on http://localhost:8080
 #   EINK_STORAGE=./.storage podman compose up --build app   # the same, on a storage folder of this checkout instead of the volume
-# `test` needs python/tests/.storage (never committed; see AGENTS.md "Test environment").
+# `test` needs nothing restored: the tests build their own storage (see AGENTS.md "Test environment").
 services:
   test:
     profiles: ["test"]

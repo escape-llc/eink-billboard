@@ -1,0 +1,35 @@
+{
+	"_schema": "urn:inky:storage:schedule:tasks:1",
+	"id": "timer_tasks",
+	"name": "Timer Tasks Schedule",
+	"items": [
+		{
+			"id": "task1",
+			"enabled": true,
+			"title": "Quarter-hour clock",
+			"task": {
+				"plugin_name": "interstitial",
+				"content": { "dataSource": "clock", "clockFace": "Gradient Clock", "primaryColor": "#db3246", "secondaryColor": "#000000", "slideMinutes": 1 }
+			},
+			"trigger": {
+				"on_startup": false,
+				"day": { "type": "dayofweek", "days": [0, 1, 2, 3, 4, 5, 6] },
+				"time": { "type": "hourly", "minutes": [0, 15, 30, 45] }
+			}
+		},
+		{
+			"id": "task2",
+			"enabled": false,
+			"title": "Paused year progress",
+			"task": {
+				"plugin_name": "interstitial",
+				"content": { "dataSource": "year_progress", "slideMinutes": 5 }
+			},
+			"trigger": {
+				"on_startup": false,
+				"day": { "type": "dayofweek", "days": [1, 3, 5] },
+				"time": { "type": "specific", "hour": 9, "minute": 30 }
+			}
+		}
+	]
+}

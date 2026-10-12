@@ -1,3 +1,6 @@
+import tempfile
+import shutil
+import os
 from datetime import datetime
 import unittest
 
@@ -19,7 +22,11 @@ class TestApplication(unittest.TestCase):
 																)
 		app = Application("TestApp", stopsink)
 		app.start()
-		storage = storage_path()
+		# the application upgrades the settings it finds: work on a copy of the shared (read-only) storage
+		tmp = tempfile.TemporaryDirectory()
+		self.addCleanup(tmp.cleanup)
+		storage = os.path.join(tmp.name, "storage")
+		shutil.copytree(storage_path(), storage)
 		time_base = ScaledTimeOfDay(datetime.now().astimezone(), 60)
 		timer = ScaledTimerThreadService(time_base, 60)
 		options = StartOptions(basePath=None, storagePath=storage, hardReset=False)

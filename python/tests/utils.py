@@ -1,3 +1,5 @@
+import atexit
+import shutil
 from concurrent.futures import Executor, Future, ThreadPoolExecutor
 import os
 from pathlib import Path
@@ -144,11 +146,23 @@ def save_images(display:RecordingTask, folder:str) -> None:
 			image = msg.img
 			save_image(image, folder, ix, msg.title)
 
+_FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "storage")
+_template: str|None = None
+
 def storage_path() -> str:
-	test_file_path = os.path.abspath(__file__)
-	test_directory = os.path.dirname(test_file_path)
-	storage = os.path.join(test_directory, ".storage")
-	return storage
+	"""
+	A storage for tests that want a realistic one: the factory defaults plus the synthetic schedules in `fixtures/storage` (nothing real, no keys),
+	built once per test run in a temporary folder. **Read-only**: a test that writes copies it first (`shutil.copytree`).
+	It needs no secret, so the suite runs for a fork's pull request too.
+	"""
+	global _template
+	if _template is None:
+		folder = tempfile.mkdtemp(prefix="eink-test-storage-")
+		atexit.register(shutil.rmtree, folder, True)
+		ConfigurationManager(storage_path=folder).hard_reset()
+		shutil.copytree(_FIXTURES, folder, dirs_exist_ok=True)
+		_template = folder
+	return _template
 
 def temp_configuration_manager(test: unittest.TestCase) -> ConfigurationManager:
 	"""A configuration manager over a private storage with the factory defaults, so a test can write settings without touching the shared test storage."""
