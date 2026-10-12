@@ -223,8 +223,6 @@ class PluginConfigurationManager:
 		return cob[1]
 	def save_state(self, state):
 		"""Saves the state for a given plugin to its JSON file."""
-		if not os.path.exists(self.ROOT_PATH):
-			raise ValueError(f"Directory {self.ROOT_PATH} does not exist.")
 		plugin_state_file = os.path.join(self.ROOT_PATH, "state.json")
 		# through the cached object, so a reader that holds it does not keep serving the old state
 		cob = self._cof.obtain(plugin_state_file, FileDeletableConfiguration)[1]
@@ -473,7 +471,6 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			info = pinfo["info"]
 			plugin_id = info.get("id")
 			pcm = self.plugin_manager(plugin_id)
-			self._ensure_folders(self.storage_plugins, plugin_id)
 			psettings = info.get("settings", None)
 			if psettings == None:
 				continue
@@ -488,7 +485,6 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			info = pinfo["info"]
 			item_id = info.get("id")
 			dsm = self.datasource_manager(item_id)
-			self._ensure_folders(self.storage_ds, item_id)
 			psettings = info.get("settings", None)
 			if psettings == None:
 				continue
@@ -596,15 +592,6 @@ class ConfigurationManager(ConfigurationObjectFactory):
 				else:
 					logger.debug(f"EnsureFolders exists: {directory}")
 
-	def _ensure_folders(self, path: str, id: str) -> None:
-		with self._lock:
-			try:
-				final_path = os.path.join(path, id)
-				os.makedirs(final_path, exist_ok=True)
-				logger.debug(f"Created: {final_path}")
-			except Exception as e:
-				logger.error(f"Error: {path}: {e}")
-
 	def _save_settings(self, settings_file: str, settings: dict) -> None:
 		with self._lock:
 			try:
@@ -667,7 +654,6 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		if plugin_id == None:
 			raise ValueError("plugin_id cannot be None")
 		with self._lock:
-			self._ensure_folders(self.storage_plugins, plugin_id)
 			manager = PluginConfigurationManager(self.storage_plugins, plugin_id, self)
 			return manager
 
@@ -676,7 +662,6 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		if datasource_id == None:
 			raise ValueError("datasource_id cannot be None")
 		with self._lock:
-			self._ensure_folders(self.storage_ds, datasource_id)
 			manager = DatasourceConfigurationManager(self.storage_ds, datasource_id, self)
 			return manager
 

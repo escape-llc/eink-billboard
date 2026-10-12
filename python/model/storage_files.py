@@ -31,6 +31,8 @@ def save_json(file_path: str, data: dict) -> None:
 	if data is None:
 		raise ValueError("data cannot be None")
 	folder = os.path.dirname(file_path) or "."
+	# a plugin's or data source's folder exists because something was written to it, not because it might be
+	os.makedirs(folder, exist_ok=True)
 	fd, temp_path = tempfile.mkstemp(dir=folder, prefix=".tmp-", suffix=".json")
 	try:
 		with os.fdopen(fd, 'w', encoding='utf-8') as fx:

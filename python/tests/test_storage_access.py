@@ -62,3 +62,44 @@ class TestNames(unittest.TestCase):
 				with self.subTest(bad), self.assertRaises(ValueError):
 					dsm.file(bad)
 			dsm.file("tokens")
+
+class TestFoldersOnDemand(unittest.TestCase):
+	"""A plugin's or data source's folder exists because something was written to it (#142)."""
+	def setUp(self):
+		self.tmp = tempfile.TemporaryDirectory()
+		self.addCleanup(self.tmp.cleanup)
+		self.cm = ConfigurationManager(storage_path=os.path.join(self.tmp.name, "storage"))
+		self.cm.hard_reset()
+
+	def folders(self, kind: str) -> list[str]:
+		root = os.path.join(self.cm.STORAGE_PATH, kind)
+		return sorted(os.listdir(root))
+
+	def test_a_seeded_storage_has_folders_only_for_what_has_settings(self):
+		with_settings = sorted(d["info"]["id"] for d in self.cm.enum_datasources() if (d["info"].get("settings") or {}).get("default") is not None)
+		self.assertEqual(self.folders("datasources"), with_settings)
+		self.assertEqual(self.folders("plugins"), [], "no plugin has settings today")
+		self.assertTrue(len(with_settings) < len(self.cm.enum_datasources()))
+
+	def test_a_lookup_and_a_read_create_nothing(self):
+		dsm = self.cm.datasource_manager("clock")
+		self.assertEqual(self.cm.plugin_manager("overlay").open().get(), (None, None))
+		self.assertEqual(dsm.open().get(), (None, None))
+		self.assertEqual(dsm.file("tokens").get(), (None, None))
+		self.assertNotIn("clock", self.folders("datasources"))
+		self.assertNotIn("overlay", self.folders("plugins"))
+
+	def test_a_write_makes_its_folder(self):
+		dsm = self.cm.datasource_manager("clock")
+		committed, _ = dsm.file("tokens").save(None, { "a": 1 })
+		self.assertTrue(committed)
+		self.assertIn("clock", self.folders("datasources"))
+		self.assertEqual(dsm.file("tokens").get()[1], { "a": 1 })
+		pcm = self.cm.plugin_manager("overlay")
+		pcm.save_state({ "n": 2 })
+		self.assertEqual(pcm.open_state().get()[1], { "n": 2 })
+		self.assertIn("overlay", self.folders("plugins"))
+
+	def test_deleting_state_that_was_never_written_is_quiet(self):
+		self.cm.plugin_manager("overlay").delete_state()
+		self.assertNotIn("overlay", self.folders("plugins"))
