@@ -173,7 +173,7 @@ class TestTimerLayerOverlays(unittest.TestCase):
 		self.assertEqual((msg.key, msg.zone, msg.title, msg.img.size, msg.wash), ("t1", "top-right", "Error: Today", (246, 96), 0.0))
 		self.assertEqual(render.call_args.args[1], (246, 96))
 		self.assertTrue(render.call_args.args[5])
-		self.assertEqual(render.call_args.args[3], ["RuntimeError"])
+		self.assertEqual(render.call_args.args[3], ["RuntimeError: <address>"])
 
 	def test_a_failing_overlay_task_with_an_unknown_zone_shows_the_full_page(self):
 		displays, _ = self._fail(overlay_item("middle"))

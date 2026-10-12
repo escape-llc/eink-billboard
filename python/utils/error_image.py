@@ -54,6 +54,13 @@ def safe_reason(error: BaseException) -> str:
 	name = type(error).__name__
 	return f"{name}: {text}" if text else name
 
+MAX_DETAIL = 2000
+
+def error_detail(error: BaseException) -> str:
+	"""The exception in full (type and text, as the log has it). It can hold an address with a key: only for a viewer on the device itself (see the telemetry route), never the panel or a remote page."""
+	text = f"{type(error).__name__}: {error}".strip()
+	return text if len(text) <= MAX_DETAIL else text[:MAX_DETAIL - 1] + "…"
+
 def _clean(text: str) -> str:
 	text = _URL.sub("<address>", " ".join(text.split()))
 	text = _SECRET.sub(lambda m: f"{m.group(1)}{m.group(2)}<hidden>", text)

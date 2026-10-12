@@ -14,6 +14,8 @@ export type TelemetryEvent = {
 	source: string
 	kind: string
 	message?: string
+	/** the exception in full: sent only when this page is opened on the device itself */
+	detail?: string
 	values?: Record<string, any>
 	missed?: number
 }

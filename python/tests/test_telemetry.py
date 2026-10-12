@@ -3,6 +3,8 @@ import hashlib
 import io
 import threading
 import unittest
+
+from fastapi.testclient import TestClient
 from datetime import datetime, timedelta, timezone
 
 from PIL import Image
@@ -171,6 +173,20 @@ class TestRoutes(WebApiTestBase):
 		self.assertEqual([e["kind"] for e in self.client.get("/api/telemetry").json()], ["waiting", "shown"])
 		self.assertEqual([e["kind"] for e in self.client.get("/api/telemetry?since=1").json()], ["shown"])
 		self.assertEqual(self.client.get("/api/display/current").json()["values"]["digest"], digest)
+
+	def test_the_exception_in_full_goes_only_to_a_viewer_on_the_device(self):
+		self.hub.accept(Telemetry(NOW, "timer_layer", { "state": "error", "kind": "task-failed", "message": "It failed: RuntimeError", "detail": "RuntimeError: https://api.example/x?appid=SECRET" }))
+		remote = self.client.get("/api/telemetry").json()
+		self.assertNotIn("detail", remote[0])
+		self.assertNotIn("SECRET", str(remote))
+		local = TestClient(self.app, client=("127.0.0.1", 50000))
+		self.assertEqual(local.get("/api/telemetry").json()[0]["detail"], "RuntimeError: https://api.example/x?appid=SECRET")
+		ipv6 = TestClient(self.app, client=("::1", 50000))
+		self.assertIn("detail", ipv6.get("/api/telemetry").json()[0])
+		with local.websocket_connect("/api/telemetry/ws") as ws:
+			self.assertIn("detail", ws.receive_json())
+		with self.client.websocket_connect("/api/telemetry/ws") as ws:
+			self.assertNotIn("detail", ws.receive_json())
 
 	def test_status_is_served(self):
 		self.hub.accept(ConfigureNotify(NOW, "display", True, "boom"))  # type: ignore[call-arg]

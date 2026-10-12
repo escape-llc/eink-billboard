@@ -37,7 +37,7 @@
 				<li v-for="(e, i) in shownEvents" :key="e.seq ?? `x${i}`" class="gutter-event" :class="{ problem: isProblem(e) }">
 					<span class="gutter-time">{{ clockOf(e.ts) }}</span>
 					<i :class="iconOf(e)" :title="e.source" aria-hidden="true"></i>
-					<span class="gutter-text">{{ describe(e) }}</span>
+					<span class="gutter-text">{{ describe(e) }}<code v-if="e.detail" class="gutter-detail">{{ e.detail }}</code></span>
 				</li>
 				<li v-if="shownEvents.length === 0" class="gutter-empty">Nothing yet.</li>
 			</ol>
@@ -212,6 +212,14 @@ function describe(e: TelemetryEvent): string {
 	font-variant-numeric: tabular-nums;
 	opacity: .7;
 	flex: none;
+}
+.gutter-detail {
+	display: block;
+	margin-top: .15rem;
+	font-size: .75rem;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	opacity: .85;
 }
 .gutter-text {
 	overflow-wrap: anywhere;

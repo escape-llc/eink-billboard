@@ -34,6 +34,9 @@ QUEUE_SIZE = 100
 THUMB_WIDTH = 320
 MAX_TEXT = 300
 MAX_ITEMS = 20
+MAX_DETAIL = 2000
+# event fields that leave the device only to a viewer on the device itself
+LOCAL_ONLY = ("detail",)
 
 # the steps that bring the device up, as ConfigureEvent names them
 COMPONENTS = ("display", "playlist-layer", "timer-layer")
@@ -152,6 +155,7 @@ class TelemetryHub(MessageSink):
 		values = dict(msg.values or {})
 		image = values.pop("image", None)
 		message = values.pop("message", None)
+		detail = values.pop("detail", None)
 		kind = values.pop("kind", None) or _KINDS.get((msg.name, str(values.get("state"))), str(values.get("state") or "event"))
 		for key in ("current_playlist",):
 			if key in values:
@@ -159,6 +163,9 @@ class TelemetryHub(MessageSink):
 		event = { "ts": _instant(msg.timestamp), "source": msg.name, "kind": str(kind), "values": safe_value(values) }
 		if isinstance(message, str) and message:
 			event["message"] = safe_value(message)
+		# the exception in full: the telemetry route sends it only to a viewer on the device itself (LOCAL_ONLY)
+		if isinstance(detail, str) and detail:
+			event["detail"] = detail[:MAX_DETAIL]
 		if kind == "shown" and isinstance(image, Image.Image) and isinstance(values.get("digest"), str):
 			self._keep_image(values["digest"], image)
 		return event
