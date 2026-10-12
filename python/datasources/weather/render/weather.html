@@ -115,9 +115,14 @@
 			font-size: .95em;
 			letter-spacing: .06em;
 		}
+		/* the column of glyphs that name the rows has no rules of its own: the rules start at the figures */
 		.wx-table > .wx-rowhead {
 			justify-content: center;
 			padding: 0 .4em;
+			border-top: none;
+		}
+		.wx-table > .wx-corner {
+			border-bottom: none;
 		}
 		.wx-table .wx-stat svg {
 			display: block;
@@ -175,7 +180,7 @@
 		{% else %}
 			{# landscape: a column per item; the first column names the rows #}
 			<div class="wx-table wx-landscape" style="grid-template-columns: auto repeat({{ items|length }}, 1fr); grid-template-rows: auto 2.2fr repeat({{ rows|length }}, 1fr);">
-				<div class="wx-head"></div>
+				<div class="wx-head wx-corner"></div>
 				{% for it in items %}<div class="wx-head text-secondary-1">{{ it.label }}</div>{% endfor %}
 				<div class="wx-rowhead"></div>
 				{% for it in items %}<div class="wx-glyph text-secondary-2">{{ it.icon | safe }}</div>{% endfor %}
