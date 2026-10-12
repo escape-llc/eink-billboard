@@ -58,7 +58,7 @@ test("the RSS Feed settings test an address through the real route, which refuse
 	// no network is needed: a refused address is answered before anything is fetched
 	await url.fill("http://127.0.0.1:1/feed.xml")
 	await page.getByRole("button", { name: "Test Feed URL 1" }).click()
-	await expect(page.getByText("cannot be tested here")).toBeVisible()
+	await expect(page.getByText("cannot be used here")).toBeVisible()
 	// the answer does not repeat the address (what is typed in the box is a value, not page text)
 	await expect(page.getByText("127.0.0.1")).toHaveCount(0)
 	watch.expectNone()
