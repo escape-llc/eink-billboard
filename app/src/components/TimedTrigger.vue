@@ -10,10 +10,10 @@
 			</InputGroupAddon>
 		</InputGroup>
 		<InputGroup>
-			<InputGroupAddon>
+			<InputGroupAddon style="align-items:flex-start;flex-shrink:0">
 				<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" fluid style="flex-shrink:0;flex-grow:1">Day</label>
 			</InputGroupAddon>
-			<InputGroupAddon style="display:flex;flex-direction:column;flex-grow:1;justify-content:flex-start">
+			<InputGroupAddon class="tt-controls" style="display:flex;flex-direction:column;flex-grow:1;justify-content:flex-start">
 				<Select v-model="editModel.day.type" style="width:100%" size="small" fluid :options="day_options"
 					@update:modelValue="onEmitChange('select.day', $event)"
 					:name="`${parentPropName}day.type`" optionValue="value" optionLabel="name" />
@@ -28,7 +28,7 @@
 						</div>
 					</template>
 				</CheckboxGroup>
-				<div v-if="editModel.day.type === 'dayofmonth'">Days</div>
+				<div class="tt-sub" v-if="editModel.day.type === 'dayofmonth'">Days</div>
 				<CheckboxGroup v-if="editModel.day.type === 'dayofmonth'" v-model="editModel.day.days"
 					@value-change="onEmitChange('checkbox.day', $event)"
 					:name="`${parentPropName}day.days`" size="small" fluid class="flex flex-wrap gap-2 mt-2" style="flex-grow:1;max-width:36rem">
@@ -49,14 +49,14 @@
 			</InputGroupAddon>
 		</InputGroup>
 		<InputGroup>
-			<InputGroupAddon>
+			<InputGroupAddon style="align-items:flex-start;flex-shrink:0">
 				<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" fluid style="flex-shrink:0;flex-grow:1">Time</label>
 			</InputGroupAddon>
-			<InputGroupAddon style="display:flex;flex-direction:column;flex-grow:1;justify-content:flex-start">
+			<InputGroupAddon class="tt-controls" style="display:flex;flex-direction:column;flex-grow:1;justify-content:flex-start">
 				<Select v-model="editModel.time.type" style="width:100%" size="small" fluid :options="time_options"
 					@update:modelValue="onEmitChange('select.time', $event)"
 					:name="`${parentPropName}time.type`" optionValue="value" optionLabel="name" />
-				<div v-if="editModel.time.type === 'hourofday'">Hours</div>
+				<div class="tt-sub" v-if="editModel.time.type === 'hourofday'">Hours</div>
 				<CheckboxGroup v-if="editModel.time.type === 'hourofday'" v-model="editModel.time.hours"
 					@value-change="onEmitChange('checkbox.time', $event)"
 					:invalid="hoursInvalid"
@@ -69,7 +69,7 @@
 						</div>
 					</template>
 				</CheckboxGroup>
-				<div v-if="editModel.time.type === 'hourly' || editModel.time.type === 'hourofday'">Minutes</div>
+				<div class="tt-sub" v-if="editModel.time.type === 'hourly' || editModel.time.type === 'hourofday'">Minutes</div>
 				<CheckboxGroup v-if="editModel.time.type === 'hourly' || editModel.time.type === 'hourofday'" v-model="minutesArray"
 					@value-change="onEmitChange('time.minutes', $event)"
 					:name="`${parentPropName}time.minutes`"
@@ -216,4 +216,15 @@ const onDatePicker2Change = (event: any) => {
 }
 </script>
 <style scoped>
+/* the controls of a row fill it, and the headings over a group of check boxes sit at its left edge (the add-on centers its content otherwise) */
+.tt-controls {
+	align-items: stretch;
+}
+.tt-sub {
+	margin-top: .5rem;
+	margin-bottom: .25rem;
+	text-align: left;
+	font-size: .85em;
+	font-weight: bold;
+}
 </style>
