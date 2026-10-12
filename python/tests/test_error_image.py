@@ -3,6 +3,8 @@ import shutil
 import unittest
 from unittest import mock
 
+import httpx
+
 from ..model.configuration_manager import StaticConfigurationManager
 from ..model.theme import inputs_from
 from ..plugins.plugin_base import PermanentError
@@ -32,7 +34,15 @@ class PlainErrorImageTests(unittest.TestCase):
 				self.assertNotEqual(image.convert("L").getextrema(), (255, 255))
 
 	def test_the_reason_never_carries_a_url_or_other_exception_text(self):
-		self.assertEqual(safe_reason(ConnectionError("https://api.example/x?key=SECRET failed")), "ConnectionError")
+		self.assertEqual(safe_reason(ConnectionError("https://api.example/x?key=SECRET failed")), "Could not connect to the server. Check the address and the network.")
+		text = safe_reason(RuntimeError("bad reply from https://api.example/x?appid=SECRET with token abc123 and key=SECRET2"))
+		self.assertEqual(text, "RuntimeError: bad reply from <address> with token <hidden> and key=<hidden>")
+		self.assertIn("RuntimeError: " + "x" * 10, safe_reason(RuntimeError("x" * 500)))
+		self.assertLessEqual(len(safe_reason(RuntimeError("x" * 500))), 180)
+		response = httpx.Response(401, request=httpx.Request("GET", "https://api.example/x?appid=SECRET"))
+		text = safe_reason(httpx.HTTPStatusError("boom https://api.example/x?appid=SECRET", request=response.request, response=response))
+		self.assertEqual(text, "The server answered 401 Unauthorized. Check the API key or the sign-in in the settings.")
+		self.assertEqual(safe_reason(KeyError("temp")), "The data had no 'temp' field.")
 		self.assertEqual(safe_reason(PermanentError("folder: Required")), "folder: Required")
 
 class ThemedErrorImageTests(unittest.TestCase):

@@ -6,7 +6,7 @@ The hub is the route's sink. It turns each message into a small JSON **event** `
 - `ts` carries its offset (dates crossing the API name their zone);
 - `kind` is a short stable name (`track-played`, `track-failed`, `task-ran`, `waiting`, `faulted`, `shown`, ...);
 - `message` is our own sentence, and `values` only JSON scalars, short lists and small objects: an object becomes its title or its type's name.
-Telemetry leaves the device, so it is a response like any other: it never holds exception text (the layers send `safe_reason`).
+Telemetry leaves the device, so it is a response like any other: it never holds raw exception text (the layers send `safe_reason`: an actionable reason with addresses and secrets removed).
 
 The last events are kept in a ring; each WebSocket client has a bounded queue, and a client too slow to keep up loses its oldest events and
 gets a `gap` event instead, so a slow page never holds up the device. `accept` is called on the sending task's thread.

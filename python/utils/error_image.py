@@ -1,6 +1,9 @@
 import logging
 import os
+import re
 import textwrap
+
+import httpx
 from PIL import Image, ImageDraw, ImageFont
 
 from ..model.configuration_manager import StaticConfigurationManager
@@ -14,14 +17,47 @@ logger = logging.getLogger(__name__)
 def _font(size: int) -> ImageFont.ImageFont | ImageFont.FreeTypeFont:
 	return ImageFont.load_default(size=size)
 
+_URL = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://\S+")
+_SECRET = re.compile(r"(?i)\b(api[_-]?key|key|appid|token|secret|password|passwd|authorization|bearer)\b(\s*[=:]\s*|\s+)\S+")
+MAX_REASON = 160
+
+def _hint(status: int) -> str:
+	if status in (401, 403):
+		return " Check the API key or the sign-in in the settings."
+	if status == 404:
+		return " Check the address in the settings."
+	if status == 429:
+		return " Too many requests; it will work again later."
+	if status >= 500:
+		return " The service has a problem; try again later."
+	return ""
+
 def safe_reason(error: BaseException) -> str:
 	"""
-	What the panel may say about a failure: our own message when the error is one of ours (`PermanentError`), otherwise only the type's name.
-	An exception's text can hold a URL with a key in it, and the panel is visible to anyone in the room.
+	What the panel and the telemetry say about a failure, so the user knows what to fix: our own message when the error is one of ours (`PermanentError`),
+	a sentence of our own for the usual network failures (the status the server answered, a timeout, no connection), and otherwise the type's name with the
+	exception's text **cleaned**: addresses become `<address>` and anything after `key=`, `token`, `password`... is removed, since the text can hold a URL with a key in it
+	and the panel is visible to anyone in the room. The full text goes to the log only.
 	"""
 	if isinstance(error, PermanentError):
 		return str(error)
-	return type(error).__name__
+	if isinstance(error, httpx.HTTPStatusError):
+		code = error.response.status_code
+		return f"The server answered {code} {error.response.reason_phrase}.".replace("  ", " ") + _hint(code)
+	if isinstance(error, httpx.TimeoutException):
+		return "The server did not answer in time. Check the address and the network."
+	if isinstance(error, (httpx.ConnectError, ConnectionError)):
+		return "Could not connect to the server. Check the address and the network."
+	if isinstance(error, KeyError) and error.args:
+		return f"The data had no '{_clean(str(error.args[0]))}' field."
+	text = _clean(str(error))
+	name = type(error).__name__
+	return f"{name}: {text}" if text else name
+
+def _clean(text: str) -> str:
+	text = _URL.sub("<address>", " ".join(text.split()))
+	text = _SECRET.sub(lambda m: f"{m.group(1)}{m.group(2)}<hidden>", text)
+	return text if len(text) <= MAX_REASON else text[:MAX_REASON - 1] + "…"
 
 def render_error_image(stm: StaticConfigurationManager|None, dimensions: tuple[int, int], title: str, lines: list[str], theme: ThemeInputs|None = None, compact: bool = False) -> Image.Image:
 	"""

@@ -182,7 +182,7 @@ The same repo is worked on from three places. The rules above are the same every
 - **Web app.** All backend calls go through `ApiClient` (`apiJson`/`apiPut`); do not call `fetch` directly, since it sends the session cookie, signs in when the server asks, and surfaces the server's message.
 - **Web app, schedules.** `Scheduler.vue` saves one task at a time (see the editors above for playlists) (`PUT /api/schedule/timer/{doc}/items/{id}`, `POST .../items` for a new one, `DELETE ...?rev=`); a task carries the document id and its `_rev` from the render response, a 409 offers Reload/Overwrite, a 422 for `task.content.<field>` shows on that field. The fixture timer tasks must stay valid for the plugin descriptors (the server validates a `PUT`).
 - **Telemetry is a response** (`python/task/telemetry_hub.py`, `python/web/routers/telemetry.py`, the readme's "Telemetry"). What a task sends on the `telemetry` route reaches the web app over a WebSocket:
-  - Never exception text: send our sentence and `safe_reason(e)`, and log the rest.
+  - Never raw exception text: send our sentence and `safe_reason(e)` (an actionable reason: the HTTP status and what to check, or the type's name with the text cleaned of addresses and secrets; the user must be able to tell what to fix), and log the rest.
   - The hub keeps only JSON scalars, short lists and small objects; any other object becomes its title or its type's name.
   - A shown image goes to the hub with the `shown` event and is served by its digest, never through the link and never by a path.
   - The WebSocket checks the session itself (it is outside the `/api` token dependency) and the `Origin`, since CORS does not cover a WebSocket.
