@@ -138,3 +138,27 @@ test("leaving a playlist with unsaved changes asks first", async ({ page }) => {
 	await expect(row(page, "Morning slides")).toBeVisible()
 	watch.expectNone()
 })
+
+// the panels are surfaces of the theme (PrimeVue tokens): in dark mode they are dark, with text that can be read on them
+function luminance(rgb: string): number {
+	const [r, g, b] = (rgb.match(/[\d.]+/g) ?? ["0", "0", "0"]).slice(0, 3).map(Number).map(v => v / 255)
+	return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+test("the track list and the editor follow the theme: dark in dark mode, light in light mode", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/playlist")
+	await row(page, "Morning slides").waitFor()
+	const surfaces = () => page.evaluate(() => ["track-list", "track-editor"].map(c => {
+		const el = document.querySelector(`.${c}`) as HTMLElement
+		return { bg: getComputedStyle(el).backgroundColor, text: getComputedStyle(el.querySelector(".title, label, input") ?? el).color }
+	}))
+	await page.evaluate(() => document.documentElement.classList.remove("app-dark-mode"))
+	for (const s of await surfaces()) expect(luminance(s.bg), `light mode ${s.bg}`).toBeGreaterThan(0.6)
+	await page.evaluate(() => document.documentElement.classList.add("app-dark-mode"))
+	for (const s of await surfaces()) {
+		expect(luminance(s.bg), `dark mode ${s.bg}`).toBeLessThan(0.25)
+		expect(luminance(s.text) - luminance(s.bg), "text is lighter than its surface").toBeGreaterThan(0.3)
+	}
+	watch.expectNone()
+})

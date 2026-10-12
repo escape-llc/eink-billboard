@@ -195,22 +195,22 @@ const eventsOf = (key: string): EventCellInfo[] => cellsByDay.value.get(key) ?? 
 }
 .default-event {
 	border-radius:4px;
-	border: 1px solid black;
+	border: 1px solid var(--p-content-border-color);
 	margin: .1rem .2rem;
 	padding: .2rem .4rem;
 	text-overflow: ellipsis;
 	overflow: hidden;
-	border-left: 5px solid black;
+	border-left: 5px solid var(--p-text-color);
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 </style>
 <style>
 :root {
-	--events-panel-background-color: silver;
+	--events-panel-background-color: var(--p-content-hover-background);
 	--events-panel-padding-vertical: 1rem;
 	--grid-column-gap: 2px;
-	--grid-track-background-color: gray;
-	--grid-track-cell-color: #eee;
+	--grid-track-background-color: var(--p-content-border-color);
+	--grid-track-cell-color: var(--p-text-muted-color);
 	--time-column-rows: 48;
 	--date-row-columns: 7;
 	--time-column-height: 2rem;

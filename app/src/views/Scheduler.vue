@@ -506,8 +506,8 @@ const handleSubmit = () => {
 	align-items: center;
 	justify-content: center;
 	font-weight: bold;
-	background-color: #e9e9e9;
-	border-bottom: 1px solid #ccc;
+	background-color: var(--p-content-hover-background);
+	border-bottom: 1px solid var(--p-content-border-color);
 	height: fit-content;
 }
 .day-header-day {
@@ -531,8 +531,8 @@ const handleSubmit = () => {
 	justify-content: flex-end;
 	padding-right: .1rem;
 	font-size: 0.8rem;
-	color: #555;
-	border-top: 1px dashed #eee;
+	color: var(--p-text-muted-color);
+	border-top: 1px dashed var(--p-content-border-color);
 	height:fit-content;
 }
 .time-header:first-child {
