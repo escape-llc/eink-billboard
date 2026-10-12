@@ -79,7 +79,9 @@ class Application(DispatcherTask):
 	def _configure_notify(self, msg: ConfigureNotify):
 		# STEP 4 playback started if layer configured successfully
 		self.logger.info(f"'{self.name}' ConfigureNotify {msg.token} {msg.error} {msg.content}.")
-		if msg.error == True and self.sink:
+		# the hub keeps every outcome for GET /api/status; only a failure becomes an event
+		# not `if self.sink`: a hub with no events yet is falsy (it has a length)
+		if self.sink is not None:
 			self.sink.accept(msg)
 
 		if msg.token == "playlist-layer":

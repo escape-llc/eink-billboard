@@ -63,6 +63,27 @@ class TestEvents(unittest.TestCase):
 		self.assertEqual((event["kind"], event["message"]), ("configure-failed", "'playlist-layer' could not be configured."))
 		self.assertNotIn("secret", str(event))
 
+	def test_status_follows_each_configure_step_in_our_words(self):
+		hub = TelemetryHub()
+		self.assertFalse(hub.status()["ok"])
+		self.assertEqual({ n: c["state"] for n, c in hub.status()["components"].items() }, { "display": "starting", "playlist-layer": "starting", "timer-layer": "starting" })
+		hub.accept(ConfigureNotify(NOW, "display", True, ValueError("tkinter at C:/secret/path")))  # type: ignore[call-arg]
+		status = hub.status()
+		self.assertEqual(status["components"]["display"]["state"], "failed")
+		self.assertEqual(status["components"]["timer-layer"]["message"], "Waiting for the display.")
+		self.assertNotIn("secret", str(status))
+		for token in ("display", "playlist-layer", "timer-layer"):
+			hub.accept(ConfigureNotify(NOW, token, False, None))  # type: ignore[call-arg]
+		self.assertTrue(hub.status()["ok"])
+
+	def test_the_application_hands_an_empty_hub_every_outcome(self):
+		# an empty hub has a length of 0, so `if sink:` once dropped the first failure
+		from ..task.application import Application
+		hub = TelemetryHub()
+		Application("t", hub)._configure_notify(ConfigureNotify(NOW, "display", True, "boom"))  # type: ignore[call-arg]
+		self.assertEqual(hub.status()["components"]["display"]["state"], "failed")
+		self.assertEqual([e["kind"] for e in hub.since(0)], ["configure-failed"])
+
 	def test_the_ring_keeps_the_newest(self):
 		hub = TelemetryHub(max_events=3)
 		for n in range(5):
@@ -150,6 +171,13 @@ class TestRoutes(WebApiTestBase):
 		self.assertEqual([e["kind"] for e in self.client.get("/api/telemetry").json()], ["waiting", "shown"])
 		self.assertEqual([e["kind"] for e in self.client.get("/api/telemetry?since=1").json()], ["shown"])
 		self.assertEqual(self.client.get("/api/display/current").json()["values"]["digest"], digest)
+
+	def test_status_is_served(self):
+		self.hub.accept(ConfigureNotify(NOW, "display", True, "boom"))  # type: ignore[call-arg]
+		body = self.client.get("/api/status").json()
+		self.assertFalse(body["ok"])
+		self.assertEqual(body["components"]["display"]["state"], "failed")
+		self.assertNotIn("boom", str(body))
 
 	def test_an_image_by_its_digest_and_nothing_else(self):
 		digest = shown(self.hub)
