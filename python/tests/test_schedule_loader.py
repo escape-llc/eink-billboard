@@ -51,7 +51,7 @@ class TestScheduleLoader(unittest.TestCase):
             filename = tmp.name
 
         # Load the schedule using ScheduleLoader
-        info = ScheduleLoader.loadFile(filename, "Test Schedule")
+        info = ScheduleLoader.loadData(schedule_data, "Test Schedule", filename)
 
         # Assertions
         schedule = info["info"]

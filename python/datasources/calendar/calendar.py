@@ -158,8 +158,8 @@ class CalendarAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		agenda_days = days_ahead(params)
 		dsm = dsec.provider.required(DatasourceConfigurationManager)
 		_, settings = dsm.open().get()
-		# the connected accounts' tokens are beside the settings, in the data source's storage folder
-		store = TokenStore(getattr(dsm, "ROOT_PATH", ""))
+		# the connected accounts' tokens are kept by the same manager, beside the settings
+		store = TokenStore(dsm)
 		settings = settings or {}
 		slot = Slot(now.date(), now.tzinfo or now.astimezone().tzinfo,  # type: ignore[arg-type]
 			week_start="sunday" if settings.get("weekStart") == "sunday" else "monday", week_numbers=settings.get("weekNumbers") is True, now=now)

@@ -4,7 +4,6 @@ Helpers for the settings documents served by the API: secret handling, validatio
 A document is a dict stored as JSON. The API adds `_id` and `_rev` (a hash of the stored content) on the way out,
 and requires the same `_rev` on the way back in; a stale `_rev` is a 409 conflict.
 """
-import json
 import logging
 import math
 import re
@@ -274,13 +273,9 @@ def validate_properties(document: dict, properties: Iterable[dict]|None, lookups
 			errors.append({ "path": [name], "message": message })
 	return errors
 
-def load_schema_properties(schema_path: str) -> list[dict]:
-	"""The `schema.properties` list of a schema file, or empty when it is missing or unreadable."""
-	try:
-		with open(schema_path, 'r', encoding='utf-8') as f:
-			return json.load(f).get("schema", {}).get("properties", [])
-	except (OSError, ValueError):
-		return []
+def load_schema_properties(schema: dict|None) -> list[dict]:
+	"""The `schema.properties` list of a schema document (`ConfigurationManager.read_schema`), or empty when there is none."""
+	return ((schema or {}).get("schema") or {}).get("properties", [])
 
 def get_document(id: str, cob: ConfigurationObject, secrets: Secrets|None = None) -> dict:
 	"""The stored document (secrets masked) with `_id` and `_rev` added; 404 when nothing is stored."""
@@ -320,13 +315,9 @@ def put_document(id: str, body: dict[str, Any], cob: ConfigurationObject, proper
 		raise ApiError(409, "Revision mismatch: the settings changed since they were loaded.", id, rev=current_rev)
 	return { "id": id, "success": True, "message": "Success", "rev": new_rev }
 
-def load_schema_lookups(schema_path: str) -> dict:
-	"""The `schema.lookups` map of a schema file, or empty when it is missing or unreadable."""
-	try:
-		with open(schema_path, 'r', encoding='utf-8') as f:
-			return json.load(f).get("schema", {}).get("lookups", {}) or {}
-	except (OSError, ValueError):
-		return {}
+def load_schema_lookups(schema: dict|None) -> dict:
+	"""The `schema.lookups` map of a schema document (`ConfigurationManager.read_schema`), or empty when there is none."""
+	return ((schema or {}).get("schema") or {}).get("lookups", {}) or {}
 
 def settings_lookup_items(lookup: Any, settings: dict|None) -> list[dict]:
 	"""

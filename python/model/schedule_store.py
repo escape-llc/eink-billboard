@@ -12,13 +12,12 @@ conflict with somebody else having changed task B.
 import copy
 import json
 import logging
-import os
 import threading
 import uuid
 from dataclasses import dataclass
 from typing import Any, Callable, cast
 
-from .configuration_manager import HASH_KEY, _internal_save, create_hash
+from .configuration_manager import HASH_KEY, create_hash
 from .schedule import SCHEMA_PLAYLIST, SCHEMA_TASKS, Playlist, TimerTasks, validate_trigger
 from .schedule_loader import ScheduleLoader
 from .schedule_manager import ScheduleManager
@@ -167,12 +166,14 @@ class ScheduleStore:
 	def __init__(self, manager: ScheduleManager, validate_item: ItemValidator = _no_extra_validation, kind: Kind = TASKS):
 		self._kind = kind
 		self._manager = manager
-		self._root = manager.ROOT_PATH
 		self._validate_item = validate_item
 
+	def _lock_for(self, path: str) -> threading.RLock:
+		"""The lock of a schedule file (`path` is its name in the schedules folder), shared by every store on the same root."""
+		return self._lock_of(self._manager.key(path))
+
 	@classmethod
-	def _lock_for(cls, path: str) -> threading.RLock:
-		key = os.path.realpath(path)
+	def _lock_of(cls, key: str) -> threading.RLock:
 		with cls._locks_guard:
 			lock = cls._locks.get(key)
 			if lock is None:
@@ -197,13 +198,8 @@ class ScheduleStore:
 			raise Ambiguous(doc_id)
 		return paths[0]
 
-	@staticmethod
-	def _read(path: str) -> dict:
-		with open(path, "r", encoding="utf-8") as f:
-			raw = json.load(f)
-		if not isinstance(raw, dict):
-			raise ValueError("not an object")
-		return raw
+	def _read(self, path: str) -> dict:
+		return self._manager.read(path)
 
 	def get_document(self, doc_id: str) -> dict:
 		path = self._find(doc_id)
@@ -242,7 +238,7 @@ class ScheduleStore:
 	def _write(self, path: str, raw: dict) -> None:
 		raw["_schema"] = self._kind.schema
 		self._kind.parse(raw)	# what is saved must load again
-		_internal_save(path, raw)
+		self._manager.write(path, raw)
 
 	def _validated_item(self, item: dict, *, partial: bool = False) -> dict:
 		errors = self._kind.check_shape(item, partial=partial)
@@ -287,7 +283,7 @@ class ScheduleStore:
 		items = self._check_items(body.get("items", []))
 		doc_id = f"{self._kind.name}-{uuid.uuid4().hex}"
 		# the file name is ours too; nothing from the request builds a path
-		path = os.path.join(self._root, f"{doc_id}.json")
+		path = f"{doc_id}.json"
 		with self._lock_for(path):
 			self._write(path, { "id": doc_id, "name": name.strip(), "_schema": self._kind.schema, "items": items })
 			return self._present(self._read(path))
@@ -334,7 +330,7 @@ class ScheduleStore:
 		with self._lock_for(path):
 			raw = self._read(path)
 			self._check_rev(document_rev(raw, self._kind), rev)
-			os.remove(path)
+			self._manager.delete(path)
 
 	def _tasks_only(self) -> None:
 		if self._kind is not TASKS:

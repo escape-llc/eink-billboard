@@ -3,6 +3,7 @@ import hashlib
 import importlib
 import os
 import json
+import re
 import logging
 import shutil
 import tempfile
@@ -43,6 +44,13 @@ class CollectInfoDict(TypedDict):
 
 logger = logging.getLogger(__name__)
 
+_LEAF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+def leaf_name(name: str) -> str:
+	"""A file's name (no extension) inside a sub-manager's folder. A name is never a path: the sub-manager's root is its owner's to give, not the caller's."""
+	if not isinstance(name, str) or not _LEAF.match(name):
+		raise ValueError("Not a valid file name.")
+	return name
+
 HASH_KEY = "_rev"
 ID_KEY = "_id"
 
@@ -77,42 +85,8 @@ def create_hash(data:dict) -> str:
 
 	return object_hash
 
-def _internal_load(file_path: str) -> dict|None:
-	if os.path.isfile(file_path):
-		try:
-			with open(file_path, 'r') as fx:
-				data = json.load(fx)
-				return data
-		except Exception as e:
-			logger.error(f"Error loading file '{file_path}': {e}")
-			return None
-	return None
-
-def _internal_save(file_path: str, data: dict) -> None:
-	"""
-	Atomically replace the file with the JSON document.
-	Writes to a temp file in the same folder, flushes it to disk, then renames over the target,
-	so a crash or power loss never leaves a truncated file. Errors propagate to the caller.
-	"""
-	if file_path is None:
-		raise ValueError("file_path cannot be None")
-	if data is None:
-		raise ValueError("data cannot be None")
-	folder = os.path.dirname(file_path) or "."
-	fd, temp_path = tempfile.mkstemp(dir=folder, prefix=".tmp-", suffix=".json")
-	try:
-		with os.fdopen(fd, 'w', encoding='utf-8') as fx:
-			json.dump(data, fx, indent=2)
-			fx.flush()
-			os.fsync(fx.fileno())
-		os.replace(temp_path, file_path)
-	except BaseException:
-		try:
-			os.remove(temp_path)
-		except OSError:
-			pass
-		logger.error(f"Error saving file '{file_path}'")
-		raise
+# the file primitives are in storage_files; these names stay for the tests that exercise them
+from .storage_files import load_json as _internal_load, save_json as _internal_save
 
 type LoadFunc = Callable[[str], dict|None]
 type SaveFunc = Callable[[str, dict], None]
@@ -220,6 +194,9 @@ class DatasourceConfigurationManager:
 		plugin_settings_file = self.settings_path()
 		cob = self._cof.obtain(plugin_settings_file, FileConfiguration)
 		return cob[1]
+	def file(self, name: str) -> ConfigurationObject:
+		"""Another JSON file of this data source (`tokens`), with the same cache, revision and atomic save as the settings."""
+		return self._cof.obtain(os.path.join(self.ROOT_PATH, f"{leaf_name(name)}.json"), FileConfiguration)[1]
 
 class PluginConfigurationManager:
 	"""
@@ -278,6 +255,9 @@ class PluginConfigurationManager:
 	def settings_path(self):
 		"""Returns the path to the settings.json file for this plugin."""
 		return os.path.join(self.ROOT_PATH, "settings.json")
+	def file(self, name: str) -> ConfigurationObject:
+		"""Another JSON file of this plugin, with the same cache, revision and atomic save as the settings."""
+		return self._cof.obtain(os.path.join(self.ROOT_PATH, f"{leaf_name(name)}.json"), FileConfiguration)[1]
 
 class SettingsConfigurationManager:
 	"""
@@ -676,12 +656,11 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			logger.info(f"ConfigurationManager.watch: evicting moniker={moniker}")
 			ox.evict()
 
-	def schema_path(self, schema_name: str) -> str:
-		"""Returns the path to the JSON schema file for the given schema_name."""
+	def read_schema(self, schema_name: str) -> dict|None:
+		"""The schema document of a device setting (`system`, `display`, `theme`), or None when there is none (or it does not load)."""
 		if schema_name == None:
 			raise ValueError("schema_name cannot be None")
-		schema_file = os.path.join(self.storage_schemas, f"{schema_name}.json")
-		return schema_file
+		return _internal_load(os.path.join(self.storage_schemas, f"{leaf_name(schema_name)}.json"))
 
 	def plugin_manager(self, plugin_id: str) -> PluginConfigurationManager:
 		"""Returns a PluginConfigurationManager for the given plugin_id."""

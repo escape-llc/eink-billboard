@@ -1,9 +1,12 @@
+import json
 import os
 import logging
+import re
 from typing import ReadOnly, TypedDict
 
 from .schedule import Playlist, SCHEMA_PLAYLIST, SCHEMA_TASKS
 from .schedule_loader import ScheduleLoader, ScheduleLoaderDict
+from .storage_files import save_json
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +20,30 @@ class ScheduleManager:
 			raise ValueError("root_path cannot be None")
 		if not os.path.exists(root_path):
 			raise ValueError(f"root_path {root_path} does not exist.")
+		# built by the ConfigurationManager, which gives it this root: a caller names a file, never a path
 		self.ROOT_PATH = root_path
 		logger.debug(f"ROOT_PATH: {self.ROOT_PATH}")
+
+	_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*\.json$", re.IGNORECASE)
+	def _path(self, name: str) -> str:
+		if not isinstance(name, str) or not self._NAME.match(name) or ".." in name:
+			raise ValueError("Not a schedule file name.")
+		return os.path.join(self.ROOT_PATH, name)
+	def key(self, name: str) -> str:
+		"""What identifies the file across instances (a lock for it is shared by every store on the same root)."""
+		return os.path.realpath(self._path(name))
+	def read(self, name: str) -> dict:
+		"""The raw JSON object of a schedule file; ValueError when it is not one."""
+		with open(self._path(name), "r", encoding="utf-8") as f:
+			raw = json.load(f)
+		if not isinstance(raw, dict):
+			raise ValueError("not an object")
+		return raw
+	def write(self, name: str, raw: dict) -> None:
+		"""Replace the file atomically (a crash never leaves a truncated schedule)."""
+		save_json(self._path(name), raw)
+	def delete(self, name: str) -> None:
+		os.remove(self._path(name))
 
 	def load(self) -> ScheduleManagerDict:
 		""" Load all schedules from the root path. 
@@ -36,7 +61,7 @@ class ScheduleManager:
 				continue
 			logger.debug(f"Found file: {schedule}")
 			try:
-				info = ScheduleLoader.loadFile(schedule_path, schedule)
+				info = ScheduleLoader.loadData(self.read(schedule), schedule, schedule)
 			except Exception as e:
 				# one bad file must not take down every list endpoint and the layer start-up
 				logger.warning(f"Skipping schedule file '{schedule}': {type(e).__name__}: {e}")

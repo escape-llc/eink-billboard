@@ -16,9 +16,8 @@ class ScheduleLoaderDict(TypedDict):
 
 class ScheduleLoader:
 	@staticmethod
-	def loadFile(path: str, name: str) -> ScheduleLoaderDict:
-		with open(path, 'r', encoding='utf-8') as f:
-			data = json.load(f)
+	def loadData(data: dict, name: str, path: str) -> ScheduleLoaderDict:
+		"""A schedule document already read by the ScheduleManager. `path` is the file's name in the schedules folder (it identifies the entry; it is not opened)."""
 		if not isinstance(data, dict):
 			raise ValueError(f"Schedule file '{path}' is not a JSON object.")
 		schema = data.get("_schema", None)

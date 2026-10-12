@@ -17,7 +17,7 @@ from ..datasources.calendar.accounts import (AccountError, TokenStore, access_to
 	read_google, read_microsoft, start)
 from ..datasources.calendar.calendar import CalendarAsync
 from ..datasources.data_source import DataSourceExecutionContext
-from ..model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
+from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
 from ..plugins.plugin_base import PermanentError
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool, client_var
@@ -85,7 +85,10 @@ class TokenStoreCase(unittest.IsolatedAsyncioTestCase):
 	def setUp(self):
 		self.tmp = tempfile.TemporaryDirectory()
 		self.addCleanup(self.tmp.cleanup)
-		self.store = TokenStore(self.tmp.name)
+		self.cm = ConfigurationManager(storage_path=self.tmp.name)
+		self.cm.ensure_folders()
+		self.dsm = self.cm.datasource_manager("calendar")
+		self.store = TokenStore(self.dsm)
 
 	def connect(self, name: str, provider: str, client_id: str, expires_in: float = 3600, refresh: str = "old-refresh"):
 		self.store.put(name, { "provider": provider, "client_id": client_id, "refresh_token": refresh, "access_token": "old-access", "expires_at": time.time() + expires_in })
@@ -101,8 +104,7 @@ class TestTokenStore(TokenStoreCase):
 		self.connect("Home", "google", "g-client")
 		self.connect("Old", "google", "g-client")
 		self.store.put("Work", { "client_id": "m", "refresh_token": "r" }, keep={ "Home", "Work" })
-		with open(self.store.path, encoding="utf-8") as f:
-			self.assertEqual(sorted(json.load(f)), ["Home", "Work"])
+		self.assertEqual(sorted(self.dsm.file("tokens").get()[1] or {}), ["Home", "Work"])
 
 class TestMicrosoftSignIn(TokenStoreCase):
 	async def test_the_device_code_flow_waits_then_keeps_the_tokens(self):
@@ -239,12 +241,14 @@ class TestReading(TokenStoreCase):
 					await read_account_calendar(client, entry, settings, self.store, at(1), at(2), ZONE)
 
 class FolderSettings:
-	"""Stands in for DatasourceConfigurationManager with a storage folder (where tokens.json lives)."""
-	def __init__(self, document, folder):
+	"""Stands in for DatasourceConfigurationManager: these settings, and the real manager's files (where the tokens live)."""
+	def __init__(self, document, real):
 		self.document = document
-		self.ROOT_PATH = folder
+		self.real = real
 	def open(self):
 		return _Cob(self.document)
+	def file(self, name):
+		return self.real.file(name)
 
 class TestSlot(TokenStoreCase):
 	async def test_a_connected_accounts_calendars_show_with_the_others(self):
@@ -255,7 +259,7 @@ class TestSlot(TokenStoreCase):
 			{ "name": "Job", "source": "microsoft", "account": "Work", "calendarId": "AAMk-1" },
 		] }
 		root = ServiceContainer()
-		root.add_service(DatasourceConfigurationManager, cast(Any, FolderSettings(settings, self.tmp.name)))
+		root.add_service(DatasourceConfigurationManager, cast(Any, FolderSettings(settings, self.dsm)))
 		root.add_service(SettingsConfigurationManager, cast(Any, FakeSettings()))
 		root.add_service(StaticConfigurationManager, StaticConfigurationManager(STATIC))
 		fake = FakeProviders()

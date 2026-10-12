@@ -1,10 +1,9 @@
 """Settings documents and their schemas: device-wide (system/display/theme), per plugin and per datasource."""
 import logging
-import os
 from typing import Any, cast
 
 from fastapi import APIRouter, Body
-from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse
 
 from ...model.configuration_manager import CollectInfoDict, ConfigurationManager
 from ..deps import CM
@@ -69,19 +68,17 @@ def get_device_settings(name: str, cm: CM):
 def put_device_settings(name: str, cm: CM, body: dict[str, Any] = Body(...)):
 	name = _device_name(name)
 	cob = cm.settings_manager().open(name)
-	properties = load_schema_properties(cm.schema_path(name))
-	return put_document(f"{name}-settings", body, cob, properties, lookups=load_schema_lookups(cm.schema_path(name)))
+	schema = cm.read_schema(name)
+	return put_document(f"{name}-settings", body, cob, load_schema_properties(schema), lookups=load_schema_lookups(schema))
 
 @router.get('/schemas/{name}')
 def get_device_schema(name: str, cm: CM):
 	name = _device_name(name)
-	path = cm.schema_path(name)
-	# FileResponse does not raise for a missing file when it is built, only later while sending, which would be a 500
-	if not os.path.isfile(path):
+	schema = cm.read_schema(name)
+	if schema is None:
 		raise ApiError(404, "File not found.", f"{name}-schema")
-	# the file has a modification time and no lifetime, so a browser would keep an old copy for days (a schema that gained settings showed none):
-	# no-cache is "ask each time" (the ETag makes that cheap)
-	return FileResponse(path, media_type="application/json", headers={ "Cache-Control": "no-cache" })
+	# no lifetime, so a browser would keep an old copy for days (a schema that gained settings showed none): no-cache is "ask each time"
+	return JSONResponse(schema, headers={ "Cache-Control": "no-cache" })
 
 @router.get('/plugins/list')
 def plugins_list(cm: CM):
