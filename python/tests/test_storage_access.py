@@ -78,7 +78,9 @@ class TestFoldersOnDemand(unittest.TestCase):
 	def test_a_seeded_storage_has_folders_only_for_what_has_settings(self):
 		with_settings = sorted(d["info"]["id"] for d in self.cm.enum_datasources() if (d["info"].get("settings") or {}).get("default") is not None)
 		self.assertEqual(self.folders("datasources"), with_settings)
-		self.assertEqual(self.folders("plugins"), [], "no plugin has settings today")
+		with_plugin_settings = sorted(d["info"]["id"] for d in self.cm.enum_plugins() if (d["info"].get("settings") or {}).get("default") is not None)
+		self.assertEqual(self.folders("plugins"), with_plugin_settings)
+		self.assertEqual(with_plugin_settings, ["slide-show"], "only the slide show has settings today")
 		self.assertTrue(len(with_settings) < len(self.cm.enum_datasources()))
 
 	def test_a_lookup_and_a_read_create_nothing(self):

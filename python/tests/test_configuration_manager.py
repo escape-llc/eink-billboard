@@ -106,7 +106,7 @@ class TestConfigurationManager(unittest.TestCase):
 			self.assertEqual((doc["fontBody"], doc["fontScale"]), ("Jost", 1))
 			self.assertIn("fontHeading", doc)
 			with open(rss) as f:
-				self.assertEqual(json.load(f), { "feeds": [], "listMode": "continue", "refreshHours": 6, "staleDays": 30 })
+				self.assertEqual(json.load(f), { "feeds": [] })
 			# nothing more to add, and the cached documents read the new ones
 			self.assertEqual(cm.upgrade_settings(), [])
 			_, read = cm.settings_manager().open("theme").get()

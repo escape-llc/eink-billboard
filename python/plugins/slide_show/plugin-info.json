@@ -12,9 +12,18 @@
 	"settings": {
 		"schema": {
 			"properties": [
+				{
+					"name": "staleDays",
+					"type": "integer",
+					"required": true,
+					"default": 30,
+					"minimum": 0,
+					"title": "Forget Unused Lists After (days)",
+					"description": "A kept list that its slot has not used for this many days is removed (a track you deleted). 0: never."
+				}
 			]
 		},
-		"default": null
+		"default": { "staleDays": 30 }
 	},
 	"instanceSettings": {
 		"schema": {
@@ -51,6 +60,25 @@
 					"minimum": 1,
 					"title": "Slide Duration Minutes",
 					"description": "Minutes per image."
+				},
+				{
+					"name": "listMode",
+					"type": "string",
+					"required": false,
+					"default": "continue",
+					"title": "Slides in a List",
+					"description": "For a data source with a real list (a feed, a folder). continue: each visit goes on where the last one stopped, and the list is fetched again when it is used up. restart: every visit starts at the top of a new list.",
+					"enum": ["continue", "restart"]
+				},
+				{
+					"name": "refreshHours",
+					"type": "integer",
+					"required": false,
+					"default": 6,
+					"minimum": 0,
+					"title": "Fetch Again After (hours)",
+					"description": "With continue: how old the list may get before it is fetched again, even when some is left. 0: only when it is used up.",
+					"visibleIf": { "field": "listMode", "const": "continue" }
 				},
 				{ "name": "showAs", "type": "string", "required": false, "default": "auto", "title": "Show As", "description": "auto: as the data source says (a text page overrides, a picture is a background). background: the overlays are drawn on it. blend: washes over the page before it, without the overlays. override: covers everything (only a priority image is drawn over it).", "enum": ["auto", "background", "blend", "override"]}
 			]

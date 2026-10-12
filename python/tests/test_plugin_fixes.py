@@ -66,7 +66,7 @@ def make_context(ds, router, timer):
 	root.add_service(DataSourceManager, cast(Any, FakeDsm(ds)))
 	root.add_service(MessageRouter, cast(Any, router))
 	root.add_service(IProvideTimer, cast(Any, timer))
-	return SimpleNamespace(provider=root, timestamp=datetime(2026, 10, 7, 12, 0), create_datasource_context=lambda d: SimpleNamespace(timestamp=datetime(2026, 10, 7, 12, 0)))
+	return SimpleNamespace(provider=root, timestamp=datetime(2026, 10, 7, 12, 0), slot=None, create_datasource_context=lambda d: SimpleNamespace(timestamp=datetime(2026, 10, 7, 12, 0)))
 
 class TestSlideShow(unittest.IsolatedAsyncioTestCase):
 	def _track(self, **settings):

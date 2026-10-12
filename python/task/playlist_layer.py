@@ -272,7 +272,7 @@ class PlaylistLayer(DispatcherTask):
 						track_done = threading.Event()
 						# the images this track sends are marked with where they come from (the telemetry says which track made what is on the panel)
 						pname = (plugins.get(track.plugin_name) or {}).get("info", {}).get("name") or track.plugin_name
-						ctx = PluginExecutionContext(self._marked(isp, image_source("playlist", track.title, pname, playlist.name)), self.dimensions, tod.current_time())
+						ctx = PluginExecutionContext(self._marked(isp, image_source("playlist", track.title, pname, playlist.name)), self.dimensions, tod.current_time(), slot=f"{playlist.id}/{track.id}")
 						# the start of the slot is what a person following the device wants to see; the end follows when the plugin returns
 						self.router.send("telemetry", Telemetry(tod.current_time(), "playlist_layer", {
 							"kind": "track-started", "state": self.state, "current_playlist_index": plindex, "current_playlist": playlist,
