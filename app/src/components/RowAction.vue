@@ -99,7 +99,7 @@ function send() {
 }
 .row-action-code {
 	font-size: 1.4rem;
-	letter-spacing: .2em;
+	letter-spacing: .28rem;
 	font-weight: bold;
 }
 .row-action-input {

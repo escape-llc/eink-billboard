@@ -1,7 +1,7 @@
 /**
  * Glyphs from Google's Material Symbols (Apache-2.0, the `@material-symbols/svg-400` package, outlined) as CSS classes, used like PrimeIcons:
  * `<i class="mi mi-stop">`, or anywhere PrimeVue takes an icon class (`<Button icon="mi mi-stop" />`). PrimeIcons stays for what it has; this is for the
- * rest. `.mi` is built like `.pi` (an inline-block 1em square, `line-height: 1`, in the text color), with the glyph as a mask over `currentColor`, so it
+ * rest. `.mi` is built like `.pi` (an inline-block square of `--mi-size`, 1rem unless set, `line-height: 1`, in the text color), with the glyph as a mask over `currentColor`, so it
  * follows the text color, size and hover states of whatever holds it. A glyph is a class `mi-<name>` with the underscores written as hyphens (`mi-skip-next`).
  *
  * Each icon is its own SVG file, imported below by name, so only the ones listed are in the bundle (the package has ~7,800). To add a glyph: look its name up
@@ -30,9 +30,9 @@ export const iconClass = (name: MaterialIconName): string => `mi-${name.replaceA
 // it looks smaller than a PrimeIcons glyph, which fills its em box: the mask is drawn larger to match.
 const SCALE = "120%"
 
-/** The style sheet: `.mi` and one `.mi-<name>` per glyph. */
+/** The style sheet: `.mi` and one `.mi-<name>` per glyph. `flex: none` keeps a glyph its size in a flex row (a long text beside it would squeeze it). */
 export function materialIconCss(): string {
-	const base = `.mi{display:inline-block;width:1em;height:1em;line-height:1;vertical-align:-.15em;background-color:currentColor;-webkit-mask:var(--mi-image) no-repeat center/${SCALE};mask:var(--mi-image) no-repeat center/${SCALE}}`
+	const base = `.mi{display:inline-block;flex:none;width:var(--mi-size,1rem);height:var(--mi-size,1rem);line-height:1;vertical-align:-.15rem;background-color:currentColor;-webkit-mask:var(--mi-image) no-repeat center/${SCALE};mask:var(--mi-image) no-repeat center/${SCALE}}`
 	const glyphs = (Object.keys(MATERIAL_ICONS) as MaterialIconName[]).map(name => `.${iconClass(name)}{--mi-image:url("data:image/svg+xml,${encodeURIComponent(MATERIAL_ICONS[name])}")}`)
 	return [base, ...glyphs].join("\n")
 }

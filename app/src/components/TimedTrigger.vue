@@ -224,7 +224,7 @@ const onDatePicker2Change = (event: any) => {
 	margin-top: .5rem;
 	margin-bottom: .25rem;
 	text-align: left;
-	font-size: .85em;
+	font-size: .85rem;
 	font-weight: bold;
 }
 </style>
