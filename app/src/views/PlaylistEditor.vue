@@ -496,10 +496,10 @@ onMounted(() => {
 
 .track-list {
 	width: 25rem;
-	border: 1px solid #eee;
+	border: 1px solid var(--p-content-border-color);
 	border-radius: 4px;
 	padding: 0.5rem;
-	background: #fafafa;
+	background: var(--p-content-background);
 	flex: none;
 	overflow: auto;
 }
@@ -520,18 +520,19 @@ onMounted(() => {
 }
 
 .track-row:hover {
-	background: #f5f5f5;
+	background: var(--p-content-hover-background);
 }
 
 .track-row.selected {
-	background: #eef7ff;
+	background: var(--p-highlight-background);
+	color: var(--p-highlight-color);
 }
 
 .color-swatch {
 	width: 28px;
 	height: 28px;
 	border-radius: 4px;
-	border: 1px solid rgba(0, 0, 0, 0.08);
+	border: 1px solid var(--p-content-border-color);
 }
 
 .track-meta {
@@ -545,7 +546,7 @@ onMounted(() => {
 }
 
 .muted {
-	color: #666;
+	color: var(--p-text-muted-color);
 	font-size: 0.85rem;
 }
 
@@ -554,18 +555,18 @@ onMounted(() => {
 	gap: 0.25rem;
 }
 .selected {
-	background: #eef7ff;
-	border: 1px solid #cce4ff;
+	background: var(--p-highlight-background);
+	border: 1px solid var(--p-content-border-color);
 }
 .track-editor {
 	flex: 1;
-	border: 1px solid #eee;
+	border: 1px solid var(--p-content-border-color);
 	border-radius: 4px;
 	padding: 0.75rem;
 	min-height: 0;
 	min-width: 0;
 	overflow: auto;
-	background: #fff;
+	background: var(--p-content-background);
 }
 
 .editor-card {
@@ -588,7 +589,7 @@ onMounted(() => {
 }
 
 .empty-state {
-	color: #777;
+	color: var(--p-text-muted-color);
 	display: flex;
 	align-items: center;
 	justify-content: center;
