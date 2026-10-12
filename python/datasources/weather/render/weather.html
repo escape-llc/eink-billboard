@@ -2,6 +2,10 @@
 
 {% block style %}
 	<style>
+		/* every size is in rem: the root's font size is the page's (an em would follow the element it is on) */
+		html {
+			font-size: calc(min(4.8dvh, 4.8dvw) * {{ font_scale }} * var(--font-scale));
+		}
 		.wx {
 			box-sizing: border-box;
 			height: 100%;
@@ -10,18 +14,17 @@
 			display: flex;
 			flex-direction: column;
 			overflow: hidden;
-			font-size: calc(min(4.8dvh, 4.8dvw) * {{ font_scale }} * var(--font-scale));
 		}
 		.wx-heading {
 			font-family: var(--font-heading);
 			flex: none;
-			margin: 0 0 .5em 0;
-			padding-bottom: .3em;
-			font-size: .8em;
+			margin: 0 0 .4rem 0;
+			padding-bottom: .24rem;
+			font-size: .8rem;
 			font-weight: bold;
-			letter-spacing: .15em;
+			letter-spacing: .12rem;
 			text-transform: uppercase;
-			border-bottom: .16em solid currentColor;
+			border-bottom: .128rem solid currentColor;
 			white-space: nowrap;
 			overflow: hidden;
 			text-overflow: ellipsis;
@@ -35,10 +38,10 @@
 		}
 		.wx-credit {
 			flex: none;
-			margin-top: .4em;
-			font-size: .7em;
+			margin-top: .28rem;
+			font-size: .7rem;
 			font-weight: bold;
-			letter-spacing: .06em;
+			letter-spacing: .042rem;
 			text-align: right;
 		}
 		.wx-icon {
@@ -51,29 +54,29 @@
 			display: flex;
 			flex-direction: column;
 			align-items: center;
-			gap: .4em;
+			gap: .4rem;
 			min-height: 0;
 			max-height: 100%;
 		}
 		.wx-now-main {
 			display: flex;
 			align-items: center;
-			gap: .6em;
+			gap: .6rem;
 			min-height: 0;
 		}
 		.wx-now-icon {
-			width: 6em;
-			height: 6em;
+			width: 6rem;
+			height: 6rem;
 			flex: none;
 		}
 		.wx-now-temp {
 			font-family: var(--font-heading);
-			font-size: 5.4em;
+			font-size: 5.4rem;
 			font-weight: bold;
 			line-height: 1;
 		}
 		.wx-now-text {
-			font-size: 1.8em;
+			font-size: 1.8rem;
 			font-weight: bold;
 			text-transform: capitalize;
 		}
@@ -82,24 +85,28 @@
 			display: flex;
 			flex-direction: column;
 			align-items: center;
-			gap: .25em;
-			font-size: 1.35em;
+			--fs: 1.35rem;
+			gap: calc(.25 * var(--fs));
+			font-size: var(--fs);
 			font-weight: bold;
 		}
 		.wx-now-details > div {
 			display: flex;
 			flex-wrap: wrap;
 			justify-content: center;
-			gap: .2em 1.2em;
+			gap: calc(.2 * var(--fs)) calc(1.2 * var(--fs));
 		}
 		.wx-now-details span b {
-			font-size: .8em;
-			letter-spacing: .08em;
+			font-size: calc(.8 * var(--fs));
+			letter-spacing: calc(.064 * var(--fs));
 			text-transform: uppercase;
-			margin-right: .35em;
+			margin-right: calc(.28 * var(--fs));
 		}
 		/* the hours and the days: one table, a column per hour or day (a row per hour or day in a tall page), ruled between its rows, no boxes */
 		.wx-table {
+			--u: 1rem;
+			--p: var(--u);
+			font-size: var(--u);
 			width: 100%;
 			height: 100%;
 			display: grid;
@@ -114,22 +121,23 @@
 			justify-content: center;
 			min-width: 0;
 			min-height: 0;
-			border-top: .12em solid var(--rule);
+			border-top: calc(.12 * var(--u)) solid var(--rule);
 		}
 		.wx-table > .wx-head {
 			flex-direction: column;
 			/* the times sit on one line; a weekday, where there is one, is above its time */
 			justify-content: flex-end;
-			padding-bottom: .15em;
+			padding-bottom: calc(.15 * var(--p));
 			border-top: none;
-			border-bottom: .16em solid var(--rule);
-			font-size: .95em;
-			letter-spacing: .06em;
+			border-bottom: calc(.16 * var(--p)) solid var(--rule);
+			--p: calc(.95 * var(--u));
+			font-size: var(--p);
+			letter-spacing: calc(.06 * var(--p));
 		}
 		/* the column of glyphs that name the rows has no rules of its own: the rules start at the figures */
 		.wx-table > .wx-rowhead {
 			justify-content: center;
-			padding: 0 .4em;
+			padding: 0 calc(.4 * var(--u));
 			border-top: none;
 		}
 		.wx-table > .wx-corner {
@@ -137,8 +145,8 @@
 		}
 		.wx-table .wx-stat svg {
 			display: block;
-			width: 1.7em;
-			height: 1.7em;
+			width: calc(1.7 * var(--p));
+			height: calc(1.7 * var(--p));
 		}
 		.wx-table > .wx-glyph {
 			overflow: hidden;
@@ -146,12 +154,12 @@
 		.wx-table .wx-glyph svg {
 			height: 100%;
 			width: auto;
-			max-height: 3.4em;
-			padding: .15em 0;
+			max-height: calc(3.4 * var(--u));
+			padding: calc(.15 * var(--u)) 0;
 		}
 		/* the size is on the figure, not on its cell: the cell's rules are in em, and must stay the same width in every row */
 		.wx-table .wx-big .wx-fig {
-			font-size: 1.35em;
+			font-size: calc(1.35 * var(--u));
 		}
 		.wx-table .wx-dim {
 			font-weight: normal;
@@ -160,19 +168,20 @@
 			white-space: nowrap;
 		}
 		.wx-day {
-			font-size: .65em;
-			letter-spacing: .1em;
+			font-size: calc(.65 * var(--p));
+			letter-spacing: calc(.065 * var(--p));
 			text-transform: uppercase;
 			line-height: 1;
 		}
 		.wx-portrait {
 			display: none;
-			font-size: .8em;
+			--u: .8rem;
+			font-size: var(--u);
 		}
 		/* sunrise and sunset stay on one line, so the row is a little smaller where the page is narrow */
 		.wx-sun { flex-wrap: nowrap !important; }
 		@media (orientation: portrait) {
-			.wx-now-details { font-size: 1.1em; }
+			.wx-now-details { --fs: 1.1rem; }
 			.wx-landscape { display: none; }
 			.wx-portrait { display: grid; }
 		}
@@ -223,8 +232,8 @@
 				<div class="wx-head"></div>
 				{% for row in rows %}<div class="wx-head text-secondary-1" title="{{ row.title }}"><span class="wx-stat">{{ row.glyph | safe }}</span></div>{% endfor %}
 				{% for it in items %}
-					<div class="text-secondary-1" style="justify-content:flex-start;padding-right:.5em;flex-direction:column;align-items:flex-start">{% if it.day %}<span class="wx-day">{{ it.day }}</span>{% endif %}{{ it.label }}</div>
-					<div class="wx-glyph {{ 'text-primary' if it.alt else 'text-secondary-2' }}" style="width:2.4em">{{ it.icon | safe }}</div>
+					<div class="text-secondary-1" style="justify-content:flex-start;padding-right:calc(.5 * var(--u));flex-direction:column;align-items:flex-start">{% if it.day %}<span class="wx-day">{{ it.day }}</span>{% endif %}{{ it.label }}</div>
+					<div class="wx-glyph {{ 'text-primary' if it.alt else 'text-secondary-2' }}" style="width:calc(2.4 * var(--u))">{{ it.icon | safe }}</div>
 					{% for row in rows %}<div class="{% if row.key in ('temp', 'high') %}wx-big {% elif row.key == 'low' %}wx-dim {% endif %}{{ 'text-secondary-2' if it.alt else 'text-primary' }}"><span class="wx-fig">{{ it[row.key] or "–" }}</span></div>{% endfor %}
 				{% endfor %}
 			</div>
