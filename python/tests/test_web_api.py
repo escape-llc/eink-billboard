@@ -35,6 +35,9 @@ def decode_case_value(value):
 class WebApiTestBase(unittest.TestCase):
 	"""Each test works on a private copy of the test storage, so writes never touch the original."""
 	token: str|None = None
+	# see python/web/access.py: how the device asks for a sign-in
+	auth = "auto"
+	local = True
 
 	def setUp(self):
 		self.tmp = tempfile.TemporaryDirectory()
@@ -46,7 +49,7 @@ class WebApiTestBase(unittest.TestCase):
 		root = ServiceContainer()
 		root.add_service(ConfigurationManager, self.cm)
 		root.add_service(TimeOfDay, SystemTimeOfDay())
-		self.app = create_app(WebSettings(api_token=self.token), root, self._routers())
+		self.app = create_app(WebSettings(api_token=self.token, auth=self.auth, local=self.local), root, self._routers())
 		self.client = TestClient(self.app, raise_server_exceptions=False)
 
 	def tearDown(self):

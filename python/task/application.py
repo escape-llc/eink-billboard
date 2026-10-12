@@ -1,6 +1,7 @@
 import os
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Callable
 
 from .messages import ConfigurationChanged, ConfigurationWatcherEvent, StartEvent, StartOptions, StopEvent, QuitMessage, Telemetry
 from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
@@ -11,7 +12,9 @@ from .message_router import MessageRouter, Route
 from ..model.configuration_manager import ConfigurationManager
 from ..model.service_container import IServiceProvider, ServiceContainer
 from ..model.time_of_day import TimeOfDay
-from ..task.display_messages import DisplaySettings
+from ..task.display_messages import DisplaySettings, PriorityImage
+from ..model.theme import current_inputs
+from ..utils.error_image import render_error_image
 from ..task.playlist_layer import PlaylistLayer
 from ..task.timer import IProvideTimer
 from ..task.timer_layer import TimerLayer
@@ -30,6 +33,8 @@ class Application(DispatcherTask):
 		self.playlist_layer:PlaylistLayer|None = None
 		self.timer_layer:TimerLayer|None = None
 		self.root_container: IServiceProvider|None = None
+		# lines for a page on the panel while the device is not set up yet (None: nothing to say); see eink-billboard.py
+		self.setup_notice: Callable[[], list[str]|None]|None = None
 
 	def _start_event(self, msg: StartEvent):
 		try:
@@ -76,6 +81,17 @@ class Application(DispatcherTask):
 		self.playlist_layer.accept(configs)
 		configt = ConfigureEvent(msg.timestamp, ConfigureOptions(cm=self.cm, isp=tlcontainer), "timer-layer", self)
 		self.timer_layer.accept(configt)
+		self._show_setup_notice(msg.width, msg.height, msg.timestamp)
+	def _show_setup_notice(self, width: int, height: int, timestamp: datetime):
+		"""A device nobody has claimed shows how to claim it on its own panel for a while: whoever can see it is the owner."""
+		try:
+			lines = self.setup_notice() if self.setup_notice is not None else None
+			if not lines or self.cm is None:
+				return
+			image = render_error_image(self.cm.static_manager(), (width, height), "Set up this device", lines, current_inputs(self.cm.settings_manager()))
+			self.router.send("display", PriorityImage(timestamp, "Set up this device", image, timedelta(minutes=10)))  # type: ignore[union-attr]
+		except Exception as e:
+			self.logger.error(f"Could not show the setup page: {type(e).__name__}")
 	def _configure_notify(self, msg: ConfigureNotify):
 		# STEP 4 playback started if layer configured successfully
 		self.logger.info(f"'{self.name}' ConfigureNotify {msg.token} {msg.error} {msg.content}.")

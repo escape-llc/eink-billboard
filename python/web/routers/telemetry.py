@@ -9,7 +9,6 @@ because a browser cannot add a header to a WebSocket and CORS does not cover one
 A refused handshake is closed with 4401 (sign in) or 4403 (origin), and says nothing more.
 """
 import asyncio
-import hmac
 import ipaddress
 import logging
 import re
@@ -19,7 +18,7 @@ from fastapi import APIRouter, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
 
 from ...task.telemetry_hub import LOCAL_ONLY, TelemetryHub
-from ..deps import SESSION_COOKIE, get_container
+from ..deps import SESSION_COOKIE, get_container, signed_in
 from ..errors import ApiError
 
 logger = logging.getLogger(__name__)
@@ -92,13 +91,9 @@ def _origin_allowed(ws: WebSocket) -> bool:
 	return (own is not None and parts.netloc == own) or (allowed is not None and origin.rstrip("/") == allowed.rstrip("/"))
 
 def _signed_in(ws: WebSocket) -> bool:
-	token = getattr(ws.app.state, "api_token", None)
-	if not token:
+	if not ws.app.state.access.required():
 		return True
-	scheme, _, presented = ws.headers.get("authorization", "").partition(" ")
-	if scheme.lower() == "bearer" and hmac.compare_digest(presented.strip().encode(), token.encode()):
-		return True
-	return bool(ws.app.state.sessions.valid(ws.cookies.get(SESSION_COOKIE)))
+	return signed_in(ws.app, ws.headers.get("authorization"), ws.cookies.get(SESSION_COOKIE))
 
 @ws_router.websocket('/telemetry/ws')
 async def follow(ws: WebSocket, since: int = 0):
