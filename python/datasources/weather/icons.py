@@ -18,8 +18,8 @@ _BOLT = '<polyline points="34,44 28,54 36,54 30,62"/>'
 _FLAKES = "".join(f'<circle cx="{x}" cy="{y}" r="1.6"/>' for x, y in ((24, 52), (34, 56), (44, 52)))
 _MIST = "".join(f'<line x1="{x1}" y1="{y}" x2="{x2}" y2="{y}"/>' for x1, x2, y in ((12, 52, 22), (18, 56, 32), (12, 48, 42)))
 
-def _svg(body: str) -> str:
-	return ('<svg class="wx-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" '
+def _svg(body: str, weight: int = 4) -> str:
+	return (f'<svg class="wx-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="{weight}" stroke-linecap="round" stroke-linejoin="round" '
 		f'aria-hidden="true">{body}</svg>')
 
 _GROUPS = {
@@ -32,6 +32,22 @@ _GROUPS = {
 	"13": lambda night: _svg(f'<path d="{_CLOUD_HIGH}" transform="translate(0 4)"/>{_FLAKES}'),
 	"50": lambda night: _svg(_MIST),
 }
+
+# the figures of the hours and days table, as drawings instead of words: a thermometer, an arrow up and down, an umbrella, a drop, the wind
+_STATS = {
+	"temp": '<path d="M26 40V12a6 6 0 0 1 12 0v28a11 11 0 1 1-12 0z"/><line x1="32" y1="22" x2="32" y2="44"/>',
+	"high": '<polyline points="14,36 32,16 50,36"/><line x1="32" y1="18" x2="32" y2="52"/>',
+	"low": '<polyline points="14,28 32,48 50,28"/><line x1="32" y1="46" x2="32" y2="12"/>',
+	"rain": '<path d="M8 34a24 24 0 0 1 48 0z"/><path d="M32 34v16a5 5 0 0 1-10 0"/>',
+	"humidity": '<path d="M32 8C22 22 16 30 16 40a16 16 0 0 0 32 0c0-10-6-18-16-32z"/>',
+	"wind": '<path d="M6 24h30a7 7 0 1 0-7-7"/><path d="M6 36h40a7 7 0 1 1-7 7"/><line x1="6" y1="48" x2="24" y2="48"/>',
+}
+
+def stat_svg(key: str) -> str:
+	"""The drawing for a figure of the table (`temp`, `high`, `low`, `rain`, `humidity`, `wind`); a key we do not know gets none."""
+	body = _STATS.get(key)
+	# heavier than the weather drawings: they are small, and a thin line is lost on the panel
+	return "" if body is None else _svg(body, 6)
 
 def icon_svg(code: object) -> str:
 	"""The drawing for an OpenWeatherMap icon code (`01d`, `10n`, ...); a code we do not know gets the plain cloud."""

@@ -15,7 +15,7 @@ from ...model.theme import ThemeInputs, current_inputs
 from ...plugins.plugin_base import PermanentError, RenderSession
 from ...task.async_http_worker_pool import client_var
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
-from .icons import icon_svg
+from .icons import icon_svg, stat_svg
 
 # the free plan's endpoints: the weather now, and the forecast in steps of three hours for five days
 API = "https://api.openweathermap.org/data/2.5"
@@ -87,6 +87,8 @@ class Day:
 	icon: str
 	text: str
 	rain: float|None
+	humidity: int|None = None
+	wind: float|None = None
 
 @dataclass
 class Report:
@@ -162,8 +164,10 @@ def parse_forecast(data: Mapping[str, Any], report: Report, zone: tzinfo) -> Non
 		group = Counter(p.icon[:2] for p in daytime).most_common(1)[0][0]
 		chosen = next(p for p in daytime if p.icon[:2] == group)
 		rains = [p.rain for p in points if p.rain is not None]
+		humidities = [p.humidity for p in points if p.humidity is not None]
+		winds = [p.wind for p in points if p.wind is not None]
 		report.days.append(Day(day, min(p.low if p.low is not None else p.temp for p in points), max(p.high if p.high is not None else p.temp for p in points),
-			group + "d", chosen.text, max(rains) if rains else None))
+			group + "d", chosen.text, max(rains) if rains else None, round(sum(humidities) / len(humidities)) if humidities else None, max(winds) if winds else None))
 
 def _clock(when: datetime, twelve_hour: bool) -> str:
 	return f"{when.hour % 12 or 12} {'AM' if when.hour < 12 else 'PM'}" if twelve_hour else f"{when.hour:02d}:{when.minute:02d}"
@@ -180,6 +184,21 @@ def _percent(chance: float|None) -> str:
 	"""The chance of rain as OpenWeatherMap gives it (0 to 1). 0% is said too: a dry hour is information, and a blank reads as missing."""
 	return "" if chance is None else f"{round(max(0.0, min(chance, 1.0)) * 100)}%"
 
+# the table of the hours and of the days: a row for each figure (the page draws one column per hour or day, a row per item in a tall page)
+HOUR_ROWS = (("temp", "Temp", "Temp"), ("high", "High", "High"), ("low", "Low", "Low"), ("rain", "Rain", "Rain"), ("humidity", "Humidity", "Hum"), ("wind", "Wind", "Wind"))
+DAY_ROWS = (("high", "High", "High"), ("low", "Low", "Low"), ("rain", "Rain", "Rain"), ("humidity", "Humidity", "Hum"), ("wind", "Wind", "Wind"))
+
+def _rows(spec: tuple[tuple[str, str, str], ...], items: list[dict]) -> list[dict]:
+	"""The rows that have something to say: one nothing in the forecast filled in is left out. `short` is the title in a tall page, where the columns are narrow."""
+	return [{ "key": key, "title": title, "short": short, "glyph": stat_svg(key) } for key, title, short in spec if any(item.get(key) for item in items)]
+
+def _humidity(value: int|None) -> str:
+	return "" if value is None else f"{value}%"
+
+def _wind(value: float|None, units: Units) -> str:
+	"""The speed alone: the unit is the device's setting, and on every cell it only clutters the table."""
+	return "" if value is None else str(units.wind(value))
+
 def page_params(page: Page, params: Mapping[str, Any]) -> dict:
 	"""What the template draws for a page: text and drawings ready to place (the template decides nothing about units or clocks)."""
 	r, units = page.report, page.report.units
@@ -190,10 +209,13 @@ def page_params(page: Page, params: Mapping[str, Any]) -> dict:
 			"humidity": "" if c.humidity is None else f"{c.humidity}%", "wind": "" if c.wind is None else f"{units.wind(c.wind)} {units.speed}",
 			"sunrise": _time_of_day(r.sunrise, r.twelve_hour), "sunset": _time_of_day(r.sunset, r.twelve_hour) }
 	elif page.view == "hours":
-		body = { "hours": [{ "label": _clock(p.when, r.twelve_hour), "temp": _degrees(p.temp), "icon": icon_svg(p.icon), "rain": _percent(p.rain), "text": p.text } for p in r.hours] }
+		items = [{ "label": _clock(p.when, r.twelve_hour), "icon": icon_svg(p.icon), "temp": _degrees(p.temp), "high": _degrees(p.high), "low": _degrees(p.low),
+			"rain": _percent(p.rain), "humidity": _humidity(p.humidity), "wind": _wind(p.wind, units), "text": p.text } for p in r.hours]
+		body = { "hours": items, "items": items, "rows": _rows(HOUR_ROWS, items) }
 	elif page.view == "days":
-		body = { "days": [{ "label": "Today" if d.day == r.now.date() else d.day.strftime("%a"), "high": _degrees(d.high), "low": _degrees(d.low),
-			"icon": icon_svg(d.icon), "rain": _percent(d.rain), "text": d.text } for d in r.days] }
+		items = [{ "label": "Today" if d.day == r.now.date() else d.day.strftime("%a"), "icon": icon_svg(d.icon), "temp": "", "high": _degrees(d.high), "low": _degrees(d.low),
+			"rain": _percent(d.rain), "humidity": _humidity(d.humidity), "wind": _wind(d.wind, units), "text": d.text } for d in r.days]
+		body = { "days": items, "items": items, "rows": _rows(DAY_ROWS, items) }
 	heading = params.get("title") or r.place or "Weather"
 	return { "view": page.view, "heading": heading, "unit": units.temp, "font_scale": FONT_SCALES.get(str(params.get("fontSize")), 1.0), "settings": params, **body }
 

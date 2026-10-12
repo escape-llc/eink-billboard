@@ -91,66 +91,66 @@
 			text-transform: uppercase;
 			margin-right: .35em;
 		}
-		/* the hours and the days: a row of columns, each a label, a picture and the numbers */
-		.wx-row {
+		/* the hours and the days: one table, a column per hour or day (a row per hour or day in a tall page), ruled between its rows, no boxes */
+		.wx-table {
 			width: 100%;
 			height: 100%;
 			display: grid;
-			grid-auto-flow: column;
-			grid-auto-columns: 1fr;
-			gap: .4em;
-			align-items: center;
+			align-content: stretch;
+			font-weight: bold;
+			/* every rule is the text color, whatever color the cell's own text is */
+			--rule: hsl(from var(--theme-base) h s var(--l-text-dark));
 		}
-		.wx-cell {
+		.wx-table > div {
 			display: flex;
-			flex-direction: column;
 			align-items: center;
-			gap: .25em;
+			justify-content: center;
 			min-width: 0;
-			padding: .5em .2em;
-			/* a line of about 3px at 800x480: a color e-ink panel does not draw a hairline cleanly */
-			border: .14em solid currentColor;
-			border-radius: .45em;
+			min-height: 0;
+			border-top: .12em solid var(--rule);
 		}
-		.wx-cell-label {
-			font-size: .8em;
-			font-weight: bold;
-			letter-spacing: .08em;
-			text-transform: uppercase;
-		}
-		.wx-cell-icon {
-			width: 2.6em;
-			height: 2.6em;
-		}
-		.wx-cell-temp {
-			font-size: 1.3em;
-			font-weight: bold;
-		}
-		/* the small figures are heavy and not faded: thin or pale text turns to dots on a color e-ink panel */
-		.wx-cell-low {
-			font-size: 1.1em;
-			font-weight: bold;
-		}
-		.wx-cell-rain {
+		.wx-table > .wx-head {
+			border-top: none;
+			border-bottom: .16em solid var(--rule);
 			font-size: .95em;
-			font-weight: bold;
-			min-height: 1.2em;
+			letter-spacing: .06em;
+		}
+		/* the column of glyphs that name the rows has no rules of its own: the rules start at the figures */
+		.wx-table > .wx-rowhead {
+			justify-content: center;
+			padding: 0 .4em;
+			border-top: none;
+		}
+		.wx-table > .wx-corner {
+			border-bottom: none;
+		}
+		.wx-table .wx-stat svg {
+			display: block;
+			width: 1.7em;
+			height: 1.7em;
+		}
+		.wx-table .wx-glyph svg {
+			height: 100%;
+			width: auto;
+			max-height: 3.4em;
+			padding: .15em 0;
+		}
+		.wx-table .wx-big {
+			font-size: 1.35em;
+		}
+		.wx-table .wx-dim {
+			font-weight: normal;
+		}
+		.wx-table > div {
+			white-space: nowrap;
+		}
+		.wx-portrait {
+			display: none;
+			font-size: .8em;
 		}
 		@media (orientation: portrait) {
-			.wx-row {
-				grid-auto-flow: row;
-				grid-auto-columns: auto;
-				align-content: center;
-			}
-			.wx-cell {
-				flex-direction: row;
-				justify-content: space-between;
-				padding: .3em .8em;
-			}
-			.wx-cell-icon {
-				width: 1.8em;
-				height: 1.8em;
-			}
+			.wx-landscape { display: none; }
+			.wx-portrait { display: grid; }
 		}
 	</style>
 {% endblock %}
@@ -177,27 +177,27 @@
 				</div>
 			</div>
 			{% endif %}
-		{% elif view == "hours" %}
-			<div class="wx-row">
-				{% for h in hours %}
-				<div class="wx-cell">
-					<div class="wx-cell-label text-secondary-1">{{ h.label }}</div>
-					<div class="wx-cell-icon text-secondary-2">{{ h.icon | safe }}</div>
-					<div class="wx-cell-temp text-primary">{{ h.temp }}</div>
-					<div class="wx-cell-rain">{% if h.rain %}{{ h.rain }}{% else %}&nbsp;{% endif %}</div>
-				</div>
+		{% else %}
+			{# landscape: a column per item; the first column names the rows #}
+			<div class="wx-table wx-landscape" style="grid-template-columns: auto repeat({{ items|length }}, 1fr); grid-template-rows: auto 2.2fr repeat({{ rows|length }}, 1fr);">
+				<div class="wx-head wx-corner"></div>
+				{% for it in items %}<div class="wx-head text-secondary-1">{{ it.label }}</div>{% endfor %}
+				<div class="wx-rowhead"></div>
+				{% for it in items %}<div class="wx-glyph text-secondary-2">{{ it.icon | safe }}</div>{% endfor %}
+				{% for row in rows %}
+					<div class="wx-rowhead text-secondary-1" title="{{ row.title }}"><span class="wx-stat">{{ row.glyph | safe }}</span></div>
+					{% for it in items %}<div class="{% if row.key in ('temp', 'high') %}wx-big text-primary{% elif row.key == 'low' %}wx-dim{% endif %}">{{ it[row.key] or "–" }}</div>{% endfor %}
 				{% endfor %}
 			</div>
-		{% else %}
-			<div class="wx-row">
-				{% for d in days %}
-				<div class="wx-cell">
-					<div class="wx-cell-label text-secondary-1">{{ d.label }}</div>
-					<div class="wx-cell-icon text-secondary-2">{{ d.icon | safe }}</div>
-					<div class="wx-cell-temp text-primary">{{ d.high }}</div>
-					<div class="wx-cell-low">{{ d.low }}</div>
-					<div class="wx-cell-rain">{% if d.rain %}{{ d.rain }}{% else %}&nbsp;{% endif %}</div>
-				</div>
+			{# portrait: a row per item, the figures across #}
+			<div class="wx-table wx-portrait" style="grid-template-columns: auto auto repeat({{ rows|length }}, 1fr); grid-template-rows: auto repeat({{ items|length }}, 1fr);">
+				<div class="wx-head"></div>
+				<div class="wx-head"></div>
+				{% for row in rows %}<div class="wx-head text-secondary-1" title="{{ row.title }}"><span class="wx-stat">{{ row.glyph | safe }}</span></div>{% endfor %}
+				{% for it in items %}
+					<div class="text-secondary-1" style="justify-content:flex-start;padding-right:.5em">{{ it.label }}</div>
+					<div class="wx-glyph text-secondary-2" style="width:2.4em">{{ it.icon | safe }}</div>
+					{% for row in rows %}<div class="{% if row.key in ('temp', 'high') %}wx-big text-primary{% elif row.key == 'low' %}wx-dim{% endif %}">{{ it[row.key] or "–" }}</div>{% endfor %}
 				{% endfor %}
 			</div>
 		{% endif %}
