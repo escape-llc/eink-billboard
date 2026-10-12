@@ -19,6 +19,7 @@ test("the gutter goes live, shows what the panel shows, and reports a change of 
 
 	// and which track made it: the playlist, the track and the plugin
 	await expect(gutter.getByTestId("origins")).toContainText(/.+ › .+ \(.+\)/)
+	await expect(gutter.getByTestId("origins").locator(".material-icon svg").first()).toBeVisible()
 
 	// somebody saves the system settings: the change reaches the gutter by area, not by path
 	const current = await (await request.get("/api/settings/system")).json()

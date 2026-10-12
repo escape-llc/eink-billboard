@@ -18,7 +18,7 @@
 			</div>
 			<ul v-if="currentOrigins.length" class="gutter-origins" aria-label="Made by" data-testid="origins">
 				<li v-for="(line, i) in currentOrigins" :key="i">
-					<i :class="line.kind === 'timer' ? 'pi pi-clock' : 'pi pi-list'" aria-hidden="true"></i>
+					<MaterialIcon :name="line.kind === 'timer' ? 'schedule' : 'playlist_play'" />
 					<span class="gutter-origin-layer">{{ line.layer }}</span> {{ line.text }}
 				</li>
 			</ul>
@@ -58,6 +58,7 @@
 /** The live view of the device: what the panel shows, what it showed, and what the tasks report (the telemetry link). */
 import { computed, onBeforeUnmount, onMounted, ref } from "vue"
 import { Dialog, Select, Tag, ToggleSwitch } from "primevue"
+import MaterialIcon from "./MaterialIcon.vue"
 import { clockOf, isProblem, originsOf, useTelemetry, type TelemetryEvent } from "./TelemetryLink"
 
 const link = useTelemetry()
@@ -174,7 +175,7 @@ function describe(e: TelemetryEvent): string {
 	gap: .15rem;
 	font-size: .85em;
 }
-.gutter-origins i {
+.gutter-origins .material-icon {
 	margin-right: .3rem;
 	color: var(--p-text-muted-color);
 }
