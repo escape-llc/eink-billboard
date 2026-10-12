@@ -42,7 +42,8 @@
 			<ol class="gutter-list">
 				<li v-for="(e, i) in shownEvents" :key="e.seq ?? `x${i}`" class="gutter-event" :class="{ problem: isProblem(e) }">
 					<span class="gutter-time">{{ clockOf(e.ts) }}</span>
-					<i :class="iconOf(e)" :title="e.source" aria-hidden="true"></i>
+					<MaterialIcon v-if="materialOf(e)" :name="materialOf(e)!" class="gutter-glyph" :title="e.source" />
+					<i v-else :class="iconOf(e)" :title="e.source" aria-hidden="true"></i>
 					<span class="gutter-text">{{ describe(e) }}<code v-if="e.detail" class="gutter-detail">{{ e.detail }}</code></span>
 				</li>
 				<li v-if="shownEvents.length === 0" class="gutter-empty">Nothing yet.</li>
@@ -59,6 +60,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue"
 import { Dialog, Select, Tag, ToggleSwitch } from "primevue"
 import MaterialIcon from "./MaterialIcon.vue"
+import type { MaterialIconName } from "./MaterialIcons"
 import { clockOf, isProblem, originsOf, useTelemetry, type TelemetryEvent } from "./TelemetryLink"
 
 const link = useTelemetry()
@@ -90,11 +92,15 @@ const statusText = computed(() => ({ live: "Live", connecting: "Connecting", off
 const statusSeverity = computed(() => ({ live: "success", connecting: "info", offline: "warn", "signed-out": "danger" })[link.state.status])
 
 const title = (e: TelemetryEvent): string => String(e.values?.title ?? "")
+/** The events whose glyph is a Material Symbol (PrimeIcons has none like it); the rest use PrimeIcons (`iconOf`). */
+function materialOf(e: TelemetryEvent): MaterialIconName | null {
+	// what was sent to the panel: a screen, which no layer's glyph is (they are a picture, a stack and a page)
+	return e.kind === "shown" ? "screenshot_monitor" : null
+}
 function iconOf(e: TelemetryEvent): string {
 	// the first and last markers of a slot, not "play"
 	if (e.kind === "track-started" || e.kind === "task-started") return "pi pi-step-backward-alt"
 	if (e.kind === "track-ended" || e.kind === "task-ended") return "pi pi-step-forward-alt"
-	if (e.kind === "shown") return "pi pi-send"
 	if (e.kind === "stopped") return "pi pi-stop"
 	// a page is shown on a layer: a picture is a background, a washed one is a blend, a text page covers everything (a document)
 	if (e.kind === "showing") return { background: "pi pi-image", blend: "pi pi-clone", override: "pi pi-file" }[String(e.values?.layer)] ?? "pi pi-image"
@@ -233,6 +239,10 @@ function describe(e: TelemetryEvent): string {
 }
 .gutter-event.problem {
 	color: var(--p-red-500);
+}
+.gutter-glyph {
+	font-size: 1.2em;
+	flex: none;
 }
 .gutter-time {
 	font-variant-numeric: tabular-nums;
