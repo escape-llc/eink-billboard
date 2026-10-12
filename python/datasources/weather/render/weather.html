@@ -62,28 +62,35 @@
 			min-height: 0;
 		}
 		.wx-now-icon {
-			width: 4.5em;
-			height: 4.5em;
+			width: 6em;
+			height: 6em;
 			flex: none;
 		}
 		.wx-now-temp {
 			font-family: var(--font-heading);
-			font-size: 4.2em;
+			font-size: 5.4em;
 			font-weight: bold;
 			line-height: 1;
 		}
 		.wx-now-text {
-			font-size: 1.3em;
+			font-size: 1.8em;
 			font-weight: bold;
 			text-transform: capitalize;
 		}
+		/* the details in rows of their own: the conditions, then the sun (sunrise and sunset together on one line) */
 		.wx-now-details {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: .25em;
+			font-size: 1.35em;
+			font-weight: bold;
+		}
+		.wx-now-details > div {
 			display: flex;
 			flex-wrap: wrap;
 			justify-content: center;
-			gap: .3em 1.4em;
-			font-size: 1em;
-			font-weight: bold;
+			gap: .2em 1.2em;
 		}
 		.wx-now-details span b {
 			font-size: .8em;
@@ -162,7 +169,10 @@
 			display: none;
 			font-size: .8em;
 		}
+		/* sunrise and sunset stay on one line, so the row is a little smaller where the page is narrow */
+		.wx-sun { flex-wrap: nowrap !important; }
 		@media (orientation: portrait) {
+			.wx-now-details { font-size: 1.1em; }
 			.wx-landscape { display: none; }
 			.wx-portrait { display: grid; }
 		}
@@ -183,11 +193,15 @@
 					</div>
 				</div>
 				<div class="wx-now-details">
-					{% if feels %}<span><b>Feels like</b>{{ feels }}</span>{% endif %}
-					{% if humidity %}<span><b>Humidity</b>{{ humidity }}</span>{% endif %}
-					{% if wind %}<span><b>Wind</b>{{ wind }}</span>{% endif %}
-					{% if sunrise %}<span><b>Sunrise</b>{{ sunrise }}</span>{% endif %}
-					{% if sunset %}<span><b>Sunset</b>{{ sunset }}</span>{% endif %}
+					{% if feels or humidity or wind %}<div>
+						{% if feels %}<span><b>Feels like</b>{{ feels }}</span>{% endif %}
+						{% if humidity %}<span><b>Humidity</b>{{ humidity }}</span>{% endif %}
+						{% if wind %}<span><b>Wind</b>{{ wind }}</span>{% endif %}
+					</div>{% endif %}
+					{% if sunrise or sunset %}<div class="wx-sun">
+						{% if sunrise %}<span><b>Sunrise</b>{{ sunrise }}</span>{% endif %}
+						{% if sunset %}<span><b>Sunset</b>{{ sunset }}</span>{% endif %}
+					</div>{% endif %}
 				</div>
 			</div>
 			{% endif %}
