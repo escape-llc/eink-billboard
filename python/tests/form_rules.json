@@ -101,6 +101,19 @@
 			"error": null
 		},
 		{
+			"name": "number step is a hint for the input, a value off the grid is fine",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": true,
+				"type": "number",
+				"minimum": 0,
+				"step": 0.1
+			},
+			"value": 0.15,
+			"error": null
+		},
+		{
 			"name": "number min 0, below",
 			"field": {
 				"name": "f",
