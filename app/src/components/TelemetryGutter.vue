@@ -18,7 +18,7 @@
 			</div>
 			<ul v-if="currentOrigins.length" class="gutter-origins" aria-label="Made by" data-testid="origins">
 				<li v-for="(line, i) in currentOrigins" :key="i">
-					<MaterialIcon :name="line.kind === 'timer' ? 'schedule' : 'playlist_play'" />
+					<i :class="line.kind === 'timer' ? 'mi mi-schedule' : 'mi mi-playlist-play'" aria-hidden="true"></i>
 					<span class="gutter-origin-layer">{{ line.layer }}</span> {{ line.text }}
 				</li>
 			</ul>
@@ -42,8 +42,7 @@
 			<ol class="gutter-list">
 				<li v-for="(e, i) in shownEvents" :key="e.seq ?? `x${i}`" class="gutter-event" :class="{ problem: isProblem(e) }">
 					<span class="gutter-time">{{ clockOf(e.ts) }}</span>
-					<MaterialIcon v-if="materialOf(e)" :name="materialOf(e)!" class="gutter-glyph" :title="e.source" />
-					<i v-else :class="iconOf(e)" :title="e.source" aria-hidden="true"></i>
+					<i :class="iconOf(e)" :title="e.source" aria-hidden="true"></i>
 					<span class="gutter-text">{{ describe(e) }}<code v-if="e.detail" class="gutter-detail">{{ e.detail }}</code></span>
 				</li>
 				<li v-if="shownEvents.length === 0" class="gutter-empty">Nothing yet.</li>
@@ -59,8 +58,6 @@
 /** The live view of the device: what the panel shows, what it showed, and what the tasks report (the telemetry link). */
 import { computed, onBeforeUnmount, onMounted, ref } from "vue"
 import { Dialog, Select, Tag, ToggleSwitch } from "primevue"
-import MaterialIcon from "./MaterialIcon.vue"
-import type { MaterialIconName } from "./MaterialIcons"
 import { clockOf, isProblem, originsOf, useTelemetry, type TelemetryEvent } from "./TelemetryLink"
 
 const link = useTelemetry()
@@ -92,12 +89,9 @@ const statusText = computed(() => ({ live: "Live", connecting: "Connecting", off
 const statusSeverity = computed(() => ({ live: "success", connecting: "info", offline: "warn", "signed-out": "danger" })[link.state.status])
 
 const title = (e: TelemetryEvent): string => String(e.values?.title ?? "")
-/** The events whose glyph is a Material Symbol (PrimeIcons has none like it); the rest use PrimeIcons (`iconOf`). */
-function materialOf(e: TelemetryEvent): MaterialIconName | null {
-	// what was sent to the panel: a screen, which no layer's glyph is (they are a picture, a stack and a page)
-	return e.kind === "shown" ? "screenshot_monitor" : null
-}
 function iconOf(e: TelemetryEvent): string {
+	// what was sent to the panel: a screen, which no layer's glyph is (they are a picture, a stack and a page); Material, as PrimeIcons has none like it
+	if (e.kind === "shown") return "mi mi-screenshot-monitor"
 	// the first and last markers of a slot, not "play"
 	if (e.kind === "track-started" || e.kind === "task-started") return "pi pi-step-backward-alt"
 	if (e.kind === "track-ended" || e.kind === "task-ended") return "pi pi-step-forward-alt"
@@ -181,7 +175,7 @@ function describe(e: TelemetryEvent): string {
 	gap: .15rem;
 	font-size: .85em;
 }
-.gutter-origins .material-icon {
+.gutter-origins i {
 	margin-right: .3rem;
 	color: var(--p-text-muted-color);
 }
@@ -239,10 +233,6 @@ function describe(e: TelemetryEvent): string {
 }
 .gutter-event.problem {
 	color: var(--p-red-500);
-}
-.gutter-glyph {
-	font-size: 1.2em;
-	flex: none;
 }
 .gutter-time {
 	font-variant-numeric: tabular-nums;

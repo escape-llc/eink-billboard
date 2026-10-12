@@ -11,6 +11,9 @@ import ToastService from 'primevue/toastservice'
 import ConfirmationService from 'primevue/confirmationservice'
 import router from './router'
 import { useThemes } from './components/ThemeTools'
+import { installMaterialIcons } from './components/MaterialIcons'
+
+installMaterialIcons()
 
 const { DARK_MODE_SELECTOR, DefaultPreset } = useThemes(undefined);
 
