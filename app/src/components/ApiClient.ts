@@ -27,6 +27,8 @@ export function joinUrl(base: string, path: string): string {
 	return `${base.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`
 }
 
+import { promptForAuth, type AccessInfo, type AuthMode, type SendResult, type Values } from "./AuthPrompt"
+
 const SESSION_URL = joinUrl(import.meta.env.VITE_API_URL ?? "/", "api/session")
 
 async function toApiError(rx: Response): Promise<ApiError> {
@@ -41,19 +43,35 @@ async function toApiError(rx: Response): Promise<ApiError> {
 	return new ApiError(rx.status, message, body)
 }
 
-/** Ask for the token and start a session with it. False when the prompt is cancelled or the server refuses the token. */
-async function signIn(): Promise<boolean> {
-	// window.prompt blocks, so the other requests that failed with this one wait behind it
-	const token = window.prompt("This device requires an API token:")
-	if(!token) {
-		return false
+const ACCESS_URL = joinUrl(import.meta.env.VITE_API_URL ?? "/", "api/access")
+
+/** Send what the sign-in dialog collected; the server's own words come back when it is refused. */
+async function sendCredentials(mode: AuthMode, values: Values): Promise<SendResult> {
+	const json = { "Content-Type": "application/json" }
+	const rx = mode === "setup"
+		? await fetch(joinUrl(ACCESS_URL, "setup"), { method: "POST", credentials: "include", headers: json, body: JSON.stringify({ code: values.code, password: values.secret }) })
+		: mode === "password"
+			? await fetch(SESSION_URL, { method: "POST", credentials: "include", headers: json, body: JSON.stringify({ password: values.secret }) })
+			: await fetch(SESSION_URL, { method: "POST", credentials: "include", headers: { Authorization: `Bearer ${values.secret}` } })
+	if(rx.ok) {
+		return { ok: true }
 	}
-	const rx = await fetch(SESSION_URL, {
-		method: "POST",
-		credentials: "include",
-		headers: { Authorization: `Bearer ${token}` }
-	})
-	return rx.ok
+	return { ok: false, message: (await toApiError(rx)).message }
+}
+
+/** Ask what the device needs (a setup code and a new password, its password, or an API token) in a dialog and start a session with it. False when the dialog is closed. */
+async function signIn(): Promise<boolean> {
+	let info: AccessInfo | null = null
+	try {
+		const rx = await fetch(ACCESS_URL, { credentials: "include" })
+		if(rx.ok) {
+			info = await rx.json()
+		}
+	}
+	catch {
+		// the dialog asks for the token, as it always did
+	}
+	return promptForAuth(info, sendCredentials)
 }
 
 // A page loads several things at once, in waves, so many requests can get a 401. Only the first asks;

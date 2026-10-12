@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 import { PROTECTED, TOKEN } from "./servers"
-import { stubMapTiles, watchProblems } from "./support"
+import { stubMapTiles, watchProblems, signInWith } from "./support"
 
 // The activity gutter follows the device through the telemetry link (a WebSocket) on the real servers: the mock display draws the
 // playlist's pages, and a change of settings is reported.
@@ -31,8 +31,8 @@ test("the gutter goes live, shows what the panel shows, and reports a change of 
 
 test("on the server with a token, the link connects once the page has signed in", async ({ page }) => {
 	const watch = watchProblems(page, [401])
-	page.on("dialog", d => d.accept(TOKEN))
 	await page.goto(`${PROTECTED.url}/#/settings`)
+	await signInWith(page, "API token", TOKEN)
 	await page.getByRole("button", { name: "Activity" }).click()
 	await expect(page.getByTestId("link-status")).toHaveText("Live", { timeout: 15000 })
 	watch.expectNone()

@@ -19,7 +19,7 @@ async function openKeyForm(page: Page) {
 	await page.getByRole("tab", { name: "Data Sources" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
 	await page.getByRole("option").filter({ hasText: "openai-image" }).click()
-	return page.locator("input[type=password]")
+	return page.getByRole("tabpanel").locator("input[type=password]")
 }
 
 test("the API masks the stored key", async ({ request }) => {

@@ -33,7 +33,7 @@ test("a field shown only when another is on: hidden until then, required while s
 	// shown and required, so empty is invalid and the form does not save
 	await detail.focus()
 	await detail.blur()
-	await expect(page.getByText("Required")).toBeVisible()
+	await expect(page.getByText("Required", { exact: true })).toBeVisible()
 	await detail.fill("some detail")
 	await expect(save).toBeEnabled()
 	await save.click()

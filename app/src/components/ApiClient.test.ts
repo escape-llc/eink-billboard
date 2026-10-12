@@ -5,12 +5,17 @@ function jsonResponse(body: unknown, status = 200): Response {
 	return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
 }
 const REFUSED = { success: false, message: "Missing or invalid API token." }
+// what GET /api/access says of a device that has only an API token
+const TOKEN_ONLY = { required: true, setupRequired: false, passwordSet: false, localOnly: false }
 
 /** A server that wants a token: `POST /api/session` with the right Bearer token signs the "browser" in, and only then do other requests work. */
 function fakeServer(validToken: string) {
 	const state = { signedIn: false, signIns: 0, calls: [] as { url: string, init?: RequestInit }[] }
 	const handle = async (url: string, init?: RequestInit) => {
 		state.calls.push({ url, init })
+		if(url.endsWith("/api/access")) {
+			return jsonResponse(TOKEN_ONLY)
+		}
 		if(url.endsWith("/api/session")) {
 			const sent = new Headers(init?.headers).get("Authorization")
 			if(init?.method === "POST" && sent === `Bearer ${validToken}`) {
@@ -63,6 +68,32 @@ describe("ApiClient requests", () => {
 		vi.unstubAllGlobals()
 		vi.restoreAllMocks()
 	})
+	/**
+	 * The person at the sign-in dialog: types `secret` each time it opens (and closes it when that is refused), or closes it when `secret` is null.
+	 * Returns a spy that counts how many times the dialog opened.
+	 */
+	const answerWith = async (secret: string | null) => {
+		const { authPrompt, submitAuth, cancelAuth } = await import("./AuthPrompt")
+		const { watch } = await import("vue")
+		const opened = vi.fn()
+		watch(() => authPrompt.open, open => {
+			if(!open) {
+				return
+			}
+			opened()
+			queueMicrotask(async () => {
+				if(secret === null) {
+					cancelAuth()
+					return
+				}
+				await submitAuth({ secret })
+				if(authPrompt.open) {
+					cancelAuth()
+				}
+			})
+		}, { flush: "sync" })
+		return opened
+	}
 	/** Nothing but the theme may live in browser storage; these flows must not write anything. */
 	const expectNothingStored = () => {
 		expect(localStorage.length, "localStorage").toBe(0)
@@ -133,7 +164,7 @@ describe("ApiClient requests", () => {
 		it("asks for the token, signs in once, and retries; nothing is stored in the browser", async () => {
 			const server = fakeServer("s3cret")
 			fetchMock.mockImplementation(server.handle)
-			const prompt = vi.spyOn(window, "prompt").mockReturnValue("s3cret")
+			const prompt = await answerWith("s3cret")
 			await expect(apiJson("/api/settings/system")).resolves.toEqual({ ok: true })
 			expect(prompt).toHaveBeenCalledTimes(1)
 			expect(server.state.signIns).toBe(1)
@@ -151,7 +182,7 @@ describe("ApiClient requests", () => {
 		it("does not ask again once signed in", async () => {
 			const server = fakeServer("s3cret")
 			fetchMock.mockImplementation(server.handle)
-			const prompt = vi.spyOn(window, "prompt").mockReturnValue("s3cret")
+			const prompt = await answerWith("s3cret")
 			await apiJson("/api/a")
 			await apiJson("/api/b")
 			await apiJson("/api/c")
@@ -161,7 +192,7 @@ describe("ApiClient requests", () => {
 		it("asks only once when several requests fail together, and retries them all", async () => {
 			const server = fakeServer("s3cret")
 			fetchMock.mockImplementation(server.handle)
-			const prompt = vi.spyOn(window, "prompt").mockReturnValue("s3cret")
+			const prompt = await answerWith("s3cret")
 			const results = await Promise.all(["/api/a", "/api/b", "/api/c", "/api/d"].map(u => apiJson(u)))
 			expect(results).toEqual([{ ok: true }, { ok: true }, { ok: true }, { ok: true }])
 			expect(prompt).toHaveBeenCalledTimes(1)
@@ -172,7 +203,7 @@ describe("ApiClient requests", () => {
 		it("gives up with the server's message when the prompt is cancelled, asking only once for requests that failed together", async () => {
 			const server = fakeServer("s3cret")
 			fetchMock.mockImplementation(server.handle)
-			const prompt = vi.spyOn(window, "prompt").mockReturnValue(null)
+			const prompt = await answerWith(null)
 			const results = await Promise.allSettled(["/api/a", "/api/b", "/api/c"].map(u => apiJson(u)))
 			expect(results.map(r => r.status)).toEqual(["rejected", "rejected", "rejected"])
 			for (const r of results) {
@@ -186,7 +217,7 @@ describe("ApiClient requests", () => {
 		it("refuses a wrong token with the server's message and stores nothing", async () => {
 			const server = fakeServer("s3cret")
 			fetchMock.mockImplementation(server.handle)
-			vi.spyOn(window, "prompt").mockReturnValue("wrong")
+			await answerWith("wrong")
 			await expect(apiJson("/api/x")).rejects.toMatchObject({ status: 401, message: "Missing or invalid API token." })
 			expect(server.state.signedIn).toBe(false)
 			expectNothingStored()
@@ -196,7 +227,7 @@ describe("ApiClient requests", () => {
 		it("does not ask again, wave after wave, after a cancelled prompt", async () => {
 			const server = fakeServer("s3cret")
 			fetchMock.mockImplementation(server.handle)
-			const prompt = vi.spyOn(window, "prompt").mockReturnValue(null)
+			const prompt = await answerWith(null)
 			for (const wave of [["/api/a", "/api/b"], ["/api/c", "/api/d", "/api/e"], ["/api/f"]]) {
 				const results = await Promise.allSettled(wave.map(u => apiJson(u)))
 				for (const r of results) expect((r as PromiseRejectedResult).reason).toMatchObject({ status: 401, message: "Missing or invalid API token." })
@@ -207,7 +238,7 @@ describe("ApiClient requests", () => {
 		it("does not ask again, wave after wave, after the server refused the token", async () => {
 			const server = fakeServer("s3cret")
 			fetchMock.mockImplementation(server.handle)
-			const prompt = vi.spyOn(window, "prompt").mockReturnValue("wrong")
+			const prompt = await answerWith("wrong")
 			await expect(apiJson("/api/a")).rejects.toMatchObject({ status: 401 })
 			await expect(apiJson("/api/b")).rejects.toMatchObject({ status: 401 })
 			expect(prompt).toHaveBeenCalledTimes(1)
@@ -226,7 +257,7 @@ describe("ApiClient requests", () => {
 				}
 				return server.handle(url, init)
 			})
-			const prompt = vi.spyOn(window, "prompt").mockReturnValue("s3cret")
+			const prompt = await answerWith("s3cret")
 			const slow = apiJson("/api/late")
 			await apiJson("/api/a")
 			answerLate(jsonResponse(REFUSED, 401))
@@ -237,9 +268,10 @@ describe("ApiClient requests", () => {
 		it("apiFetch hands back the response of a successful retry untouched", async () => {
 			fetchMock
 				.mockResolvedValueOnce(new Response("", { status: 401 }))
+				.mockResolvedValueOnce(jsonResponse(TOKEN_ONLY))            // what the device asks for
 				.mockResolvedValueOnce(new Response("", { status: 200 }))   // the sign-in
 				.mockResolvedValueOnce(new Response("plain", { status: 200 }))
-			vi.spyOn(window, "prompt").mockReturnValue("t")
+			await answerWith("t")
 			const rx = await apiFetch("/api/x")
 			expect(rx.status).toBe(200)
 			expect(await rx.text()).toBe("plain")

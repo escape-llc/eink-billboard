@@ -13,6 +13,13 @@ export const OPEN = {
 	// every run starts from a fresh storage built by scripts/e2e_storage.py
 	storage: path.join(ROOT, ".e2e-storage", "open"),
 }
+/** A new device nobody has claimed (`--require-auth`): it asks for the setup code, then for the password the test chooses. */
+export const CLAIM = {
+	port: 8097,
+	url: "http://127.0.0.1:8097",
+	storage: path.join(ROOT, ".e2e-storage", "claim"),
+	code: "2468 1357",
+}
 /** Requires `Authorization: Bearer e2e-token` on /api. */
 export const PROTECTED = {
 	port: 8098,
