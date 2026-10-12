@@ -116,11 +116,13 @@
 			letter-spacing: .06em;
 		}
 		.wx-table > .wx-rowhead {
-			justify-content: flex-start;
-			padding-right: .6em;
-			font-size: .72em;
-			letter-spacing: .08em;
-			text-transform: uppercase;
+			justify-content: center;
+			padding: 0 .4em;
+		}
+		.wx-table .wx-stat svg {
+			display: block;
+			width: 1.7em;
+			height: 1.7em;
 		}
 		.wx-table .wx-glyph svg {
 			height: 100%;
@@ -178,7 +180,7 @@
 				<div class="wx-rowhead"></div>
 				{% for it in items %}<div class="wx-glyph text-secondary-2">{{ it.icon | safe }}</div>{% endfor %}
 				{% for row in rows %}
-					<div class="wx-rowhead text-secondary-1">{{ row.title }}</div>
+					<div class="wx-rowhead text-secondary-1" title="{{ row.title }}"><span class="wx-stat">{{ row.glyph | safe }}</span></div>
 					{% for it in items %}<div class="{% if row.key in ('temp', 'high') %}wx-big text-primary{% elif row.key == 'low' %}wx-dim{% endif %}">{{ it[row.key] or "–" }}</div>{% endfor %}
 				{% endfor %}
 			</div>
@@ -186,7 +188,7 @@
 			<div class="wx-table wx-portrait" style="grid-template-columns: auto auto repeat({{ rows|length }}, 1fr); grid-template-rows: auto repeat({{ items|length }}, 1fr);">
 				<div class="wx-head"></div>
 				<div class="wx-head"></div>
-				{% for row in rows %}<div class="wx-head text-secondary-1" style="font-size:.75em">{{ row.short }}</div>{% endfor %}
+				{% for row in rows %}<div class="wx-head text-secondary-1" title="{{ row.title }}"><span class="wx-stat">{{ row.glyph | safe }}</span></div>{% endfor %}
 				{% for it in items %}
 					<div class="text-secondary-1" style="justify-content:flex-start;padding-right:.5em">{{ it.label }}</div>
 					<div class="wx-glyph text-secondary-2" style="width:2.4em">{{ it.icon | safe }}</div>

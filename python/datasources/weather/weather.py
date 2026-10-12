@@ -15,7 +15,7 @@ from ...model.theme import ThemeInputs, current_inputs
 from ...plugins.plugin_base import PermanentError, RenderSession
 from ...task.async_http_worker_pool import client_var
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
-from .icons import icon_svg
+from .icons import icon_svg, stat_svg
 
 # the free plan's endpoints: the weather now, and the forecast in steps of three hours for five days
 API = "https://api.openweathermap.org/data/2.5"
@@ -190,13 +190,14 @@ DAY_ROWS = (("high", "High", "High"), ("low", "Low", "Low"), ("rain", "Rain", "R
 
 def _rows(spec: tuple[tuple[str, str, str], ...], items: list[dict]) -> list[dict]:
 	"""The rows that have something to say: one nothing in the forecast filled in is left out. `short` is the title in a tall page, where the columns are narrow."""
-	return [{ "key": key, "title": title, "short": short } for key, title, short in spec if any(item.get(key) for item in items)]
+	return [{ "key": key, "title": title, "short": short, "glyph": stat_svg(key) } for key, title, short in spec if any(item.get(key) for item in items)]
 
 def _humidity(value: int|None) -> str:
 	return "" if value is None else f"{value}%"
 
 def _wind(value: float|None, units: Units) -> str:
-	return "" if value is None else f"{units.wind(value)} {units.speed}"
+	"""The speed alone: the unit is the device's setting, and on every cell it only clutters the table."""
+	return "" if value is None else str(units.wind(value))
 
 def page_params(page: Page, params: Mapping[str, Any]) -> dict:
 	"""What the template draws for a page: text and drawings ready to place (the template decides nothing about units or clocks)."""
