@@ -29,7 +29,7 @@ def media(features: list[str]) -> set[str]:
 class TestPluginsAndSourcesAgree(unittest.TestCase):
 	"""
 	A plugin is offered the data sources of the layer it works on (its lookup asks for `layer-*`), and it advertises the media it handles
-	(`media-image`, `media-list`, `media-overlay`): what it offers must be something it knows how to handle.
+	(`media-image`, `media-list`): what it offers must be something it knows how to handle.
 	"""
 	def test_each_plugin_asks_for_its_own_layers(self):
 		self.assertEqual(PLUGINS["overlay"]["instanceSettings"]["schema"]["lookups"]["dataSource"]["features"], ["layer-overlay"])

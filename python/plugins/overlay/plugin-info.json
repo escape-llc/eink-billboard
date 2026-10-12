@@ -8,7 +8,7 @@
 	"description": "Shows a data source's image in a zone of the screen, over the background, until the next run replaces it or the data source has nothing to show.",
 	"describe": "{dataSource}",
 	"disabled": false,
-	"features": ["layer-overlay", "media-overlay"],
+	"features": ["layer-overlay", "media-image"],
 	"settings": {
 		"schema": {
 			"properties": [
