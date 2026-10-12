@@ -9,6 +9,7 @@ import logging.config
 import os
 import socket
 import warnings
+from urllib.parse import urlsplit
 from typing import Any
 
 import yaml
@@ -29,6 +30,7 @@ from .utils.utils import local_address
 
 APPNAME: str = "EInk Billboard"
 TOKEN_ENV = "EINK_API_TOKEN"
+PUBLIC_URL_ENV = "EINK_PUBLIC_URL"
 # the default bundle is found relative to this file (not the working directory), so it works from any folder
 DEFAULT_APP_PATH: str = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "dist"))
 
@@ -36,21 +38,32 @@ logger = logging.getLogger(__name__)
 
 LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
 
-def setup_address(port: int) -> str:
-	"""Where to open the web app to set the device up: its address, or its name when it has none."""
+def public_url_of(text: str|None) -> str|None:
+	"""`--public-url` / EINK_PUBLIC_URL: the address people use to reach this device, when the one it sees for itself is not it (a container's, a proxy's). None for anything but http(s) with a host."""
+	if not text or not text.strip():
+		return None
+	parsed = urlsplit(text.strip())
+	if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+		return None
+	return f"{parsed.scheme}://{parsed.netloc}{parsed.path.rstrip('/')}"
+
+def setup_address(port: int, public_url: str|None = None) -> str:
+	"""Where to open the web app to set the device up: the configured public address, else its own address, or its name when it has none."""
+	if public_url:
+		return public_url
 	address = local_address() or f"{socket.gethostname()}.local"
 	return f"http://{address}" if port == 80 else f"http://{address}:{port}"
 
-def announce_setup_code(access: AccessState, port: int) -> None:
+def announce_setup_code(access: AccessState, port: int, public_url: str|None = None) -> None:
 	"""A device that is not claimed yet tells the owner how to claim it: in the log, the one place a visitor to the web app cannot see."""
 	code = access.setup_code()
 	if code:
-		logger.warning(f"This device is not set up yet. Open {setup_address(port)} and enter the setup code {code} to choose its password.")
+		logger.warning(f"This device is not set up yet. Open {setup_address(port, public_url)} and enter the setup code {code} to choose its password.")
 
-def setup_notice(access: AccessState, port: int) -> list[str]|None:
+def setup_notice(access: AccessState, port: int, public_url: str|None = None) -> list[str]|None:
 	"""The lines of the page the panel shows while the device is not claimed, or None."""
 	code = access.setup_code()
-	return [f"Open {setup_address(port)}", f"Setup code {code}"] if code else None
+	return [f"Open {setup_address(port, public_url)}", f"Setup code {code}"] if code else None
 
 def configure_logging() -> None:
 	logfile = os.path.join(os.path.dirname(__file__), 'config', 'logging.yaml')
@@ -68,6 +81,7 @@ def parse_args(argv: list[str]|None = None) -> argparse.Namespace:
 	parser.add_argument('--storage', help='Path to storage folder; a relative path is relative to the current working directory')
 	parser.add_argument('--cors', help='Activate CORS and set the allowed host URL')
 	parser.add_argument('--allow-host', action='append', default=[], help="A name this server answers to, besides localhost, addresses and the machine's own (repeatable; or EINK_ALLOW_HOSTS, comma separated)")
+	parser.add_argument('--public-url', help=f"The address people use to reach this device, shown on the setup page and in the log (default: the {PUBLIC_URL_ENV} environment variable, else the device's own address, which is wrong in a container or behind a proxy)")
 	parser.add_argument('--no-auth', action='store_true', help='Keep the device open on the network: no password, no setup code (a network you trust, on purpose)')
 	parser.add_argument('--require-auth', action='store_true', help='Require the password (or setup) even when listening on this machine only')
 	parser.add_argument('--reset-password', action='store_true', help='Forget the device password and exit: the device asks to be set up again with a new setup code')
@@ -87,6 +101,12 @@ def run_application(args: argparse.Namespace) -> None:
 		logger.info(f"STORAGE {storage}")
 	token: str|None = args.token or os.environ.get(TOKEN_ENV) or None
 	local = args.host in LOCAL_HOSTS
+	public_text = args.public_url or os.environ.get(PUBLIC_URL_ENV)
+	public_url = public_url_of(public_text)
+	if public_text and public_text.strip() and public_url is None:
+		logger.warning(f"--public-url / {PUBLIC_URL_ENV} is not an http(s) address with a host; ignored.")
+	# a name of its own that people use to reach it is a name it answers to
+	allowed_hosts = tuple(args.allow_host) + ((urlsplit(public_url).hostname,) if public_url and urlsplit(public_url).hostname else ())
 	auth = "none" if args.no_auth else "always" if args.require_auth else "auto"
 	if auth == "none" and not local:
 		logger.warning("--no-auth: the device is open to the network, anyone who can reach it can read and change its settings.")
@@ -114,14 +134,14 @@ def run_application(args: argparse.Namespace) -> None:
 	routers.update(cm.load_routers(cm.enum_plugins()))
 	routers.update(cm.load_routers(cm.enum_datasources()))
 	app = create_app(
-		WebSettings(app_path=args.app, cors_origin=args.cors, api_token=token, allowed_hosts=tuple(args.allow_host), auth=auth, local=local),
+		WebSettings(app_path=args.app, cors_origin=args.cors, api_token=token, allowed_hosts=allowed_hosts, auth=auth, local=local),
 		routers=routers
 	)
 	# start the application layer
 	# the telemetry route's sink: the live view of the web app (python/task/telemetry_hub.py)
 	sink = TelemetryHub()
 	xapp: Application = Application(APPNAME, sink)
-	xapp.setup_notice = lambda: setup_notice(app.state.access, port)
+	xapp.setup_notice = lambda: setup_notice(app.state.access, port, public_url)
 	app.state.access.on_claimed = xapp.setup_done
 	watcher_sink.add(xapp)
 	try:
@@ -148,7 +168,7 @@ def run_application(args: argparse.Namespace) -> None:
 			logger.warning("Application start timed out")
 		else:
 			logger.info("Application is started")
-		announce_setup_code(app.state.access, port)
+		announce_setup_code(app.state.access, port, public_url)
 
 		for event in sink.since(0):
 			logger.warning(f"startup telemetry: {event.get('source')} {event.get('kind')} {event.get('message', '')}")
