@@ -125,7 +125,6 @@ const minutesArray = ref([])
 const hoursInvalid = ref(false)
 
 watch(() => props.modelValue, (newVal) => {
-	console.log("tt.modelValue changed", newVal);
 	if(newVal) {
 		Object.assign(editModel, newVal);
 		if(newVal.day?.type === 'dayandmonth' && newVal.time?.day !== undefined && newVal.time?.month !== undefined) {
@@ -152,7 +151,6 @@ watch(() => props.modelValue, (newVal) => {
 		}
 		nextTick(() => {
 			const result = TriggerDefSchema.safeParse(newVal)
-			console.log("tt.iv.result", newVal, result);
 			hoursInvalid.value = result.success ? false : !!result.error.issues.find((issue) => issue.path[0] === 'time' && issue.path[1] === 'hours');
 		})
 	}
@@ -177,12 +175,10 @@ function toRawDeep(val: any): any {
 
 const emitChange = () => {
 	const vx = structuredClone(toRawDeep(editModel))
-	console.log("emitChange", vx);
 	emits('update:modelValue', vx)
 	emits('change', { value: vx });
 }
-const onEmitChange = (source: string, ev: any) => {
-	console.log("onEmitChange", source, ev)
+const onEmitChange = (source: string, _ev: any) => {
 	switch(source) {
 		case 'time.minutes':
 			editModel.time.minutes = structuredClone(toRaw(minutesArray.value));

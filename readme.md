@@ -316,6 +316,8 @@ Use the following recipe to get started with development (to run it on a Raspber
 * New Terminal 2
 * `cd app && npm run dev`
 
+The web app finds the server through `VITE_API_URL`: `http://localhost:8080/` in development (`app/.env.development`, the recipe above) and `/` in the built app, which the server serves itself (`app/.env.production`). Copy `app/.env.example` to `app/.env.local` to change it for yourself; a trailing slash is expected.
+
 ## Running on a Raspberry Pi
 
 The usual setup is a **systemd service** on the Pi, used from another computer on the home network through the Pi's address. The other is a browser on the Pi itself (the console), where the server listens on `localhost` only.

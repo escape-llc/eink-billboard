@@ -49,7 +49,6 @@ const themeList = ref([
 ])
 const theme = getTheme()
 const selected = theme ? themeList.value.find(fx => fx.name == theme.name) : themeList.value[1]
-console.log("theme, selected", theme, selected)
 const currentTheme = ref(selected)
 
 const modeList = ref([
@@ -102,28 +101,22 @@ function updateThePreset() {
 	const mode = currentMode.value!;
 	const primary = currentPrimary.value!;
 	const surface = currentSurface.value!;
-	//console.log("updateThePreset", theme, mode, primary, surface);
 	const obj = saveTheme(undefined, theme.name, mode.value, primary.value, surface.value);
 	const preset = presetForTheme(obj);
-	console.log("saveTheme", obj, preset);
 	usePreset(preset);
 }
 const handleCurrentTheme = (_ev?: unknown) => {
-	console.log("handleCurrentTheme", currentTheme.value);
 	updateThePreset();
 }
 const handleCurrentMode = (_ev?: unknown) => {
-	console.log("handleCurrentMode", currentMode.value);
 	applyMode(currentMode.value!.value);
 	updateThePreset();
 }
 const handleCurrentPrimary = (item: Option) => {
-	console.log("handleCurrentPrimary", item);
 	currentPrimary.value = item;
 	updateThePreset();
 }
 const handleCurrentSurface = (item: (typeof surfaceList.value)[number]) => {
-	console.log("handleCurrentSurface", item);
 	currentSurface.value = item;
 	updateThePreset();
 }
