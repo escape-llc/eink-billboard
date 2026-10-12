@@ -197,6 +197,27 @@ class DatasourceConfigurationManager:
 	def file(self, name: str) -> ConfigurationObject:
 		"""Another JSON file of this data source (`tokens`), with the same cache, revision and atomic save as the settings."""
 		return self._cof.obtain(os.path.join(self.ROOT_PATH, f"{leaf_name(name)}.json"), FileConfiguration)[1]
+	def list_files(self, prefix: str) -> list[str]:
+		"""The names (no extension) of this data source's JSON files that start with `prefix`; none when it has no folder yet (a folder exists because something was written to it)."""
+		leaf_name(prefix)
+		if not os.path.isdir(self.ROOT_PATH):
+			return []
+		return sorted(f[:-5] for f in os.listdir(self.ROOT_PATH) if f.startswith(prefix) and f.endswith(".json") and _LEAF.match(f[:-5]))
+	def delete_file(self, name: str) -> None:
+		"""Remove one of this data source's JSON files (a list's state, a cache), by name. Its settings are never removed this way."""
+		if leaf_name(name) == "settings":
+			raise ValueError("The settings are not deleted this way.")
+		path = os.path.join(self.ROOT_PATH, f"{name}.json")
+		cob = self._cof.obtain(path, FileDeletableConfiguration)[1]
+		if isinstance(cob, FileDeletableConfiguration):
+			cob.delete()
+			return
+		# the object was made earlier as a plain file (`file(name)`): the factory hands that one back
+		try:
+			os.remove(path)
+		except FileNotFoundError:
+			pass
+		cob.evict()
 
 class PluginConfigurationManager:
 	"""
