@@ -56,6 +56,16 @@
 					"title": "Weight",
 					"description": "How heavy the letters are. bold: the font's bold face. heavy: bolder than the font has it (each letter is stroked in its own color).",
 					"enum": ["normal", "bold", "heavy"]
+				},
+				{
+					"name": "offset",
+					"type": "integer",
+					"required": false,
+					"default": 6,
+					"minimum": 0,
+					"maximum": 200,
+					"title": "Edge Offset",
+					"description": "How far the text is from the screen's edge, in pixels: from the top edge in a top zone, from the bottom edge in a bottom zone."
 				}
 			]
 		}
