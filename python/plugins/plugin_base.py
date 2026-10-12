@@ -20,7 +20,7 @@ class PermanentError(Exception):
 	"""
 
 class PluginExecutionContext:
-	def __init__(self, isp: IServiceProvider, dimensions: tuple[int, int], timestamp: datetime):
+	def __init__(self, isp: IServiceProvider, dimensions: tuple[int, int], timestamp: datetime, slot: str|None = None):
 		if isp is None:
 			raise ValueError("isp is None")
 		if dimensions is None:
@@ -30,6 +30,11 @@ class PluginExecutionContext:
 		self._isp = isp
 		self._dimensions = dimensions
 		self._timestamp = timestamp
+		self._slot = slot
+	@property
+	def slot(self) -> str|None:
+		"""Who is running, unique on the device: the playlist's id and the track's (track ids repeat across playlists). None when not known (a timer task)."""
+		return self._slot
 	@property
 	def provider(self) -> IServiceProvider:
 		return self._isp

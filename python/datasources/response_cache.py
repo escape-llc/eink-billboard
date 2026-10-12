@@ -6,7 +6,7 @@ whole (its settings, not a task's): every task and every data source that asks f
 `cached(...)` is called from several threads at once (the playlist and the timer layers each have their own): one task at a time goes to the origin for a given answer,
 the others wait for it. An answer older than `hours` is fetched again; when the origin does not answer, the old one is used (unless it is a `PermanentError`: a refused
 key is never hidden). A cache that cannot be read or written is no cache: the answer comes from the origin as if there were none. Files unused for `staleDays` are removed
-(list_state.prune_stale_sometimes).
+(keeping.prune_stale_sometimes).
 """
 import asyncio
 import hashlib
@@ -18,7 +18,7 @@ from typing import Any, Awaitable, Callable, Mapping
 
 from ..model.configuration_manager import DatasourceConfigurationManager
 from ..plugins.plugin_base import PermanentError
-from .list_state import DEFAULT_STALE_DAYS, CLOCK_SLACK, REFILL_WAIT_SECONDS, aware, number, parse_moment, prune_stale_sometimes, refill_lock
+from .keeping import DEFAULT_STALE_DAYS, CLOCK_SLACK, REFILL_WAIT_SECONDS, aware, number, parse_moment, prune_stale_sometimes, refill_lock
 
 logger = logging.getLogger(__name__)
 

@@ -277,6 +277,26 @@ class PluginConfigurationManager:
 	def file(self, name: str) -> ConfigurationObject:
 		"""Another JSON file of this plugin, with the same cache, revision and atomic save as the settings."""
 		return self._cof.obtain(os.path.join(self.ROOT_PATH, f"{leaf_name(name)}.json"), FileConfiguration)[1]
+	def list_files(self, prefix: str) -> list[str]:
+		"""The names (no extension) of this plugin's JSON files that start with `prefix`; none when it has no folder yet."""
+		leaf_name(prefix)
+		if not os.path.isdir(self.ROOT_PATH):
+			return []
+		return sorted(f[:-5] for f in os.listdir(self.ROOT_PATH) if f.startswith(prefix) and f.endswith(".json") and _LEAF.match(f[:-5]))
+	def delete_file(self, name: str) -> None:
+		"""Remove one of this plugin's JSON files (a kept list), by name. Its settings and state are never removed this way."""
+		if leaf_name(name) in ("settings", "state"):
+			raise ValueError("The settings are not deleted this way.")
+		path = os.path.join(self.ROOT_PATH, f"{name}.json")
+		cob = self._cof.obtain(path, FileDeletableConfiguration)[1]
+		if isinstance(cob, FileDeletableConfiguration):
+			cob.delete()
+			return
+		try:
+			os.remove(path)
+		except FileNotFoundError:
+			pass
+		cob.evict()
 
 class SettingsConfigurationManager:
 	"""

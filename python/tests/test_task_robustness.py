@@ -224,6 +224,7 @@ class FakePlugin:
 		return None
 
 class FakeTrack:
+	id = "slow-1"
 	plugin_name = "slow"
 	title = "slow track"
 	content = None

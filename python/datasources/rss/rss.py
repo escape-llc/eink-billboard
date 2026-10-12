@@ -135,11 +135,6 @@ class RssAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		# nothing to retry: the feed was renamed or removed from the settings
 		raise PermanentError(f"The feed '{name}' is not in the RSS Feed settings.")
 
-	def list_state_key(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> str|None:
-		"""The identity of the list a task would get (list_state.py): the feed's name and where it is, so a feed that was pointed elsewhere is a new list."""
-		name = params.get("feed")
-		return f"rss|{name}|{self._feed_url(dsec, name)}" if name else None
-
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
 		name = params.get("feed")
 		if not name:
