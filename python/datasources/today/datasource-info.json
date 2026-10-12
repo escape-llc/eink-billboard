@@ -8,7 +8,7 @@
 	"description": "Today's date, as text in the theme's colors, for an overlay zone.",
 	"describe": "Date {format}",
 	"disabled": false,
-	"features": ["media-overlay"],
+	"features": ["layer-overlay", "media-image"],
 	"settings": {
 		"schema": {
 			"properties": [

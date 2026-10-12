@@ -8,7 +8,7 @@
 	"description": "A Newspaper PotD downloader.",
 	"describe": "Newspaper {slug}",
 	"disabled": false,
-	"features": ["internet", "layer-foreground", "media-image"],
+	"features": ["internet", "layer-priority", "layer-foreground", "media-image"],
 	"router": {
 		"id": "newspaper-router",
 		"class": "newspaper_router",

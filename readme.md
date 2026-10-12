@@ -83,7 +83,7 @@ After struggling with different ideas, we arrive at the following architecture, 
 	* Semi-transparent image "overlays" are composited onto the background (`ImageOverlay`: an image at a position, optionally with a "wash": a blurred halo, in the shape of what it draws, that lightens the background around the text; `text_overlay()` makes a centered text box).
 	* The Compositor draws them; the Foreground and Priority layers hide them.
 	* The screen has six overlay **zones**, three across the top and three across the bottom (`top-left` ... `bottom-right`), laid out as the viewer sees the screen; the Display announces them at startup (`DisplaySettings.overlays`).
-	* The **Overlay** plugin runs as a timer task: it asks its data source (one with the `media-overlay` feature) for an image the size of its zone, and the overlay stays until the task's next run replaces it.
+	* The **Overlay** plugin runs as a timer task: it asks its data source (one with the `layer-overlay` feature; it makes a single image, `media-image`) for an image the size of its zone, and the overlay stays until the task's next run replaces it.
 	  When the data source has nothing to show, the overlay is taken down (revoked); so is the overlay of a task that is disabled or removed. A failing overlay task shows its error in its zone.
 	* The **Today** data source draws the date (formats `long`, `full`, `short`, `numeric`, or a custom strftime pattern) in the theme's colors, the weekday highlighted.
 	  A good timer task: plugin Overlay, data source Today, zone `top-right`, triggered on startup and every day at 0:00 (the midnight run replaces yesterday's date; the startup run covers a restart, since overlays are not kept across restarts).
