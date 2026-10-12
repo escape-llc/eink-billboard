@@ -382,8 +382,9 @@ An event is `{ seq, ts, source, kind, message?, values }`:
 |---|---|
 | `playlist_layer` | `track-started`, `track-ended`, `track-failed`, `faulted`, `stopped`, `error` |
 | `timer_layer` | `task-started`, `task-ended`, `task-failed`, `waiting`, `error` |
-| `display` | `shown` (title, digest, size, layers), `skipped` (identical to what is shown: not drawn again) |
+| `display` | `shown` (title, digest, size, layers), `skipped` (identical to what is shown: not drawn again), `error` |
 | `application` | `config-changed` (the area only), `configure-failed` |
+| `Application`, `Display`, `PlaylistLayer`, `TimerLayer`, `router` | `error`: a failure the task swallowed to keep running (`report_failure`, below) |
 | `telemetry` | `gap` (a slow client missed some), `ping` |
 
 With `--token`, the WebSocket needs the session (or a Bearer header). It also refuses a page from another origin than the server's own or `--cors`.
