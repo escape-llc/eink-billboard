@@ -1,5 +1,7 @@
 <html>
 	<head>
+		{# Chromium runs with --no-sandbox: a page can run nothing and fetch nothing. Styles, fonts and stylesheets are files of ours, pictures are embedded (data:) #}
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; img-src data: file:">
 		<meta name="viewport" content="width={{width}},height={{height}},initial-scale=1"/>
 		<style>
 				{% for font in font_faces %}
@@ -27,13 +29,6 @@
 				margin-left: var(--margin-left);
 				margin-right: var(--margin-right);
 				padding: var(--padding);
-				{% if settings.backgroundOption == 'image' and settings.backgroundImageFile %}
-				background-image: url('{{ settings.backgroundImageFile }}');
-				background-size: cover;
-				background-position: center;
-				background-color: rgba(255,255,255,0.4);
-				background-blend-mode: lighten;
-				{% endif %}
 			}
 		</style>
 		{% for style in style_sheets %}
@@ -51,11 +46,7 @@
 		{% if settings.frame == 'Corner' %}corner-frame{% endif %}
 		{% if settings.frame == 'Top and Bottom' %}top-bottom-frame{% endif %}
 		{% if settings.frame == 'Rectangle' %}rectangle-frame{% endif %}
-		{% if settings.backgroundOption == 'image' and settings.backgroundImageFile %}
-		bg-transparent
-		{% else %}
 		bg-page
-		{% endif %}
 		">
 			{% block content %}
 			{% endblock %}
