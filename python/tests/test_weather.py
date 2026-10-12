@@ -139,6 +139,8 @@ class TestPages(unittest.TestCase):
 		self.assertEqual([h["new_day"] for h in hours][:6], [False, False, False, False, False, True])
 		self.assertEqual([h["day"] for h in hours][:6], ["Wed", "", "", "", "", "Thu"])
 		self.assertEqual(sum(h["new_day"] for h in hours), 1)
+		# the second day wears the colors the other way round
+		self.assertEqual([h["alt"] for h in hours][:7], [False, False, False, False, False, True, True])
 
 	def test_the_days_say_today_then_the_weekday(self):
 		days = page_params(Page("days", report()), {})["days"]

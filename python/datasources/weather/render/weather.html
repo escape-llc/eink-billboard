@@ -158,15 +158,6 @@
 			text-transform: uppercase;
 			line-height: 1;
 		}
-		/* where a day changes: a heavy rule down the column that starts it (across the row that starts it, in a tall page) */
-		.wx-landscape > .wx-brk {
-			border-left: .2em solid var(--rule);
-		}
-		.wx-portrait > .wx-brk {
-			/* a shadow, so every cell of the row thickens its rule alike without changing the layout */
-			box-shadow: inset 0 .22em 0 var(--rule);
-			padding-top: .3em;
-		}
 		.wx-portrait {
 			display: none;
 			font-size: .8em;
@@ -204,12 +195,12 @@
 			{# landscape: a column per item; the first column names the rows #}
 			<div class="wx-table wx-landscape" style="grid-template-columns: auto repeat({{ items|length }}, 1fr); grid-template-rows: auto 2.2fr repeat({{ rows|length }}, 1fr);">
 				<div class="wx-head wx-corner"></div>
-				{% for it in items %}<div class="wx-head text-secondary-1{% if it.new_day %} wx-brk{% endif %}">{% if it.day %}<span class="wx-day">{{ it.day }}</span>{% endif %}{{ it.label }}</div>{% endfor %}
+				{% for it in items %}<div class="wx-head text-secondary-1">{% if it.day %}<span class="wx-day">{{ it.day }}</span>{% endif %}{{ it.label }}</div>{% endfor %}
 				<div class="wx-rowhead"></div>
-				{% for it in items %}<div class="wx-glyph text-secondary-2{% if it.new_day %} wx-brk{% endif %}">{{ it.icon | safe }}</div>{% endfor %}
+				{% for it in items %}<div class="wx-glyph {{ 'text-primary' if it.alt else 'text-secondary-2' }}">{{ it.icon | safe }}</div>{% endfor %}
 				{% for row in rows %}
 					<div class="wx-rowhead text-secondary-1" title="{{ row.title }}"><span class="wx-stat">{{ row.glyph | safe }}</span></div>
-					{% for it in items %}<div class="{% if row.key in ('temp', 'high') %}wx-big text-primary{% elif row.key == 'low' %}wx-dim{% endif %}{% if it.new_day %} wx-brk{% endif %}"><span class="wx-fig">{{ it[row.key] or "–" }}</span></div>{% endfor %}
+					{% for it in items %}<div class="{% if row.key in ('temp', 'high') %}wx-big {% elif row.key == 'low' %}wx-dim {% endif %}{{ 'text-secondary-2' if it.alt else 'text-primary' }}"><span class="wx-fig">{{ it[row.key] or "–" }}</span></div>{% endfor %}
 				{% endfor %}
 			</div>
 			{# portrait: a row per item, the figures across #}
@@ -218,9 +209,9 @@
 				<div class="wx-head"></div>
 				{% for row in rows %}<div class="wx-head text-secondary-1" title="{{ row.title }}"><span class="wx-stat">{{ row.glyph | safe }}</span></div>{% endfor %}
 				{% for it in items %}
-					<div class="text-secondary-1{% if it.new_day %} wx-brk{% endif %}" style="justify-content:flex-start;padding-right:.5em;flex-direction:column;align-items:flex-start">{% if it.day %}<span class="wx-day">{{ it.day }}</span>{% endif %}{{ it.label }}</div>
-					<div class="wx-glyph text-secondary-2{% if it.new_day %} wx-brk{% endif %}" style="width:2.4em">{{ it.icon | safe }}</div>
-					{% for row in rows %}<div class="{% if row.key in ('temp', 'high') %}wx-big text-primary{% elif row.key == 'low' %}wx-dim{% endif %}{% if it.new_day %} wx-brk{% endif %}"><span class="wx-fig">{{ it[row.key] or "–" }}</span></div>{% endfor %}
+					<div class="text-secondary-1" style="justify-content:flex-start;padding-right:.5em;flex-direction:column;align-items:flex-start">{% if it.day %}<span class="wx-day">{{ it.day }}</span>{% endif %}{{ it.label }}</div>
+					<div class="wx-glyph {{ 'text-primary' if it.alt else 'text-secondary-2' }}" style="width:2.4em">{{ it.icon | safe }}</div>
+					{% for row in rows %}<div class="{% if row.key in ('temp', 'high') %}wx-big {% elif row.key == 'low' %}wx-dim {% endif %}{{ 'text-secondary-2' if it.alt else 'text-primary' }}"><span class="wx-fig">{{ it[row.key] or "–" }}</span></div>{% endfor %}
 				{% endfor %}
 			</div>
 		{% endif %}

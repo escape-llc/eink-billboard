@@ -212,8 +212,9 @@ def page_params(page: Page, params: Mapping[str, Any]) -> dict:
 	elif page.view == "hours":
 		items = [{ "label": _clock(p.when, r.twelve_hour), "icon": icon_svg(p.icon), "temp": _degrees(p.temp),
 			"rain": _percent(p.rain), "humidity": _humidity(p.humidity), "wind": _wind(p.wind, units), "text": p.text,
-			# a column that starts a day is marked (the page draws a heavy rule before it), and the weekday is said above its time, and above the first column
-			"new_day": n > 0 and p.when.date() != r.hours[n - 1].when.date(), "day": p.when.strftime("%a") if n == 0 or p.when.date() != r.hours[n - 1].when.date() else "" } for n, p in enumerate(r.hours)]
+			# the weekday is said above the time of the first column of each day; every other day wears the colors the other way round (`alt`), so a change of day shows
+			"new_day": n > 0 and p.when.date() != r.hours[n - 1].when.date(), "day": p.when.strftime("%a") if n == 0 or p.when.date() != r.hours[n - 1].when.date() else "",
+			"alt": (p.when.date() - r.hours[0].when.date()).days % 2 == 1 } for n, p in enumerate(r.hours)]
 		body = { "hours": items, "items": items, "rows": _rows(HOUR_ROWS, items) }
 	elif page.view == "days":
 		items = [{ "label": "Today" if d.day == r.now.date() else d.day.strftime("%a"), "icon": icon_svg(d.icon), "temp": "", "high": _degrees(d.high), "low": _degrees(d.low),
