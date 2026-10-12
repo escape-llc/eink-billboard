@@ -103,7 +103,7 @@ def _signed_in(ws: WebSocket) -> bool:
 @ws_router.websocket('/telemetry/ws')
 async def follow(ws: WebSocket, since: int = 0):
 	"""Send what is newer than `since`, then every event as it happens; a ping keeps proxies from closing a quiet link."""
-	if not _origin_allowed(ws):
+	if not _origin_allowed(ws) or not ws.app.state.hosts.allows(ws.headers.get("host")):
 		await ws.close(code=4403)
 		return
 	if not _signed_in(ws):

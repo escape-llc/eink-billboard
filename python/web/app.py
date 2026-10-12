@@ -4,16 +4,17 @@ import os
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from fastapi import APIRouter, Depends, FastAPI
+from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from ..model.service_container import IServiceProvider
 from .deps import require_token
-from .errors import ApiError, install_error_handlers
+from .errors import ApiError, error_response, install_error_handlers
+from .hosts import HostPolicy
 from .routers import fonts, lookups, schedule, session, settings, telemetry, theme
-from .sessions import SessionStore
+from .sessions import SessionStore, SignInThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,8 @@ class WebSettings:
 	"""Browser origin allowed to call the API cross-site, e.g. the Vite dev server."""
 	api_token: str|None = None
 	"""When set, every /api request must carry `Authorization: Bearer <token>`."""
+	allowed_hosts: tuple[str, ...] = ()
+	"""Names (besides localhost, addresses and this machine's) the server answers to; see `hosts.py`."""
 
 def create_app(web: WebSettings, root_container: IServiceProvider|None = None, routers: Mapping[str, APIRouter]|None = None) -> FastAPI:
 	"""
@@ -37,9 +40,18 @@ def create_app(web: WebSettings, root_container: IServiceProvider|None = None, r
 	app.state.root_container = root_container
 	app.state.api_token = web.api_token
 	app.state.sessions = SessionStore()
+	app.state.throttle = SignInThrottle()
 	# the telemetry WebSocket checks the page's origin against this one too (CORS does not cover a WebSocket)
 	app.state.cors_origin = web.cors_origin
+	app.state.hosts = HostPolicy(web.allowed_hosts)
 	install_error_handlers(app)
+
+	@app.middleware("http")
+	async def known_host(request: Request, call_next):
+		# DNS rebinding: a page of another name that resolves to this device is refused (hosts.py)
+		if not app.state.hosts.allows(request.headers.get("host")):
+			return error_response(421, "This server does not answer to that name. Use its address, or start it with --allow-host.")
+		return await call_next(request)
 
 	if web.cors_origin:
 		app.add_middleware(
