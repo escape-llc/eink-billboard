@@ -382,7 +382,7 @@ An event is `{ seq, ts, source, kind, message?, values }`:
 |---|---|
 | `playlist_layer` | `track-started`, `track-ended`, `track-failed`, `faulted`, `stopped`, `error` |
 | `timer_layer` | `task-started`, `task-ended`, `task-failed`, `waiting`, `error` |
-| `display` | `shown` (title, digest, size, layers), `skipped` (identical to what is shown: not drawn again), `error` |
+| `display` | `showing` ("On deck": the page is ready for the compositor, not yet on the panel), `shown` (title, digest, size, layers), `skipped` (identical to what is shown: not drawn again), `error` |
 | `application` | `config-changed` (the area only), `configure-failed` |
 | `Application`, `Display`, `PlaylistLayer`, `TimerLayer`, `router` | `error`: a failure the task swallowed to keep running (`report_failure`, below) |
 | `telemetry` | `gap` (a slow client missed some), `ping` |
