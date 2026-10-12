@@ -115,6 +115,31 @@ class TestPages(unittest.TestCase):
 		self.assertEqual(page_params(Page("current", r), {})["wind"], "4 mph")
 		self.assertEqual(page_params(Page("current", r), {})["sunset"], "6:09 PM")
 
+	def test_the_hours_start_at_the_step_that_covers_now(self):
+		import json
+		data = json.loads(fixture_text("weather-forecast.json"))
+		def first(hour: int, minute: int) -> str:
+			r = Report("", Units("metric"), False, NOW.replace(hour=hour, minute=minute))
+			parse_forecast(data, r, ZONE)
+			return page_params(Page("hours", r), {})["hours"][0]["label"]
+		# the steps are at 11:00, 14:00, 17:00: half past two is in the 14:00 step, and the minute before a step is still in the one before
+		self.assertEqual(first(14, 0), "14:00")
+		self.assertEqual(first(14, 28), "14:00")
+		self.assertEqual(first(16, 59), "14:00")
+		self.assertEqual(first(17, 0), "17:00")
+
+	def test_the_hours_have_no_high_and_low_rows_and_the_days_do(self):
+		self.assertEqual([r["key"] for r in page_params(Page("hours", report()), {})["rows"]], ["temp", "rain", "humidity", "wind"])
+		self.assertEqual([r["key"] for r in page_params(Page("days", report()), {})["rows"]], ["high", "low", "rain", "humidity", "wind"])
+
+	def test_the_hour_that_starts_a_day_is_marked_and_the_weekday_said(self):
+		hours = page_params(Page("hours", report()), {})["hours"]
+		# the fixture's steps are 11:00, 14:00, 17:00, 20:00, then 23:00, 02:00 (the next day) ...
+		self.assertEqual([h["label"] for h in hours][:6], ["11:00", "14:00", "17:00", "20:00", "23:00", "02:00"])
+		self.assertEqual([h["new_day"] for h in hours][:6], [False, False, False, False, False, True])
+		self.assertEqual([h["day"] for h in hours][:6], ["Wed", "", "", "", "", "Thu"])
+		self.assertEqual(sum(h["new_day"] for h in hours), 1)
+
 	def test_the_days_say_today_then_the_weekday(self):
 		days = page_params(Page("days", report()), {})["days"]
 		self.assertEqual([d["label"] for d in days][:3], ["Today", "Thu", "Fri"])

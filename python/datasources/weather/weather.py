@@ -185,7 +185,8 @@ def _percent(chance: float|None) -> str:
 	return "" if chance is None else f"{round(max(0.0, min(chance, 1.0)) * 100)}%"
 
 # the table of the hours and of the days: a row for each figure (the page draws one column per hour or day, a row per item in a tall page)
-HOUR_ROWS = (("temp", "Temp", "Temp"), ("high", "High", "High"), ("low", "Low", "Low"), ("rain", "Rain", "Rain"), ("humidity", "Humidity", "Hum"), ("wind", "Wind", "Wind"))
+# (the steps' own high and low are within a degree or two of their temperature: they only repeat it, so the hours have no rows for them)
+HOUR_ROWS = (("temp", "Temp", "Temp"), ("rain", "Rain", "Rain"), ("humidity", "Humidity", "Hum"), ("wind", "Wind", "Wind"))
 DAY_ROWS = (("high", "High", "High"), ("low", "Low", "Low"), ("rain", "Rain", "Rain"), ("humidity", "Humidity", "Hum"), ("wind", "Wind", "Wind"))
 
 def _rows(spec: tuple[tuple[str, str, str], ...], items: list[dict]) -> list[dict]:
@@ -209,8 +210,10 @@ def page_params(page: Page, params: Mapping[str, Any]) -> dict:
 			"humidity": "" if c.humidity is None else f"{c.humidity}%", "wind": "" if c.wind is None else f"{units.wind(c.wind)} {units.speed}",
 			"sunrise": _time_of_day(r.sunrise, r.twelve_hour), "sunset": _time_of_day(r.sunset, r.twelve_hour) }
 	elif page.view == "hours":
-		items = [{ "label": _clock(p.when, r.twelve_hour), "icon": icon_svg(p.icon), "temp": _degrees(p.temp), "high": _degrees(p.high), "low": _degrees(p.low),
-			"rain": _percent(p.rain), "humidity": _humidity(p.humidity), "wind": _wind(p.wind, units), "text": p.text } for p in r.hours]
+		items = [{ "label": _clock(p.when, r.twelve_hour), "icon": icon_svg(p.icon), "temp": _degrees(p.temp),
+			"rain": _percent(p.rain), "humidity": _humidity(p.humidity), "wind": _wind(p.wind, units), "text": p.text,
+			# a column that starts a day is marked (the page draws a heavy rule before it), and the weekday is said above its time, and above the first column
+			"new_day": n > 0 and p.when.date() != r.hours[n - 1].when.date(), "day": p.when.strftime("%a") if n == 0 or p.when.date() != r.hours[n - 1].when.date() else "" } for n, p in enumerate(r.hours)]
 		body = { "hours": items, "items": items, "rows": _rows(HOUR_ROWS, items) }
 	elif page.view == "days":
 		items = [{ "label": "Today" if d.day == r.now.date() else d.day.strftime("%a"), "icon": icon_svg(d.icon), "temp": "", "high": _degrees(d.high), "low": _degrees(d.low),
