@@ -14,6 +14,7 @@ import tempfile
 import subprocess
 from httpx import AsyncClient
 from ..task.async_http_worker_pool import client_var
+from .url_guard import stream_checked
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +23,14 @@ DEFAULT_MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024
 # a Chromium render that takes longer than this is killed
 CHROME_TIMEOUT_SECONDS = 60.0
 
-async def stream_to_buffer(client: AsyncClient, url: str, headers: Mapping[str, str]|None = None, ctok: Callable[[str], bool]|None = None, max_bytes: int|None = DEFAULT_MAX_DOWNLOAD_BYTES) -> BytesIO:
-	"""Download `url` into memory; refuse (RuntimeError) more than `max_bytes`, checked up front (Content-Length) and while streaming. None disables the cap."""
-	async with client.stream("GET", url, headers=headers, follow_redirects=True) as resp:
+async def stream_to_buffer(client: AsyncClient, url: str, headers: Mapping[str, str]|None = None, ctok: Callable[[str], bool]|None = None, max_bytes: int|None = DEFAULT_MAX_DOWNLOAD_BYTES, guarded: bool = True) -> BytesIO:
+	"""
+	Download `url` into memory; refuse (RuntimeError) more than `max_bytes`, checked up front (Content-Length) and while streaming. None disables the cap.
+	`guarded` (the default) checks the address and every redirect with `url_guard` (not this device, not link-local, ...): the address is usually taken
+	from a feed or an answer. `guarded=False` is only for an address that is our own constant.
+	"""
+	opener = stream_checked(client, "GET", url, headers) if guarded else client.stream("GET", url, headers=headers, follow_redirects=True)
+	async with opener as resp:
 		resp.raise_for_status()
 		ct = resp.headers.get("Content-Type", "")
 		if ctok and not ctok(ct):

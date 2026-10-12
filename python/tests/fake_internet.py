@@ -177,6 +177,12 @@ def install() -> FakeInternet | None:
 	if os.environ.get("EINK_TEST_LIVE"):
 		return None
 	from ..task.async_http_worker_pool import AsyncHttpWorkerPool
+	from ..utils import url_guard
+	async def public(host: str, port: int) -> list[str]:
+		# the fake hosts have no DNS: they all "resolve" to a public address, so the URL guard (every download goes through it) lets them pass;
+		# a test that wants a refusal patches `url_guard._resolve` itself, or uses an address literal
+		return ["93.184.216.34"]
+	url_guard._resolve = public
 	fake = FakeInternet()
 	AsyncHttpWorkerPool.default_transport = fake
 	return fake

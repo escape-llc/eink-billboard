@@ -13,9 +13,10 @@ Limit: the client resolves the name again when it connects, so a name that answe
 caught. The caller is signed in and the answer carries no content, only a verdict, which keeps what that could gain small.
 """
 import asyncio
+import contextlib
 import ipaddress
 import socket
-from typing import Mapping
+from typing import AsyncIterator, Mapping
 from urllib.parse import urljoin, urlsplit
 
 import httpx
@@ -47,7 +48,7 @@ async def check_url(url: str) -> None:
 	"""Raise UrlRefused unless `url` is an http(s) address whose host resolves only to addresses that may be fetched."""
 	parts = urlsplit(url)
 	if parts.scheme not in ("http", "https") or not parts.hostname:
-		raise UrlRefused("Only http and https addresses can be tested.")
+		raise UrlRefused("Only http and https addresses can be used.")
 	port = parts.port or (443 if parts.scheme == "https" else 80)
 	try:
 		addresses = [parts.hostname] if _is_ip(parts.hostname) else await _resolve(parts.hostname, port)
@@ -58,7 +59,7 @@ async def check_url(url: str) -> None:
 	for address in addresses:
 		reason = refused_reason(address)
 		if reason is not None:
-			raise UrlRefused(f"That address is {reason}, which cannot be tested here.")
+			raise UrlRefused(f"That address is {reason}, which cannot be used here.")
 
 def _is_ip(host: str) -> bool:
 	try:
@@ -66,6 +67,22 @@ def _is_ip(host: str) -> bool:
 		return True
 	except ValueError:
 		return False
+
+@contextlib.asynccontextmanager
+async def stream_checked(client: httpx.AsyncClient, method: str, url: str, headers: Mapping[str, str]|None = None, content: bytes|None = None) -> AsyncIterator[httpx.Response]:
+	"""
+	Open `url` for streaming as `client.stream` does, but with the address checked first and again at every redirect (followed here, not by the client).
+	Use it for every address that is not our own constant: one typed in a settings page, or taken from a feed, an answer or a redirect.
+	"""
+	for _ in range(MAX_REDIRECTS + 1):
+		await check_url(url)
+		async with client.stream(method, url, headers=headers, content=content, follow_redirects=False) as resp:
+			if resp.is_redirect and resp.headers.get("location"):
+				url = urljoin(url, resp.headers["location"])
+				continue
+			yield resp
+			return
+	raise UrlRefused("The address redirects too many times.")
 
 async def fetch_checked(client: httpx.AsyncClient, url: str, headers: Mapping[str, str]|None = None, max_bytes: int = 2 * 1024 * 1024) -> bytes:
 	"""
