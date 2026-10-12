@@ -244,7 +244,7 @@ class Display(DispatcherTask):
 						# exit inner loop, wait for fresh message to reset commit timer
 						break
 					except Exception as e:
-						self.logger.error(f"commit_timer.unhandled: {str(e)}")
+						self.report_failure("The panel could not be updated", e)
 						await asyncio.sleep(self.ERROR_BACKOFF_SECONDS)
 		except asyncio.CancelledError:
 			self.logger.info("commit timer task cancelled")
@@ -290,7 +290,7 @@ class Display(DispatcherTask):
 					await asyncio.sleep(60.0)
 					self.logger.debug(f"End blanking period")
 				except Exception as e:
-					self.logger.error(f"_task_render_and_display.unhandled: {str(e)}", exc_info=True)
+					self.report_failure("The page could not be drawn on the panel", e)
 					await asyncio.sleep(self.ERROR_BACKOFF_SECONDS)
 		except asyncio.CancelledError:
 			self.logger.info("render and display task cancelled")
@@ -328,7 +328,7 @@ class Display(DispatcherTask):
 					set_layer(None)
 					await commitq.put(BasicMessage(msg.timestamp))
 				except Exception as e:
-					self.logger.error(f"{what}_image.unhandled: {str(e)}", exc_info=True)
+					self.report_failure(f"A {what} image could not be shown", e)
 					await asyncio.sleep(self.ERROR_BACKOFF_SECONDS)
 		except asyncio.CancelledError:
 			self.logger.info(f"{what} image task cancelled")
@@ -342,7 +342,7 @@ class Display(DispatcherTask):
 			return True
 		except FutureTimeoutError:
 			fut.cancel()
-			self.logger.error(f"{what} timed out after {self.RESULT_TIMEOUT_SECONDS:g}s waiting for the display loop; frame dropped.")
+			self.report_failure(f"The panel timed out after {self.RESULT_TIMEOUT_SECONDS:g}s taking {what}; the frame was dropped")
 			return False
 	def _priority_image(self, msg: PriorityImage):
 		try:
@@ -366,7 +366,7 @@ class Display(DispatcherTask):
 			fut  = self.task_pool.submit(self._task_priority_layer(self.priorityq, msg), None)
 			self._wait_for(fut, f"priority '{msg.title}'")
 		except Exception as e:
-			self.logger.error(f"priorityimage.unhandled: {e}", exc_info=True)
+			self.report_failure("A priority image could not be queued", e)
 	def _priority_revoke(self, msg: PriorityRevoke):
 		if self.task_pool is None or self.priorityq is None:
 			return
@@ -424,7 +424,7 @@ class Display(DispatcherTask):
 			fut  = self.task_pool.submit(task(self.commitq, self.compsitor, di), None)
 			self._wait_for(fut, f"display '{msg.title}' ({di.layer})")
 		except Exception as e:
-			self.logger.error(f"displayimage.unhandled: {e}", exc_info=True)
+			self.report_failure("A page could not be shown", e)
 	def _async_task_completed(self, msg: AsyncTaskCompleted):
 		if not msg.fut.done():
 			self.logger.info(f"{msg.token} task still running, cancel...")
@@ -440,7 +440,7 @@ class Display(DispatcherTask):
 				try:
 					rmsg = msg.fut.result()
 				except Exception as e:
-					self.logger.error(f"{msg.token} task failed: {e}", exc_info=True)
+					self.report_failure(f"The display's {msg.token} task failed", e)
 			self.logger.info(f"{msg.token} task result: {rmsg}")
 			if rmsg is not None:
 				# handle message returned by the task

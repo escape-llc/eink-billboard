@@ -45,7 +45,7 @@ class Application(DispatcherTask):
 			self.logger.info(f"'{self.name}' started.")
 			self.app_started.set()
 		except Exception as e:
-			self.logger.error(f"Failed to start '{self.name}': {e}", exc_info=True)
+			self.report_failure("The application could not start", e)
 			self.app_stopped.set()
 	def _configuration_watcher_event(self, msg: ConfigurationWatcherEvent):
 		"""The watcher saw a file change: tell every task where (the cache was already evicted by the sink before this one)."""
@@ -97,7 +97,7 @@ class Application(DispatcherTask):
 			if isinstance(shown_on, MockDisplay):
 				self.logger.warning(f"The mock display has no panel to read the setup code from: it is in the log line 'This device is not set up yet', and the page is saved in {shown_on.output_folder}")
 		except Exception as e:
-			self.logger.error(f"Could not show the setup page: {type(e).__name__}")
+			self.report_failure("Could not show the setup page", e)
 	def setup_done(self) -> None:
 		"""The device was claimed: the setup page comes off the panel now, not when its ten minutes are up."""
 		if self.router is None:
@@ -170,6 +170,10 @@ class Application(DispatcherTask):
 		self.router.addRoute(Route("configuration", [self.display, self.playlist_layer, self.timer_layer]))
 		if self.sink is not None:
 			self.router.addRoute(Route('telemetry', [self.sink]))
+			# the tasks report what they swallow to keep running (the router itself straight to the hub: it sends under its own lock)
+			self.router.failure_sink = self.sink.accept
+		for task in (self, self.display, self.playlist_layer, self.timer_layer):
+			task.failure_sink = lambda telemetry: self.router.send("telemetry", telemetry)  # type: ignore[union-attr]
 		# STEP 1 configure the Display task
 		dpcontainer = ServiceContainer()
 		tod = self.root_container.get_service(TimeOfDay)
