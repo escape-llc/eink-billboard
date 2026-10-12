@@ -1,4 +1,5 @@
 import logging
+from dataclasses import replace
 import os
 import shutil
 import unittest
@@ -117,6 +118,17 @@ class TestPages(unittest.TestCase):
 	def test_the_days_say_today_then_the_weekday(self):
 		days = page_params(Page("days", report()), {})["days"]
 		self.assertEqual([d["label"] for d in days][:3], ["Today", "Thu", "Fri"])
+
+	def test_the_chance_of_rain_is_always_shown_even_when_it_is_zero(self):
+		r = report()
+		for step in range(len(r.hours)):
+			r.hours[step] = replace(r.hours[step], rain=0.0)
+		self.assertEqual({ h["rain"] for h in page_params(Page("hours", r), {})["hours"] }, { "0%" })
+		r.hours[0] = replace(r.hours[0], rain=0.37)
+		r.hours[1] = replace(r.hours[1], rain=None)
+		hours = page_params(Page("hours", r), {})["hours"]
+		self.assertEqual((hours[0]["rain"], hours[1]["rain"]), ("37%", ""))
+		self.assertTrue(all(d["rain"].endswith("%") for d in page_params(Page("days", report()), {})["days"]))
 
 	def test_every_icon_code_has_a_drawing(self):
 		for code in ("01d", "01n", "02d", "02n", "03d", "04n", "09d", "10d", "11d", "13n", "50d", "", "99x"):
