@@ -177,7 +177,8 @@ def _degrees(value: float|None) -> str:
 	return "" if value is None else f"{round(value)}°"
 
 def _percent(chance: float|None) -> str:
-	return "" if chance is None or chance < 0.05 else f"{round(chance * 100)}%"
+	"""The chance of rain as OpenWeatherMap gives it (0 to 1). 0% is said too: a dry hour is information, and a blank reads as missing."""
+	return "" if chance is None else f"{round(max(0.0, min(chance, 1.0)) * 100)}%"
 
 def page_params(page: Page, params: Mapping[str, Any]) -> dict:
 	"""What the template draws for a page: text and drawings ready to place (the template decides nothing about units or clocks)."""
