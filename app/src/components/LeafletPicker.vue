@@ -103,12 +103,10 @@ const handleSearch = async (event: { query: string }) => {
   if (event.query.length < 3) return;
   // Use the provider manually to get results
   const results = await provider.search({ query: event.query });
-	console.log("Search results:", event.query, results);
   suggestions.value = results;
 };
 
 const onSelectLocation = (event: any) => {
-	console.log('Selected location:', event);
   const { y: lat, x: lng } = event.value;
   updateLocation(lat, lng, true);
 };
@@ -140,7 +138,6 @@ const updateLocation = (lat: number, lng: number, shouldMoveMap: boolean = false
 
 const onMapClick = (event: any) => {
 	// Leaflet events provide latlng in an object
-	console.log("onMapClick", event);
 	const { lat, lng } = event.latlng;
 	updateLocation(lat, lng);
 };

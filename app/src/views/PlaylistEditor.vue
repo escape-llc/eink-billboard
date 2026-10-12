@@ -16,6 +16,7 @@
 				</div>
 			</template>
 		</Toolbar>
+		<ProgressBar v-if="loading" mode="indeterminate" style="height:4px" aria-label="Loading" data-testid="loading" />
 		<Message v-if="dirty" severity="info" size="small" variant="simple" class="mt-1">Unsaved changes to "{{ playlistName }}".</Message>
 		<Message v-if="conflict" severity="warn" :closable="false" class="mt-1">
 			<div class="flex align-items-center gap-2">
@@ -118,7 +119,7 @@
 <script setup lang="ts">
 import { ApiError, apiDelete, apiJson, apiPatch, apiPost, apiPut } from "../components/ApiClient"
 import { ref, reactive, computed, onMounted, provide } from 'vue'
-import { InputGroup, InputGroupAddon, Toolbar, Button, Select, InputText, Dialog, Message, useToast } from 'primevue'
+import { InputGroup, InputGroupAddon, Toolbar, Button, Select, InputText, Dialog, Message, ProgressBar, useToast } from 'primevue'
 import BasicForm, { type ValidateEventData } from '../components/BasicForm.vue'
 import type { PlaylistItem, PluginDef } from '../components/ScheduleDefs'
 import { describeTrack, type Describable } from '../components/Describe'
@@ -266,6 +267,7 @@ function initProviders() {
 	})
 	.catch(ex => {
 		console.error("fetch.pl.unhandled", ex)
+		toast.add({severity:'error', summary: 'Error', detail: `Failed to load the plugins: ${ex.message || 'Unknown error'}`, life: 5000});
 		plugins.value = []
 		pluginList.value = []
 	})
@@ -274,6 +276,7 @@ function initProviders() {
 	})
 	.catch(ex => {
 		console.error("fetch.ds.unhandled", ex)
+		toast.add({severity:'error', summary: 'Error', detail: `Failed to load the data sources: ${ex.message || 'Unknown error'}`, life: 5000});
 		dataSources.value = []
 	})
 	return Promise.all([px3, px4])
@@ -464,14 +467,16 @@ function showServerErrors(errors: { path?: unknown[], message?: string }[], fall
 async function reloadPlaylist() {
 	await loadPlaylists(currentId.value)
 }
+// the page shows a loading bar until the plugins, the data sources and the playlists are here (a failure of any is a toast, never an empty page)
+const loading = ref(true)
 onMounted(() => {
 	initProviders()
-	.then(_ => {
-		loadPlaylists()
-	})
+	.then(_ => loadPlaylists())
 	.catch(ex => {
 		console.error("initProviders.unhandled", ex)
+		toast.add({severity:'error', summary: 'Error', detail: `Failed to load the page: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
+	.finally(() => { loading.value = false })
 })
 </script>
 <style scoped>

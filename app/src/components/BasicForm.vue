@@ -239,9 +239,7 @@ function lookupUrl(target: any): void {
 	if(!target) return;
 	if(!target.lookupUrl) return;
 	const finalUrl = joinUrl(props.baseUrl, target.lookupUrl)
-	//console.log("lookupUrl.start", finalUrl)
 	apiJson(finalUrl).then(json => {
-		//console.log("lookupUrl", json, target)
 		nextTick().then(_ => {
 			target.list = withCurrentValue(json, target.name)
 			target.lookupError = undefined

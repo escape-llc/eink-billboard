@@ -16,7 +16,6 @@
 					:settings="settingsSystem"
 					:schema="schemaSystem"
 					class="form"
-					@validate="handleValidate"
 					@submit="submitForm"
 					/>
 				<PasswordForm />
@@ -29,7 +28,6 @@
 					:settings="settingsDisplay"
 					:schema="schemaDisplay"
 					class="form"
-					@validate="handleValidate"
 					@submit="submitForm"
 					/>
 			</TabPanel>
@@ -109,7 +107,6 @@
 					:settings="settingsPlugin"
 					:schema="schemaPlugin"
 					class="form"
-					@validate="handleValidate"
 					@submit="submitForm"
 					>
 					<template #tb-center>
@@ -155,7 +152,6 @@
 					:settings="settingsDatasource"
 					:schema="schemaDatasource"
 					class="form"
-					@validate="handleValidate"
 					@submit="submitForm"
 					>
 					<template #tb-center>
@@ -289,7 +285,6 @@ const listDatasourcesUrl = `${API_URL}api/datasources/list`
 
 function downloadToRef(url:string, vref: Ref<any>, errv: any = undefined) {
 	apiJson(url).then(data => {
-		console.log("downloadToRef", data)
 		vref.value = data
 	})
 	.catch(ex => {
@@ -301,14 +296,12 @@ function downloadToRef(url:string, vref: Ref<any>, errv: any = undefined) {
 function fetchSettings(url:string, vref: Ref<any>, schema:any) {
 	apiJson(url)
 	.then(data => {
-		console.log("fetchSettings", data)
 		vref.value = data
 	})
 	.catch(ex => {
 		if(ex instanceof ApiError && ex.status === 404) {
 			// nothing stored yet: start from the defaults in the schema
 			const defv = toRaw(schema.settings.default)
-			console.log("default", defv)
 			vref.value = structuredClone(defv)
 			return
 		}
@@ -320,7 +313,6 @@ onMounted(() => {
 	const px0 = apiJson(listPluginsUrl)
 	const px1 = apiJson(listDatasourcesUrl)
 	const px3 = px0.then(json => {
-		console.log("plugins", json)
 		plugins.value = json
 	})
 	.catch(ex => {
@@ -328,7 +320,6 @@ onMounted(() => {
 		toast.add({severity:'error', summary: 'Error', detail: `Failed to load plugins list: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
 	const px4 = px1.then(json2 => {
-		console.log("datasources", json2)
 		dataSources.value = json2
 	})
 	.catch(ex => {
@@ -398,11 +389,7 @@ const handleThemeSettings = (data:any) => {
 	previewBackground.value = typeof data.background === "string" ? data.background : "white"
 	refreshPalette()
 }
-const handleValidate = (e: ValidateEventData) => {
-	console.log("validate", e)
-}
 const submitForm = (data:any) => {
-	console.log("submitForm", data)
 	if(data.handled) {
 		return
 	}
@@ -414,7 +401,6 @@ const submitForm = (data:any) => {
 	}
 }
 const handleThemeValidate = (e: ValidateEventData) => {
-	console.log("theme.validate", e)
 	if(e.result.success) {
 		const data = e.result.data
 		if(typeof data.theme === "string") {

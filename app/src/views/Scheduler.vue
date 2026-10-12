@@ -8,6 +8,7 @@
 			<Button size="small" label="New task" icon="pi pi-plus" :disabled="timerPlugins.length === 0" @click="handleNew" />
 		</template>
 	</Toolbar>
+	<ProgressBar v-if="loading" mode="indeterminate" style="height:4px" aria-label="Loading" data-testid="loading" />
 	<Message v-if="zoneNote" severity="info" :closable="false" size="small" class="my-1" data-testid="zone-note">{{ zoneNote }}</Message>
 	<AlCalendar style="width:100%" class="calendar" :firstDay="firstDay" :dayCount="dayCount" :timeZone="timeZone" :timeRange="timeRange" :eventList="eventList">
 		<template #dayheader="{ day }">
@@ -135,6 +136,7 @@ import AlCalendar from "../components/AlCalendar.vue"
 import type { TimeRange, EventInfo } from "../components/AlCalendar.vue"
 import { browserZoneDifference, zonedParts } from "../components/CalendarTime"
 import { ref, onMounted, onBeforeUnmount, nextTick, toRaw, provide, computed } from "vue"
+import { ProgressBar } from "primevue"
 import BasicForm, { type ValidateEventData } from "../components/BasicForm.vue"
 import type { FormDef } from "../components/FormDefs"
 import type { PluginDef } from "../components/ScheduleDefs"
@@ -283,8 +285,10 @@ function loadTimeline(): Promise<void> {
 // a page left open past midnight (in the device's zone) shows the new week
 let loadedDay = ""
 let dayWatch: ReturnType<typeof setInterval>|undefined = undefined
+// the page shows a loading bar until the first load is done (a failure is a toast, never an empty page)
+const loading = ref(true)
 onMounted(() => {
-	loadTimeline()
+	loadTimeline().finally(() => { loading.value = false })
 	dayWatch = setInterval(() => {
 		if(loadedDay && zonedParts(new Date(), timeZone.value).key !== loadedDay) loadTimeline()
 	}, 60_000)

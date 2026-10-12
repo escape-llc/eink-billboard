@@ -15,8 +15,7 @@ const toggleMenu = (event:MouseEvent):void => {
 const version = ref(__APP_VERSION__)
 // the activity gutter: open or not lives as long as the page (the browser stores nothing but the theme)
 const gutterOpen = ref(false)
-const openSetup = (event:MouseEvent):void => {
-	console.log("openSetup", event);
+const openSetup = ():void => {
 	router.push({ name: 'setup' }).catch(err => {
 		console.error("navigate to setup error", err);
 	});
@@ -143,7 +142,7 @@ const items = ref([
 				type="button"
 				aria-haspopup="true"
 				aria-controls="overlay_tmenu"
-				@click="openSetup($event)"
+				@click="openSetup()"
 				/>
 			</InputGroup>
 	</template>
