@@ -21,7 +21,7 @@
 			"lookups": {
 				"dataSource": {
 					"schema": "data-sources",
-					"features": ["media-image", "media-list"]
+					"features": ["layer-background", "layer-foreground"]
 				}
 			},
 			"properties": [

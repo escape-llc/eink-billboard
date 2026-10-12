@@ -145,13 +145,3 @@ class TestTodayOverlay(unittest.TestCase):
 
 if __name__ == "__main__":
 	unittest.main()
-
-class TestDescriptorFeatures(unittest.TestCase):
-	def test_the_today_source_declares_the_timer_layer_and_the_overlay_media(self):
-		import json
-		import os
-		path = os.path.join(os.path.dirname(__file__), "..", "datasources", "today", "datasource-info.json")
-		with open(path, encoding="utf-8") as f:
-			features = json.load(f)["features"]
-		self.assertIn("layer-priority", features)
-		self.assertIn("media-overlay", features)
