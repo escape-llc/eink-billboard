@@ -10,6 +10,7 @@ A refused handshake is closed with 4401 (sign in) or 4403 (origin), and says not
 """
 import asyncio
 import hmac
+import ipaddress
 import logging
 import re
 from urllib.parse import urlsplit
@@ -17,7 +18,7 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
 
-from ...task.telemetry_hub import TelemetryHub
+from ...task.telemetry_hub import LOCAL_ONLY, TelemetryHub
 from ..deps import SESSION_COOKIE, get_container
 from ..errors import ApiError
 
@@ -32,6 +33,22 @@ def _hub(app) -> TelemetryHub|None:
 	isp = getattr(app.state, "root_container", None)
 	return isp.get_service(TelemetryHub) if isp is not None else None
 
+def _on_device(client) -> bool:
+	"""The caller is this machine itself (the address of the connection; forwarded headers are never trusted, so a proxy on the same machine makes everyone local)."""
+	host = getattr(client, "host", None)
+	if not host:
+		return False
+	try:
+		return ipaddress.ip_address(host).is_loopback
+	except ValueError:
+		return False
+
+def _for(client, event: dict) -> dict:
+	"""An event as this caller may see it: the exception in full only on the device itself."""
+	if _on_device(client) or not any(k in event for k in LOCAL_ONLY):
+		return event
+	return { k: v for k, v in event.items() if k not in LOCAL_ONLY }
+
 def _required_hub(request) -> TelemetryHub:
 	isp = get_container(request)
 	hub = isp.get_service(TelemetryHub) if isp is not None else None
@@ -42,7 +59,7 @@ def _required_hub(request) -> TelemetryHub:
 @router.get('/telemetry')
 def recent(request: Request, since: int = Query(0, ge=0)):
 	"""The kept events newer than `since`, oldest first (a first paint, a script, or catching up)."""
-	return _required_hub(request).since(since)
+	return [_for(request.client, e) for e in _required_hub(request).since(since)]
 
 @router.get('/status')
 def status(request: Request):
@@ -52,7 +69,8 @@ def status(request: Request):
 @router.get('/display/current')
 def current(request: Request):
 	"""What the panel shows now: the last `shown` event, or null before anything was drawn."""
-	return _required_hub(request).current()
+	event = _required_hub(request).current()
+	return _for(request.client, event) if event is not None else None
 
 @router.get('/display/images/{digest}')
 def image(request: Request, digest: str, size: str = Query("thumb", pattern="^(thumb|full)$")):
@@ -100,7 +118,7 @@ async def follow(ws: WebSocket, since: int = 0):
 	try:
 		last = max(0, since)
 		for event in hub.since(last):
-			await ws.send_json(event)
+			await ws.send_json(_for(ws.client, event))
 			last = event["seq"]
 		while True:
 			try:
@@ -110,7 +128,7 @@ async def follow(ws: WebSocket, since: int = 0):
 				continue
 			# an event the history already sent is not sent again
 			if event.get("seq", last + 1) > last:
-				await ws.send_json(event)
+				await ws.send_json(_for(ws.client, event))
 				last = event.get("seq", last)
 	except WebSocketDisconnect:
 		pass

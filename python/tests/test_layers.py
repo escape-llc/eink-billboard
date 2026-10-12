@@ -317,7 +317,7 @@ class PlaylistLayerTests(unittest.TestCase):
 		layer, playlists, root, calls = self._strike_setup(Leaky)
 		self._run_pass(layer, playlists, root)
 		lines = self.render_error.call_args_list[0].args[3]
-		self.assertEqual(lines, ["ConnectionError"])
+		self.assertEqual(lines, ["Could not connect to the server. Check the address and the network."])
 
 	def test_missing_required_settings_strike_out_without_running_the_plugin(self):
 		class Never:

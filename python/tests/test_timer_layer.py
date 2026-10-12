@@ -149,7 +149,7 @@ class TestFailedTask(unittest.TestCase):
 		self.assertIsInstance(displays[0], PriorityImage)
 		self.assertEqual((displays[0].title, displays[0].duration), ("Error: Weather", timedelta(minutes=5)))
 		# the page says the exception's type, never its text (a URL may carry a key)
-		self.assertEqual(render.call_args.args[2:4], ("Weather", ["ConnectionError"]))
+		self.assertEqual(render.call_args.args[2:4], ("Weather", ["Could not connect to the server. Check the address and the network."]))
 
 	def test_a_task_without_slide_minutes_shows_it_for_one_minute(self):
 		class Boom:

@@ -27,7 +27,7 @@ from ..task.async_http_worker_pool import AsyncHttpWorkerPool
 from ..task.timer import IProvideTimer, TimerThreadService
 from ..task.protocols import IRequireShutdown
 from ..model.theme import ThemeInputs, current_inputs
-from ..utils.error_image import render_error_image, safe_reason
+from ..utils.error_image import error_detail, render_error_image, safe_reason
 
 @dataclass(frozen=True, slots=True)
 class LayerControlMessage(BasicMessage):
@@ -199,6 +199,7 @@ class PlaylistLayer(DispatcherTask):
 			"state": "error",
 			"kind": "track-failed" if error is not None and emsg.startswith("Track ") else "error",
 			"message": f"{emsg}: {safe_reason(error)}" if error is not None else emsg,
+			**({ "detail": error_detail(error) } if error is not None else {}),
 			'current_playlist_index': 0,
 			'current_playlist': None,
 			'current_track_index': 0,

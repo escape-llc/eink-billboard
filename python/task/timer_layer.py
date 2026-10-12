@@ -24,7 +24,7 @@ from ..task.playlist_layer import NextTrack, StartPlayback
 from ..task.message_router import MessageRouter
 from ..task.timer import IProvideTimer, TimerThreadService
 from ..model.theme import ThemeInputs, current_inputs
-from ..utils.error_image import render_error_image, safe_reason
+from ..utils.error_image import error_detail, render_error_image, safe_reason
 
 class PlaylistStateDict(TypedDict):
 	current_playlist: Playlist
@@ -433,6 +433,7 @@ class TimerLayer(DispatcherTask):
 			"state": "error",
 			"kind": "task-failed" if error is not None and "task '" in emsg else "error",
 			"message": f"{emsg}: {safe_reason(error)}" if error is not None else emsg,
+			**({ "detail": error_detail(error) } if error is not None else {}),
 			'current_playlist': None,
 			'current_track_index': None,
 			'current_track': None,
