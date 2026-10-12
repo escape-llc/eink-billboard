@@ -80,7 +80,7 @@ def countries():
 def _stored(cm) -> tuple[dict, TokenStore]:
 	dsm = cm.datasource_manager("calendar")
 	_, settings = dsm.open().get()
-	return settings or {}, TokenStore(dsm.ROOT_PATH)
+	return settings or {}, TokenStore(dsm)
 
 def _refused(problem: AccountError) -> dict:
 	return { "done": True, "ok": False, "message": str(problem) }

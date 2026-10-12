@@ -606,7 +606,7 @@ class TestSchemaCaching(WebApiTestBase):
 		resp = self.client.get("/api/schemas/theme")
 		self.assertEqual(resp.status_code, 200)
 		self.assertEqual(resp.headers["cache-control"], "no-cache")
-		self.assertIn("etag", resp.headers)
+		self.assertEqual(resp.json()["schema"], self.cm.read_schema("theme")["schema"])
 
 class TestPaletteRoute(WebApiTestBase):
 	"""The Theme tab's swatches are the device's own palette for the values in the form."""

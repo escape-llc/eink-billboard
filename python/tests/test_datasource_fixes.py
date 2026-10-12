@@ -60,6 +60,18 @@ class FakeDatasourceSettings:
 		self.document = document
 	def open(self):
 		return _Cob(self.document)
+	def file(self, name: str):
+		"""The data source's other files (the calendar's tokens), kept in memory."""
+		return self.__dict__.setdefault("_files", {}).setdefault(name, _MemoryFile())
+
+class _MemoryFile:
+	def __init__(self):
+		self.value = None
+	def get(self):
+		return ("rev" if self.value is not None else None), self.value
+	def save(self, rev, content):
+		self.value = content
+		return True, "rev"
 
 def folders_dsec(folders) -> DataSourceExecutionContext:
 	"""A context where the Image Folder data source has these named folders in its settings."""

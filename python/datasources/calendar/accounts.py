@@ -29,7 +29,6 @@ from urllib.parse import parse_qs, quote, urlencode, urlsplit
 
 import httpx
 
-from ...model.configuration_manager import _internal_save
 from ...plugins.plugin_base import PermanentError
 from .sources import Event, _text, safe_color
 
@@ -58,42 +57,43 @@ class AccountError(RuntimeError):
 # ---- the token file -------------------------------------------------------------------------------------------------------------
 
 class TokenStore:
-	"""The tokens of the connected accounts, by account name, in one JSON file. One lock for the process: the web app and the layers share it."""
+	"""The tokens of the connected accounts, by account name, in one JSON file (`tokens`) that the data source's configuration manager keeps beside its settings.
+	One lock for the process: the web app and the layers share it."""
 	_lock = threading.Lock()
 
-	def __init__(self, folder: str):
-		self.path = os.path.join(folder, "tokens.json")
+	def __init__(self, dsm: Any):
+		self._file = dsm.file("tokens")
 
-	def _load(self) -> dict:
-		try:
-			with open(self.path, "r", encoding="utf-8") as f:
-				data = json.load(f)
-			return data if isinstance(data, dict) else {}
-		except (OSError, ValueError):
-			return {}
+	def _load(self) -> tuple[str|None, dict]:
+		rev, data = self._file.get()
+		return rev, data if isinstance(data, dict) else {}
+
+	def _store(self, rev: str|None, data: dict) -> None:
+		committed, _ = self._file.save(rev, data)
+		if not committed:
+			raise AccountError("The saved sign-ins changed while they were being updated. Try again.")
 
 	def get(self, name: str, client_id: str) -> dict|None:
 		"""The tokens of the account, or None when it is not connected (or was connected with another client)."""
 		with self._lock:
-			record = self._load().get(name)
+			record = self._load()[1].get(name)
 		return record if isinstance(record, dict) and record.get("client_id") == client_id and record.get("refresh_token") else None
 
 	def put(self, name: str, record: dict, keep: set[str]|None = None) -> None:
 		"""Store an account's tokens; with `keep`, the tokens of accounts no longer in the settings are dropped."""
 		with self._lock:
-			data = self._load()
+			rev, data = self._load()
 			data[name] = record
 			if keep is not None:
 				data = { k: v for k, v in data.items() if k in keep or k == name }
-			os.makedirs(os.path.dirname(self.path), exist_ok=True)
-			_internal_save(self.path, data)
+			self._store(rev, data)
 
 	def remove(self, name: str) -> None:
 		with self._lock:
-			data = self._load()
+			rev, data = self._load()
 			if name in data:
 				del data[name]
-				_internal_save(self.path, data)
+				self._store(rev, data)
 
 def _record(provider: str, client_id: str, answer: Mapping[str, Any], previous: Mapping[str, Any]|None = None) -> dict:
 	"""What is kept of a token answer. A refresh may not send a new refresh token (Google's do not): the old one is kept."""
