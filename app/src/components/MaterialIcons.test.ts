@@ -14,6 +14,8 @@ describe("the style sheet", () => {
 	it("has .mi and a mi-<name> class per glyph, with hyphens for underscores", () => {
 		const css = materialIconCss()
 		expect(css).toContain(".mi{display:inline-block")
+		expect(css).toContain("flex:none")
+		expect(css).toContain("width:var(--mi-size,1rem)")
 		for (const name of Object.keys(MATERIAL_ICONS) as MaterialIconName[]) expect(css, name).toContain(`.mi-${name.replaceAll("_", "-")}{--mi-image:url("data:image/svg+xml,`)
 		expect(iconClass("skip_next")).toBe("mi-skip-next")
 	})

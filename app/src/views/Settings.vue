@@ -473,11 +473,12 @@ const handleThemeValidate = (e: ValidateEventData) => {
 	padding: 1rem 1.25rem;
 	display: flex;
 	flex-direction: column;
-	gap: .4em;
+	gap: calc(0.4 * var(--m-unit));
 	overflow: hidden;
 	text-align: left;
 	font-family: var(--m-body);
-	font-size: calc(.85rem * var(--m-scale));
+	--m-unit: calc(.85rem * var(--m-scale));
+	font-size: var(--m-unit);
 	border: 1px solid var(--p-content-border-color);
 }
 .mock-light {
@@ -501,17 +502,17 @@ const handleThemeValidate = (e: ValidateEventData) => {
 }
 .mock-kicker {
 	font-family: var(--m-heading);
-	font-size: .75em;
+	font-size: calc(0.75 * var(--m-unit));
 	font-weight: bold;
-	letter-spacing: .15em;
+	letter-spacing: calc(0.1125 * var(--m-unit));
 	text-transform: uppercase;
-	padding-bottom: .2em;
-	border-bottom: .12em solid currentColor;
+	padding-bottom: calc(0.15 * var(--m-unit));
+	border-bottom: calc(0.09 * var(--m-unit)) solid currentColor;
 }
 .mock-light .mock-kicker { color: var(--m-text-secondary-1); }
 .mock-title {
 	font-family: var(--m-heading);
-	font-size: 1.6em;
+	font-size: calc(1.6 * var(--m-unit));
 	font-weight: bold;
 	line-height: 1.1;
 }
@@ -519,58 +520,58 @@ const handleThemeValidate = (e: ValidateEventData) => {
 .mock-dark .mock-title { color: var(--m-text-primary-light); }
 .mock-split {
 	display: flex;
-	gap: 1em;
+	gap: var(--m-unit);
 	align-items: center;
 	justify-content: space-between;
 }
 .mock-now {
 	display: flex;
-	gap: .6em;
+	gap: calc(0.6 * var(--m-unit));
 	align-items: center;
 }
 .mock-sun {
-	width: 2.2em;
-	height: 2.2em;
+	width: calc(2.2 * var(--m-unit));
+	height: calc(2.2 * var(--m-unit));
 	border-radius: 50%;
 	background: var(--m-bg-secondary-2-accent);
 }
 .mock-temp {
 	font-family: var(--m-heading);
-	font-size: 1.8em;
+	font-size: calc(1.8 * var(--m-unit));
 	font-weight: bold;
 	line-height: 1;
 	color: var(--m-text-primary);
 }
 .mock-small {
-	font-size: .8em;
+	font-size: calc(0.8 * var(--m-unit));
 }
 .mock-month {
 	display: grid;
-	grid-template-columns: repeat(7, 1.5em);
-	gap: .15em;
-	font-size: .7em;
+	grid-template-columns: repeat(7, calc(1.05 * var(--m-unit)));
+	gap: calc(0.105 * var(--m-unit));
+	font-size: calc(0.7 * var(--m-unit));
 	text-align: center;
 }
 .mock-month .today {
 	background: var(--m-bg-primary-accent);
 	color: var(--m-text-primary-light);
-	border-radius: .2em;
+	border-radius: calc(0.14 * var(--m-unit));
 }
 .mock-events {
 	display: flex;
 	flex-direction: column;
-	gap: .25em;
-	font-size: .8em;
+	gap: calc(0.2 * var(--m-unit));
+	font-size: calc(0.8 * var(--m-unit));
 }
 .mock-event {
-	padding: .15em .5em;
-	border-left: .3em solid;
+	padding: calc(0.12 * var(--m-unit)) calc(0.4 * var(--m-unit));
+	border-left: calc(0.24 * var(--m-unit)) solid;
 }
 .mock-event-1 { background: var(--m-bg-secondary-1); border-color: var(--m-bg-secondary-1-accent); color: var(--m-text-secondary-1); }
 .mock-event-2 { background: var(--m-bg-secondary-2); border-color: var(--m-bg-secondary-2-accent); color: var(--m-text-secondary-2); }
 .mock-bar {
 	margin-top: auto;
-	height: 1.2em;
+	height: calc(1.2 * var(--m-unit));
 	background: linear-gradient(to right, var(--m-bg-secondary-1-accent) 60%, var(--m-bg-secondary-2-dark) 60%);
 }
 .swatch-table {
@@ -598,7 +599,7 @@ const handleThemeValidate = (e: ValidateEventData) => {
 	border-radius: 4px;
 }
 .type-heading {
-	font-size: 1.6em;
+	font-size: 1.6rem;
 	font-weight: bold;
 }
 </style>

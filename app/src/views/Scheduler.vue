@@ -555,7 +555,7 @@ const handleSubmit = () => {
 	margin: .1rem .2rem;
 	padding: .2rem .4rem;
 	border-radius: 4px;
-	font-size: 0.9em;
+	font-size: .9rem;
 	color: black;
 	overflow: hidden;
 	text-overflow: ellipsis;

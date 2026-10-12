@@ -140,7 +140,7 @@ function describe(e: TelemetryEvent): string {
 	font-size: .8rem;
 	font-weight: bold;
 	text-transform: uppercase;
-	letter-spacing: .05em;
+	letter-spacing: .04rem;
 	opacity: .7;
 	margin-bottom: .25rem;
 }
@@ -173,7 +173,7 @@ function describe(e: TelemetryEvent): string {
 	display: flex;
 	flex-direction: column;
 	gap: .15rem;
-	font-size: .85em;
+	font-size: .85rem;
 }
 .gutter-origins i {
 	margin-right: .3rem;
