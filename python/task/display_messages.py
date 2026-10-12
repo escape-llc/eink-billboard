@@ -27,6 +27,11 @@ class PriorityImage(DisplayImage):
 	duration: timedelta
 
 @dataclass(frozen=True, slots=True)
+class PriorityRevoke(BasicMessage):
+	"""Take down the priority image titled `title` (the one showing, or one still queued) before its time is up. Nothing happens when there is none."""
+	title: str
+
+@dataclass(frozen=True, slots=True)
 class BlendImage(DisplayImage):
 	"""A timer task's image that washes over the current background for `duration`, hiding the overlays meanwhile. Blends queue like priority images."""
 	duration: timedelta

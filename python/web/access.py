@@ -75,6 +75,8 @@ class AccessState:
 		self._lock = threading.Lock()
 		self._code: str|None = None
 		self._wrong = 0
+		# called after a new device is claimed (the panel's setup page comes down); see eink-billboard.py
+		self.on_claimed: Callable[[], None]|None = None
 
 	def _cob(self):
 		cm = self._manager()

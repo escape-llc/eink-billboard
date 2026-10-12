@@ -1,4 +1,5 @@
 """The device password: claim a new device with its setup code, sign in state, change the password. See python/web/access.py."""
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Request, Response
@@ -7,6 +8,8 @@ from ..access import password_problem
 from ..deps import require_auth
 from ..errors import ApiError
 from .session import client_of, start_session, too_many_tries, wrong_try
+
+logger = logging.getLogger(__name__)
 
 # not behind the sign-in check (a new device cannot sign in): `GET /access` and `POST /access/setup` say nothing a visitor could not see anyway,
 # and the password change checks for itself
@@ -35,6 +38,11 @@ def setup(request: Request, response: Response, body: Any = Body(None)):
 	if problem:
 		raise ApiError(422, problem, None, errors=[{ "path": ["password"], "message": problem }])
 	access.set_password(data["password"])
+	if access.on_claimed is not None:
+		try:
+			access.on_claimed()
+		except Exception as e:
+			logger.warning(f"The panel's setup page could not be taken down ({type(e).__name__}).")
 	request.app.state.throttle.succeeded(client_of(request))
 	start_session(request, response)
 	return { "success": True }

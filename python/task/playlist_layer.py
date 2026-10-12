@@ -8,6 +8,7 @@ import logging
 import threading
 from typing import Any, Mapping, NotRequired, ReadOnly, TypedDict, cast
 
+from PIL import Image
 from .display_messages import DisplayImage, DisplaySettings
 from .coalescer import Coalescer
 from .messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage, ReloadSchedules, Telemetry
@@ -175,6 +176,16 @@ class PlaylistLayer(DispatcherTask):
 			for pi, pl in enumerate(playlists) for ti, item in enumerate(cast(Playlist, pl.get("info")).items)][:6]
 		image = await asyncio.to_thread(render_error_image, stm, self.dimensions, "Playback stopped", lines, self._theme())
 		self.router.send("display", DisplayImage(ts, "Error: playback stopped", image))
+	NOTHING_LINES = ["No playlist is scheduled to play.", "Create one in the web app and schedule it."]
+	def _nothing_image(self) -> Image.Image:
+		stm = self.cm.static_manager() if self.cm is not None else None
+		return render_error_image(stm, self.dimensions, "Nothing to show", self.NOTHING_LINES, self._theme())
+	def _show_nothing(self, ts: datetime) -> None:
+		"""The device has no playlist (the factory storage has none): say so on the panel instead of leaving it blank."""
+		try:
+			self.router.send("display", DisplayImage(ts, "Nothing to show", self._nothing_image()))
+		except Exception as e:
+			self.logger.error(f"Could not show the empty page: {type(e).__name__}")
 	def _struck_out(self, key: tuple[int, int]) -> bool:
 		return self._strikes.get(key, 0) >= self.MAX_STRIKES
 	def _create_container(self) -> ServiceContainer:
@@ -211,7 +222,8 @@ class PlaylistLayer(DispatcherTask):
 			self.logger.error(f"Cannot start playback, state is '{self.state}'")
 			return
 		if len(self.playlists) == 0:
-			self.logger.error(f"No playlists available to play.")
+			self.logger.warning(f"No playlists available to play.")
+			self._show_nothing(msg.timestamp)
 			return
 		self._run_layer_task(self.playlists, msg.timestamp)
 	async def _layer_task(self, isp: IServiceProvider, playlists: list[ScheduleLoaderDict], donev: threading.Event) -> BasicMessage|None:
