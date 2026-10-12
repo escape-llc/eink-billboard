@@ -28,7 +28,7 @@ and skim the most recent merged PRs for review comments nobody answered. A probl
 | `python/model/` | Configuration manager/watcher, schedules, time of day, service container |
 | `python/datasources/`, `python/plugins/` | Each folder has a `*-info.json` descriptor (id, class, settings schema, optional `router`) |
 | `python/storage/` | NVE ("factory default") schemas copied into the storage root on reset |
-| `python/tests/` | `unittest` tests; `.storage/` inside is **gitignored** test data |
+| `python/tests/` | `unittest` tests; `fixtures/storage/` is the synthetic test storage (built into a temp folder per run) |
 | `app/` | Vue web app (`npm`, Vite). Talks to the API through `src/components/ApiClient.ts` |
 
 ## Commands
@@ -60,11 +60,8 @@ cd app && npm run e2e                      # build, then the browser tests (Play
 
 ## Test environment
 
-- `python/tests/.storage/` must exist and is **never committed**. CI rebuilds it from the `TEST_STORAGE_B64` secret (see `prepare-test-data.ps1`, which writes to the git-ignored `.ignore/` folder, the place for any transient or sensitive output, and which excludes `datasources/` and `plugins/`).
-  It needs at least `schedules/`, `schemas/`, `settings/`.
-  **Tests must not assume `datasources/` or `plugins/` content exists; create what you need.** A test that passed locally against a full storage failed CI for exactly this reason (the first run of PR #19).
-  API tests work on a temp copy (`WebApiTestBase`) and never modify the original.
-  To reproduce CI locally, move `datasources/` and `plugins/` out of `python/tests/.storage/` and run the tests, then put them back.
+- **No test needs a secret or a private storage.** `storage_path()` (`python/tests/utils.py`) builds one per test run in a temporary folder: the factory defaults (`hard_reset`) plus the synthetic schedules in `python/tests/fixtures/storage/` (nothing real, no keys). It is **read-only**: a test that writes copies it first (`WebApiTestBase` does), or builds its own with `temp_configuration_manager`. So the suite runs on a fork's pull request, in a cloud session and in the container with nothing to restore. The old `TEST_STORAGE_B64` secret and `prepare-test-data.ps1` are gone (#27).
+  A fixture must stay valid for the data sources it names and use only ones the fake internet serves (a playlist track that fails strikes out and the layer tests then see an error). **Tests must not assume `datasources/` or `plugins/` content exists**: the factory storage makes a folder only for what has settings.
 - The headless render tests need `chromium-headless-shell` on `PATH`. In the cloud sandbox:
   `ln -s /opt/pw-browsers/chromium_headless_shell-*/chrome-linux/headless_shell /usr/local/bin/chromium-headless-shell`.
 - **No test needs the internet.** `python/tests/__init__.py` makes every `AsyncHttpWorkerPool` talk to `python/tests/fake_internet.py`, which answers the comic feeds, the Wikipedia API and the newspaper covers from text fixtures in `python/tests/fixtures/http/` and generated images (real ones are copyrighted); any other URL is a `ConnectError` naming it. A new download in the code under test needs a route there (and a fixture), not a real request.
@@ -88,7 +85,7 @@ The same repo is worked on from three places. The rules above are the same every
   Before a PR, run `podman compose run --rm test` (below): it does what `.github/workflows/unittest.yaml` does (`ruff`, `mypy`, `coverage run -m unittest discover .`) on Linux with Chromium.
 - **Containers** (`Dockerfile`, `compose.yaml`, `.dockerignore`):
   - `podman compose run --rm test` builds the `test` image (Python 3.13.7, `chromium-headless-shell`, `uv`, the locked dev dependencies) and runs the checks against the **bind-mounted checkout**. The virtual environment lives in `/opt/venv` (not `.venv`), so the container never touches the Windows one, and `PYTHONDONTWRITEBYTECODE` keeps `__pycache__` out of your tree.
-    It needs `python/tests/.storage` on the host like any test run. Because it sees the working tree, an untracked file you have lying around is checked too (it once showed an unrelated `mypy` error that CI would never see).
+    It needs nothing restored. Because it sees the working tree, an untracked file you have lying around is checked too (it once showed an unrelated `mypy` error that CI would never see).
   - `podman compose up --build app` serves the built web app and API on `http://localhost:8080` with the storage in a named volume (seeded on first start: a missing **or empty** folder is seeded, since a mounted volume always exists). `EINK_STORAGE=./.storage podman compose up --build -d app` mounts that folder of the checkout instead, used as it is (the app writes to it). The port is published on `127.0.0.1` only; set `EINK_API_TOKEN` before widening it (see the network-exposure issue, #36).
     A Windows folder mounted into the container (9p) sends **no file change events**, so a save was written but no task heard of it: compose sets `EINK_WATCH_POLL=2` (seconds; `ConfigurationWatcher` then compares the folder on that interval instead of using inotify; empty turns it off). Check the log line "Watching ... by".
     The image has no display hardware (the `device` dependency group is left out), so it is for the API and web app, not the panel.

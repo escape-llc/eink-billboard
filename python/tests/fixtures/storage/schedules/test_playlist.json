@@ -1,0 +1,75 @@
+{
+	"_schema": "urn:inky:storage:schedule:playlist:1",
+	"name": "Test Playlist",
+	"id": "test-playlist",
+	"items": [
+		{
+			"type": "PlaylistSchedule",
+			"plugin_name": "slide-show",
+			"id": "0",
+			"title": "First comic",
+			"content": {
+				"dataSource": "comic",
+				"comic": "XKCD",
+				"fontSize": 12,
+				"titleCaption": true,
+				"slideMax": 4,
+				"slideMinutes": 2
+			}
+		},
+		{
+			"type": "PlaylistSchedule",
+			"plugin_name": "slide-show",
+			"id": "1",
+			"title": "Second comic",
+			"content": {
+				"dataSource": "comic",
+				"comic": "XKCD",
+				"fontSize": 12,
+				"titleCaption": false,
+				"slideMax": 2,
+				"slideMinutes": 5
+			}
+		},
+		{
+			"type": "PlaylistSchedule",
+			"plugin_name": "slide-show",
+			"id": "2",
+			"title": "Third comic",
+			"content": {
+				"dataSource": "comic",
+				"comic": "XKCD",
+				"fontSize": 14,
+				"titleCaption": true,
+				"slideMax": 1,
+				"slideMinutes": 2
+			}
+		},
+		{
+			"type": "PlaylistSchedule",
+			"plugin_name": "slide-show",
+			"id": "3",
+			"title": "Fourth comic",
+			"content": {
+				"dataSource": "comic",
+				"comic": "XKCD",
+				"fontSize": 10,
+				"titleCaption": false,
+				"slideMax": 3,
+				"slideMinutes": 3
+			}
+		},
+		{
+			"type": "PlaylistSchedule",
+			"plugin_name": "slide-show",
+			"id": "4",
+			"title": "Newspaper",
+			"content": {
+				"dataSource": "newspaper",
+				"slideMax": 0,
+				"slideMinutes": 2,
+				"slug": "can_tsun"
+			}
+		}
+	]
+}

@@ -8,7 +8,7 @@ Standing default: every real change goes through this sequence, not a direct com
 - **GitHub access that can read and write issues and PRs.** Either the GitHub CLI (`gh auth status`; `gh auth login` if it fails) or, in an agent session, the GitHub tools it was given.
   Everything below says "open a PR", "check CI", and so on; use whichever you have. If a push or API call returns 403, stop and tell the maintainer (see `AGENTS.md`).
 - `git`, `uv` (Python 3.13), and for web changes `node`/`npm`. CI uses `python:3.13.7-slim`; match that locally.
-- Test environment prerequisites (the ignored `python/tests/.storage/`, `chromium-headless-shell`) are in `AGENTS.md`.
+- Test environment prerequisites (`chromium-headless-shell`) are in `AGENTS.md`.
 
 ## The sequence
 
@@ -63,7 +63,7 @@ At the start of each issue, write this checklist as a file in **your own scratch
 
 ## Boundaries this sequence has hit
 
-- **A green-locally test can fail CI because CI's test storage is smaller than yours.** CI restores `python/tests/.storage/` from a secret that omits `datasources/` and `plugins/`. Reproduce under those conditions before pushing a test that touches them (PR #19's first run failed this way).
+- **A test must not lean on storage you happen to have.** The tests build their own (`storage_path()`: factory defaults plus synthetic fixtures), the same on every machine; a file you keep locally and a test reads would pass for you and fail everywhere else (PR #19's first run failed this way, before the synthetic storage).
 - **A failed check is not automatically a regression, and not automatically a flake.** First confirm the failing test has a plausible connection to your diff; if not, look for the same test passing on other recent runs with no relevant change in between.
   Only then re-run the specific failed job, once. A second failure is a different signal: investigate it. Never skip, disable, or quarantine a test to get green.
 - **Failures from the previous head do not matter, failures on the latest head do.** After a fix push, CI restarts; check the run for the *current* head SHA, not an older red one.

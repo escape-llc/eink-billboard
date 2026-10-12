@@ -377,11 +377,4 @@ The following JSON may be used to set up the launch configuration for Python deb
 
 ## Note to Cloners
 
-If you are running a clone and want to have the `unittest.yaml` in Github workflow work properly, you must get a storage root copied into the test runner.
-
-We use the simple "trick" of base 64-encoding a ZIP archive, storing that string as a Repository Secret, and reversing the process in the workflow.
-
-1. Stage your test data.  By default this location should be `./python/tests/.storage`.
-2. Run the `prepare-test-data.ps1` script.  It uses the above path by default and writes `storage.zip` and `secret_string.txt` to `./.ignore/` (git-ignored; delete both when done).
-3. Take the `.ignore/secret_string.txt` file and copy/paste it into a Secret in GH.  Use the same name as in our YAML file `TEST_STORAGE_B64`.
-4. Run the `unittest.yaml` workflow; troubleshoot issues.
+The tests need no secret and no private data: they build their own storage from the factory defaults and the synthetic schedules in `python/tests/fixtures/storage/`, so the `unittest.yaml` workflow works in a clone, and on a fork's pull request, as it is.
