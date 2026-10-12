@@ -27,6 +27,7 @@ from ..task.message_router import MessageRouter
 from ..task.timer import IProvideTimer, TimerThreadService
 from ..model.theme import ThemeInputs, current_inputs
 from ..utils.error_image import error_detail, render_error_image, safe_reason
+from ..web.documents import plugin_content_errors
 
 class PlaylistStateDict(TypedDict):
 	current_playlist: Playlist
@@ -61,6 +62,8 @@ class TimerLayer(DispatcherTask):
 		self.router = router
 		self.cm:ConfigurationManager|None = None
 		self.tasks: list[ScheduleLoaderDict] = []
+		# enabled tasks whose trigger or settings are not valid, by task id -> what is wrong (our words): they are skipped, the others run
+		self._invalid: dict[str, str] = {}
 		self.plugin_info: list[CollectInfoDict]|None = None
 		self.datasources: DataSourceManager|None = None
 		self.timer: IProvideTimer|None = None
@@ -132,6 +135,8 @@ class TimerLayer(DispatcherTask):
 
 			plugin_info = self.cm.enum_plugins()
 			self.plugin_info = plugin_info
+			self._invalid = self._check_tasks(self.tasks)
+			self._report_invalid(self._invalid, self.tasks, msg.timestamp)
 
 			tod = msg.content.isp.get_service(TimeOfDay)
 			self.timebase = tod if tod is not None else SystemTimeOfDay()
@@ -399,12 +404,14 @@ class TimerLayer(DispatcherTask):
 			self._error_with_telemetry("The changed schedules do not load", msg.timestamp, e, log=False)
 			return
 		new_tasks = schedule_info.get("tasks", [])
-		if self._signature(new_tasks) == self._signature(self.tasks):
+		new_invalid = self._check_tasks(new_tasks)
+		if self._signature(new_tasks) == self._signature(self.tasks) and new_invalid == self._invalid:
 			self.logger.info(f"'{self.name}' schedules changed, timer tasks are the same.")
 			return
+		self._report_invalid(new_invalid, new_tasks, msg.timestamp)
 		self.logger.info(f"'{self.name}' timer tasks changed, re-planning.")
 		# a task that is gone or disabled takes its overlay with it (a revoke for a task that has none does nothing)
-		kept = { item.id for item in self._get_enabled_tasks(new_tasks) }
+		kept = { item.id for item in self._get_enabled_tasks(new_tasks, new_invalid) }
 		for item in self._get_enabled_tasks(self.tasks):
 			if item.id not in kept:
 				self.router.send("display", OverlayRevoke(msg.timestamp, item.id))
@@ -413,6 +420,7 @@ class TimerLayer(DispatcherTask):
 			self._restart_timer = None
 		self._layer_stop()
 		self.tasks = new_tasks
+		self._invalid = new_invalid
 		self.state = 'loaded'
 		self.accept(StartPlayback(self.timebase.current_time()))
 	def _schedule_restart(self, timestamp: datetime):
@@ -431,13 +439,13 @@ class TimerLayer(DispatcherTask):
 		self._restart_timer = threading.Timer(self.RESTART_DELAY_SECONDS, restart)
 		self._restart_timer.daemon = True
 		self._restart_timer.start()
-	def _error_with_telemetry(self, emsg:str, msg_ts:datetime, error: BaseException|None = None, log: bool = True):
+	def _error_with_telemetry(self, emsg:str, msg_ts:datetime, error: BaseException|None = None, log: bool = True, kind: str|None = None):
 		"""Log the failure in full; the telemetry, which leaves the device, says our sentence and only a safe reason (see safe_reason)."""
 		if log:
 			self.logger.error(f"{emsg}: {error}" if error is not None else emsg, exc_info=True)
 		self.router.send("telemetry", Telemetry(msg_ts, "timer_layer", cast(Mapping[str,Any], {
 			"state": "error",
-			"kind": "task-failed" if error is not None and "task '" in emsg else "error",
+			"kind": kind or ("task-failed" if error is not None and "task '" in emsg else "error"),
 			"message": f"{emsg}: {safe_reason(error)}" if error is not None else emsg,
 			**({ "detail": error_detail(error) } if error is not None else {}),
 			'current_playlist': None,
@@ -445,7 +453,39 @@ class TimerLayer(DispatcherTask):
 			'current_track': None,
 			'schedule_ts': None
 		})))
-	def _get_enabled_tasks(self, tasks:list[ScheduleLoaderDict]) -> list[TimerTaskItem]:
+	def _check_tasks(self, tasks: list[ScheduleLoaderDict]) -> dict[str, str]:
+		"""
+		The enabled timer tasks that cannot run as stored, by id: a trigger that cannot be evaluated, or settings that do not follow the plugin's (a file edited by hand
+		or seeded skips the write routes' checks). The first problem is named in our words, never a stored value. A plugin that is not there is not a problem here:
+		the task shows its error page when it fires. A disabled task is not checked, it never runs.
+		"""
+		plugins = { p["info"].get("id"): p for p in (self.plugin_info or []) }
+		datasources: dict[Any, Any]|None = None
+		invalid: dict[str, str] = {}
+		for item in self._get_enabled_tasks(tasks, {}):
+			problem = None
+			triggers = item.validate_trigger()
+			if triggers:
+				problem = f"trigger: {triggers[0]}"
+			elif item.task.plugin_name in plugins:
+				if datasources is None:
+					datasources = { d["info"].get("id"): d for d in (self.cm.enum_datasources() if self.cm is not None else []) }
+				content = item.task.content if isinstance(item.task.content, dict) else {}
+				errors = plugin_content_errors(plugins, datasources, item.task.plugin_name, content, [])
+				if errors:
+					first = errors[0]
+					problem = f"{'.'.join(str(part) for part in first['path'] if part != 'content')}: {first['message']}"
+			if problem is not None:
+				invalid[item.id] = problem
+		return invalid
+	def _report_invalid(self, invalid: dict[str, str], tasks: list[ScheduleLoaderDict], ts: datetime) -> None:
+		"""Say once, for each skipped task, what is wrong with it (log and telemetry)."""
+		titles = { item.id: item.title for item in self._get_enabled_tasks(tasks, {}) }
+		for task_id, problem in invalid.items():
+			message = f"Timer task '{titles.get(task_id, task_id)}' is skipped, it is not valid: {problem}"
+			self.logger.warning(f"'{self.name}' {message}")
+			self._error_with_telemetry(message, ts, log=False, kind="task-failed")
+	def _get_enabled_tasks(self, tasks:list[ScheduleLoaderDict], invalid: Mapping[str, str]|None = None) -> list[TimerTaskItem]:
 		task_items: list[TimerTaskItem] = []
 		for sched in tasks:
 			info = sched.get("info") if isinstance(sched, dict) else getattr(sched, 'info', None)
@@ -456,7 +496,8 @@ class TimerLayer(DispatcherTask):
 			if items:
 				task_items.extend(items)
 		# Filter only enabled tasks into a separate list
-		enabled_task_items: list[TimerTaskItem] = [t for t in task_items if getattr(t, 'enabled', False)]
+		skipped = self._invalid if invalid is None else invalid
+		enabled_task_items: list[TimerTaskItem] = [t for t in task_items if getattr(t, 'enabled', False) and t.id not in skipped]
 		return enabled_task_items
 	def _startup_playlist(self, enabled_task_items: list[TimerTaskItem]) -> Playlist|None:
 		startup_task_items: list[TimerTaskItem] = [

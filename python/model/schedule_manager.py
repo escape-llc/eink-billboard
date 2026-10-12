@@ -74,7 +74,7 @@ class ScheduleManager:
 	def validate(self, schedule: ScheduleManagerDict) -> None:
 		if schedule is None:
 			raise ValueError("schedule_list cannot be None")
-		# TODO validate schedule.get("tasks",[])
+		# the timer tasks are checked by the timer layer (TimerLayer._check_tasks): it needs the plugins and data sources, and one bad task must not stop the others
 		tasks = schedule.get("tasks", [])
 		if len(tasks) == 0:
 			# nothing scheduled is a valid state (every task document may have been deleted): the timer layer idles
