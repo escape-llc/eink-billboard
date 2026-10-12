@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test"
-import { OPEN, PROTECTED, ROOT, TOKEN } from "./e2e/servers"
+import { CLAIM, OPEN, PROTECTED, ROOT, TOKEN } from "./e2e/servers"
 
 // Browser tests against the real server and the built web app (npm run e2e builds it first).
 // Needs `uv sync` to have been run in the repository root, and the Playwright browser (`npx playwright install chromium`).
@@ -39,6 +39,15 @@ export default defineConfig({
 			reuseExistingServer: false,
 			// the schemas are patched by scripts/e2e_storage.py, so the server must not bring them back to the shipped ones
 			env: { EINK_KEEP_SCHEMAS: "1" },
+			timeout: 120_000,
+		},
+		{
+			// a new device: every /api route answers 401 `setup` until the setup code is entered
+			command: server(CLAIM, "--require-auth"),
+			cwd: ROOT,
+			url: `${CLAIM.url}/api/access`,
+			reuseExistingServer: false,
+			env: { EINK_KEEP_SCHEMAS: "1", EINK_SETUP_CODE: CLAIM.code },
 			timeout: 120_000,
 		},
 	],

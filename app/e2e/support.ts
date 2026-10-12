@@ -26,6 +26,13 @@ export function watchProblems(page: Page, allowStatus: number[] = [], allowConso
 	return { problems, expectNone: () => expect(problems, "page problems").toEqual([]) }
 }
 
+/** The sign-in dialog (AuthDialog.vue): type `secret` into the field called `label` and press Sign in. */
+export async function signInWith(page: Page, label: string, secret: string) {
+	const dialog = page.getByTestId("auth-dialog")
+	await dialog.getByLabel(label, { exact: true }).fill(secret)
+	await dialog.getByRole("button", { name: "Sign in" }).click()
+}
+
 /** Open a PrimeVue Select that currently shows `current` and choose the option containing `option`. */
 export async function choose(page: Page, current: string | RegExp, option: string | RegExp) {
 	await page.locator(".p-select").filter({ hasText: current }).first().click()

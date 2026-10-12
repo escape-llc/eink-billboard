@@ -3,6 +3,7 @@ import { InputGroup, Toast, TieredMenu, Button, Toolbar, ConfirmDialog } from 'p
 import { RouterLink, RouterView } from 'vue-router'
 import ThemeSelector from './components/ThemeSelector.vue'
 import TelemetryGutter from './components/TelemetryGutter.vue'
+import AuthDialog from './components/AuthDialog.vue'
 import StatusIndicator from './components/StatusIndicator.vue'
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -152,6 +153,7 @@ const items = ref([
 		<TelemetryGutter v-if="gutterOpen" />
 	</div>
 	<ConfirmDialog></ConfirmDialog>
+	<AuthDialog />
 	<Toast position="bottom-left"/>
 </template>
 <style scoped>
