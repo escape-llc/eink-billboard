@@ -21,7 +21,7 @@
 		"@vue-leaflet/vue-leaflet": "^0.10.1",
 		"leaflet": "^1.9.4",
 		"leaflet-geosearch": "^4.4.0",
-		"pinia": "^3.0.4",
+		"pinia": "^4.0.3",
 		"primeflex": "^4.0.0",
 		"primeicons": "^7.0.0",
 		"primevue": "^4.5.5",
