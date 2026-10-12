@@ -21,6 +21,16 @@ def get_wifi_name():
 	except subprocess.CalledProcessError:
 		return None
 
+def local_address() -> str|None:
+	"""The address of this machine on the network it uses to reach others (nothing is sent), or None when it has none."""
+	try:
+		with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+			probe.connect(("10.255.255.255", 1))
+			address = probe.getsockname()[0]
+		return None if address.startswith("127.") or address == "0.0.0.0" else address
+	except OSError:
+		return None
+
 def generate_startup_image(stm:StaticConfigurationManager, dimensions=(800,480)):
 	bg_color = (255,255,255)
 	text_color = (0,0,0)

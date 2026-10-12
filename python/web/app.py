@@ -9,11 +9,13 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
+from ..model.configuration_manager import ConfigurationManager
 from ..model.service_container import IServiceProvider
-from .deps import require_token
+from .access import AccessState
+from .deps import require_auth
 from .errors import ApiError, error_response, install_error_handlers
 from .hosts import HostPolicy
-from .routers import fonts, lookups, schedule, session, settings, telemetry, theme
+from .routers import access, fonts, lookups, schedule, session, settings, telemetry, theme
 from .sessions import SessionStore, SignInThrottle
 
 logger = logging.getLogger(__name__)
@@ -26,7 +28,11 @@ class WebSettings:
 	cors_origin: str|None = None
 	"""Browser origin allowed to call the API cross-site, e.g. the Vite dev server."""
 	api_token: str|None = None
-	"""When set, every /api request must carry `Authorization: Bearer <token>`."""
+	"""The credential of scripts: `Authorization: Bearer <token>` (it also signs in the web app)."""
+	auth: str = "auto"
+	"""`auto` (a device on the network must be claimed, a local one is open until a password is set), `none` (--no-auth) or `always` (--require-auth)."""
+	local: bool = True
+	"""The server listens on this machine only (localhost); see `access.py`."""
 	allowed_hosts: tuple[str, ...] = ()
 	"""Names (besides localhost, addresses and this machine's) the server answers to; see `hosts.py`."""
 
@@ -40,6 +46,11 @@ def create_app(web: WebSettings, root_container: IServiceProvider|None = None, r
 	app.state.root_container = root_container
 	app.state.api_token = web.api_token
 	app.state.sessions = SessionStore()
+	# the stored password is read from the configuration manager, which only exists once the application has started
+	def _manager():
+		isp = app.state.root_container
+		return isp.get_service(ConfigurationManager) if isp is not None else None
+	app.state.access = AccessState(web.auth, web.local, web.api_token, _manager)
 	app.state.throttle = SignInThrottle()
 	# the telemetry WebSocket checks the page's origin against this one too (CORS does not cover a WebSocket)
 	app.state.cors_origin = web.cors_origin
@@ -63,7 +74,7 @@ def create_app(web: WebSettings, root_container: IServiceProvider|None = None, r
 			allow_headers=["Content-Type", "Authorization"],
 		)
 
-	api = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
+	api = APIRouter(prefix="/api", dependencies=[Depends(require_auth)])
 	for module in (settings, lookups, schedule, telemetry, fonts, theme):
 		api.include_router(module.router)
 	for name, router in (routers or {}).items():
@@ -80,6 +91,7 @@ def create_app(web: WebSettings, root_container: IServiceProvider|None = None, r
 	app.include_router(api)
 	# not behind the token check: signing in is how you get past it
 	app.include_router(session.router, prefix="/api")
+	app.include_router(access.router, prefix="/api")
 	# checks the session and the origin itself: a WebSocket has no request for the token dependency
 	app.include_router(telemetry.ws_router, prefix="/api")
 

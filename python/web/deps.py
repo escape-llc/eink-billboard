@@ -33,16 +33,29 @@ def has_valid_bearer(request: Request) -> bool:
 	scheme, _, presented = request.headers.get("authorization", "").partition(" ")
 	return scheme.lower() == "bearer" and hmac.compare_digest(presented.strip().encode(), token.encode())
 
-def require_token(request: Request) -> None:
+def signed_in(app, authorization: str|None, session_cookie: str|None) -> bool:
+	"""A Bearer token (scripts) or the cookie of a session (the web app): shared by the HTTP routes and the WebSocket."""
+	token: str|None = getattr(app.state, "api_token", None)
+	if token:
+		scheme, _, presented = (authorization or "").partition(" ")
+		if scheme.lower() == "bearer" and hmac.compare_digest(presented.strip().encode(), token.encode()):
+			return True
+	return bool(app.state.sessions.valid(session_cookie))
+
+def require_auth(request: Request) -> None:
 	"""
-	When the application has an API token configured, every /api request must present it as a Bearer token (scripts),
-	or carry the cookie of a session started with it (the web app, see routers/session.py).
+	When the device requires a sign-in (python/web/access.py), every /api request must present the API token as a Bearer token (scripts),
+	or carry the cookie of a session started with the device password or the token (the web app, see routers/session.py).
+	A new device that is not claimed yet answers 401 with `setup: true`.
 	"""
-	if not getattr(request.app.state, "api_token", None):
+	access = request.app.state.access
+	if not access.required():
 		return
-	if has_valid_bearer(request) or request.app.state.sessions.valid(request.cookies.get(SESSION_COOKIE)):
+	if signed_in(request.app, request.headers.get("authorization"), request.cookies.get(SESSION_COOKIE)):
 		return
-	raise ApiError(401, "Missing or invalid API token.")
+	if access.setup_open():
+		raise ApiError(401, "This device is not set up yet.", None, setup=True)
+	raise ApiError(401, "Sign in to use this device." if access.password_set() else "Missing or invalid API token.")
 
 CM = Annotated[ConfigurationManager, Depends(get_cm)]
 TOD = Annotated[TimeOfDay, Depends(get_time_of_day)]

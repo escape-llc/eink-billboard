@@ -7,6 +7,7 @@ import argparse
 import logging
 import logging.config
 import os
+import socket
 import warnings
 from typing import Any
 
@@ -22,7 +23,9 @@ from .model.configuration_manager import ConfigurationManager
 from .task.telemetry_hub import TelemetryHub
 from .task.application import Application, StartEvent
 from .task.messages import QuitMessage, StartOptions
+from .web.access import AccessState, clear_password
 from .web.app import WebSettings, create_app
+from .utils.utils import local_address
 
 APPNAME: str = "EInk Billboard"
 TOKEN_ENV = "EINK_API_TOKEN"
@@ -30,6 +33,24 @@ TOKEN_ENV = "EINK_API_TOKEN"
 DEFAULT_APP_PATH: str = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "dist"))
 
 logger = logging.getLogger(__name__)
+
+LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
+
+def setup_address(port: int) -> str:
+	"""Where to open the web app to set the device up: its address, or its name when it has none."""
+	address = local_address() or f"{socket.gethostname()}.local"
+	return f"http://{address}" if port == 80 else f"http://{address}:{port}"
+
+def announce_setup_code(access: AccessState, port: int) -> None:
+	"""A device that is not claimed yet tells the owner how to claim it: in the log, the one place a visitor to the web app cannot see."""
+	code = access.setup_code()
+	if code:
+		logger.warning(f"This device is not set up yet. Open {setup_address(port)} and enter the setup code {code} to choose its password.")
+
+def setup_notice(access: AccessState, port: int) -> list[str]|None:
+	"""The lines of the page the panel shows while the device is not claimed, or None."""
+	code = access.setup_code()
+	return [f"Open {setup_address(port)}", f"Setup code {code}"] if code else None
 
 def configure_logging() -> None:
 	logfile = os.path.join(os.path.dirname(__file__), 'config', 'logging.yaml')
@@ -47,6 +68,9 @@ def parse_args(argv: list[str]|None = None) -> argparse.Namespace:
 	parser.add_argument('--storage', help='Path to storage folder; a relative path is relative to the current working directory')
 	parser.add_argument('--cors', help='Activate CORS and set the allowed host URL')
 	parser.add_argument('--allow-host', action='append', default=[], help="A name this server answers to, besides localhost, addresses and the machine's own (repeatable; or EINK_ALLOW_HOSTS, comma separated)")
+	parser.add_argument('--no-auth', action='store_true', help='Keep the device open on the network: no password, no setup code (a network you trust, on purpose)')
+	parser.add_argument('--require-auth', action='store_true', help='Require the password (or setup) even when listening on this machine only')
+	parser.add_argument('--reset-password', action='store_true', help='Forget the device password and exit: the device asks to be set up again with a new setup code')
 	parser.add_argument('--token', help=f'Require this Bearer token on /api requests (default: the {TOKEN_ENV} environment variable)')
 	args = parser.parse_args(argv)
 	args.app = os.path.abspath(args.app)
@@ -62,10 +86,15 @@ def run_application(args: argparse.Namespace) -> None:
 	if storage:
 		logger.info(f"STORAGE {storage}")
 	token: str|None = args.token or os.environ.get(TOKEN_ENV) or None
-	if token is None and args.host not in ("localhost", "127.0.0.1", "::1"):
-		logger.warning(f"The API is open to the network without a token; set --token or {TOKEN_ENV} to require one.")
+	local = args.host in LOCAL_HOSTS
+	auth = "none" if args.no_auth else "always" if args.require_auth else "auto"
+	if auth == "none" and not local:
+		logger.warning("--no-auth: the device is open to the network, anyone who can reach it can read and change its settings.")
 
 	cm = ConfigurationManager(storage_path=storage)
+	if args.reset_password:
+		print("The device password was forgotten; the device asks for a new setup code." if clear_password(cm) else "There was no device password.")
+		return
 	def system_timezone_name() -> str|None:
 		_, system = cm.settings_manager().open("system").get()
 		return system.get("timezoneName") if system else None
@@ -85,13 +114,14 @@ def run_application(args: argparse.Namespace) -> None:
 	routers.update(cm.load_routers(cm.enum_plugins()))
 	routers.update(cm.load_routers(cm.enum_datasources()))
 	app = create_app(
-		WebSettings(app_path=args.app, cors_origin=args.cors, api_token=token, allowed_hosts=tuple(args.allow_host)),
+		WebSettings(app_path=args.app, cors_origin=args.cors, api_token=token, allowed_hosts=tuple(args.allow_host), auth=auth, local=local),
 		routers=routers
 	)
 	# start the application layer
 	# the telemetry route's sink: the live view of the web app (python/task/telemetry_hub.py)
 	sink = TelemetryHub()
 	xapp: Application = Application(APPNAME, sink)
+	xapp.setup_notice = lambda: setup_notice(app.state.access, port)
 	watcher_sink.add(xapp)
 	try:
 		xapp.start()
@@ -109,13 +139,15 @@ def run_application(args: argparse.Namespace) -> None:
 		root.add_service(TimeOfDay, time_base)
 		root.add_service(TelemetryHub, sink)
 		root.add_service(Application, xapp)
+		# before the start: the setup page asks the access rules (which read the settings through it) as soon as the display is ready
+		app.state.root_container = root
 		xapp.accept(StartEvent(time_base.current_time(), options, root))
 		started = xapp.app_started.wait(timeout=5)
 		if not started:
 			logger.warning("Application start timed out")
 		else:
 			logger.info("Application is started")
-		app.state.root_container = root
+		announce_setup_code(app.state.access, port)
 
 		for event in sink.since(0):
 			logger.warning(f"startup telemetry: {event.get('source')} {event.get('kind')} {event.get('message', '')}")
