@@ -13,13 +13,17 @@ test("the gutter goes live, shows what the panel shows, and reports a change of 
 	const gutter = page.getByRole("complementary", { name: "Device activity" })
 	await expect(gutter.getByTestId("link-status")).toHaveText("Live")
 	// the mock display drew the playlist's page when the server started: its thumbnail loads
-	const now = gutter.getByRole("region", { name: "Now showing" }).getByRole("img")
+	const now = gutter.getByRole("region", { name: "Now showing" }).getByRole("button", { name: /full size/ }).getByRole("img")
 	await expect(now).toBeVisible({ timeout: 20000 })
 	await expect.poll(() => now.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
 
-	// and which track made it: the playlist, the track and the plugin
-	await expect(gutter.getByTestId("origins")).toContainText(/.+ › .+ \(.+\)/)
-	await expect(gutter.getByTestId("origins").locator("i.mi").first()).toBeVisible()
+	// and which track made it, on a line with its layer's glyph: the playlist, the track and the plugin
+	const layers = gutter.getByTestId("layers")
+	await expect(layers).toContainText(/.+ › .+ \(.+\)/)
+	await expect(layers.locator("i.mi").first()).toBeVisible()
+	await expect(layers.getByRole("img", { name: /Background|Foreground/ }).first()).toBeVisible()
+	// the layer is said once, by its glyph: no chip repeats it
+	await expect(gutter.getByRole("region", { name: "Now showing" }).getByText(/^(override|background)$/)).toHaveCount(0)
 
 	// somebody saves the system settings: the change reaches the gutter by area, not by path
 	const current = await (await request.get("/api/settings/system")).json()

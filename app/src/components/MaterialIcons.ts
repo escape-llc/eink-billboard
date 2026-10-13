@@ -19,8 +19,14 @@ import image from "@material-symbols/svg-400/outlined/image.svg?raw"
 import cloud_off from "@material-symbols/svg-400/outlined/cloud_off.svg?raw"
 import wb_sunny from "@material-symbols/svg-400/outlined/wb_sunny.svg?raw"
 import screenshot_monitor from "@material-symbols/svg-400/outlined/screenshot_monitor.svg?raw"
+// the layers of the panel (TelemetryLink.ts LAYERS)
+import wallpaper from "@material-symbols/svg-400/outlined/wallpaper.svg?raw"
+import flip_to_front from "@material-symbols/svg-400/outlined/flip_to_front.svg?raw"
+import opacity from "@material-symbols/svg-400/outlined/opacity.svg?raw"
+import priority_high from "@material-symbols/svg-400/outlined/priority_high.svg?raw"
+import picture_in_picture from "@material-symbols/svg-400/outlined/picture_in_picture.svg?raw"
 
-export const MATERIAL_ICONS = { playlist_play, schedule, layers, warning, error, play_arrow, skip_next, stop, image, cloud_off, wb_sunny, screenshot_monitor } as const
+export const MATERIAL_ICONS = { playlist_play, schedule, layers, warning, error, play_arrow, skip_next, stop, image, cloud_off, wb_sunny, screenshot_monitor, wallpaper, flip_to_front, opacity, priority_high, picture_in_picture } as const
 export type MaterialIconName = keyof typeof MATERIAL_ICONS
 
 /** The class of a glyph: `skip_next` is `mi-skip-next`. */
