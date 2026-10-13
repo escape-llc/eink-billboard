@@ -6,6 +6,7 @@ from datetime import date, datetime, timezone
 from typing import Any, cast
 
 from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager
+from ..datasources.overlay_text import OUTLINE_WIDTH, fit_line, outline_factor
 from ..datasources.today.today import TodayAsync, date_parts
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.schedule import TimerTaskItem, TimerTaskTask, TriggerDict
@@ -16,22 +17,26 @@ from ..plugins.plugin_base import PermanentError, PluginExecutionContext
 from ..task.display_messages import OverlayImage, OverlayZones
 from ..task.message_router import MessageRouter
 from ..task.overlay_zones import zones_for
+from .test_theme import CHROME, HAVE_CHROME
 from .test_timer_layer import at
+from .utils import save_image, test_output_path_for
 
 STATIC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
 THEME = { "theme": "split-complementary", "hue": 210, "saturation": 80, "lightness": 50 }
 DAY = datetime(2026, 10, 9, 9, 0, tzinfo=timezone.utc)
 
 class FakeSettings:
+	def __init__(self, theme=None):
+		self.theme = theme if theme is not None else THEME
 	def open(self, name):
 		return self
 	def get(self):
-		return ("rev", THEME)
+		return ("rev", self.theme)
 
-def provider() -> ServiceContainer:
+def provider(theme=None) -> ServiceContainer:
 	container = ServiceContainer()
 	container.add_service(StaticConfigurationManager, StaticConfigurationManager(STATIC))
-	container.add_service(SettingsConfigurationManager, cast(Any, FakeSettings()))
+	container.add_service(SettingsConfigurationManager, cast(Any, FakeSettings(theme)))
 	return container
 
 class TestDateParts(unittest.TestCase):
@@ -64,68 +69,114 @@ class TestDateParts(unittest.TestCase):
 		with self.assertRaises(PermanentError):
 			date_parts(date(2026, 10, 9), "weekly")
 
+class TestFitLine(unittest.TestCase):
+	"""The size and the baseline are chosen in Python, with the font file Chromium draws with (the page cannot run a script to fit the text)."""
+	def _font(self, family="Jost"):
+		stm = StaticConfigurationManager(STATIC)
+		return lambda px: stm.get_font(family, px, "bold")
+
+	def test_the_line_and_its_outline_fit_the_box(self):
+		for family in ("Jost", "Napoli", "Dogica", "DS-Digital"):
+			with self.subTest(family=family):
+				font = self._font(family)
+				placed = fit_line("Friday, October 9, 2026", (200, 40), font, 1.0, False)
+				left, top, right, bottom = font(placed.font_px).getbbox("Friday, October 9, 2026", anchor="ls")
+				self.assertLessEqual(right - left + placed.outline_px, 200)
+				self.assertLessEqual(bottom - top + placed.outline_px, 40)
+
+	def test_the_outline_is_a_factor_of_the_text_size(self):
+		full = fit_line("Fri", (246, 96), self._font(), 1.0, False)
+		half = fit_line("Fri", (246, 96), self._font(), 0.5, False)
+		self.assertAlmostEqual(full.outline_px, full.font_px * OUTLINE_WIDTH)
+		self.assertAlmostEqual(half.outline_px, half.font_px * OUTLINE_WIDTH * 0.5)
+		self.assertEqual(fit_line("Fri", (246, 96), self._font(), 0.0, False).outline_px, 0)
+		self.assertGreater(fit_line("Fri", (246, 96), self._font(), 1.0, True).heavy_px, 0)
+
+	def test_the_outline_setting_of_a_task(self):
+		# a task from before the setting: the full outline
+		self.assertEqual(outline_factor({}), 1.0)
+		self.assertEqual(outline_factor({ "outline": 0 }), 0.0)
+		self.assertEqual(outline_factor({ "outline": 0.3 }), 0.3)
+		self.assertEqual(outline_factor({ "outline": 7 }), 1.0)
+		self.assertEqual(outline_factor({ "outline": True }), 1.0)
+
+	def test_an_unknown_weight_is_a_permanent_error(self):
+		dsec = DataSourceExecutionContext(provider(), (246, 96), DAY)
+		with self.assertRaises(PermanentError):
+			asyncio.run(TodayAsync("today", "Today").render_async(dsec, { "format": "long", "weight": "black" }, {}))
+
+def _ink(image) -> tuple[int, int, int, int]:
+	box = image.getchannel("A").point(lambda v: 255 if v > 40 else 0).getbbox()
+	assert box is not None
+	return box
+
+def _solid(image) -> set[tuple[int, int, int]]:
+	return { px[:3] for px in image.getdata() if px[3] == 255 }
+
+@unittest.skipUnless(HAVE_CHROME, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")
 class TestRender(unittest.TestCase):
-	def _render(self, params, size=(246, 96)):
-		dsec = DataSourceExecutionContext(provider(), size, DAY)
-		return asyncio.run(TodayAsync("today", "Today").render_async(dsec, params, {}))
+	def _render(self, params, size=(246, 96), theme=None):
+		dsec = DataSourceExecutionContext(provider(theme), size, DAY)
+		result = asyncio.run(TodayAsync("today", "Today").render_async(dsec, params, {}))
+		assert result is not None
+		return result
 
 	def test_the_text_sits_near_the_screens_edge_not_in_the_middle_of_the_band(self):
 		def ink(params):
-			result = self._render({ "format": "short", "font": "Jost", **params }, (246, 96))
-			assert result is not None
-			box = result.image.getchannel("A").point(lambda v: 255 if v > 40 else 0).getbbox()
-			assert box is not None
-			return box
-		top = ink({ "zone": "top-left", "offset": 6 })
-		bottom = ink({ "zone": "bottom-right", "offset": 6 })
-		self.assertEqual(top[1], 6)
-		self.assertEqual(96 - bottom[3], 6)
+			return _ink(self._render({ "format": "short", **params }).image)
+		# the outline is counted, so it is not cut at the screen's edge (Chromium and PIL may place the ink a pixel apart)
+		self.assertAlmostEqual(ink({ "zone": "top-left", "offset": 6 })[1], 6, delta=2)
+		self.assertAlmostEqual(96 - ink({ "zone": "bottom-right", "offset": 6 })[3], 6, delta=2)
 		# the offset moves it, in a top zone down from the edge and in a bottom zone up from it
-		self.assertEqual(ink({ "zone": "top-center", "offset": 20 })[1], 20)
-		self.assertEqual(96 - ink({ "zone": "bottom-center", "offset": 20 })[3], 20)
-		# no zone (a data source used elsewhere): centered as before
+		self.assertAlmostEqual(ink({ "zone": "top-center", "offset": 20 })[1], 20, delta=2)
+		self.assertAlmostEqual(96 - ink({ "zone": "bottom-center", "offset": 20 })[3], 20, delta=2)
+		# no zone (a data source used elsewhere): centered
 		middle = ink({})
 		self.assertLess(abs((middle[1] + middle[3]) / 2 - 48), 4)
 
-	def test_the_date_is_drawn_in_the_theme_colors_on_a_transparent_box(self):
-		result = self._render({ "format": "long", "font": "Jost" })
-		self.assertIsNotNone(result)
-		assert result is not None
+	def test_the_date_is_outlined_text_in_the_theme_colors_on_a_transparent_page(self):
+		result = self._render({ "format": "long" })
 		image = result.image
+		save_image(image, test_output_path_for("today_tests"), 1, "outlined")
 		self.assertEqual((result.title, image.size, image.mode), ("Friday, October 9", (246, 96), "RGBA"))
-		self.assertEqual(image.getpixel((0, 0))[3], 0)
+		self.assertEqual([image.getpixel(corner)[3] for corner in ((0, 0), (245, 0), (0, 95), (245, 95))], [0, 0, 0, 0])
 		palette = palette_of(inputs_from(THEME))
-		highlight, primary = palette.text_secondary_1.rgb, palette.text_primary.rgb
-		solid = [image.getpixel((x, y)) for x in range(image.width) for y in range(image.height)]
-		solid = [px[:3] for px in solid if px[3] == 255]
-		self.assertIn(highlight, solid)
-		self.assertIn(primary, solid)
-		self.assertEqual(set(solid), { highlight, primary })
-		# the highlight (the weekday) comes first
-		bbox = image.getchannel("A").getbbox()
-		assert bbox is not None
-		first = next(image.getpixel((x, y))[:3] for x in range(bbox[0], bbox[2]) for y in range(bbox[1], bbox[3]) if image.getpixel((x, y))[3] == 255)
-		self.assertEqual(first, highlight)
+		solid = _solid(image)
+		# the letters in their roles, and the outline in the theme's outline color (white on a white page)
+		self.assertTrue({ palette.text_secondary_1.rgb, palette.text_primary.rgb, palette.text_outline.rgb } <= solid, solid)
+		self.assertEqual(palette.text_outline.rgb, (255, 255, 255))
+		# the highlight (the weekday) comes first: the leftmost letter pixel is the highlight's
+		box = _ink(image)
+		letters = (palette.text_secondary_1.rgb, palette.text_primary.rgb)
+		first = next(image.getpixel((x, y))[:3] for x in range(box[0], box[2]) for y in range(box[1], box[3]) if image.getpixel((x, y))[3] == 255 and image.getpixel((x, y))[:3] in letters)
+		self.assertEqual(first, palette.text_secondary_1.rgb)
 
-	def test_numeric_is_all_primary(self):
-		result = self._render({ "format": "numeric", "font": "Jost" })
-		assert result is not None
-		solid = { px[:3] for px in (result.image.getpixel((x, y)) for x in range(246) for y in range(96)) if px[3] == 255 }
-		self.assertEqual(solid, { palette_of(inputs_from(THEME)).text_primary.rgb })
+	def test_a_black_page_outlines_in_black(self):
+		solid = _solid(self._render({ "format": "numeric" }, theme={ **THEME, "background": "black" }).image)
+		self.assertIn((0, 0, 0), solid)
+		self.assertNotIn((255, 255, 255), solid)
 
-	def test_the_text_fits_the_zone(self):
-		for name in ("Jost", "Napoli", "Dogica", "DS-Digital"):
-			with self.subTest(font=name):
-				result = self._render({ "format": "full", "font": name }, size=(150, 40))
-				assert result is not None
-				bbox = result.image.getchannel("A").getbbox()
-				assert bbox is not None
-				self.assertTrue(bbox[0] >= 0 and bbox[2] <= 150 and bbox[3] <= 40, bbox)
+	def test_an_outline_of_0_draws_only_the_letters(self):
+		primary = palette_of(inputs_from(THEME)).text_primary.rgb
+		self.assertEqual(_solid(self._render({ "format": "numeric", "outline": 0 }).image), { primary })
+		self.assertIn((255, 255, 255), _solid(self._render({ "format": "numeric", "outline": 1 }).image))
 
-	def test_an_unknown_font_is_a_permanent_error(self):
-		with self.assertRaises(PermanentError):
-			self._render({ "format": "long", "font": "Comic Sans" })
+	def test_the_theme_chooses_the_font_and_the_text_fits_the_zone(self):
+		pages = set()
+		for family in ("Jost", "Napoli", "Dogica", "DS-Digital"):
+			with self.subTest(font=family):
+				image = self._render({ "format": "full" }, size=(150, 40), theme={ **THEME, "fontOverlay": family }).image
+				box = _ink(image)
+				self.assertTrue(box[0] >= 0 and box[2] <= 150 and box[3] <= 40, box)
+				pages.add(image.tobytes())
+		self.assertEqual(len(pages), 4)
 
+	def test_heavy_is_bolder(self):
+		def letters(weight):
+			return sum(1 for px in self._render({ "format": "numeric", "outline": 0, "weight": weight }).image.getdata() if px[3] == 255)
+		self.assertGreater(letters("heavy"), letters("bold"))
+
+@unittest.skipUnless(HAVE_CHROME, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")
 class TestTodayOverlay(unittest.TestCase):
 	def test_the_overlay_plugin_puts_today_in_its_zone(self):
 		sent: list = []
@@ -137,11 +188,11 @@ class TestTodayOverlay(unittest.TestCase):
 		router.send = lambda route, msg: sent.append(msg)  # type: ignore
 		container.add_service(MessageRouter, router)
 		container.add_service(OverlayZones, OverlayZones([z.definition() for z in zones_for((800, 480), "landscape")]))
-		item = TimerTaskItem("today-task", "Today", True, TimerTaskTask("overlay", { "dataSource": "today", "zone": "top-right", "wash": 0.4, "format": "short", "font": "Jost" }), cast(TriggerDict, at(0, 0)))
+		item = TimerTaskItem("today-task", "Today", True, TimerTaskTask("overlay", { "dataSource": "today", "zone": "top-right", "outline": 1, "format": "short" }), cast(TriggerDict, at(0, 0)))
 		asyncio.run(OverlayAsync("overlay", "Overlay").task_async(PluginExecutionContext(container, (800, 480), DAY), item, threading.Event()))
 		[msg] = sent
 		self.assertIsInstance(msg, OverlayImage)
-		self.assertEqual((msg.key, msg.zone, msg.title, msg.img.size, msg.wash), ("today-task", "top-right", "Fri, Oct 9", (246, 96), 0.4))
+		self.assertEqual((msg.key, msg.zone, msg.title, msg.img.size), ("today-task", "top-right", "Fri, Oct 9", (246, 96)))
 
 if __name__ == "__main__":
 	unittest.main()

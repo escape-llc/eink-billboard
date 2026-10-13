@@ -44,35 +44,17 @@
 					"enum": ["top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"]
 				},
 				{
-					"name": "wash",
+					"name": "outline",
 					"type": "number",
-					"required": true,
-					"default": 0.4,
+					"required": false,
+					"default": 1,
 					"minimum": 0,
 					"maximum": 1,
 					"step": 0.05,
 					"minFractionDigits": 0,
 					"maxFractionDigits": 2,
-					"title": "Wash",
-					"description": "A halo around the text so it reads over a busy picture: 0 is none, 1 is the strongest."
-				},
-				{
-					"name": "washColor",
-					"type": "string",
-					"required": false,
-					"default": "auto",
-					"title": "Wash Color",
-					"description": "auto: white or black, whichever has the better WCAG contrast with the text's colors (the worst-off color counts).",
-					"enum": ["auto", "white", "black"]
-				},
-				{
-					"name": "washStyle",
-					"type": "string",
-					"required": false,
-					"default": "soft",
-					"title": "Wash Style",
-					"description": "soft: a blurred halo. solid: a hard-edged outline with no gradient, which a color e-ink panel draws more cleanly (it turns a gradient into dots); use a wash of 1 with it.",
-					"enum": ["soft", "solid"]
+					"title": "Outline",
+					"description": "An outline around the text so it reads over a busy picture, in the theme's outline color (white, or black on a black page): 0 is none, 1 is the full width (a fraction of the text size, not pixels)."
 				}
 			]
 		}

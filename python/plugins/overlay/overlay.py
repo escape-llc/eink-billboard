@@ -12,7 +12,8 @@ class OverlayAsync(PluginAsync):
 	"""
 	A timer task that puts a data source's image in a zone of the screen (python/task/overlay_zones.py), over the background.
 	The overlay belongs to the task (its id is the key): the next run replaces it, and a run where the data source has nothing to show
-	(open or render gives None) takes it down. The data source renders at the zone's size, as the viewer sees it.
+	(open or render gives None) takes it down. The data source renders at the zone's size, as the viewer sees it,
+	transparent where it draws nothing; it reads the task's `outline` (python/datasources/overlay_text.py) to keep its text readable over a busy picture.
 	"""
 	def __init__(self, id, name):
 		self._id = id
@@ -41,12 +42,6 @@ class OverlayAsync(PluginAsync):
 			raise PermanentError(f"dataSource '{data_source_name}' is not available")
 		if not (isinstance(data_source, MediaItemAsync) and isinstance(data_source, MediaRenderAsync)):
 			raise PermanentError(f"{data_source_name}: does not support async media item and render")
-		wash = settings.get("wash", 0.0)
-		wash = float(wash) if isinstance(wash, (int, float)) and not isinstance(wash, bool) else 0.0
-		wash_color = "auto"
-		if settings.get("washColor") in ("white", "black"):
-			wash_color = str(settings.get("washColor"))
-		wash_style = "solid" if settings.get("washStyle") == "solid" else "soft"
 		# the data source sees the zone as its whole screen
 		zone_context = PluginExecutionContext(context.provider, zone.dimensions, context.timestamp)
 		dsec = zone_context.create_datasource_context(data_source)
@@ -61,7 +56,7 @@ class OverlayAsync(PluginAsync):
 			self.logger.info(f"{self.id} '{track.title}': nothing to show, revoking its overlay")
 			router.send("display", OverlayRevoke(dsec.timestamp, track.id))
 			return
-		router.send("display", OverlayImage(dsec.timestamp, track.id, zone.name, mrr.title if mrr.title is not None else track.title, mrr.image, wash, wash_color, wash_style))
+		router.send("display", OverlayImage(dsec.timestamp, track.id, zone.name, mrr.title if mrr.title is not None else track.title, mrr.image))
 	async def task_async(self, context: PluginExecutionContext, track: TrackType, done: threading.Event) -> None:
 		self.logger.info(f"{self.id} start '{track.title}'")
 		try:

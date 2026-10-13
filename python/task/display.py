@@ -203,7 +203,7 @@ class Display(DispatcherTask):
 		# a sender owns one zone: one that moved to another zone leaves nothing behind in the old one
 		for name in [name for name, (key, _) in self.overlays.items() if key == msg.key and name != zone.name]:
 			del self.overlays[name]
-		self.overlays[zone.name] = (msg.key, ImageOverlay(image, (zone.panel_box[0], zone.panel_box[1]), msg.wash, msg.wash_color, msg.wash_style, msg.origin))
+		self.overlays[zone.name] = (msg.key, ImageOverlay(image, (zone.panel_box[0], zone.panel_box[1]), origin=msg.origin))
 		self._set_overlays(compositor)
 		await commitq.put(BasicMessage(msg.timestamp))
 	async def _task_overlay_revoke(self, commitq: asyncio.Queue[BasicMessage], compositor: ImageCompositor, msg: OverlayRevoke):

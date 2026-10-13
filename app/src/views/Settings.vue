@@ -58,7 +58,8 @@
 							</tr>
 						</tbody>
 					</table>
-					<div class="page-row">Page background <span class="page-swatch" data-role="bg-page" :style="{ backgroundColor: paletteColors['bg-page'] ?? 'transparent' }"></span></div>
+					<div class="page-row">Page background <span class="page-swatch" data-role="bg-page" :style="{ backgroundColor: paletteColors['bg-page'] ?? 'transparent' }"></span>
+						Overlay outline <span class="page-swatch" data-role="text-outline" :style="{ backgroundColor: paletteColors['text-outline'] ?? 'transparent' }"></span></div>
 					<h2>Theme Preview</h2>
 					<!-- a page and a dark page in the palette, fonts and text size of the form, built from the same roles the device's pages use -->
 					<div class="mock-row" data-testid="mockup" :style="mockVars">
@@ -95,6 +96,7 @@
 					<div class="type-sample" data-testid="type-sample" :style="{ fontFamily: fontStack(previewFontBody), fontSize: `${previewFontScale}em` }">
 						<div class="type-heading" :style="{ fontFamily: fontStack(previewFontHeading || previewFontBody) }">The quick brown fox</div>
 						<div>Jumps over the lazy dog, 0123456789</div>
+						<div class="type-overlay" data-testid="type-overlay" :style="{ fontFamily: fontStack(previewFontOverlay || previewFontHeading || previewFontBody) }">Friday, October 9 (overlay)</div>
 					</div>
 				</div>
 			</TabPanel>
@@ -231,6 +233,7 @@ const previewSaturation = ref(100)
 const previewLightness = ref(50)
 const previewFontBody = ref("Jost")
 const previewFontHeading = ref<string|null>(null)
+const previewFontOverlay = ref<string|null>(null)
 const previewFontScale = ref(1)
 // the families the device ships, loaded under names of their own so they cannot be mistaken for a font of the computer
 const FONTS = [["Jost", ["normal", "bold"]], ["Napoli", ["normal"]], ["Dogica", ["normal", "bold"]], ["DS-Digital", ["normal"]]] as const
@@ -383,6 +386,9 @@ const handleThemeSettings = (data:any) => {
 	if("fontHeading" in data) {
 		previewFontHeading.value = typeof data.fontHeading === "string" ? data.fontHeading : null
 	}
+	if("fontOverlay" in data) {
+		previewFontOverlay.value = typeof data.fontOverlay === "string" ? data.fontOverlay : null
+	}
 	if(typeof data.fontScale === "number") {
 		previewFontScale.value = data.fontScale
 	}
@@ -420,6 +426,9 @@ const handleThemeValidate = (e: ValidateEventData) => {
 		}
 		if("fontHeading" in data) {
 			previewFontHeading.value = typeof data.fontHeading === "string" ? data.fontHeading : null
+		}
+		if("fontOverlay" in data) {
+			previewFontOverlay.value = typeof data.fontOverlay === "string" ? data.fontOverlay : null
 		}
 		if(typeof data.fontScale === "number") {
 			previewFontScale.value = data.fontScale
@@ -600,6 +609,11 @@ const handleThemeValidate = (e: ValidateEventData) => {
 }
 .type-heading {
 	font-size: 1.6rem;
+	font-weight: bold;
+}
+.type-overlay {
+	margin-top: .5rem;
+	font-size: 1.3rem;
 	font-weight: bold;
 }
 </style>

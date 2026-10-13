@@ -1,11 +1,12 @@
+import asyncio
 import logging
 from datetime import date, datetime
 from typing import Any, Mapping
 
 from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
-from ...model.theme import current_palette
+from ...model.theme import current_inputs
 from ...plugins.plugin_base import PermanentError
-from ...utils.image_compositor import TextRun, text_overlay
+from ..overlay_text import outline_factor, render_overlay_text
 from ..data_source import DataSource, DataSourceExecutionContext, MediaItemAsync, MediaRenderAsync, MediaRenderResult
 
 FORMATS = ("long", "full", "short", "numeric", "custom")
@@ -36,7 +37,7 @@ def date_parts(day: date|datetime, fmt: str, custom: str|None = None) -> tuple[s
 	raise PermanentError(f"Unknown format '{fmt}' (one of {', '.join(FORMATS)})")
 
 class TodayAsync(DataSource, MediaItemAsync, MediaRenderAsync):
-	"""Today's date as text for an overlay zone, drawn with PIL in the theme's colors (the weekday highlighted), on a transparent box."""
+	"""Today's date as outlined text for an overlay zone (python/datasources/overlay_text.py): the theme's overlay font and colors, the weekday highlighted, on a transparent page."""
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
@@ -45,22 +46,14 @@ class TodayAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 	async def render_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any], state: Any) -> MediaRenderResult | None:
 		# the timestamp is already in the device's zone (ConfiguredTimeOfDay)
 		highlight, rest = date_parts(dsec.timestamp, str(params.get("format") or "long"), params.get("customFormat"))
-		palette = current_palette(dsec.provider.required(SettingsConfigurationManager))
+		theme = current_inputs(dsec.provider.required(SettingsConfigurationManager))
 		stm = dsec.provider.required(StaticConfigurationManager)
-		# an overlay renders at the zone's size as given (never through target_dimensions)
-		width, height = dsec.dimensions
-		font_name = str(params.get("font") or "Jost")
-		weight = str(params.get("weight") or "bold")
-		try:
-			# bold is the font's own bold face where it has one; heavy strokes the letters on top of that
-			font = stm.get_font(font_name, max(8, int(height * 0.6)), "normal" if weight == "normal" else "bold")
-		except ValueError:
-			raise PermanentError(f"Font '{font_name}' is not available") from None
-		runs: list[TextRun] = [run for run in ((highlight, palette.text_secondary_1.rgb), (rest, palette.text_primary.rgb)) if run[0]]
+		runs = [run for run in ((highlight, "text-secondary-1"), (rest, "text-primary")) if run[0]]
 		# the zones are bands along the top and the bottom of the screen: the line sits near the screen's edge, `offset` pixels from it, not in the middle of the band
 		zone = str(params.get("zone") or "")
 		valign = "top" if zone.startswith("top") else "bottom" if zone.startswith("bottom") else "center"
 		offset = params.get("offset")
 		margin = int(offset) if isinstance(offset, (int, float)) and not isinstance(offset, bool) and offset >= 0 else 6
-		overlay = text_overlay(runs, (width, height), (0, 0), font=font, embolden=0.022 if weight == "heavy" else 0.0, valign=valign, margin=margin)
-		return MediaRenderResult(image=overlay.image, title=highlight + rest)
+		# an overlay renders at the zone's size as given (never through target_dimensions); Chromium is blocking: keep it off the event loop
+		image = await asyncio.to_thread(render_overlay_text, stm, theme, dsec.dimensions, runs, outline_factor(params), str(params.get("weight") or "bold"), valign, margin)
+		return MediaRenderResult(image=image, title=highlight + rest)

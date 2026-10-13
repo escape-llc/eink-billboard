@@ -93,6 +93,14 @@ class TestTypography(unittest.TestCase):
 		inputs = inputs_from({ "fontBody": "Jost", "fontHeading": "Dogica", "fontScale": 0.8 })
 		self.assertEqual((inputs.font_body, inputs.font_heading, inputs.font_scale), ("Jost", "Dogica", 0.8))
 
+	def test_the_overlays_share_one_font_and_it_follows_the_heading_when_unset(self):
+		self.assertEqual(inputs_from({ "fontBody": "Jost", "fontHeading": "Napoli" }).font_overlay, "Napoli")
+		self.assertEqual(inputs_from({ "fontBody": "Napoli" }).font_overlay, "Napoli")
+		self.assertEqual(inputs_from({ "fontBody": "Jost", "fontOverlay": "Dogica" }).font_overlay, "Dogica")
+		self.assertEqual(inputs_from({ "fontBody": "Jost", "fontOverlay": "../x" }).font_overlay, "Jost")
+		self.assertIn("--font-overlay: Dogica;", css_vars(inputs_from({ "fontOverlay": "Dogica" })))
+		self.assertEqual(current_typography(FakeSettings({ "fontOverlay": "DS-Digital" })).overlay, "DS-Digital")  # type: ignore[arg-type]
+
 	def test_only_the_fonts_we_ship_and_sizes_in_range_are_used(self):
 		inputs = inputs_from({ "fontBody": "../../etc/passwd", "fontHeading": "Comic Sans", "fontScale": 9 })
 		self.assertEqual((inputs.font_body, inputs.font_heading, inputs.font_scale), ("Jost", "Jost", 1.0))
@@ -121,6 +129,13 @@ class TestBackground(unittest.TestCase):
 		self.assertEqual(palette_of(DEFAULT_INPUTS).bg_page.rgb, (255, 255, 255))
 		self.assertIn("--page-bg: hsl(0 0% 100%);", css_vars(DEFAULT_INPUTS))
 
+	def test_the_overlay_outline_is_white_or_black_on_a_black_page(self):
+		for background, rgb, css in (("white", (255, 255, 255), "hsl(0 0% 100%)"), ("tinted", (255, 255, 255), "hsl(0 0% 100%)"), ("black", (0, 0, 0), "hsl(0 0% 0%)")):
+			with self.subTest(background=background):
+				inputs = inputs_from({ "theme": "analogous", "hue": 200, "saturation": 60, "lightness": 50, "background": background })
+				self.assertEqual(palette_of(inputs).text_outline.rgb, rgb)
+				self.assertIn(f"--outline-color: {css};", css_vars(inputs))
+
 	def test_tinted_is_the_themes_light_color(self):
 		inputs = inputs_from({ "theme": "analogous", "hue": 200, "saturation": 60, "lightness": 50, "background": "tinted" })
 		self.assertEqual(palette_of(inputs).bg_page, palette_of(inputs).bg_primary)
@@ -138,7 +153,7 @@ class TestBackground(unittest.TestCase):
 		self.assertEqual(palette_of(dark).bg_primary_accent, palette_of(light).bg_primary_accent)
 
 class TestPagesUseTheTheme(unittest.TestCase):
-	"""No page sets a font of its own: the body font is the theme's (plugin.css), headings take var(--font-heading)."""
+	"""No page sets a font of its own: the body font is the theme's (plugin.css), headings take var(--font-heading), overlay text var(--font-overlay)."""
 	def test_no_page_names_a_font_family(self):
 		root = os.path.dirname(STATIC)
 		pages = [os.path.join(d, f) for top in ("datasources", "static") for d, _, files in os.walk(os.path.join(root, top)) for f in files if f.endswith(".html")]
@@ -151,7 +166,7 @@ class TestPagesUseTheTheme(unittest.TestCase):
 					# the faces plugin.html declares are the only literal names; a page uses the variables
 					if os.path.basename(page) == "plugin.html":
 						continue
-					self.assertRegex(found, r"var\(--font-(body|heading)", f"{page} sets a font of its own")
+					self.assertRegex(found, r"var\(--font-(body|heading|overlay)", f"{page} sets a font of its own")
 
 class TestCss(unittest.TestCase):
 	def test_css_vars_are_hsl_only(self):

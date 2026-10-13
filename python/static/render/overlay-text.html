@@ -1,0 +1,50 @@
+{% extends "plugin.html" %}
+{# A line of text for an overlay zone, on a transparent page (python/datasources/overlay_text.py chooses the size and the baseline) #}
+{% block style %}
+	<style>
+		/* nothing behind the text: the picture under the overlay shows through */
+		:root {
+			--page-bg: transparent;
+		}
+		html {
+			font-size: {{ font_px }}px;
+		}
+		.overlay-text {
+			display: block;
+			width: 100%;
+			height: 100%;
+		}
+		.overlay-text text {
+			font-family: var(--font-overlay);
+			font-size: 1rem;
+			font-weight: {{ font_weight }};
+			/* the width was measured on the font's own face: Chromium must not make a bold of its own */
+			font-synthesis: none;
+			white-space: pre;
+		}
+		/* the outline: the line again under the letters, stroked in the theme's outline color */
+		.overlay-text .outline {
+			fill: currentColor;
+			stroke: currentColor;
+			stroke-width: {{ outline_px }}px;
+			stroke-linejoin: round;
+		}
+		.overlay-text tspan {
+			fill: currentColor;
+		}
+		{% if heavy_px > 0 %}
+		/* heavy: each letter stroked in its own color, bolder than the font has it */
+		.overlay-text .letters tspan {
+			stroke: currentColor;
+			stroke-width: {{ heavy_px }}px;
+			stroke-linejoin: round;
+		}
+		{% endif %}
+	</style>
+{% endblock %}
+{% block content %}
+	<svg class="overlay-text" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {{ width }} {{ height }}">
+		{% if outline_px > 0 %}<text class="outline text-outline" x="{{ width / 2 }}" y="{{ baseline }}" text-anchor="middle">{{ line }}</text>{% endif %}
+		<text class="letters" x="{{ width / 2 }}" y="{{ baseline }}" text-anchor="middle">{% for text, role in runs %}<tspan class="{{ role }}">{{ text }}</tspan>{% endfor %}</text>
+	</svg>
+{% endblock %}
