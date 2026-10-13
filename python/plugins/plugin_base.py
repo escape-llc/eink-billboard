@@ -86,7 +86,9 @@ class RenderSession:
 			loader=loader,
 			autoescape=select_autoescape(['html', 'xml'])
 		)
-	def render(self, dimensions, template_params: dict|None = None):
+	def render(self, dimensions, template_params: dict|None = None, transparent: bool = False):
+		"""The page as an image. `transparent` (an overlay's page): Chromium draws no white under the page, so what the page does not paint stays clear;
+		the page also sets `--page-bg: transparent`, or its container paints the theme's background."""
 		template_params = dict(template_params or {})
 		template_params["style_sheets"] = self.css_files
 		template_params["theme_vars"] = css_vars(self.theme)
@@ -97,7 +99,10 @@ class RenderSession:
 		# load and render the given html template
 		template = self.env.get_template(self.html_file)
 		rendered_html = template.render(template_params)
-		return render_html_arglist(rendered_html, [f"--window-size={dimensions[0]},{dimensions[1]}"])
+		args = [f"--window-size={dimensions[0]},{dimensions[1]}"]
+		if transparent:
+			args.append("--default-background-color=00000000")
+		return render_html_arglist(rendered_html, args)
 	pass
 
 # the schedule item a plugin is given (a timer task's item, or a playlist track); TimerTaskTask is only its content

@@ -61,15 +61,11 @@ class OverlayZones:
 
 @dataclass(frozen=True, slots=True)
 class OverlayImage(BasicMessage):
-	"""Show `img` in the zone `zone` until the same `key` (normally the timer task's id) replaces or revokes it. `wash` lightens the background under it (0 to 1)."""
+	"""Show `img` in the zone `zone` until the same `key` (normally the timer task's id) replaces or revokes it. What it does not draw is transparent."""
 	key: str
 	zone: str
 	title: str
 	img: Image.Image
-	wash: float = 0.0
-	# see ImageOverlay: `auto`, `white` or `black`; `soft` or `solid`
-	wash_color: str = "auto"
-	wash_style: str = "soft"
 	origin: Mapping[str, str]|None = None
 
 @dataclass(frozen=True, slots=True)

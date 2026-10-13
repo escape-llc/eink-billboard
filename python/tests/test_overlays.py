@@ -82,10 +82,10 @@ class DisplayHarness:
 class TestDisplayOverlays(unittest.TestCase):
 	def test_an_overlay_goes_in_its_zone_and_commits(self):
 		h = DisplayHarness()
-		h.run(OverlayImage(NOW, "task-a", "top-right", "A", solid((246, 96)), 0.4))
+		h.run(OverlayImage(NOW, "task-a", "top-right", "A", solid((246, 96))))
 		self.assertEqual(h.commits, 1)
 		[overlay] = h.overlays()
-		self.assertEqual((overlay.position, overlay.wash, overlay.image.size), ((542, 10), 0.4, (246, 96)))
+		self.assertEqual((overlay.position, overlay.image.size), ((542, 10), (246, 96)))
 
 	def test_a_new_overlay_replaces_the_zone_and_a_key_owns_one_zone(self):
 		h = DisplayHarness()
@@ -142,7 +142,7 @@ class TestDisplayOverlays(unittest.TestCase):
 			pool.shutdown()
 
 def overlay_item(zone="top-right", plugin="overlay", ident="t1") -> TimerTaskItem:
-	return TimerTaskItem(ident, "Today", True, TimerTaskTask(plugin, { "dataSource": "today", "zone": zone, "wash": 0.4 }), cast(TriggerDict, at(9, 0)))
+	return TimerTaskItem(ident, "Today", True, TimerTaskTask(plugin, { "dataSource": "today", "zone": zone, "outline": 0.4 }), cast(TriggerDict, at(9, 0)))
 
 class TestTimerLayerOverlays(unittest.TestCase):
 	def _layer(self):
@@ -170,7 +170,7 @@ class TestTimerLayerOverlays(unittest.TestCase):
 		self.assertEqual(len(displays), 1)
 		msg = displays[0]
 		self.assertIsInstance(msg, OverlayImage)
-		self.assertEqual((msg.key, msg.zone, msg.title, msg.img.size, msg.wash), ("t1", "top-right", "Error: Today", (246, 96), 0.0))
+		self.assertEqual((msg.key, msg.zone, msg.title, msg.img.size), ("t1", "top-right", "Error: Today", (246, 96)))
 		self.assertEqual(render.call_args.args[1], (246, 96))
 		self.assertTrue(render.call_args.args[5])
 		self.assertEqual(render.call_args.args[3], ["RuntimeError: <address>"])
@@ -208,10 +208,12 @@ class FakeDataSource:
 		self.name = name
 		self.result = result
 		self.dimensions = None
+		self.params = None
 	async def open_async(self, dsec, params):
 		return None if self.result == "nothing-open" else {}
 	async def render_async(self, dsec, params, state):
 		self.dimensions = dsec.dimensions
+		self.params = params
 		if self.result == "boom":
 			raise RuntimeError("down")
 		if self.result == "nothing":
@@ -228,7 +230,7 @@ class TestOverlayPlugin(unittest.TestCase):
 		router.send = lambda route, msg: sent.append((route, msg))  # type: ignore
 		provider.add_service(MessageRouter, router)
 		provider.add_service(OverlayZones, OverlayZones([z.definition() for z in zones_for((800, 480), "landscape")]))
-		item = TimerTaskItem("t1", "Today", True, TimerTaskTask("overlay", { "dataSource": data_source, "zone": zone, "wash": 0.25 }), cast(TriggerDict, at(9, 0)))
+		item = TimerTaskItem("t1", "Today", True, TimerTaskTask("overlay", { "dataSource": data_source, "zone": zone, "outline": 0.25 }), cast(TriggerDict, at(9, 0)))
 		import threading
 		done = threading.Event()
 		try:
@@ -241,8 +243,10 @@ class TestOverlayPlugin(unittest.TestCase):
 		ds = FakeDataSource()
 		[msg] = self._run(ds)
 		self.assertIsInstance(msg, OverlayImage)
-		self.assertEqual((msg.key, msg.zone, msg.title, msg.wash, msg.img.size), ("t1", "top-right", "Thursday", 0.25, (246, 96)))
+		self.assertEqual((msg.key, msg.zone, msg.title, msg.img.size), ("t1", "top-right", "Thursday", (246, 96)))
 		self.assertEqual(ds.dimensions, (246, 96))
+		# the outline is the data source's to draw: it gets the task's settings, the zone and the outline among them
+		self.assertEqual((ds.params["zone"], ds.params["outline"]), ("top-right", 0.25))
 
 	def test_nothing_to_show_revokes(self):
 		for result in ("nothing", "nothing-open"):

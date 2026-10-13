@@ -27,7 +27,7 @@ SCHEMES: dict[str, tuple[float, float]] = {
 }
 MONOCHROME_SATURATION = 60.0
 # the factory defaults (python/storage/schemas/theme.json)
-DEFAULT_SETTINGS: Mapping[str, Any] = { "theme": "complementary", "hue": 220, "saturation": 80, "lightness": 50, "fontBody": "Jost", "fontHeading": None, "fontScale": 1.0, "background": "white" }
+DEFAULT_SETTINGS: Mapping[str, Any] = { "theme": "complementary", "hue": 220, "saturation": 80, "lightness": 50, "fontBody": "Jost", "fontHeading": None, "fontOverlay": None, "fontScale": 1.0, "background": "white" }
 # the page behind everything: plain white (the crispest on a color e-ink panel, whose palette is a few pure colors), the theme's light tint, or black (dark mode:
 # every light tone and dark tone trade places, so text reads light on dark and the panels of a page are dark)
 BACKGROUNDS = ("white", "tinted", "black")
@@ -70,6 +70,8 @@ class ThemeInputs:
 	# the typography: families we ship (FONT_FAMILIES), and a multiplier for text sizes
 	font_body: str = "Jost"
 	font_heading: str = "Jost"
+	# the text of the overlays (the date in a corner): one font for all of them, so they look alike
+	font_overlay: str = "Jost"
 	font_scale: float = 1.0
 	background: str = "white"
 
@@ -92,6 +94,8 @@ class Palette:
 	bg_primary_dark: Color
 	bg_secondary_1_dark: Color
 	bg_secondary_2_dark: Color
+	# the outline around overlay text, so it reads over a busy picture: white, or black on a black page (a solid color; a color e-ink panel dithers a tint)
+	text_outline: Color
 	@staticmethod
 	def roles() -> list[str]:
 		"""The role names as CSS class names."""
@@ -132,13 +136,17 @@ def inputs_from(settings: Mapping[str, Any]|None) -> ThemeInputs:
 	if heading not in FONT_FAMILIES:
 		# unset: the headings wear the body font
 		heading = body
+	overlay = settings.get("fontOverlay")
+	if overlay not in FONT_FAMILIES:
+		# unset: the overlays wear the heading font
+		overlay = heading
 	scale = settings.get("fontScale")
 	if not (isinstance(scale, (int, float)) and not isinstance(scale, bool) and FONT_SCALE_MIN <= scale <= FONT_SCALE_MAX):
 		scale = float(DEFAULT_SETTINGS["fontScale"])
 	background = settings.get("background")
 	if background not in BACKGROUNDS:
 		background = str(DEFAULT_SETTINGS["background"])
-	inputs = ThemeInputs(scheme, hue % 360, saturation, h1, h2, lightness, font_body=str(body), font_heading=str(heading), font_scale=float(scale), background=str(background))
+	inputs = ThemeInputs(scheme, hue % 360, saturation, h1, h2, lightness, font_body=str(body), font_heading=str(heading), font_overlay=str(overlay), font_scale=float(scale), background=str(background))
 	if background == "black":
 		inputs = replace(inputs, l_text_dark=L_TEXT_LIGHT, l_text_light=L_TEXT_DARK, l_bg_light=L_BG_DARK, l_bg_dark=L_BG_LIGHT)
 	return inputs
@@ -164,6 +172,7 @@ def palette_of(inputs: ThemeInputs) -> Palette:
 		bg_primary_dark=tone("primary", inputs.l_bg_dark),
 		bg_secondary_1_dark=tone("secondary_1", inputs.l_bg_dark),
 		bg_secondary_2_dark=tone("secondary_2", inputs.l_bg_dark),
+		text_outline=Color(0, 0, 0) if inputs.background == "black" else Color(0, 0, 100),
 	)
 
 def css_vars(inputs: ThemeInputs) -> str:
@@ -182,6 +191,9 @@ def css_vars(inputs: ThemeInputs) -> str:
 		"--page-bg": { "white": "hsl(0 0% 100%)", "black": "hsl(0 0% 0%)" }.get(inputs.background, "hsl(from var(--theme-base) h s var(--l-bg-light))"),
 		"--font-body": inputs.font_body,
 		"--font-heading": inputs.font_heading,
+		"--font-overlay": inputs.font_overlay,
+		# the outline around overlay text (the class `text-outline`)
+		"--outline-color": "hsl(0 0% 0%)" if inputs.background == "black" else "hsl(0 0% 100%)",
 		"--font-scale": _num(inputs.font_scale),
 	}
 	return " ".join(f"{name}: {value};" for name, value in values.items())
@@ -204,10 +216,11 @@ class Typography:
 	"""What PIL code draws text with: the family names (as `StaticConfigurationManager.get_font` takes them) and the size multiplier."""
 	body: str
 	heading: str
+	overlay: str
 	scale: float
 
 def typography_of(inputs: ThemeInputs) -> Typography:
-	return Typography(inputs.font_body, inputs.font_heading, inputs.font_scale)
+	return Typography(inputs.font_body, inputs.font_heading, inputs.font_overlay, inputs.font_scale)
 
 def current_typography(scm: SettingsConfigurationManager|None) -> Typography:
 	"""The device's fonts now, read on every call like the palette."""

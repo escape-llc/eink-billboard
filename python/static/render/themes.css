@@ -45,6 +45,11 @@
 	color: hsl(from var(--theme-base) calc(h + var(--theme-h2-offset)) s var(--l-text-light));
 }
 
+/* The outline around overlay text, so it reads over a busy picture: white, or black on a black page (python/model/theme.py writes --outline-color) */
+.text-outline {
+	color: var(--outline-color, hsl(0 0% 100%));
+}
+
 /* The page behind everything: white, the theme's tint or black (python/model/theme.py writes --page-bg) */
 .bg-page {
 	background-color: var(--page-bg, hsl(0 0% 100%));

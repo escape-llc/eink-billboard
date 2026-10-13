@@ -5,7 +5,7 @@
 	"class": "TodayAsync",
 	"file": "today.py",
 	"module": "python.datasources.today.today",
-	"description": "Today's date, as text in the theme's colors, for an overlay zone.",
+	"description": "Today's date, as outlined text in the theme's overlay font and colors, for an overlay zone.",
 	"describe": "Date {format}",
 	"disabled": false,
 	"features": ["layer-overlay", "media-image"],
@@ -38,15 +38,6 @@
 					"title": "Custom Format",
 					"description": "A strftime pattern, e.g. %A %d %B (%A weekday, %d day, %B month, %Y year).",
 					"visibleIf": { "field": "format", "const": "custom" }
-				},
-				{
-					"name": "font",
-					"type": "string",
-					"required": true,
-					"default": "Jost",
-					"title": "Font",
-					"description": "The typeface. The colors come from the theme.",
-					"enum": ["Jost", "Napoli", "Dogica", "DS-Digital"]
 				},
 				{
 					"name": "weight",
