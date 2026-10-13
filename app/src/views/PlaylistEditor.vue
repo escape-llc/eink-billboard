@@ -5,15 +5,16 @@
 				<div style="font-size:150%">Playlists</div>
 			</template>
 			<template #end>
-				<div class="flex align-items-center gap-1">
-					<Select :key="selectKey" :options="playlists" optionLabel="name" optionValue="id" :modelValue="currentId" placeholder="No playlist" style="min-width:14rem"
+				<!-- the playlist and what can be done to it, as one group -->
+				<InputGroup class="playlist-actions">
+					<Select :key="selectKey" :options="playlists" optionLabel="name" optionValue="id" :modelValue="currentId" placeholder="No playlist" size="small" style="min-width:14rem"
 						aria-label="Playlist" @update:modelValue="(id: string) => guard(() => openPlaylist(id))" />
 					<Button title="New playlist" aria-label="New playlist" icon="pi pi-plus-circle" size="small" severity="secondary" @click="guard(startNew)" />
 					<Button title="Rename playlist" aria-label="Rename playlist" icon="pi pi-pencil" size="small" severity="secondary" :disabled="!currentId" @click="startRename" />
-					<Button title="Delete playlist" aria-label="Delete playlist" icon="pi pi-trash" size="small" severity="danger" variant="outlined" :disabled="!currentId" @click="deleteOpen = true" />
+					<Button title="Delete playlist" aria-label="Delete playlist" icon="pi pi-trash" size="small" severity="danger" :disabled="!currentId" @click="deleteOpen = true" />
 					<Button title="Add Track" aria-label="Add track" icon="pi pi-plus" size="small" :disabled="!currentId" @click="addTrack" />
 					<Button title="Save playlist" aria-label="Save playlist" icon="pi pi-save" size="small" severity="success" :disabled="!currentId || !dirty || saving" @click="savePlaylist(docRev)" />
-				</div>
+				</InputGroup>
 			</template>
 		</Toolbar>
 		<ProgressBar v-if="loading" mode="indeterminate" style="height:4px" aria-label="Loading" data-testid="loading" />
@@ -51,7 +52,7 @@
 
 			<div class="track-editor">
 				<div v-if="selectedTrack" class="editor-card">
-					<BasicForm ref="bf" v-if="selectedPlugin" :baseUrl="API_URL" :form="selectedPlugin.instanceSettings" :owner="{ kind: 'plugin', id: selectedPlugin.id }" :initialValues="editModel.content"
+					<BasicForm ref="bf" v-if="selectedPlugin" :baseUrl="API_URL" :form="selectedPlugin.instanceSettings" :owner="{ kind: 'plugin', id: selectedPlugin.id }" :initialValues="editModel.content" :showHelp="showHelp"
 						@validate="handleValidate" @submit="submitForm">
 						<template #header>
 							<Toolbar style="width:100%" class="p-1 mt-2">
@@ -60,6 +61,9 @@
 								</template>
 								<template #end>
 									<InputGroup>
+										<!-- the help under each field is long for some plugins: hide it once it is known -->
+										<Button size="small" icon="pi pi-question-circle" severity="secondary" :variant="showHelp ? undefined : 'outlined'" :aria-pressed="showHelp"
+											aria-label="Help text" :title="showHelp ? 'Hide the help under the fields' : 'Show the help under the fields'" @click="showHelp = !showHelp" />
 										<Button size="small" icon="pi pi-check" severity="success" aria-label="Apply track" title="Apply to the playlist (then save it)" :disabled="submitDisabled" @click="handleSubmit" />
 										<Button size="small" icon="pi pi-times" severity="danger" aria-label="Reset track" @click="handleReset" />
 									</InputGroup>
@@ -127,6 +131,8 @@ const API_URL = import.meta.env.VITE_API_URL
 const PLAYLIST_URL = `${API_URL}api/schedule/playlist`
 const toast = useToast()
 const bf = ref<InstanceType<typeof BasicForm>>()
+// the fields' help text; for this page's life only (the browser stores nothing but the theme)
+const showHelp = ref(true)
 const submitDisabled = ref(true)
 const fieldNameWidth = "10rem";
 

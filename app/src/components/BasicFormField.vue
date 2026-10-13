@@ -92,7 +92,7 @@
 				severity="error" size="small" variant="simple">{{ errorMessage }}</Message>
 		</slot>
 		<Message v-if="field.lookupError" severity="warn" size="small" variant="simple">{{ field.lookupError }}</Message>
-		<Message v-if="field.description" severity="secondary" size="small" variant="simple">{{ field.description }}</Message>
+		<Message v-if="showHelp && field.description" severity="secondary" size="small" variant="simple" class="field-help">{{ field.description }}</Message>
 		<div v-if="safeLink">
 			<Button as="a" :href="safeLink.url" target="_blank" rel="noopener noreferrer" :label="safeLink.label" icon="pi pi-external-link" size="small" variant="text" />
 		</div>
@@ -104,6 +104,7 @@
 				:formContext="formContext"
 				:fieldNameWidth="fieldNameWidth"
 				:baseUrl="baseUrl"
+				:showHelp="showHelp"
 				@form-field-event="(data: FieldEventData) => emits('form-field-event', data)"
 			>
 				<!-- Forward all slots to descendants -->
@@ -131,6 +132,8 @@ export interface PropsType {
 	fieldNameWidth?: string
 	/** where the API is, for a field's Test button */
 	baseUrl?: string
+	/** show the field's `description` under it (BasicForm's `showHelp`) */
+	showHelp?: boolean
 }
 export interface SchemaChangeData {
 	type: 'schema-change'
@@ -148,7 +151,7 @@ export interface EmitsType {
 	(e: 'form-field-event', data: FieldEventData): void
 }
 
-const props = defineProps<PropsType>()
+const props = withDefaults(defineProps<PropsType>(), { showHelp: true })
 // explicit slot types: the template forwards every slot to the recursive child, which TypeScript cannot infer
 defineSlots<Record<string, (props: any) => any>>()
 const emits = defineEmits<EmitsType>()

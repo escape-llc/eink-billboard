@@ -162,3 +162,26 @@ test("the track list and the editor follow the theme: dark in dark mode, light i
 	}
 	watch.expectNone()
 })
+
+test("the help under the track's fields can be hidden from the header, and the playlist's actions are one group", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/playlist")
+	// the selector and every action sit in one group
+	const actions = page.locator(".playlist-actions")
+	await expect(actions.getByRole("combobox", { name: "Playlist" })).toBeVisible()
+	for (const name of ["New playlist", "Rename playlist", "Delete playlist", "Add track", "Save playlist"]) await expect(actions.getByRole("button", { name })).toBeVisible()
+	await row(page, "Morning slides").click()
+	const help = page.locator(".track-editor .field-help")
+	const toggle = page.getByRole("button", { name: "Help text" })
+	await expect(help.first()).toBeVisible()
+	await expect(toggle).toHaveAttribute("aria-pressed", "true")
+	await toggle.click()
+	await expect(help).toHaveCount(0)
+	await expect(toggle).toHaveAttribute("aria-pressed", "false")
+	// the fields are still there, and hiding the help changes nothing to apply
+	await expect(page.locator(".track-editor input[type=text]").first()).toHaveValue("Morning slides")
+	await expect(save(page)).toBeDisabled()
+	await toggle.click()
+	await expect(help.first()).toBeVisible()
+	watch.expectNone()
+})
