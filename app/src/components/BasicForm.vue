@@ -21,7 +21,7 @@
 						</slot>
 					</template>
 					<template v-else>
-						<BasicFormField :field="field" :formContext="$form" :fieldNameWidth="fieldNameWidth" :baseUrl="baseUrl" @form-field-event="handleFormFieldEvent">
+						<BasicFormField :field="field" :formContext="$form" :fieldNameWidth="fieldNameWidth" :baseUrl="baseUrl" :showHelp="showHelp" @form-field-event="handleFormFieldEvent">
 						</BasicFormField>
 					</template>
 				</template>
@@ -60,6 +60,8 @@ export interface PropsType {
 	beforeFieldsSchema?: AddToSchemaType
 	afterFieldsSchema?: AddToSchemaType
 	addInitialValues?: AddInitialValuesType
+	/** show each field's `description` (its help text) under it; a header button can turn it off where the help is long */
+	showHelp?: boolean
 }
 export interface ValidateEventData {
 	result: z.ZodSafeParseResult<any>
@@ -70,7 +72,7 @@ export interface EmitsType {
 	(e: 'submit', data: any): void
 }
 
-const props = withDefaults(defineProps<PropsType>(), { fieldNameWidth: "10rem" })
+const props = withDefaults(defineProps<PropsType>(), { fieldNameWidth: "10rem", showHelp: true })
 const emits = defineEmits<EmitsType>()
 const localProperties = ref<any[]>([])
 const localValues = ref<any>({})
