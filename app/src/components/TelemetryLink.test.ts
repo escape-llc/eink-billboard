@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { TelemetryLink, clockOf, isProblem, originsOf, socketUrl, type SocketLike } from "./TelemetryLink"
+import { LAYERS, TelemetryLink, clockOf, isProblem, layerOf, layersOf, socketUrl, type SocketLike } from "./TelemetryLink"
 
 class FakeSocket implements SocketLike {
 	onopen: ((ev: any) => void) | null = null
@@ -109,14 +109,22 @@ describe("who made the image", () => {
 			{ layer: "background", title: "Photo", origin: track },
 			{ layer: "overlays", count: 2, origins: [task, { ...task, title: "Date" }] },
 		] } }
-		expect(originsOf(e)).toEqual([
+		expect(layersOf(e)).toEqual([
 			{ layer: "background", text: "Main › Morning Joe (Slide Show)", kind: "playlist" },
 			{ layer: "overlay", text: "Clock (Overlay)", kind: "timer" },
 			{ layer: "overlay", text: "Date (Overlay)", kind: "timer" },
 		])
 	})
-	it("says nothing for a layer nobody marked, or no event", () => {
-		expect(originsOf({ source: "display", kind: "shown", values: { layers: [{ layer: "background", title: "Setup" }] } })).toEqual([])
-		expect(originsOf(null)).toEqual([])
+	it("names a layer nobody marked by its title, counts overlays nobody marked, and has no lines for no event", () => {
+		expect(layersOf({ source: "display", kind: "shown", values: { layers: [{ layer: "background", title: "Setup" }, { layer: "overlays", count: 2 }] } })).toEqual([
+			{ layer: "background", text: "Setup" },
+			{ layer: "overlay", text: "2 overlays" },
+		])
+		expect(layersOf(null)).toEqual([])
+	})
+	it("reads the compositor's override as the foreground, and every layer has a glyph", () => {
+		expect(["background", "override", "blend", "timer-blend", "priority", "overlays"].map(layerOf)).toEqual(["background", "foreground", "blend", "blend", "priority", "overlay"])
+		expect(LAYERS.foreground.short).toBe("fg")
+		for (const layer of Object.values(LAYERS)) expect(layer.glyph).toMatch(/^mi mi-[a-z-]+$/)
 	})
 })

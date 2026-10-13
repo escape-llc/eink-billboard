@@ -51,19 +51,42 @@ export function clockOf(ts: string | undefined): string {
 
 /** Who made an image (python/task/source_router.py): a playlist track or a timer task. */
 export type Origin = { kind: string; title: string; plugin: string; name?: string }
-export type OriginLine = { layer: string; text: string; kind: string }
 
 /** The words for an origin: `Main › Morning Joe (Slide Show)` for a track of the playlist `Main`, `Clock (Overlay)` for a timer task. */
 export function originText(o: Origin): string {
 	return `${o.kind === "playlist" && o.name ? `${o.name} › ` : ""}${o.title} (${o.plugin})`
 }
 
-/** Which track or task made each layer of what the panel shows (a `shown` event's layers), back to front; a layer nobody marked has no line. */
-export function originsOf(e: TelemetryEvent | null | undefined): OriginLine[] {
-	const lines: OriginLine[] = []
+/** A layer of the panel, as the gutter names it: a glyph, a short label and the full name. The compositor's `override` reads as the foreground. */
+export type LayerKey = "background" | "foreground" | "blend" | "priority" | "overlay"
+export const LAYERS: Record<LayerKey, { glyph: string; short: string; name: string }> = {
+	background: { glyph: "mi mi-wallpaper", short: "bg", name: "Background" },
+	foreground: { glyph: "mi mi-flip-to-front", short: "fg", name: "Foreground" },
+	blend: { glyph: "mi mi-opacity", short: "blend", name: "Blend" },
+	priority: { glyph: "mi mi-priority-high", short: "priority", name: "Priority" },
+	overlay: { glyph: "mi mi-picture-in-picture", short: "overlay", name: "Overlay" },
+}
+/** The layer of the compositor's name (python/utils/image_compositor.py `layers()`, a `showing` event's `layer`). */
+export function layerOf(name: unknown): LayerKey {
+	return ({ background: "background", override: "foreground", blend: "blend", "timer-blend": "blend", priority: "priority", overlays: "overlay" } as Record<string, LayerKey>)[String(name)] ?? "background"
+}
+export type LayerLine = { layer: LayerKey; text: string; kind?: string }
+
+/**
+ * One line per layer of what the panel shows (a `shown` event's layers), back to front: the track or task that made it, or the layer's title when nobody marked it.
+ * The overlays are a line each when they say who made them, else one line that counts them.
+ */
+export function layersOf(e: TelemetryEvent | null | undefined): LayerLine[] {
+	const lines: LayerLine[] = []
 	for (const layer of (e?.values?.layers ?? []) as any[]) {
-		if (layer?.origin) lines.push({ layer: String(layer.layer), text: originText(layer.origin), kind: String(layer.origin.kind) })
-		for (const o of (layer?.origins ?? []) as Origin[]) lines.push({ layer: "overlay", text: originText(o), kind: String(o.kind) })
+		const key = layerOf(layer?.layer)
+		if (key === "overlay") {
+			const origins = (layer?.origins ?? []) as Origin[]
+			if (origins.length) for (const o of origins) lines.push({ layer: key, text: originText(o), kind: String(o.kind) })
+			else lines.push({ layer: key, text: `${Number(layer?.count ?? 0)} overlay${Number(layer?.count) === 1 ? "" : "s"}` })
+		}
+		else if (layer?.origin) lines.push({ layer: key, text: originText(layer.origin), kind: String(layer.origin.kind) })
+		else lines.push({ layer: key, text: String(layer?.title ?? "") })
 	}
 	return lines
 }

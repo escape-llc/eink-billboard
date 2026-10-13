@@ -5,23 +5,23 @@
 			<Tag :severity="statusSeverity" :value="statusText" class="ml-auto" data-testid="link-status" />
 		</div>
 
+		<!-- a media player: the picture, its title and the time it was sent, and one line per layer (its glyph, then the track or task that made it) -->
 		<section v-if="current" class="gutter-now" aria-label="Now showing">
-			<div class="gutter-label">Now showing</div>
 			<button type="button" class="gutter-thumb" :aria-label="`Show ${title(current)} full size`" @click="full = current">
 				<img :src="link.imageUrl(current.values?.digest)" :alt="title(current)" />
 			</button>
-			<div class="gutter-title">{{ title(current) }}</div>
-			<div class="gutter-meta">
-				<span>{{ clockOf(current.ts) }}</span>
-				<Tag v-for="(layer, i) in current.values?.layers ?? []" :key="i" severity="secondary" class="gutter-chip"
-					:value="layer.layer === 'overlays' ? `overlays (${layer.count})` : layer.layer" />
+			<div class="gutter-player">
+				<div class="gutter-player-head">
+					<span class="gutter-title">{{ title(current) }}</span>
+					<span class="gutter-clock">{{ clockOf(current.ts) }}</span>
+				</div>
+				<ul v-if="currentLayers.length" class="gutter-layers" aria-label="Layers" data-testid="layers">
+					<li v-for="(line, i) in currentLayers" :key="i" :data-layer="line.layer">
+						<i :class="LAYERS[line.layer].glyph" role="img" :aria-label="LAYERS[line.layer].name" :title="LAYERS[line.layer].name"></i>
+						<span class="gutter-layer-text">{{ line.text }}</span>
+					</li>
+				</ul>
 			</div>
-			<ul v-if="currentOrigins.length" class="gutter-origins" aria-label="Made by" data-testid="origins">
-				<li v-for="(line, i) in currentOrigins" :key="i">
-					<i :class="line.kind === 'timer' ? 'mi mi-schedule' : 'mi mi-playlist-play'" aria-hidden="true"></i>
-					<span class="gutter-origin-layer">{{ line.layer }}</span> {{ line.text }}
-				</li>
-			</ul>
 		</section>
 
 		<section v-if="recent.length > 1" class="gutter-recent" aria-label="Recently shown">
@@ -58,7 +58,7 @@
 /** The live view of the device: what the panel shows, what it showed, and what the tasks report (the telemetry link). */
 import { computed, onBeforeUnmount, onMounted, ref } from "vue"
 import { Dialog, Select, Tag, ToggleSwitch } from "primevue"
-import { clockOf, isProblem, originsOf, useTelemetry, type TelemetryEvent } from "./TelemetryLink"
+import { LAYERS, clockOf, isProblem, layerOf, layersOf, useTelemetry, type TelemetryEvent } from "./TelemetryLink"
 
 const link = useTelemetry()
 const full = ref<TelemetryEvent | null>(null)
@@ -75,7 +75,7 @@ onMounted(() => link.start())
 onBeforeUnmount(() => link.stop())
 
 const current = computed(() => link.state.current?.values?.digest ? link.state.current : null)
-const currentOrigins = computed(() => originsOf(current.value))
+const currentLayers = computed(() => layersOf(current.value))
 const recent = computed(() => {
 	const seen = new Set<string>()
 	return [current.value, ...link.state.events.filter(e => e.kind === "shown")]
@@ -96,8 +96,8 @@ function iconOf(e: TelemetryEvent): string {
 	if (e.kind === "track-started" || e.kind === "task-started") return "pi pi-step-backward-alt"
 	if (e.kind === "track-ended" || e.kind === "task-ended") return "pi pi-step-forward-alt"
 	if (e.kind === "stopped") return "pi pi-stop"
-	// a page is shown on a layer: a picture is a background, a washed one is a blend, a text page covers everything (a document)
-	if (e.kind === "showing") return { background: "pi pi-image", blend: "pi pi-clone", override: "pi pi-file" }[String(e.values?.layer)] ?? "pi pi-image"
+	// a page is shown on a layer: the layer's own glyph, as in Now showing
+	if (e.kind === "showing") return LAYERS[layerOf(e.values?.layer)].glyph
 	return { playlist_layer: "pi pi-play", timer_layer: "pi pi-clock", display: "pi pi-image", application: "pi pi-cog", telemetry: "pi pi-wifi" }[e.source] ?? "pi pi-circle"
 }
 /** Our own words for an event: its message when it has one, else what its values say. */
@@ -155,36 +155,61 @@ function describe(e: TelemetryEvent): string {
 	display: block;
 	width: 100%;
 }
+.gutter-now {
+	border: 1px solid var(--p-content-border-color);
+	border-radius: var(--p-content-border-radius);
+	background: var(--p-content-background);
+	overflow: hidden;
+}
+.gutter-now .gutter-thumb {
+	width: 100%;
+	border: none;
+	border-bottom: 1px solid var(--p-content-border-color);
+}
+.gutter-player {
+	padding: .4rem .5rem .5rem;
+}
+.gutter-player-head {
+	display: flex;
+	align-items: baseline;
+	gap: .5rem;
+}
 .gutter-title {
 	font-weight: bold;
-	margin-top: .25rem;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
-.gutter-meta {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: .25rem;
-	font-size: .85rem;
+.gutter-clock {
+	margin-left: auto;
+	font-size: .8rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--p-text-muted-color);
 }
-.gutter-origins {
+.gutter-layers {
 	list-style: none;
 	margin: .25rem 0 0;
 	padding: 0;
 	display: flex;
 	flex-direction: column;
-	gap: .15rem;
+	gap: .2rem;
 	font-size: .85rem;
 }
-.gutter-origins i {
-	margin-right: .3rem;
+.gutter-layers li {
+	display: flex;
+	align-items: center;
+	gap: .4rem;
+	min-width: 0;
+}
+.gutter-layers i {
 	color: var(--p-text-muted-color);
 }
-.gutter-origin-layer {
-	color: var(--p-text-muted-color);
-	margin-right: .25rem;
-}
-.gutter-chip {
-	font-size: .7rem;
+.gutter-layer-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 .gutter-strip {
 	display: grid;
