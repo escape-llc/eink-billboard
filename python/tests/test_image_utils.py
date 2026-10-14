@@ -11,7 +11,7 @@ import httpx
 from PIL import Image
 
 from ..utils import image_utils
-from ..utils.image_utils import apply_image_enhancement, render_html_arglist, render_html_arglist_async, stream_to_buffer, to_rgb
+from ..utils.image_utils import apply_image_enhancement, blurred_margin, render_html_arglist, render_html_arglist_async, stream_to_buffer, to_rgb
 
 POSIX = os.name == "posix"
 
@@ -163,6 +163,33 @@ class TestEnhancement(unittest.TestCase):
 		img = Image.new("P", (2, 2))
 		self.assertIs(apply_image_enhancement(img, None), img)
 		self.assertIs(apply_image_enhancement(img, {"imageSettings-brightness": 1.0}), img)
+
+class TestBlurredMargin(unittest.TestCase):
+	def _two_tone(self, size):
+		img = Image.new("RGB", size, (0, 0, 255))
+		img.paste((255, 0, 0), (0, 0, size[0] // 2, size[1]))
+		return img
+	def test_the_picture_is_whole_in_the_middle_and_the_margin_is_its_own_color(self):
+		out = blurred_margin(self._two_tone((400, 400)), (800, 480))
+		self.assertEqual(out.size, (800, 480))
+		# 480 square in the middle (160..640): red left half, blue right half; the margins are blurred copies of those colors, never white
+		self.assertEqual(out.getpixel((300, 240)), (255, 0, 0))
+		self.assertEqual(out.getpixel((500, 240)), (0, 0, 255))
+		self.assertEqual(out.getpixel((5, 240))[0] > 150, True)
+		self.assertNotEqual(out.getpixel((5, 5)), (255, 255, 255))
+		self.assertNotEqual(out.getpixel((795, 5)), (255, 255, 255))
+	def test_a_picture_that_fits_is_returned_and_a_small_one_is_enlarged_unless_asked_not_to(self):
+		src = Image.new("RGB", (800, 480))
+		self.assertIs(blurred_margin(src, (800, 480)), src)
+		small = self._two_tone((100, 50))
+		# not enlarged: the 100 pixel picture is at 350..450, its blue half starts at 400
+		self.assertEqual(blurred_margin(small, (800, 480), enlarge=False).getpixel((401, 240)), (0, 0, 255))
+		self.assertEqual(blurred_margin(small, (800, 480), enlarge=False).getpixel((399, 240)), (255, 0, 0))
+		self.assertEqual(blurred_margin(small, (800, 480)).getpixel((100, 240)), (255, 0, 0))
+	def test_every_mode_and_a_portrait_target_work(self):
+		for mode in ("P", "1", "LA", "RGBA", "L", "RGB"):
+			with self.subTest(mode=mode):
+				self.assertEqual(blurred_margin(Image.new(mode, (40, 30)), (48, 80)).size, (48, 80))
 
 if __name__ == "__main__":
 	unittest.main()
