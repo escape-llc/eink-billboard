@@ -24,7 +24,7 @@ from ..model.schedule import Playlist, PlaylistSchedule
 from ..model.service_container import IServiceProvider, ServiceContainer
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..plugins.plugin_base import PermanentError, PluginAsync, PluginExecutionContext
-from ..web.documents import plugin_content_errors
+from ..web.documents import content_with_defaults, plugin_content_errors
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool
 from ..task.timer import IProvideTimer, TimerThreadService
 from ..task.protocols import IRequireShutdown
@@ -261,6 +261,9 @@ class PlaylistLayer(DispatcherTask):
 						held += 1
 						await self._show_error(track, key, tod.current_time())
 						continue
+					# a property the track lacks runs at the descriptor's default, as the form shows it (the stored track is not changed)
+					if track.content is not None:
+						track.content.data = content_with_defaults(plugins, datasources, track.plugin_name, track.content.data)
 					problem = self._settings_problem(track, plugins, datasources)
 					if problem is not None:
 						self._strike(key, track, PermanentError(f"Settings: {problem}"), tod.current_time(), True)

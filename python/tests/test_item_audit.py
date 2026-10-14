@@ -14,6 +14,7 @@ from collections import defaultdict
 from typing import Any
 
 from ..model.configuration_manager import ConfigurationManager
+from ..web.documents import content_with_defaults
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(ROOT)
@@ -123,6 +124,40 @@ class TestStoredItems(unittest.TestCase):
 				elif content[name] is not None and p.get("type") in TYPES and not isinstance(content[name], TYPES[p["type"]]):
 					problems.append(f"{where}: {name} is {type(content[name]).__name__}, declared {p['type']}")
 		self.assertEqual(problems, [])
+
+class TestRunTimeDefaults(unittest.TestCase):
+	"""An item that lacks a property runs at the descriptor's default, as the form would show and save it."""
+	def _maps(self):
+		return { k: { "info": v } for k, v in DESCRIPTORS.plugins.items() }, { k: { "info": v } for k, v in DESCRIPTORS.sources.items() }
+
+	def test_a_missing_property_takes_the_descriptors_default_and_a_set_one_is_kept(self):
+		plugins, sources = self._maps()
+		filled = content_with_defaults(plugins, sources, "slide-show", { "dataSource": "comic-xkcd", "slideMinutes": 3 })
+		slide = { p["name"]: p for p in properties(DESCRIPTORS.plugins["slide-show"]) }
+		self.assertEqual(filled["refreshHours"], slide["refreshHours"]["default"])
+		self.assertEqual(filled["slideMax"], slide["slideMax"]["default"])
+		self.assertEqual(filled["slideMinutes"], 3)
+
+	def test_nothing_is_added_that_has_no_default_or_is_hidden_or_the_item_is_unchanged(self):
+		plugins, sources = self._maps()
+		for kind, id_, info in DESCRIPTORS.all():
+			if kind != "plugin":
+				continue
+			content = { "dataSource": "nothing" }
+			filled = content_with_defaults(plugins, sources, id_, content)
+			self.assertEqual(content, { "dataSource": "nothing" }, "the stored item is not changed")
+			props = { p["name"]: p for p in properties(info) }
+			for name in filled:
+				if name not in content:
+					self.assertIsNotNone(props[name].get("default"), f"{id_}.{name}")
+
+	def test_an_item_that_is_complete_is_returned_as_it_is(self):
+		plugins, sources = self._maps()
+		full = { p["name"]: p.get("default") for p in properties(DESCRIPTORS.plugins["slide-show"]) }
+		self.assertEqual(content_with_defaults(plugins, sources, "slide-show", dict(full)), full)
+
+	def test_an_unknown_plugin_is_left_alone(self):
+		self.assertEqual(content_with_defaults({}, {}, "nope", { "a": 1 }), { "a": 1 })
 
 if __name__ == "__main__":
 	unittest.main()
