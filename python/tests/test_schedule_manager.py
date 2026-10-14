@@ -38,14 +38,13 @@ class TestScheduleManager(unittest.TestCase):
 		sm.validate(sinfos)
 		pass
 
-	def test_validate_schedule_info_none(self):
-		# master present, but a schedule entry has no 'info'
+	def test_validate_an_empty_schedule_is_valid(self):
 		sm = ScheduleManager(root_path=storage_path() + os.path.sep + "schedules")
 		schedule_list: dict[str, list] = {
 			"playlists": [],
 			"tasks": []
 		}
-		with self.assertRaises(ValueError):
+		with self.assertLogs("python.model.schedule_manager", "WARNING"):
 			sm.validate(cast(ScheduleManagerDict, schedule_list))
 
 	def test_validate_playlist_info_none(self):
@@ -72,19 +71,21 @@ class TestScheduleManager(unittest.TestCase):
 			sm = ScheduleManager(root_path=tmp)
 			with self.assertRaises(ValueError):
 				sm.validate(cast(ScheduleManagerDict, None))
-			with self.assertRaises(ValueError):
+			# nothing scheduled is valid (a new device): the layers say so on the panel
+			with self.assertLogs("python.model.schedule_manager", "WARNING"):
 				sm.validate(cast(ScheduleManagerDict, {}))
 
 
 class TestNoTimerTasks(unittest.TestCase):
-	def test_no_timer_documents_is_valid_but_no_playlists_still_is_not(self):
+	def test_no_timer_documents_and_no_playlists_are_both_valid(self):
 		import tempfile
 		from ..model.schedule import Playlist
 		with tempfile.TemporaryDirectory() as tmp:
 			sm = ScheduleManager(root_path=tmp)
 			playlist = cast(Any, { "info": Playlist("p", "P", []), "name": "p.json", "path": "p.json", "type": "x" })
 			sm.validate(cast(ScheduleManagerDict, { "tasks": [], "playlists": [playlist] }))
-			with self.assertRaises(ValueError):
+			# a new device has none and a user may delete the last: the layers say so on the panel, they do not fail
+			with self.assertLogs("python.model.schedule_manager", "WARNING"):
 				sm.validate(cast(ScheduleManagerDict, { "tasks": [], "playlists": [] }))
 
 class TestLoadIgnoresJunk(unittest.TestCase):

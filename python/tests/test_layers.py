@@ -95,6 +95,44 @@ class PlaylistLayerSimulation(unittest.TestCase):
 		telemetry:Telemetry = cast(Telemetry, tsink.captured)
 		self.assertNotEqual(telemetry.values.get("state", None), "error", f"PlaylistLayer encountered error: {telemetry.values.get('message', '')}")
 
+class NewDeviceHasNothingScheduled(unittest.TestCase):
+	"""A new device's storage has no playlist and no timer task (found on a Pi: both layers failed). The playlist layer says so on the panel; neither fails."""
+	def test_both_layers_start_and_the_panel_says_nothing_is_scheduled(self):
+		import tempfile
+		from ..model.configuration_manager import ConfigurationManager
+		from ..task.display_messages import DisplayImage
+		with tempfile.TemporaryDirectory() as folder:
+			cm = ConfigurationManager(storage_path=folder)
+			cm.hard_reset()
+			display = RecordingTask("FakeDisplay")
+			errors: list[BasicMessage] = []
+			shown = Event()
+			router = MessageRouter()
+			router.addRoute(Route("display", [display]))
+			router.addRoute(Route("telemetry", [MessageTriggerSink(lambda m: isinstance(m, Telemetry) and m.values.get("state") == "error" and not errors.append(m))]))
+			time_base = ScaledTimeOfDay(datetime.now().astimezone(), 60)
+			ctr = ServiceContainer()
+			ctr.add_service(TimeOfDay, time_base)
+			ctr.add_service(IProvideTimer, ScaledTimerThreadService(time_base, 60))
+			now = time_base.current_time()
+			layers = [PlaylistLayer("playlist", router), TimerLayer("timer", router)]
+			display.start()
+			for layer in layers:
+				layer.start()
+				layer.accept(DisplaySettings(now, "none", 800, 480, []))
+				layer.accept(ConfigureEvent(now, ConfigureOptions(cm, ctr), "configure", None))
+			for _ in range(100):
+				if any(isinstance(m, DisplayImage) and m.title == "Nothing to show" for m in display.msgs):
+					break
+				Event().wait(0.1)
+			for layer in layers:
+				layer.accept(QuitMessage(now))
+				layer.join(timeout=2)
+			display.accept(QuitMessage(now))
+			display.join()
+			self.assertTrue(any(isinstance(m, DisplayImage) and m.title == "Nothing to show" for m in display.msgs), "the panel was not told nothing is scheduled")
+			self.assertEqual([], errors)
+
 class TimerLayerSimulation(unittest.TestCase):
 	def test_simulate_timer_layer(self):
 		display = RecordingTask("FakeDisplay")
