@@ -206,6 +206,10 @@ test("the toolbar shows a day or a week from today, moves forward and back but n
 	const back = page.getByRole("button", { name: "Back" })
 	const forward = page.getByRole("button", { name: "Forward" })
 	const headers = page.locator(".day-header")
+	// the view, the moves and a new task are one group
+	const actions = page.locator(".scheduler-actions")
+	for (const name of ["Day", "Week", "List", "Back", "Today", "Forward", "New task"]) await expect(actions.getByRole("button", { name, exact: true })).toBeVisible()
+	await expect(actions.getByRole("button", { name: "Week", exact: true })).toHaveAttribute("aria-pressed", "true")
 	// a week from today, starting on today's weekday
 	await expect(headers).toHaveCount(7)
 	await expect(headers.first()).toHaveClass(/day-header-today/)
@@ -223,7 +227,8 @@ test("the toolbar shows a day or a week from today, moves forward and back but n
 	expect(await weekday()).toBe(nextWeekday)
 	await expect(back).toBeDisabled()
 	// a day
-	await page.locator(".p-selectbutton").getByText("Day", { exact: true }).click()
+	await page.getByRole("button", { name: "Day", exact: true }).click()
+	await expect(page.getByRole("button", { name: "Day", exact: true })).toHaveAttribute("aria-pressed", "true")
 	await expect(headers).toHaveCount(1)
 	await forward.click()
 	await expect(back).toBeEnabled()
@@ -239,7 +244,7 @@ test("the list shows each task once and opens it", async ({ page }) => {
 	await expect(page.locator(".event").first()).toBeVisible()
 	const repeats = await page.locator(".event").filter({ hasText: "Quarter-hour clock" }).count()
 	expect(repeats).toBeGreaterThan(1)
-	await page.locator(".p-selectbutton").getByText("List", { exact: true }).click()
+	await page.getByRole("button", { name: "List", exact: true }).click()
 	const list = page.getByTestId("task-list")
 	await expect(list.getByRole("button", { name: /^Edit / })).toHaveCount(stored().items.length)
 	const row = list.getByRole("row").filter({ hasText: "Quarter-hour clock" })
