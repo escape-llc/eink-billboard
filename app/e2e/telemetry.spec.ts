@@ -17,11 +17,12 @@ test("the gutter goes live, shows what the panel shows, and reports a change of 
 	await expect(now).toBeVisible({ timeout: 20000 })
 	await expect.poll(() => now.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
 
-	// and which track made it, on a line with its layer's glyph: the playlist, the track and the plugin
+	// and who made it, on a line with its layer's glyph: the playlist, the track and the plugin; or, in the minute after a quarter hour,
+	// the fixture's Quarter-hour clock task on the priority layer (it covers the playlist then: the test cannot choose the time it runs)
 	const layers = gutter.getByTestId("layers")
-	await expect(layers).toContainText(/.+ › .+ \(.+\)/)
+	await expect(layers).toContainText(/(.+ › .+ \(.+\))|(Quarter-hour clock \(.+\))/)
 	await expect(layers.locator("i.mi").first()).toBeVisible()
-	await expect(layers.getByRole("img", { name: /Background|Foreground/ }).first()).toBeVisible()
+	await expect(layers.getByRole("img", { name: /Background|Foreground|Priority/ }).first()).toBeVisible()
 	// the layer is said once, by its glyph: no chip repeats it
 	await expect(gutter.getByRole("region", { name: "Now showing" }).getByText(/^(override|background)$/)).toHaveCount(0)
 
