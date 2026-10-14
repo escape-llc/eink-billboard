@@ -47,7 +47,7 @@
 			</div>
 		</Message>
 		<Message v-for="(problem, index) in serverProblems" :key="index" severity="error" size="small" variant="simple">{{ problem }}</Message>
-		<BasicForm v-if="selectedPlugin" ref="bf" :form="selectedPlugin.instanceSettings" :owner="{ kind: 'plugin', id: selectedPlugin.id }" :initialValues="editModel.content" :baseUrl="API_URL"
+		<BasicForm v-if="selectedPlugin" ref="bf" :form="selectedPlugin.instanceSettings" :owner="{ kind: 'plugin', id: selectedPlugin.id }" :initialValues="editModel.content" :baseUrl="API_URL" :showHelp="showHelp"
 			:beforeFieldsSchema="beforeFieldsSchema" :addInitialValues="addInitialValues"
 			@validate="onValidated" @submit="submitForm"
 			class="form">
@@ -58,6 +58,7 @@
 					</template>
 					<template #end>
 						<InputGroup>
+							<HelpToggle v-model="showHelp" />
 							<Button size="small" icon="pi pi-check" severity="success" aria-label="Save" :disabled="!editModelValid || saving" @click="handleSubmit" />
 							<Button size="small" icon="pi pi-times" severity="danger" aria-label="Reset" @click="handleReset" />
 						</InputGroup>
@@ -132,11 +133,14 @@ import { browserZoneDifference, zonedParts } from "../components/CalendarTime"
 import { ref, onMounted, onBeforeUnmount, nextTick, toRaw, provide, computed } from "vue"
 import { ProgressBar } from "primevue"
 import BasicForm, { type ValidateEventData } from "../components/BasicForm.vue"
+import HelpToggle from "../components/HelpToggle.vue"
 import type { FormDef } from "../components/FormDefs"
 import type { PluginDef } from "../components/ScheduleDefs"
 import { TriggerDefSchema } from "../components/ScheduleDefs"
 import TimedTrigger from "../components/TimedTrigger.vue"
 import z from "zod";
+// the fields' help text, shown until hidden (for the page's life)
+const showHelp = ref(true)
 
 const bf = ref<InstanceType<typeof BasicForm>>()
 const fieldNameWidth = "10rem";

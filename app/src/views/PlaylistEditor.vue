@@ -61,9 +61,7 @@
 								</template>
 								<template #end>
 									<InputGroup>
-										<!-- the help under each field is long for some plugins: hide it once it is known -->
-										<Button size="small" icon="pi pi-question-circle" severity="secondary" :variant="showHelp ? undefined : 'outlined'" :aria-pressed="showHelp"
-											aria-label="Help text" :title="showHelp ? 'Hide the help under the fields' : 'Show the help under the fields'" @click="showHelp = !showHelp" />
+										<HelpToggle v-model="showHelp" />
 										<Button size="small" icon="pi pi-check" severity="success" aria-label="Apply track" title="Apply to the playlist (then save it)" :disabled="submitDisabled" @click="handleSubmit" />
 										<Button size="small" icon="pi pi-times" severity="danger" aria-label="Reset track" @click="handleReset" />
 									</InputGroup>
@@ -125,6 +123,7 @@ import { ApiError, apiDelete, apiJson, apiPatch, apiPost, apiPut } from "../comp
 import { ref, reactive, computed, onMounted, provide } from 'vue'
 import { InputGroup, InputGroupAddon, Toolbar, Button, Select, InputText, Dialog, Message, ProgressBar, useToast } from 'primevue'
 import BasicForm, { type ValidateEventData } from '../components/BasicForm.vue'
+import HelpToggle from '../components/HelpToggle.vue'
 import type { PlaylistItem, PluginDef } from '../components/ScheduleDefs'
 import { describeTrack, type Describable } from '../components/Describe'
 const API_URL = import.meta.env.VITE_API_URL

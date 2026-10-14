@@ -1,5 +1,5 @@
 <template>
-	<BasicForm ref="bf" :form :initialValues :baseUrl="baseUrl" :owner="owner" @validate="handleValidate" @submit="submitForm">
+	<BasicForm ref="bf" :form :initialValues :baseUrl="baseUrl" :owner="owner" :showHelp="showHelp" @validate="handleValidate" @submit="submitForm">
 		<template #empty>
 			<p style="margin:auto">No Settings defined.</p>
 		</template>
@@ -13,6 +13,7 @@
 				</template>
 				<template #end>
 					<InputGroup>
+						<HelpToggle v-model="showHelp" />
 						<Button size="small" icon="pi pi-check" severity="success" :disabled="submitDisabled" @click="submit" />
 						<Button size="small" icon="pi pi-times" severity="danger" @click="reset" />
 					</InputGroup>
@@ -35,9 +36,12 @@ import { ref, watch, nextTick, onMounted, onBeforeUnmount } from "vue"
 import { onBeforeRouteLeave } from "vue-router"
 import { useConfirm } from "primevue/useconfirm"
 import BasicForm from "./BasicForm.vue"
+import HelpToggle from "./HelpToggle.vue"
 import type { Owner, ValidateEventData } from "./BasicForm.vue"
 import type { FormDef } from "./FormDefs"
 import { InputGroup, Button, Toolbar, Message } from 'primevue';
+// the fields' help text, shown until hidden (for the page's life)
+const showHelp = ref(true)
 
 export interface PropsType {
 	title?: string
