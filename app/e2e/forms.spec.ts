@@ -161,3 +161,48 @@ test("a row of a list has its own Test button", async ({ page }) => {
 	await expect(page.getByText("reachable")).toBeVisible()
 	watch.expectNone()
 })
+
+// Every control of a form row grows to fill the row (a picker that kept its content width showed a sliver of an input beside its icon).
+// The control is the last child of the row's input group; a toggle is a switch and stays small on purpose.
+async function expectRowsFill(page: import("@playwright/test").Page, scope: import("@playwright/test").Locator) {
+	const rows = await scope.locator(".p-inputgroup").filter({ has: page.locator(".field-label") }).all()
+	for (const r of rows) {
+		if (await r.locator(".p-toggleswitch").count() > 0 || !(await r.isVisible())) continue
+		const label = (await r.locator("label").first().textContent())?.trim()
+		const widths = await r.evaluate(el => {
+			const box = el.getBoundingClientRect()
+			// the control itself: inside the addon that holds a picker, directly in the group for the others
+			const holder = el.lastElementChild!
+			const control = holder.matches(".p-inputgroupaddon") ? holder.querySelector(".p-datepicker, .color-field, .leaflet-container") ?? holder : holder
+			const last = control.getBoundingClientRect()
+			const first = el.firstElementChild!.getBoundingClientRect()
+			return { row: box.width, label: first.width, last: last.width }
+		})
+		// the control takes what the label leaves, give or take a border and the addon's padding
+		expect(widths.last, `the control of "${label}" fills its row`).toBeGreaterThan(widths.row - widths.label - 24)
+	}
+}
+
+test("every field type grows to the width of its row: text, number, choice, color, location", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/settings")
+	for (const tab of ["System", "Theme", "Display"]) {
+		await page.getByRole("tab", { name: tab }).click()
+		await expect(page.getByRole("tabpanel").locator(".field-label").first()).toBeVisible()
+		await expectRowsFill(page, page.getByRole("tabpanel"))
+	}
+	watch.expectNone()
+})
+
+test("a date field grows to the width of its row", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/playlist")
+	await page.locator(".track-row").first().click()
+	const editor = page.locator(".track-editor")
+	await page.locator(".track-editor .p-select").filter({ hasText: /Slide Show/ }).first().waitFor()
+	await editor.locator(".p-select").nth(1).click()
+	await page.getByRole("option").filter({ hasText: "NASA Picture of the Day" }).click()
+	await expect(editor.locator(".p-datepicker")).toBeVisible()
+	await expectRowsFill(page, editor)
+	watch.expectNone()
+})
