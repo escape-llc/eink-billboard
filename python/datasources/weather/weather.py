@@ -14,6 +14,7 @@ from ...model.configuration_manager import DatasourceConfigurationManager, Setti
 from ...model.theme import ThemeInputs, current_inputs
 from ...plugins.plugin_base import PermanentError, RenderSession
 from ...task.async_http_worker_pool import client_var
+from ..keeping import number
 from ..response_cache import cached
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 from .icons import icon_svg, stat_svg
@@ -240,6 +241,8 @@ def api_error(status: int) -> BaseException:
 	return RuntimeError(f"OpenWeatherMap answered {status}.")
 
 DEFAULT_CACHE_HOURS = 6.0
+# the weather now is asked again sooner than the forecast (the settings' `currentCacheHours`), and never kept longer than `cacheHours`
+DEFAULT_CURRENT_CACHE_HOURS = 0.5
 
 async def fetch(client: httpx.AsyncClient, path: str, latitude: float, longitude: float, units: Units, key: str) -> Mapping[str, Any]:
 	"""One call of the API. Failures say what happened and never what was asked: the address holds the key."""
@@ -300,7 +303,10 @@ class WeatherAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			"""The API's answer for this place: kept for the data source's `cacheHours` (it is the same for every task), so the free plan's calls are for new answers only."""
 			# the key is not part of what is kept or what it is called: an answer is the same whoever asks
 			name = f"{path}|{latitude:.4f}|{longitude:.4f}|{report.units.system}"
-			return cached(dscm, settings, name, dsec.timestamp, lambda: fetch(client, path, latitude, longitude, report.units, key.strip()), DEFAULT_CACHE_HOURS)
+			kept = settings
+			if path == "weather":
+				kept = { **settings, "cacheHours": min(number(settings.get("cacheHours"), DEFAULT_CACHE_HOURS), number(settings.get("currentCacheHours"), DEFAULT_CURRENT_CACHE_HOURS)) }
+			return cached(dscm, kept, name, dsec.timestamp, lambda: fetch(client, path, latitude, longitude, report.units, key.strip()), DEFAULT_CACHE_HOURS)
 		if "current" in needs:
 			parse_current(await answer("weather"), report, zone)
 		if "forecast" in needs:

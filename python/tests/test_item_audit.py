@@ -114,6 +114,20 @@ class TestUses(unittest.TestCase):
 			asks = ".use(" in code or ".context_for(" in code
 			self.assertEqual(asks, bool(info.get("uses")), f"{id_}: `uses` in the descriptor must match whether the code asks another data source")
 
+# a list source whose list is made fresh every slot (a view of now), so it is not kept; every other list is shown item by item until it is used up, then fetched again
+NOT_KEPT = { "calendar": "its pages are views of now", "weather": "its pages are views of now" }
+
+class TestKeptLists(unittest.TestCase):
+	def test_every_list_source_is_kept_unless_it_is_a_view_of_now(self):
+		lists = { id_ for id_, info in DESCRIPTORS.sources.items() if "media-list" in (info.get("features") or []) }
+		kept = { id_ for id_ in lists if DESCRIPTORS.sources[id_].get("keepsList") is True }
+		self.assertEqual(lists - kept, set(NOT_KEPT), "a list source is kept (`keepsList`), or listed in NOT_KEPT with the reason")
+		self.assertEqual(kept, { "rss", "image-folder", "comic" })
+
+	def test_a_kept_list_is_fetched_again_only_when_used_up_unless_the_task_says_otherwise(self):
+		refresh = next(p for p in properties(DESCRIPTORS.plugins["slide-show"]) if p["name"] == "refreshHours")
+		self.assertEqual(refresh["default"], 0)
+
 class TestStoredItems(unittest.TestCase):
 	def _items(self):
 		for storage in STORAGES:

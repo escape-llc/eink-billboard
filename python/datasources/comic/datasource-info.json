@@ -8,6 +8,7 @@
 	"description": "A comic downloader.",
 	"describe": "Comic {comic}",
 	"disabled": false,
+	"keepsList": true,
 	"features": ["internet", "layer-foreground", "media-list"],
 	"settings": {
 		"schema": {
