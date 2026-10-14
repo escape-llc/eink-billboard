@@ -162,10 +162,10 @@ class PlaylistLayer(DispatcherTask):
 		"""The device theme now, for the error page (the factory theme when there is no configuration)."""
 		return current_inputs(self.cm.settings_manager() if self.cm is not None else None)
 	async def _show_error(self, track: PlaylistSchedule, key: tuple[int, int], ts: datetime) -> None:
-		"""The slot of a track that failed shows an error page, for the time the track would have taken. The display skips it when the panel already shows it."""
+		"""The slot of a track that failed shows an error page (a foreground one: the overlays are not drawn on it, they would compete with its text), for the time the track would have taken. The display skips it when the panel already shows it."""
 		stm = self.cm.static_manager() if self.cm is not None else None
 		image = await asyncio.to_thread(render_error_image, stm, self.dimensions, track.title, [self._reasons.get(key, "Failed")], self._theme())
-		self.router.send("display", DisplayImage(ts, f"Error: {track.title}", image, origin=image_source("playlist", track.title, track.plugin_name)))
+		self.router.send("display", DisplayImage(ts, f"Error: {track.title}", image, layer="override", origin=image_source("playlist", track.title, track.plugin_name)))
 		if self.timer is None:
 			await asyncio.sleep(self.BACKOFF_INITIAL_SECONDS)
 		else:
@@ -176,7 +176,7 @@ class PlaylistLayer(DispatcherTask):
 		lines = [f"{cast(PlaylistSchedule, item).title}: {self._reasons.get((pi, ti), 'Failed')}"
 			for pi, pl in enumerate(playlists) for ti, item in enumerate(cast(Playlist, pl.get("info")).items)][:6]
 		image = await asyncio.to_thread(render_error_image, stm, self.dimensions, "Playback stopped", lines, self._theme())
-		self.router.send("display", DisplayImage(ts, "Error: playback stopped", image))
+		self.router.send("display", DisplayImage(ts, "Error: playback stopped", image, layer="override"))
 	NOTHING_LINES = ["No playlist is scheduled to play.", "Create one in the web app and schedule it."]
 	def _nothing_image(self) -> Image.Image:
 		stm = self.cm.static_manager() if self.cm is not None else None
@@ -184,7 +184,7 @@ class PlaylistLayer(DispatcherTask):
 	def _show_nothing(self, ts: datetime) -> None:
 		"""The device has no playlist (the factory storage has none): say so on the panel instead of leaving it blank."""
 		try:
-			self.router.send("display", DisplayImage(ts, "Nothing to show", self._nothing_image()))
+			self.router.send("display", DisplayImage(ts, "Nothing to show", self._nothing_image(), layer="override"))
 		except Exception as e:
 			self.logger.error(f"Could not show the empty page: {type(e).__name__}")
 	def _marked(self, isp: IServiceProvider, source: dict[str, str]) -> IServiceProvider:
