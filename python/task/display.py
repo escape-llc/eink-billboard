@@ -140,6 +140,10 @@ class Display(DispatcherTask):
 				# the driver is imported when the display is initialized (below), on the device only; this module does not need it
 				from ..display.inky_display import InkyDisplay
 				self.display = InkyDisplay("inky")
+			elif display_type == "waveshare":
+				# the model's driver is imported when the display is initialized (below), on the device only; this module does not need it
+				from ..display.waveshare_display import WaveshareDisplay
+				self.display = WaveshareDisplay("waveshare")
 			else:
 				raise ValueError(f"Unrecognized display type: '{display_type}'")
 			ts = msg.content.isp.get_service(IProvideTimer)

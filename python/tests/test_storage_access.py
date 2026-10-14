@@ -8,6 +8,7 @@ from ..model.configuration_manager import ConfigurationManager
 PYTHON = os.path.join(os.path.dirname(__file__), "..")
 # the only modules that touch the storage's files; everything else goes through the ConfigurationManager and its sub-managers
 STORAGE = { "model/storage_files.py", "model/configuration_manager.py", "model/schedule_manager.py" }
+# (the vendored Waveshare drivers, python/display/waveshare_epd, are Waveshare's: they read the board's /proc, not the storage)
 # file calls that are not about the storage: render scratch files (temp), the system's zone file, the logging configuration, the mock display's output (system temp)
 OTHER = { "utils/image_utils.py", "model/time_of_day.py", "eink-billboard.py", "display/mock_display.py" }
 FILE_CALLS = { "open", "makedirs", "mkdir", "remove", "replace", "rename", "rmtree", "copytree", "copyfile", "move", "unlink", "write_text", "write_bytes", "read_text", "read_bytes" }
@@ -38,7 +39,7 @@ class TestStorageAccess(unittest.TestCase):
 		"""Every file access goes through the configuration manager subsystem (AGENTS.md: the chain of trust on paths)."""
 		offenders = {}
 		for folder, dirs, files in os.walk(PYTHON):
-			dirs[:] = [d for d in dirs if d not in ("tests", "__pycache__", ".storage", "static", "storage")]
+			dirs[:] = [d for d in dirs if d not in ("tests", "__pycache__", ".storage", "static", "storage", "waveshare_epd")]
 			for file in files:
 				if not file.endswith(".py"):
 					continue
