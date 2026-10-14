@@ -40,6 +40,28 @@
 					"description": "A column of week numbers (ISO 8601) at the left of the month grid."
 				},
 				{
+					"name": "cacheHours",
+					"type": "number",
+					"required": true,
+					"default": 0.25,
+					"minimum": 0,
+					"maximum": 24,
+					"step": 0.05,
+					"minFractionDigits": 0,
+					"maxFractionDigits": 2,
+					"title": "Keep an Answer (hours)",
+					"description": "How long what each calendar answered is kept and shared by every page, task and overlay that shows its events, so the calendars are asked once in that time. An edit to a calendar shows up after it. 0: ask every time."
+				},
+				{
+					"name": "staleDays",
+					"type": "integer",
+					"required": true,
+					"default": 30,
+					"minimum": 0,
+					"title": "Forget Unused Answers After (days)",
+					"description": "A kept answer nobody has used for this many days (a calendar you removed) is removed. 0: never."
+				},
+				{
 					"name": "calendars",
 					"type": "array",
 					"required": false,
@@ -108,6 +130,8 @@
 		"default": {
 			"weekStart": "monday",
 			"weekNumbers": false,
+			"cacheHours": 0.25,
+			"staleDays": 30,
 			"calendars": [],
 			"accounts": [],
 			"holidays": []

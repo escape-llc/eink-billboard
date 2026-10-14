@@ -1,6 +1,6 @@
 """Settings documents and their schemas: device-wide (system/display/theme), per plugin and per datasource."""
 import logging
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 from fastapi import APIRouter, Body
 from fastapi.responses import JSONResponse
@@ -46,7 +46,7 @@ def _settings_lookups(item: CollectInfoDict) -> dict:
 	settings = item["info"].get("settings") or {}
 	return (settings.get("schema") or {}).get("lookups") or {}
 
-def _settings_lookup_choices(item: CollectInfoDict, lookup_name: str, stored: dict|None) -> list[dict]:
+def _settings_lookup_choices(item: CollectInfoDict, lookup_name: str, stored: dict|None, stored_of: Callable[[str], dict|None]|None = None) -> list[dict]:
 	"""
 	The choices of one of the item's `settings` lookups (of its instance settings or its settings), from the settings it keeps. Only a lookup the descriptor declares (with a `settings` list) is served;
 	what is read is our own declared name, never the URL's string.
@@ -55,7 +55,9 @@ def _settings_lookup_choices(item: CollectInfoDict, lookup_name: str, stored: di
 	_, lookups = instance_properties(cast(dict, item))
 	for declared, definition in [*lookups.items(), *_settings_lookups(item).items()]:
 		if declared == lookup_name and isinstance(definition, dict) and "settings" in definition:
-			return settings_lookup_items(definition, stored)
+			# `from` names another data source whose list this one chooses from (its id is our descriptor's, and must be one of the data sources)
+			other = definition.get("from")
+			return settings_lookup_items(definition, stored if other is None else (stored_of(str(other)) if stored_of else None))
 	raise ApiError(404, "Unknown lookup.", None)
 
 @router.get('/settings/{name}')
@@ -122,6 +124,8 @@ def get_plugin_lookup(plugin_id: str, lookup: str, cm: CM):
 
 @router.get('/datasources/{datasource_id}/lookups/{lookup}')
 def get_datasource_lookup(datasource_id: str, lookup: str, cm: CM):
-	declared, item = _find_item(cm.enum_datasources(), datasource_id, "datasource")
+	sources = cm.enum_datasources()
+	declared, item = _find_item(sources, datasource_id, "datasource")
 	_, stored = cm.datasource_manager(declared).open().get()
-	return _settings_lookup_choices(item, lookup, stored)
+	known = { d["info"].get("id") for d in sources }
+	return _settings_lookup_choices(item, lookup, stored, lambda other: cm.datasource_manager(other).open().get()[1] if other in known else None)

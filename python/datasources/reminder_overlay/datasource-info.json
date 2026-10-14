@@ -1,0 +1,81 @@
+{
+	"id": "reminder-overlay",
+	"name": "Reminder Overlay",
+	"version": "0.0.1",
+	"class": "ReminderOverlayAsync",
+	"file": "reminder_overlay.py",
+	"module": "python.datasources.reminder_overlay.reminder_overlay",
+	"description": "The next events of the calendars for an overlay zone, as outlined text: what is on now and what starts within the window. It uses the Calendar's calendars and shares its kept answers: no settings of its own. Nothing in the window takes the overlay off.",
+	"describe": "Reminders {windowMinutes} min",
+	"disabled": false,
+	"features": ["internet", "layer-overlay", "media-image"],
+	"settings": {
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+				"calendar": {
+					"settings": "calendars",
+					"from": "calendar",
+					"value": "name"
+				}
+			},
+			"properties": [
+				{
+					"name": "windowMinutes",
+					"type": "integer",
+					"required": true,
+					"default": 60,
+					"minimum": 1,
+					"maximum": 10080,
+					"title": "Window (minutes)",
+					"description": "Events that are on now or start within this many minutes are shown, the nearest first, as many as the zone has room for. When there are none the overlay is taken off."
+				},
+				{
+					"name": "calendars",
+					"type": "array",
+					"required": false,
+					"default": [],
+					"title": "Calendars",
+					"lookup": "calendar",
+					"description": "Which calendars to show. None chosen: all that are enabled. Add calendars in the Calendar data source settings.",
+					"items": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "allDay",
+					"type": "boolean",
+					"required": false,
+					"default": false,
+					"title": "All-Day Events",
+					"description": "Also show events that last all day (and holidays). Off: only events with a time."
+				},
+				{
+					"name": "weight",
+					"type": "string",
+					"required": false,
+					"default": "bold",
+					"title": "Weight",
+					"description": "How heavy the letters are. bold: the font's bold face. heavy: bolder than the font has it.",
+					"enum": ["normal", "bold", "heavy"]
+				},
+				{
+					"name": "offset",
+					"type": "integer",
+					"required": false,
+					"default": 6,
+					"minimum": 0,
+					"maximum": 200,
+					"title": "Edge Offset",
+					"description": "How far the text is from the screen's edge, in pixels: from the top edge in a top zone, from the bottom edge in a bottom zone."
+				}
+			]
+		}
+	}
+}

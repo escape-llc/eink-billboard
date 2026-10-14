@@ -46,6 +46,16 @@ class Event:
 		last = (self.end - timedelta(microseconds=1)).date() if self.end > self.start else first
 		return [first + timedelta(days=n) for n in range((last - first).days + 1)]
 
+def event_to_json(event: Event) -> dict[str, Any]:
+	"""An event as what a kept answer holds (JSON): the moments carry their offset."""
+	return { "start": event.start.isoformat(), "end": event.end.isoformat(), "all_day": event.all_day, "title": event.title, "location": event.location,
+		"calendar": event.calendar, "color": event.color, "holiday": event.holiday }
+
+def event_from_json(data: Mapping[str, Any], zone: tzinfo) -> Event:
+	"""The event a kept answer holds, in the device zone. A malformed record is an error (the caller asks the origin again)."""
+	return Event(datetime.fromisoformat(str(data["start"])).astimezone(zone), datetime.fromisoformat(str(data["end"])).astimezone(zone), bool(data["all_day"]),
+		str(data["title"]), str(data["location"]), str(data["calendar"]), data["color"] if isinstance(data["color"], str) else None, bool(data.get("holiday", False)))
+
 class NotACalendar(RuntimeError):
 	"""The answer is no calendar (an HTML page, a sign-in screen)."""
 

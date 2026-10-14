@@ -336,12 +336,16 @@ def settings_lookup_items(lookup: Any, settings: dict|None) -> list[dict]:
 		if isinstance(item, dict) and isinstance(item.get(value_key), str) and item.get(value_key) != ""
 	]
 
-def resolve_settings_lookups(lookups: dict, settings: dict|None) -> dict:
-	"""The lookups with every `settings` lookup turned into a closed `items` lookup of the stored choices (validation then checks membership)."""
-	return {
-		name: ({ "items": settings_lookup_items(lk, settings), "closed": True } if isinstance(lk, dict) and "settings" in lk else lk)
-		for name, lk in (lookups or {}).items()
-	}
+def resolve_settings_lookups(lookups: dict, settings: dict|None, settings_from: Callable[[str], dict|None]|None = None) -> dict:
+	"""
+	The lookups with every `settings` lookup turned into a closed `items` lookup of the stored choices (validation then checks membership).
+	A lookup with `"from": "<data source id>"` chooses from the list another data source keeps (the Reminder Overlay's calendars are the Calendar's): `settings_from(id)` gives those settings,
+	and without it the list is empty.
+	"""
+	def items(lk: dict) -> dict:
+		own = lk.get("from")
+		return { "items": settings_lookup_items(lk, settings if own is None else (settings_from(str(own)) if settings_from else None)), "closed": True }
+	return { name: (items(lk) if isinstance(lk, dict) and "settings" in lk else lk) for name, lk in (lookups or {}).items() }
 
 def instance_properties(item: dict) -> tuple[list[dict], dict]:
 	"""The `instanceSettings` properties and lookups a plugin or datasource declares for a task's `content`."""
@@ -402,6 +406,7 @@ def plugin_content_errors(plugins: dict, datasources: dict, plugin_name: Any, co
 			else:
 				sprops, slookups = instance_properties(source)
 				if settings_of:
-					slookups = resolve_settings_lookups(slookups, settings_of("datasource", source["info"].get("id")))
+					slookups = resolve_settings_lookups(slookups, settings_of("datasource", source["info"].get("id")),
+						lambda other: settings_of("datasource", other) if other in datasources else None)
 				errors.extend(validate_properties(content, sprops, slookups))
 	return [{ "path": [*path, "content", *e["path"]], "message": e["message"] } for e in errors]
