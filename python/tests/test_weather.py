@@ -188,12 +188,33 @@ class TestCache(unittest.IsolatedAsyncioTestCase):
 		return await WeatherAsync("weather", "Weather").open_async(make_context(dscm=dscm, now=now), { "views": views })
 
 	async def test_a_second_visit_in_six_hours_asks_nobody(self):
-		dscm = weather_settings({ "cacheHours": 6 })
+		dscm = weather_settings({ "cacheHours": 6, "currentCacheHours": 6 })
 		await self.open(dscm, ["current", "hours"])
 		await self.open(dscm, ["current", "days"], NOW + timedelta(hours=5))
 		self.assertEqual(sorted(self.asked()), ["forecast", "weather"], "one call of each, for every page")
 		await self.open(dscm, ["current"], NOW + timedelta(hours=7))
 		self.assertEqual(sorted(self.asked()), ["forecast", "weather", "weather"], "the current answer was older than six hours")
+
+	async def test_the_weather_now_is_asked_again_sooner_than_the_forecast_and_never_kept_longer(self):
+		dscm = weather_settings({ "cacheHours": 6, "currentCacheHours": 0.5 })
+		await self.open(dscm, ["current", "days"])
+		await self.open(dscm, ["current", "days"], NOW + timedelta(minutes=20))
+		self.assertEqual(sorted(self.asked()), ["forecast", "weather"], "both kept")
+		await self.open(dscm, ["current", "days"], NOW + timedelta(minutes=40))
+		self.assertEqual(sorted(self.asked()), ["forecast", "weather", "weather"], "the weather now is older than half an hour, the forecast is not")
+		await self.open(dscm, ["current"], NOW + timedelta(hours=7))
+		self.assertEqual(sorted(self.asked()), ["forecast", "weather", "weather", "weather"])
+		# a longer time than `cacheHours` is cut to it; 0 asks every time
+		short = weather_settings({ "cacheHours": 1, "currentCacheHours": 5 })
+		self.fake.requests.clear()
+		await self.open(short, ["current"])
+		await self.open(short, ["current"], NOW + timedelta(hours=2))
+		self.assertEqual(self.asked(), ["weather", "weather"])
+		every = weather_settings({ "cacheHours": 6, "currentCacheHours": 0 })
+		self.fake.requests.clear()
+		await self.open(every, ["current", "days"])
+		await self.open(every, ["current", "days"])
+		self.assertEqual(sorted(self.asked()), ["forecast", "weather", "weather"])
 
 	async def test_the_default_is_six_hours_and_zero_asks_every_time(self):
 		dscm = weather_settings()
@@ -245,7 +266,7 @@ class TestAnotherSourceAsks(unittest.IsolatedAsyncioTestCase):
 		self.addCleanup(shutil.rmtree, folder, True)
 		self.cm = ConfigurationManager(storage_path=folder)
 		self.cm.hard_reset()
-		save_datasource_settings(self.cm, "weather", { "apiKey": KEY, "units": "auto", "cacheHours": 6 })
+		save_datasource_settings(self.cm, "weather", { "apiKey": KEY, "units": "auto", "cacheHours": 6, "currentCacheHours": 6 })
 		self.weather = WeatherAsync("weather", "Weather")
 
 	def other(self, now=NOW) -> DataSourceExecutionContext:

@@ -74,10 +74,10 @@
 					"name": "refreshHours",
 					"type": "integer",
 					"required": false,
-					"default": 6,
+					"default": 0,
 					"minimum": 0,
 					"title": "Fetch Again After (hours)",
-					"description": "With continue: how old the list may get before it is fetched again, even when some is left. 0: only when it is used up.",
+					"description": "With continue: the list is shown item by item until it is used up, then fetched again and started over, so new items turn up in time. 0: only then. More than 0: also when the list is older than this, even when some is left.",
 					"visibleIf": { "field": "listMode", "const": "continue" }
 				},
 				{ "name": "showAs", "type": "string", "required": false, "default": "auto", "title": "Show As", "description": "auto: as the data source says (a text page overrides, a picture is a background). background: the overlays are drawn on it. blend: washes over the page before it, without the overlays. override: covers everything (only a priority image is drawn over it).", "enum": ["auto", "background", "blend", "override"]}

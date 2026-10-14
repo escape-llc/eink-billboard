@@ -42,7 +42,20 @@
 					"minFractionDigits": 0,
 					"maxFractionDigits": 1,
 					"title": "Keep an Answer (hours)",
-					"description": "How long what OpenWeatherMap answered is kept and shared by every page and task, so the free plan's calls are for new answers only. 0: ask every time. The weather now can be this old, so a shorter time suits a page that shows it."
+					"description": "How long what OpenWeatherMap answered is kept and shared by every page and task, so the free plan's calls are for new answers only. 0: ask every time. The weather now has its own, shorter time (next setting)."
+				},
+				{
+					"name": "currentCacheHours",
+					"type": "number",
+					"required": true,
+					"default": 0.5,
+					"minimum": 0,
+					"maximum": 168,
+					"step": 0.25,
+					"minFractionDigits": 0,
+					"maxFractionDigits": 2,
+					"title": "Keep the Weather Now (hours)",
+					"description": "How long the weather now is kept, shared by every page and task. The forecast keeps its answer as long as the setting above, but the weather now changes, so it is asked again sooner. Never longer than that setting. 0: ask every time."
 				},
 				{
 					"name": "staleDays",
@@ -59,6 +72,7 @@
 			"apiKey": null,
 			"units": "auto",
 			"cacheHours": 6,
+			"currentCacheHours": 0.5,
 			"staleDays": 30
 		}
 	},
