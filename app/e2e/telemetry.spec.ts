@@ -78,3 +78,20 @@ test("in a short window the page and the gutter stay inside it and scroll, so th
 	await expect(last).toBeInViewport()
 	watch.expectNone()
 })
+
+test("the activity panel has its own surface, which follows the theme", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/settings")
+	await page.getByRole("button", { name: "Activity" }).click()
+	const gutter = page.getByRole("complementary", { name: "Device activity" })
+	await expect(gutter.getByTestId("link-status")).toHaveText("Live")
+	const background = () => gutter.evaluate(el => getComputedStyle(el).backgroundColor)
+	const light = (rgb: string) => { const [r, g, b] = (rgb.match(/\d+/g) ?? []).map(Number); return ((r ?? 0) + (g ?? 0) + (b ?? 0)) / 765 }
+	await page.evaluate(() => document.documentElement.classList.remove("app-dark-mode"))
+	// painted, not the page showing through
+	expect(await background()).not.toBe("rgba(0, 0, 0, 0)")
+	expect(light(await background())).toBeGreaterThan(0.6)
+	await page.evaluate(() => document.documentElement.classList.add("app-dark-mode"))
+	expect(light(await background())).toBeLessThan(0.25)
+	watch.expectNone()
+})

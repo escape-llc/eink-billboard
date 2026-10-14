@@ -18,7 +18,7 @@
 					</InputGroup>
 				</template>
 			</Toolbar>
-			<Message v-if="conflict" severity="warn" :closable="false" class="mt-1">
+			<Message size="small" v-if="conflict" severity="warn" :closable="false" class="mt-1">
 				<div class="flex align-items-center gap-2 flex-wrap">
 					<span>{{ conflict.message }}</span>
 					<Button size="small" label="Reload" icon="pi pi-refresh" severity="secondary" @click="reload" />

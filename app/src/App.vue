@@ -126,7 +126,7 @@ const items = ref([
 	<template #end>
 		<InputGroup>
 			<StatusIndicator />
-			<Button
+			<Button size="small"
 				icon="pi pi-wave-pulse"
 				class="p-button-sm"
 				:class="{ 'p-button-outlined': !gutterOpen }"
@@ -136,7 +136,7 @@ const items = ref([
 				@click="gutterOpen = !gutterOpen"
 				/>
 			<ThemeSelector class="p-button-sm"/>
-			<Button
+			<Button size="small"
 				icon="pi pi-cog"
 				class="p-button-sm p-button-outlined"
 				type="button"
