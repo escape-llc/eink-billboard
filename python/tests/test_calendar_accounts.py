@@ -254,7 +254,7 @@ class TestSlot(TokenStoreCase):
 	async def test_a_connected_accounts_calendars_show_with_the_others(self):
 		self.connect("Home", "google", "g-client")
 		self.connect("Work", "microsoft", "m-client")
-		settings = { "accounts": [GOOGLE, MICROSOFT], "holidays": [], "calendars": [
+		settings = { "cacheHours": 0, "accounts": [GOOGLE, MICROSOFT], "holidays": [], "calendars": [
 			{ "name": "Mine", "source": "google", "account": "Home", "calendarId": None, "color": "#3366cc" },
 			{ "name": "Job", "source": "microsoft", "account": "Work", "calendarId": "AAMk-1" },
 		] }
@@ -272,7 +272,7 @@ class TestConnectRoutes(WebApiTestBase):
 	"""The Connect button's steps, through the real routes, from the saved settings."""
 	def setUp(self):
 		super().setUp()
-		self.write_datasource_settings("calendar", { "weekStart": "monday", "calendars": [], "holidays": [], "accounts": [GOOGLE, MICROSOFT] })
+		self.write_datasource_settings("calendar", { "weekStart": "monday", "cacheHours": 0.25, "staleDays": 30, "calendars": [], "holidays": [], "accounts": [GOOGLE, MICROSOFT] })
 		self.fake = FakeProviders([{ "error": "authorization_pending" }, { "access_token": "m-access", "refresh_token": "m-refresh", "expires_in": 3600 }])
 		patcher = patch.object(AsyncHttpWorkerPool, "default_transport", self.fake)
 		patcher.start()

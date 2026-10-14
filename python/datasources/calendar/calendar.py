@@ -6,11 +6,12 @@ A list source: `open_async` reads the events once for the slot and returns one p
 calendar does. A calendar that has run out (nothing repeats, and its last event is past or near) says so in the footer too.
 """
 import asyncio
+import json
 import logging
 import math
 import os
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, tzinfo
+from datetime import date, datetime, time, timedelta, tzinfo
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -21,14 +22,18 @@ from ...model.theme import ThemeInputs, current_inputs
 from ...plugins.plugin_base import PermanentError, RenderSession
 from ...task.async_http_worker_pool import client_var
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
+from ..response_cache import cached
 from .accounts import PROVIDERS, TokenStore, read_account_calendar
-from .sources import Event, NotACalendar, events_between, holiday_events, last_day, read_caldav, read_ical, safe_color
+from .sources import Event, NotACalendar, event_from_json, event_to_json, events_between, holiday_events, last_day, read_caldav, read_ical, safe_color
 
 VIEWS = ("month", "weeks", "agenda")
 FONT_SCALES = { "x-small": 0.7, "small": 0.85, "normal": 1.0, "large": 1.2, "x-large": 1.45 }
 DEFAULT_AGENDA_DAYS = 7
 DEFAULT_WEEKS_AHEAD = 4
 MAX_WEEKS_AHEAD = 8
+# what a calendar answered is kept this long (the data source's `cacheHours` setting says otherwise), shared by its pages and by the overlays that ask it for events
+DEFAULT_CACHE_HOURS = 0.25
+MIN_READ_DAYS = 8
 
 @dataclass
 class Slot:
@@ -138,7 +143,20 @@ class CalendarAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
 
-	async def _read_one(self, client: httpx.AsyncClient, entry: dict, start: datetime, end: datetime, slot: Slot, settings: Mapping[str, Any], store: TokenStore) -> list[Event]:
+	async def _read_one(self, client: httpx.AsyncClient, entry: dict, start: datetime, end: datetime, slot: Slot, settings: Mapping[str, Any], store: TokenStore,
+			dscm: DatasourceConfigurationManager) -> list[Event]:
+		"""The events of one calendar between two days: kept for `cacheHours` (the answer is the same for every page and task), with the notes it made."""
+		async def fetch() -> Mapping[str, Any]:
+			notes: list[str] = []
+			found = await self._fetch_one(client, entry, start, end, slot, settings, store, notes)
+			return { "events": [event_to_json(e) for e in found], "notes": notes }
+		# the key is only hashed into a file name (cache_file_name): the entry's secrets are not kept; an edited entry or another range is another answer
+		key = f"events|{json.dumps(entry, sort_keys=True, default=str)}|{start.date()}|{end.date()}"
+		answer = await cached(dscm, settings, key, slot.now or datetime.now(slot.zone), fetch, DEFAULT_CACHE_HOURS)
+		slot.notes.extend(str(n) for n in answer.get("notes") or [])
+		return [event_from_json(d, slot.zone) for d in answer.get("events") or []]
+
+	async def _fetch_one(self, client: httpx.AsyncClient, entry: dict, start: datetime, end: datetime, slot: Slot, settings: Mapping[str, Any], store: TokenStore, notes: list[str]) -> list[Event]:
 		name = entry["name"]
 		color = safe_color(entry.get("color"))
 		if entry.get("source") in PROVIDERS:
@@ -149,27 +167,40 @@ class CalendarAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		cal = await read_ical(client, entry)
 		note = ran_out_note(name, last_day(cal, slot.zone), slot.today, (end - timedelta(microseconds=1)).date())
 		if note:
-			slot.notes.append(note)
+			notes.append(note)
 		return events_between(cal, start, end, slot.zone, name, color)
 
-	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
+	def new_slot(self, dsec: DataSourceExecutionContext) -> tuple[Slot, Mapping[str, Any]]:
+		"""An empty slot at the context's time, in the device zone, with the device's choices from this data source's settings; and those settings."""
 		now = device_now(dsec.timestamp)
-		views = chosen_views(params)
-		agenda_days = days_ahead(params)
-		dsm = dsec.provider.required(DatasourceConfigurationManager)
-		_, settings = dsm.open().get()
-		# the connected accounts' tokens are kept by the same manager, beside the settings
-		store = TokenStore(dsm)
+		_, settings = dsec.provider.required(DatasourceConfigurationManager).open().get()
 		settings = settings or {}
-		slot = Slot(now.date(), now.tzinfo or now.astimezone().tzinfo,  # type: ignore[arg-type]
-			week_start="sunday" if settings.get("weekStart") == "sunday" else "monday", week_numbers=settings.get("weekNumbers") is True, now=now)
-		start, end = query_range(slot.today, views, slot.week_start, agenda_days, slot.zone, weeks_ahead(params))
+		return Slot(now.date(), now.tzinfo or now.astimezone().tzinfo,  # type: ignore[arg-type]
+			week_start="sunday" if settings.get("weekStart") == "sunday" else "monday", week_numbers=settings.get("weekNumbers") is True, now=now), settings
+
+	async def events_async(self, dsec: DataSourceExecutionContext, start: datetime, end: datetime, params: Mapping[str, Any], slot: Slot|None = None) -> Slot:
+		"""
+		The events between two moments, from the calendars and holiday sets of this data source's settings (`params` choose some by name, as a task does: `calendars`, `holidaySets`;
+		none chosen: all enabled), sorted, with the notes about calendars that could not be read or have run out. For this data source and any other that shows the events
+		differently (the Reminder Overlay, through `dsec.context_for(calendar)`): each calendar's answer is kept for the settings' `cacheHours`, so a page and an overlay share it.
+		The days are read whole (from the midnight before `start` to the midnight after `end`, and at least `MIN_READ_DAYS` days), so one answer serves every range inside them; the caller picks the moments it wants.
+		"""
+		slot, settings = (slot, self.new_slot(dsec)[1]) if slot is not None else self.new_slot(dsec)
+		zone = slot.zone
+		first = datetime.combine(start.astimezone(zone).date(), time(), zone)
+		last_moment = end.astimezone(zone)
+		last = datetime.combine(last_moment.date() + timedelta(days=0 if last_moment.time() == time() else 1), time(), zone)
+		# a short range is read as the same number of days as the agenda's, so what a page and an overlay ask for the same days is one answer
+		last = max(last, first + timedelta(days=MIN_READ_DAYS))
+		dscm = dsec.provider.required(DatasourceConfigurationManager)
+		# the connected accounts' tokens are kept by the same manager, beside the settings
+		store = TokenStore(dscm)
 		calendars = _chosen(settings.get("calendars"), params.get("calendars"), "calendar")
 		holiday_sets = _chosen(settings.get("holidays"), params.get("holidaySets"), "holiday set")
 		for entry in holiday_sets:
-			slot.events.extend(holiday_events(entry, range(start.year, end.year + 1), slot.zone))
+			slot.events.extend(holiday_events(entry, range(first.year, last.year + 1), zone))
 		client = client_var.get()
-		results = await asyncio.gather(*(self._read_one(client, entry, start, end, slot, settings, store) for entry in calendars), return_exceptions=True)
+		results = await asyncio.gather(*(self._read_one(client, entry, first, last, slot, settings, store, dscm) for entry in calendars), return_exceptions=True)
 		failed: list[BaseException] = []
 		for entry, result in zip(calendars, results):
 			if isinstance(result, BaseException):
@@ -184,6 +215,13 @@ class CalendarAsync(DataSource, MediaListAsync, MediaRenderAsync):
 				raise PermanentError("; ".join(slot.notes))
 			raise RuntimeError("No calendar could be loaded: " + "; ".join(slot.notes))
 		slot.events.sort(key=lambda e: (e.start, not e.all_day, e.title))
+		return slot
+
+	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
+		views = chosen_views(params)
+		slot, _ = self.new_slot(dsec)
+		start, end = query_range(slot.today, views, slot.week_start, days_ahead(params), slot.zone, weeks_ahead(params))
+		await self.events_async(dsec, start, end, params, slot)
 		return [Page(view, slot) for view in views]
 
 	async def render_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any], state: Any) -> MediaRenderResult | None:

@@ -329,9 +329,14 @@ class TestDescriptorRules(unittest.TestCase):
 
 	def test_arrays_and_settings_lookups_have_the_supported_shape(self):
 		root, files = self._files()
+		infos = {}
 		for path in files:
 			with open(path, "r", encoding="utf-8") as f:
-				info = json.load(f)
+				infos[path] = json.load(f)
+		by_id = { i.get("id"): i for i in infos.values() }
+		def settings_of(info: dict) -> dict:
+			return { p["name"]: p for p in ((info.get("settings") or {}).get("schema") or {}).get("properties") or [] if "name" in p }
+		for path, info in infos.items():
 			where = os.path.relpath(path, root)
 			settings_props = { p["name"]: p for p in ((info.get("settings") or {}).get("schema") or {}).get("properties") or [] if "name" in p }
 			for _, prop in self._each_property_of(info, where):
@@ -370,8 +375,13 @@ class TestDescriptorRules(unittest.TestCase):
 				for lname, lk in lookups.items():
 					if isinstance(lk, dict) and "settings" in lk:
 						with self.subTest(f"{where}/lookups/{lname}"):
-							target = settings_props.get(lk["settings"])
-							self.assertIsNotNone(target, "a settings lookup names an array in the same descriptor's own settings")
+							# `from` names another data source whose list is chosen from (the Reminder Overlay's calendars are the Calendar's)
+							other = lk.get("from")
+							if other is not None:
+								self.assertIn(other, by_id, "`from` names a descriptor")
+								self.assertNotEqual(other, info.get("id"))
+							target = (settings_of(by_id[other]) if other is not None and other in by_id else settings_props).get(lk["settings"])
+							self.assertIsNotNone(target, "a settings lookup names an array in the same descriptor's own settings, or the one `from` names")
 							self.assertEqual((target or {}).get("type"), "array")
 							fields = [x["name"] for x in (((target or {}).get("items") or {}).get("properties") or [])]
 							self.assertIn(lk.get("value", "name"), fields)

@@ -117,6 +117,18 @@ def fit_line(line: str, size: tuple[int, int], font_for: Callable[[int], ImageFo
 	"""One line: `fit_block` with nothing before it."""
 	return fit_block([line], size, font_for, outline, heavy, valign, margin, False, min_font_px)
 
+MIN_READABLE_PX = 16
+
+def lines_that_fit(stm: StaticConfigurationManager, theme: ThemeInputs, size: tuple[int, int], texts: list[str], outline: float, weight: str = "bold",
+		valign: str = "center", margin: int = 0, min_px: int = MIN_READABLE_PX) -> int:
+	"""How many of `texts` (from the first) the zone shows at a readable size (`min_px`, at least one): the text is measured as `render_overlay` will draw it."""
+	face = "normal" if weight == "normal" else "bold"
+	for count in range(len(texts), 1, -1):
+		block = fit_block(texts[:count], size, lambda px: stm.get_font(theme.font_overlay, px, face), outline, weight == "heavy", valign, margin)
+		if block.font_px >= min_px:
+			return count
+	return min(1, len(texts))
+
 def render_overlay(stm: StaticConfigurationManager, theme: ThemeInputs, size: tuple[int, int], lines: list[list[Run]], outline: float, weight: str = "bold",
 		valign: str = "center", margin: int = 0, icon: OverlayIcon|None = None) -> Image.Image:
 	"""

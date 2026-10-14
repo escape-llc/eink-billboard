@@ -1,5 +1,8 @@
+import atexit
+import json
 import os
 import shutil
+import tempfile
 import unittest
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -13,15 +16,17 @@ from ..datasources.calendar import calendar as calendar_module
 from ..datasources.calendar.calendar import CalendarAsync, Layout, Page, Slot, agenda_params, chosen_views, month_params, month_weeks, page_params, query_range, ran_out_note, rolling_weeks, weeks_params
 from ..datasources.calendar.sources import Event, NotACalendar, auth_headers, caldav_calendars, events_between, holiday_events, last_day, parse_calendar, safe_color, web_url
 from ..datasources.data_source import DataSourceExecutionContext
-from ..model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
+from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
 from ..plugins.plugin_base import PermanentError
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool, client_var
 from ..utils import url_guard
+from ..web.documents import plugin_content_errors
 from ..utils.image_utils import LINUX_CHROME_HEADLESS, WIN_CHROME_HEADLESS, os_type
 from ..web.deps import get_time_of_day
 from .fake_internet import FakeInternet, fixture_text
 from .test_datasource_fixes import STATIC, FakeDatasourceSettings, FakeRenderSession, _Cob
+from .utils import save_datasource_settings
 from .test_web_api import WebApiTestBase
 
 # the display is on the US west coast in October (daylight time); "now" is Wednesday 7 October 2026, noon
@@ -51,7 +56,7 @@ class FakeSettings:
 
 def make_context(calendars: list|None = None, holidays: list|None = None, orientation: str = "landscape", time_format: str = "24h", now: datetime = NOW, **more) -> DataSourceExecutionContext:
 	root = ServiceContainer()
-	settings = { "calendars": CALENDARS if calendars is None else calendars, "holidays": HOLIDAYS if holidays is None else holidays, **more }
+	settings = { "calendars": CALENDARS if calendars is None else calendars, "holidays": HOLIDAYS if holidays is None else holidays, "cacheHours": 0, **more }
 	root.add_service(DatasourceConfigurationManager, cast(Any, FakeDatasourceSettings(settings)))
 	root.add_service(SettingsConfigurationManager, cast(Any, FakeSettings(orientation, time_format)))
 	root.add_service(StaticConfigurationManager, StaticConfigurationManager(STATIC))
@@ -522,8 +527,23 @@ class TestCalendarRoutes(WebApiTestBase):
 		self.assertEqual((countries["US"], countries["GB"]), ("United States", "United Kingdom"))
 		self.assertTrue(all(len(code) == 2 for code in countries))
 
+	def test_another_data_source_chooses_from_the_calendars_list(self):
+		# the Reminder Overlay's `calendars` are the Calendar's: its lookup is read from the Calendar's settings (`from`), and a task is checked against them
+		self.write_datasource_settings("calendar", { "weekStart": "monday", "cacheHours": 0.25, "staleDays": 30, "calendars": [FAMILY], "holidays": [] })
+		resp = self.client.get("/api/datasources/reminder-overlay/lookups/calendar")
+		self.assertEqual((resp.status_code, resp.json()), (200, [{ "name": "Family", "value": "Family" }]))
+		self.assertEqual(self.client.get("/api/datasources/reminder-overlay/lookups/nothing").status_code, 404)
+		plugins = { p["info"]["id"]: p for p in self.cm.enum_plugins() }
+		sources = { d["info"]["id"]: d for d in self.cm.enum_datasources() }
+		def settings_of(owner: str, ident: str):
+			return (self.cm.plugin_manager(ident) if owner == "plugin" else self.cm.datasource_manager(ident)).open().get()[1]
+		content = { "dataSource": "reminder-overlay", "zone": "top-right", "windowMinutes": 60, "calendars": ["Family"] }
+		self.assertEqual(plugin_content_errors(plugins, sources, "overlay", content, ["task"], settings_of), [])
+		errors = plugin_content_errors(plugins, sources, "overlay", { **content, "calendars": ["Gone"] }, ["task"], settings_of)
+		self.assertIn(["task", "content", "calendars", "0"], [e["path"] for e in errors])
+
 	def test_the_settings_keep_a_row_password_and_check_the_rows(self):
-		self.write_datasource_settings("calendar", { "weekStart": "monday", "calendars": [{ "name": "Private", "source": "ical", "url": "https://calendar.example.test/private.ics", "auth": "basic", "username": "user", "password": "pass" }], "holidays": [] })
+		self.write_datasource_settings("calendar", { "weekStart": "monday", "cacheHours": 0.25, "staleDays": 30, "calendars": [{ "name": "Private", "source": "ical", "url": "https://calendar.example.test/private.ics", "auth": "basic", "username": "user", "password": "pass" }], "holidays": [] })
 		doc = self.client.get("/api/datasources/calendar/settings").json()
 		self.assertEqual(doc["calendars"][0]["password"], "********")
 		doc["calendars"][0]["color"] = "blue"
@@ -540,3 +560,69 @@ class TestCalendarRoutes(WebApiTestBase):
 		self.assertEqual(self.client.put("/api/datasources/calendar/settings", json=doc).status_code, 200)
 		_, stored = self.cm.datasource_manager("calendar").open().get()
 		self.assertEqual((stored["calendars"][0]["password"], stored["calendars"][0]["username"]), (None, None), "signing in turned off: the secret is not kept")
+
+def kept_context(dscm: DatasourceConfigurationManager, now: datetime = NOW) -> DataSourceExecutionContext:
+	root = ServiceContainer()
+	root.add_service(DatasourceConfigurationManager, dscm)
+	root.add_service(SettingsConfigurationManager, cast(Any, FakeSettings()))
+	root.add_service(StaticConfigurationManager, StaticConfigurationManager(STATIC))
+	return DataSourceExecutionContext(root, (800, 480), now)
+
+def calendar_settings(**more) -> DatasourceConfigurationManager:
+	"""The data source's own folder in a private storage, its settings written (`cacheHours` as a test asks)."""
+	folder = tempfile.mkdtemp(prefix="eink-calendar-test-")
+	atexit.register(shutil.rmtree, folder, True)
+	cm = ConfigurationManager(storage_path=folder)
+	cm.hard_reset()
+	save_datasource_settings(cm, "calendar", { "weekStart": "monday", "weekNumbers": False, "cacheHours": 0.25, "staleDays": 30, "calendars": [FAMILY], "holidays": [], "accounts": [], **more })
+	return cm.datasource_manager("calendar")
+
+class TestKept(unittest.IsolatedAsyncioTestCase):
+	"""What a calendar answered is kept for the settings' `cacheHours`, shared by every page, task and overlay that shows its events."""
+	def setUp(self):
+		self.fake = FakeInternet()
+		client_var.set(httpx.AsyncClient(transport=self.fake))
+
+	async def events(self, dscm, now=NOW, params=None, start=None, end=None):
+		start = start or at(7)
+		slot = await CalendarAsync("calendar", "Calendar").events_async(kept_context(dscm, now), start, end or start + timedelta(days=3), params or {})
+		return slot.events
+
+	async def test_a_second_read_in_the_time_asks_nobody_and_gives_the_same_events(self):
+		dscm = calendar_settings()
+		first = await self.events(dscm)
+		again = await self.events(dscm, NOW + timedelta(minutes=10))
+		self.assertEqual(len(self.fake.requests), 1)
+		self.assertEqual(again, first)
+		self.assertTrue(first and all(e.start.utcoffset() == ZONE.utcoffset(None) for e in again))
+		await self.events(dscm, NOW + timedelta(minutes=20))
+		self.assertEqual(len(self.fake.requests), 2, "the kept answer was older than a quarter of an hour")
+
+	async def test_zero_asks_every_time_and_a_later_moment_in_the_same_days_shares_the_answer(self):
+		dscm = calendar_settings(cacheHours=0)
+		await self.events(dscm)
+		await self.events(dscm)
+		self.assertEqual(len(self.fake.requests), 2)
+		dscm = calendar_settings()
+		self.fake.requests.clear()
+		await self.events(dscm, start=at(7, 9), end=at(10, 9))
+		await self.events(dscm, start=at(7, 15), end=at(10, 9))
+		self.assertEqual(len(self.fake.requests), 1, "the days are read whole: one answer serves any range inside them")
+
+	async def test_the_pages_and_the_events_share_one_answer_and_a_failed_refresh_uses_the_old_one(self):
+		dscm = calendar_settings()
+		ds = CalendarAsync("calendar", "Calendar")
+		await ds.open_async(kept_context(dscm), { "views": ["agenda"] })
+		self.assertEqual(len(self.fake.requests), 1)
+		self.assertEqual(len(await self.events(dscm, start=at(7), end=at(14))), len(await self.events(dscm, start=at(7), end=at(14))))
+		client_var.set(httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(503))))
+		old = await ds.open_async(kept_context(dscm, NOW + timedelta(hours=1)), { "views": ["agenda"] })
+		self.assertTrue(old[0].slot.events, "the origin did not answer: the kept answer is used")
+
+	async def test_a_row_secret_is_not_kept(self):
+		private = CALENDARS[4]
+		dscm = calendar_settings(calendars=[private])
+		await self.events(dscm)
+		names = dscm.list_files("cache-")
+		self.assertEqual(len(names), 1)
+		self.assertNotIn("pass", json.dumps(dscm.file(names[0]).get()[1]))
