@@ -86,6 +86,7 @@ After struggling with different ideas, we arrive at the following architecture, 
 	* The **Overlay** plugin runs as a timer task: it asks its data source (one with the `layer-overlay` feature; it makes a single image, `media-image`) for an image the size of its zone, and the overlay stays until the task's next run replaces it.
 	  When the data source has nothing to show, the overlay is taken down (revoked); so is the overlay of a task that is disabled or removed. A failing overlay task shows its error in its zone.
 	* The **Today** data source draws the date (formats `long`, `full`, `short`, `numeric`, or a custom strftime pattern) in the theme's overlay font (`fontOverlay`, shared by every overlay) and colors, the weekday highlighted, outlined.
+	* The **Weather Overlay** data source draws the weather in a zone: `now` (the temperature and the sky, with a drawing), `today` (the high, the low, the chance of rain) or `outlook` (the next three days, a line each). It has no settings of its own: it asks the Weather data source for its report, so it uses the Weather's API key and units and shares its kept answers (a Weather page and the overlay of the same hours make one call).
 	  A good timer task: plugin Overlay, data source Today, zone `top-right`, triggered on startup and every day at 0:00 (the midnight run replaces yesterday's date; the startup run covers a restart, since overlays are not kept across restarts).
 	* Similar behavior to device Lock Screen, e.g. Date/weather/reminders/etc.
 	* Persistent (date/weather) or time-sensitive (reminders).

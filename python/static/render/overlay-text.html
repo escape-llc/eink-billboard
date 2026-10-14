@@ -1,5 +1,5 @@
 {% extends "plugin.html" %}
-{# A line of text for an overlay zone, on a transparent page (python/datasources/overlay_text.py chooses the size and the baseline) #}
+{# A block of text for an overlay zone, with an optional drawing before it, on a transparent page (python/datasources/overlay_text.py chooses the size and the places) #}
 {% block style %}
 	<style>
 		/* nothing behind the text: the picture under the overlay shows through */
@@ -22,7 +22,7 @@
 			font-synthesis: none;
 			white-space: pre;
 		}
-		/* the outline: the line again under the letters, stroked in the theme's outline color */
+		/* the outline: the text again under the letters, stroked in the theme's outline color */
 		.overlay-text .outline {
 			fill: currentColor;
 			stroke: currentColor;
@@ -40,11 +40,24 @@
 			stroke-linejoin: round;
 		}
 		{% endif %}
+		/* a line drawing (a weather icon): strokes only, the outline under the line */
+		.overlay-icon {
+			fill: none;
+			stroke: currentColor;
+			stroke-linecap: round;
+			stroke-linejoin: round;
+		}
 	</style>
 {% endblock %}
 {% block content %}
 	<svg class="overlay-text" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {{ width }} {{ height }}">
-		{% if outline_px > 0 %}<text class="outline text-outline" x="{{ width / 2 }}" y="{{ baseline }}" text-anchor="middle">{{ line }}</text>{% endif %}
-		<text class="letters" x="{{ width / 2 }}" y="{{ baseline }}" text-anchor="middle">{% for text, role in runs %}<tspan class="{{ role }}">{{ text }}</tspan>{% endfor %}</text>
+		{% if icon %}
+		<g transform="translate({{ icon.x }} {{ icon.y }}) scale({{ icon.scale }})">
+			{% if icon.outline %}<g class="overlay-icon text-outline" stroke-width="{{ icon.outline }}">{{ icon.body | safe }}</g>{% endif %}
+			<g class="overlay-icon {{ icon.role }}" stroke-width="{{ icon.weight }}">{{ icon.body | safe }}</g>
+		</g>
+		{% endif %}
+		{% if outline_px > 0 %}{% for line in lines %}<text class="outline text-outline" x="{{ line.x }}" y="{{ line.baseline }}">{{ line.text }}</text>{% endfor %}{% endif %}
+		{% for line in lines %}<text class="letters" x="{{ line.x }}" y="{{ line.baseline }}">{% for text, role in line.runs %}<tspan class="{{ role }}">{{ text }}</tspan>{% endfor %}</text>{% endfor %}
 	</svg>
 {% endblock %}

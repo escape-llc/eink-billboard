@@ -6,7 +6,7 @@ from typing import Any, Mapping
 from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
 from ...model.theme import current_inputs
 from ...plugins.plugin_base import PermanentError
-from ..overlay_text import outline_factor, render_overlay_text
+from ..overlay_text import outline_factor, overlay_margin, render_overlay_text, zone_valign
 from ..data_source import DataSource, DataSourceExecutionContext, MediaItemAsync, MediaRenderAsync, MediaRenderResult
 
 FORMATS = ("long", "full", "short", "numeric", "custom")
@@ -49,11 +49,6 @@ class TodayAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 		theme = current_inputs(dsec.provider.required(SettingsConfigurationManager))
 		stm = dsec.provider.required(StaticConfigurationManager)
 		runs = [run for run in ((highlight, "text-secondary-1"), (rest, "text-primary")) if run[0]]
-		# the zones are bands along the top and the bottom of the screen: the line sits near the screen's edge, `offset` pixels from it, not in the middle of the band
-		zone = str(params.get("zone") or "")
-		valign = "top" if zone.startswith("top") else "bottom" if zone.startswith("bottom") else "center"
-		offset = params.get("offset")
-		margin = int(offset) if isinstance(offset, (int, float)) and not isinstance(offset, bool) and offset >= 0 else 6
-		# an overlay renders at the zone's size as given (never through target_dimensions); Chromium is blocking: keep it off the event loop
-		image = await asyncio.to_thread(render_overlay_text, stm, theme, dsec.dimensions, runs, outline_factor(params), str(params.get("weight") or "bold"), valign, margin)
+		# the line sits near the screen's edge, `offset` pixels from it; an overlay renders at the zone's size as given (never through target_dimensions); Chromium is blocking: keep it off the event loop
+		image = await asyncio.to_thread(render_overlay_text, stm, theme, dsec.dimensions, runs, outline_factor(params), str(params.get("weight") or "bold"), zone_valign(params), overlay_margin(params))
 		return MediaRenderResult(image=image, title=highlight + rest)

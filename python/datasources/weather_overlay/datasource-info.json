@@ -1,0 +1,64 @@
+{
+	"id": "weather-overlay",
+	"name": "Weather Overlay",
+	"version": "0.0.1",
+	"class": "WeatherOverlayAsync",
+	"file": "weather_overlay.py",
+	"module": "python.datasources.weather_overlay.weather_overlay",
+	"description": "The weather for an overlay zone: now, today's range, or the next three days, as outlined text. It uses the Weather settings (API key, units) and shares their kept answers: no settings of its own.",
+	"describe": "Weather {view}",
+	"disabled": false,
+	"features": ["internet", "layer-overlay", "media-image"],
+	"settings": {
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+			},
+			"properties": [
+				{
+					"name": "view",
+					"type": "string",
+					"required": true,
+					"default": "now",
+					"title": "View",
+					"description": "now: the temperature and the sky. today: the high, the low and the chance of rain. outlook: the next three days, a line each. The API key and units are in the Weather settings.",
+					"enum": ["now", "today", "outlook"]
+				},
+				{
+					"name": "showIcon",
+					"type": "boolean",
+					"required": false,
+					"default": true,
+					"title": "Show Icon",
+					"description": "A drawing of the sky before the text (now and today).",
+					"visibleIf": { "field": "view", "enum": ["now", "today"] }
+				},
+				{
+					"name": "weight",
+					"type": "string",
+					"required": false,
+					"default": "bold",
+					"title": "Weight",
+					"description": "How heavy the letters are. bold: the font's bold face. heavy: bolder than the font has it.",
+					"enum": ["normal", "bold", "heavy"]
+				},
+				{
+					"name": "offset",
+					"type": "integer",
+					"required": false,
+					"default": 6,
+					"minimum": 0,
+					"maximum": 200,
+					"title": "Edge Offset",
+					"description": "How far the text is from the screen's edge, in pixels: from the top edge in a top zone, from the bottom edge in a bottom zone."
+				}
+			]
+		}
+	}
+}
