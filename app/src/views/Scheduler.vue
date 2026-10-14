@@ -4,13 +4,48 @@
 		<template #start>
 			<div style="font-size:150%">Scheduler</div>
 		</template>
+		<template #center>
+			<span class="range-label" data-testid="range">{{ rangeText }}</span>
+		</template>
 		<template #end>
-			<Button size="small" label="New task" icon="pi pi-plus" :disabled="timerPlugins.length === 0" @click="handleNew" />
+			<div class="flex align-items-center gap-2">
+				<!-- a day or a week from today's weekday, or each task once; never before today -->
+				<SelectButton size="small" :modelValue="mode" :options="MODES" optionLabel="label" optionValue="value" :allowEmpty="false" aria-label="View"
+					@update:modelValue="(m: SchedulerMode) => setMode(m)">
+					<template #option="{ option }"><i :class="option.icon" aria-hidden="true"></i><span>{{ option.label }}</span></template>
+				</SelectButton>
+				<InputGroup class="nav-group">
+					<Button size="small" icon="pi pi-chevron-left" severity="secondary" aria-label="Back" :title="mode === 'day' ? 'The day before' : 'The week before'" :disabled="offset === 0" @click="move(-1)" />
+					<Button size="small" label="Today" severity="secondary" :disabled="offset === 0" @click="goToday" />
+					<Button size="small" icon="pi pi-chevron-right" severity="secondary" aria-label="Forward" :title="mode === 'day' ? 'The next day' : 'The next week'" @click="move(1)" />
+				</InputGroup>
+				<Button size="small" label="New task" icon="pi pi-plus" :disabled="timerPlugins.length === 0" @click="handleNew" />
+			</div>
 		</template>
 	</Toolbar>
 	<ProgressBar v-if="loading" mode="indeterminate" style="height:4px" aria-label="Loading" data-testid="loading" />
 	<Message v-if="zoneNote" severity="info" :closable="false" size="small" class="my-1" data-testid="zone-note">{{ zoneNote }}</Message>
-	<AlCalendar style="width:100%" class="calendar" :firstDay="firstDay" :dayCount="dayCount" :timeZone="timeZone" :timeRange="timeRange" :eventList="eventList">
+	<div v-if="mode === 'list'" class="task-list" data-testid="task-list">
+		<DataTable size="small" :value="rows" dataKey="key" rowHover scrollable scrollHeight="flex" class="task-table">
+			<Column header="Task">
+				<template #body="{ data }">
+					<Button size="small" variant="link" class="task-title" :label="data.title" :aria-label="`Edit ${data.title}`" @click="openRow(data)" />
+				</template>
+			</Column>
+			<Column field="plugin" header="Plugin" />
+			<Column header="Next run">
+				<template #body="{ data }">{{ data.next ? runText(data.next) : (data.enabled ? "Not this week" : "") }}</template>
+			</Column>
+			<Column header="Runs" bodyClass="runs">
+				<template #body="{ data }">{{ data.runs }}</template>
+			</Column>
+			<Column header="">
+				<template #body="{ data }"><Tag v-if="!data.enabled" severity="secondary" value="off" /></template>
+			</Column>
+			<template #empty>No timer tasks.</template>
+		</DataTable>
+	</div>
+	<AlCalendar v-else style="width:100%" class="calendar" :firstDay="firstDay" :dayCount="dayCount" :timeZone="timeZone" :timeRange="timeRange" :eventList="eventList">
 		<template #dayheader="{ day }">
 			<div class="day-header" :style="{'grid-column': day.column, 'grid-row': day.row }"
 				:class="{'day-header-weekend': day.weekday === 0 || day.weekday === 6, 'day-header-today': day.today }">
@@ -125,12 +160,13 @@
 </template>
 <script setup lang="ts">
 import { ApiError, apiDelete, apiJson, apiPost, apiPut } from "../components/ApiClient"
-import { InputGroup, InputGroupAddon, Button, Dialog, Toolbar, Select, Checkbox, InputText, Message, useToast } from "primevue"
+import { InputGroup, InputGroupAddon, Button, Dialog, Toolbar, Select, Checkbox, InputText, Message, SelectButton, DataTable, Column, Tag, useToast } from "primevue"
+import { MODES, rangeLabel, step, switchMode, taskRows, windowOf, type SchedulerMode, type TaskRow } from "../components/SchedulerView"
 import FormField from '@primevue/forms/formfield';
 import AlCalendar from "../components/AlCalendar.vue"
 import type { TimeRange, EventInfo } from "../components/AlCalendar.vue"
 import { browserZoneDifference, zonedParts } from "../components/CalendarTime"
-import { ref, onMounted, onBeforeUnmount, nextTick, toRaw, provide, computed } from "vue"
+import { ref, shallowRef, onMounted, onBeforeUnmount, nextTick, toRaw, provide, computed } from "vue"
 import { ProgressBar } from "primevue"
 import BasicForm, { type ValidateEventData } from "../components/BasicForm.vue"
 import HelpToggle from "../components/HelpToggle.vue"
@@ -152,6 +188,36 @@ const zoneNote = computed(() => {
 })
 const firstDay = ref(zonedParts(new Date()).key)
 const dayCount = ref(7)
+// what is shown: a day, a week (from today's weekday), or each task once over that week; `offset` is days from today, never negative
+const mode = ref<SchedulerMode>("week")
+const offset = ref(0)
+// today in the device's zone (the server's first day when nothing is asked for)
+const today = ref(zonedParts(new Date()).key)
+// the stored tasks as the server sent them: not deeply reactive, so a row hands the editor plain data (structuredClone cannot copy a proxy)
+const schedules = shallowRef<Record<string, any>>({})
+const rangeText = computed(() => rangeLabel(firstDay.value, dayCount.value))
+const rows = computed<TaskRow[]>(() => taskRows(eventList.value, schedules.value, id => pluginList.value.find(p => p.id === id)?.name ?? id))
+function setMode(next: SchedulerMode) {
+	if(next === mode.value) return
+	mode.value = next
+	offset.value = switchMode(next, offset.value)
+	loadTimeline()
+}
+function move(direction: 1 | -1) {
+	offset.value = step(mode.value, offset.value, direction)
+	loadTimeline()
+}
+function goToday() {
+	offset.value = 0
+	loadTimeline()
+}
+/** When a task runs, in the device's zone, as the timeline reads it (24 hours). */
+function runText(when: Date): string {
+	return new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: timeZone.value }).format(when).replace(",", "")
+}
+function openRow(row: TaskRow) {
+	handleEventClick(null, null, { event: { data: row.data } })
+}
 const timeZone = ref<string|undefined>(undefined)
 const WEEKDAYS = (() => {
 	const format = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" })
@@ -232,7 +298,9 @@ provide("settingsDataSourcesList", dataSources)
 
 
 function loadTimeline(): Promise<void> {
-	const renderUrl = `${API_URL}api/schedule/tasks/render`
+	// today itself is the server's (its zone); a later day is asked for by its date
+	const window = windowOf(mode.value, today.value, offset.value)
+	const renderUrl = `${API_URL}api/schedule/tasks/render?days=${window.days}${offset.value > 0 ? `&start=${window.start}` : ""}`
 	const listPluginsUrl = `${API_URL}api/plugins/list`
 	const listDatasourcesUrl = `${API_URL}api/datasources/list`
 	const pxs = [
@@ -250,7 +318,9 @@ function loadTimeline(): Promise<void> {
 			// the response's first day is "today" in the device's zone (its ISO time is written in that zone)
 			timeZone.value = typeof json.timezone === "string" ? json.timezone : undefined
 			firstDay.value = String(json.start_ts).slice(0, 10)
+			if(offset.value === 0) today.value = firstDay.value
 			dayCount.value = json.days
+			schedules.value = json.schedules ?? {}
 			loadedDay = zonedParts(new Date(), timeZone.value).key
 			const events:EventInfo[] = []
 			json.render.forEach((rx: any) => {
@@ -288,7 +358,13 @@ const loading = ref(true)
 onMounted(() => {
 	loadTimeline().finally(() => { loading.value = false })
 	dayWatch = setInterval(() => {
-		if(loadedDay && zonedParts(new Date(), timeZone.value).key !== loadedDay) loadTimeline()
+		const now = zonedParts(new Date(), timeZone.value).key
+		if(loadedDay && now !== loadedDay) {
+			// a new day: what was today is gone, and a week starts on the new today's weekday
+			offset.value = switchMode(mode.value, offset.value - 1)
+			today.value = now
+			loadTimeline()
+		}
 	}, 60_000)
 })
 onBeforeUnmount(() => clearInterval(dayWatch))
@@ -506,6 +582,27 @@ const handleSubmit = () => {
 .calendar {
 	flex: 1 1 0;
 	min-height: 0;
+}
+.task-list {
+	flex: 1 1 0;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	/* the panel's surface under the rows too, not the page */
+	background: var(--p-content-background);
+}
+.task-table {
+	flex: 1 1 0;
+	min-height: 0;
+}
+.task-title {
+	padding: 0;
+}
+.nav-group {
+	width: auto;
+}
+.range-label {
+	font-weight: bold;
 }
 .day-header {
 	display: flex;
