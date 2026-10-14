@@ -32,6 +32,12 @@
 			<Column header="Next run">
 				<template #body="{ data }">{{ data.next ? runText(data.next) : (data.enabled ? "Not this week" : "") }}</template>
 			</Column>
+			<Column header="Run At Startup" bodyClass="startup">
+				<template #body="{ data }">
+					<i v-if="data.startup" class="pi pi-check" role="img" aria-label="Runs at startup"></i>
+					<span v-else class="p-hidden-accessible">No</span>
+				</template>
+			</Column>
 			<Column header="Runs" bodyClass="runs">
 				<template #body="{ data }">{{ data.runs }}</template>
 			</Column>
@@ -78,7 +84,7 @@
 			</div>
 		</Message>
 		<Message v-for="(problem, index) in serverProblems" :key="index" severity="error" size="small" variant="simple">{{ problem }}</Message>
-		<BasicForm v-if="selectedPlugin" ref="bf" :form="selectedPlugin.instanceSettings" :owner="{ kind: 'plugin', id: selectedPlugin.id }" :initialValues="editModel.content" :baseUrl="API_URL" :showHelp="showHelp"
+		<BasicForm v-if="selectedPlugin" ref="bf" :form="selectedPlugin.instanceSettings" :owner="{ kind: 'plugin', id: selectedPlugin.id }" :initialValues="editModel.content" :baseUrl="API_URL" :showHelp="showHelp" :showChanges="!!editTarget?.id"
 			:beforeFieldsSchema="beforeFieldsSchema" :addInitialValues="addInitialValues"
 			@validate="onValidated" @submit="submitForm"
 			class="form">
@@ -92,8 +98,8 @@
 							<HelpToggle v-model="showHelp" />
 							<!-- a stored task can be deleted from here; the dialog's own close button leaves without saving -->
 							<Button v-if="editTarget?.id" size="small" icon="pi pi-trash" severity="danger" variant="outlined" aria-label="Delete" title="Delete this task" @click="deleteOpen = true" />
-							<Button size="small" icon="pi pi-check" severity="success" aria-label="Save" :disabled="!editModelValid || saving" @click="handleSubmit" />
-							<Button size="small" icon="pi pi-times" severity="danger" aria-label="Reset" @click="handleReset" />
+							<Button size="small" icon="pi pi-check" severity="success" aria-label="Save" :title="saveTitle" :disabled="!editModelValid || saving || unchanged" @click="handleSubmit" />
+							<Button size="small" icon="pi pi-times" severity="danger" aria-label="Cancel" title="Close without saving" @click="handleCancel" />
 						</InputGroup>
 					</template>
 				</Toolbar>
@@ -552,9 +558,13 @@ async function deleteTask() {
 		saving.value = false
 	}
 }
-const handleReset = () => {
-//	cancelEdit()
-	bf.value?.reset()
+// a stored task can be saved once it is edited (the form knows what it opened with, defaults included); a new task has nothing to compare with
+const unchanged = computed(() => !!editTarget.value?.id && !bf.value?.isDirty)
+const saveTitle = computed(() => unchanged.value ? "Nothing changed yet" : "Save the task")
+
+/** Close the dialog without saving: the edits are dropped (the next one starts from the stored task). */
+const handleCancel = () => {
+	dialogOpen.value = false
 }
 const handleSubmit = () => {
 	bf.value?.submit()
