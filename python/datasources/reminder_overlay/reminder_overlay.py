@@ -16,7 +16,7 @@ from ...model.theme import current_inputs
 from ...plugins.plugin_base import PermanentError
 from ..calendar.calendar import CalendarAsync, device_now
 from ..calendar.sources import Event
-from ..data_source import DataSource, DataSourceExecutionContext, DataSourceManager, MediaItemAsync, MediaRenderAsync, MediaRenderResult
+from ..data_source import DataSource, DataSourceExecutionContext, MediaItemAsync, MediaRenderAsync, MediaRenderResult
 from ..overlay_text import Run, lines_that_fit, outline_factor, overlay_margin, render_overlay, zone_valign
 
 # the data source it asks: the Calendar's id (its descriptor's), never a value from a request
@@ -66,18 +66,12 @@ class ReminderOverlayAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
 
-	def _calendar(self, dsec: DataSourceExecutionContext) -> CalendarAsync:
-		calendar = dsec.provider.required(DataSourceManager).get_source(CALENDAR_ID)
-		if not isinstance(calendar, CalendarAsync):
-			raise PermanentError("The Calendar data source is not available. The reminders use its calendars.")
-		return calendar
-
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> Any:
 		minutes = window_minutes(params)
-		calendar = self._calendar(dsec)
+		calendar, calendar_dsec = dsec.use(CALENDAR_ID, CalendarAsync)
 		now = device_now(dsec.timestamp)
 		# the Calendar reads whole days (kept for its `cacheHours`); the window is picked from them
-		slot = await calendar.events_async(dsec.context_for(calendar), now, now + timedelta(minutes=minutes), params)
+		slot = await calendar.events_async(calendar_dsec, now, now + timedelta(minutes=minutes), params)
 		return [e for e in upcoming(slot.events, now, minutes, params.get("allDay") is True)]
 
 	async def render_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any], state: Any) -> MediaRenderResult | None:

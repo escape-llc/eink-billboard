@@ -92,6 +92,7 @@
 				severity="error" size="small" variant="simple">{{ errorMessage }}</Message>
 		</slot>
 		<Message v-if="field.lookupError" severity="warn" size="small" variant="simple">{{ field.lookupError }}</Message>
+		<Message v-if="field.usesMissing?.length" severity="warn" size="small" variant="simple" data-testid="uses-missing">This needs the {{ field.usesMissing.join(", ") }} data source, which is not available: it will fail until it is.</Message>
 		<Message v-if="showHelp && field.description" severity="secondary" size="small" variant="simple" class="field-help">{{ field.description }}</Message>
 		<div v-if="safeLink">
 			<Button as="a" :href="safeLink.url" target="_blank" rel="noopener noreferrer" :label="safeLink.label" icon="pi pi-external-link" size="small" variant="text" />

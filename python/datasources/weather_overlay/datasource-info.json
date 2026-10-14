@@ -8,6 +8,7 @@
 	"description": "The weather for an overlay zone: now, today's range, or the next three days, as outlined text. It uses the Weather settings (API key, units) and shares their kept answers: no settings of its own.",
 	"describe": "Weather {view}",
 	"disabled": false,
+	"uses": ["weather"],
 	"features": ["internet", "layer-overlay", "media-image"],
 	"settings": {
 		"schema": {

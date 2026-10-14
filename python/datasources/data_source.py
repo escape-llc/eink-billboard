@@ -43,6 +43,17 @@ class DataSourceExecutionContext:
 	@property
 	def timestamp(self) -> datetime:
 		return self._timestamp
+	def use[T: "DataSource"](self, source_id: str, kind: type[T]) -> tuple[T, "DataSourceExecutionContext"]:
+		"""
+		The data source this one uses (`uses` in its descriptor), found by its id, and the context to ask it with (`context_for`): the one way a data source asks another.
+		The id is our descriptor's own, never a request's. A source that is not there (disabled sources are not loaded) is a `PermanentError` in our words.
+		"""
+		# imported here: plugin_base imports this module
+		from ..plugins.plugin_base import PermanentError
+		source = self._isp.required(DataSourceManager).get_source(source_id)
+		if not isinstance(source, kind):
+			raise PermanentError(f"The {source_id.capitalize()} data source is not available. It is needed here: enable it, or choose another source.")
+		return source, self.context_for(source)
 	def context_for(self, source: "DataSource") -> "DataSourceExecutionContext":
 		"""
 		A context for asking another data source for its data (the Weather Overlay asks the Weather): the same services, time and size, with the other's own
