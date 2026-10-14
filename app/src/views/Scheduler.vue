@@ -90,6 +90,8 @@
 					<template #end>
 						<InputGroup>
 							<HelpToggle v-model="showHelp" />
+							<!-- a stored task can be deleted from here; the dialog's own close button leaves without saving -->
+							<Button v-if="editTarget?.id" size="small" icon="pi pi-trash" severity="danger" variant="outlined" aria-label="Delete" title="Delete this task" @click="deleteOpen = true" />
 							<Button size="small" icon="pi pi-check" severity="success" aria-label="Save" :disabled="!editModelValid || saving" @click="handleSubmit" />
 							<Button size="small" icon="pi pi-times" severity="danger" aria-label="Reset" @click="handleReset" />
 						</InputGroup>
@@ -136,14 +138,6 @@
 					severity="error" size="small" variant="simple">{{ pluginErrorMessage }}</Message>
 			</template>
 		</BasicForm>
-		<div class="flex gap-2 pt-2 justify-content-between">
-			<Button size="small" v-if="editTarget?.id" type="button" label="Delete" icon="pi pi-trash" severity="danger" variant="text" @click="deleteOpen = true"></Button>
-			<span v-else></span>
-			<div class="flex gap-2">
-				<Button size="small" type="button" label="Cancel" severity="secondary" @click="dialogOpen = false"></Button>
-				<Button size="small" type="button" label="Save" :disabled="!editModelValid || saving" @click="handleSubmit"></Button>
-			</div>
-		</div>
 	</Dialog>
 	<Dialog v-model:visible="deleteOpen" modal header="Delete task?" style="width:24rem">
 		<p class="mt-0">"{{ editModel.title }}" will be removed from the schedule.</p>
