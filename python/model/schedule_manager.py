@@ -81,7 +81,8 @@ class ScheduleManager:
 			logger.warning("No timer task documents found in the schedules.")
 		playlists = schedule.get("playlists", [])
 		if len(playlists) == 0:
-			raise ValueError("No playlists found in schedule")
+			# a new device has none, and a user may delete the last one: the playlist layer shows a page that says so, it does not fail
+			logger.warning("No playlists found in the schedules.")
 		for playlist in playlists:
 			info = playlist.get("info", None)
 			if info is None:
