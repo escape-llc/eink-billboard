@@ -38,16 +38,16 @@
 					:placeholder="field.title" fluid @change="handleSchemaChange($event, field)" />
 			</template>
 			<template v-else-if="field.type === 'string' && field.format === 'date'">
-				<InputGroupAddon style="flex-grow:1">
+				<InputGroupAddon style="flex:1 1 0;min-width:0">
 					<FormField style="width:100%" :name="field.name" v-slot="$field" :validateOnValueUpdate="true">
-						<DatePicker size="small" fluid showIcon showButtonBar dateFormat="yy-mm-dd" :inputId="field.name" :invalid="isInvalid"
+						<DatePicker size="small" fluid style="width:100%" showIcon showButtonBar dateFormat="yy-mm-dd" :inputId="field.name" :invalid="isInvalid"
 							:modelValue="isoToDate($field.value)" :placeholder="field.title"
 							@update:modelValue="(d: Date|(Date|null)[]|null|undefined) => $field.props.onChange(dateToIso(Array.isArray(d) ? d[0] : d))" />
 					</FormField>
 				</InputGroupAddon>
 			</template>
 			<template v-else-if="field.type === 'string' && field.format === 'color'">
-				<InputGroupAddon style="flex-grow:1">
+				<InputGroupAddon style="flex:1 1 0;min-width:0">
 					<FormField style="width:100%" :name="field.name" v-slot="$field" :validateOnValueUpdate="true">
 						<ColorField :inputId="field.name" :label="field.title" :invalid="isInvalid" :modelValue="$field.value"
 							@update:modelValue="(v: string|null) => $field.props.onChange({ value: v })" />
@@ -73,7 +73,7 @@
 					:placeholder="field.title" fluid />
 			</template>
 			<template v-else-if="field.type === 'location'">
-				<InputGroupAddon style="flex-grow:1">
+				<InputGroupAddon style="flex:1 1 0;min-width:0">
 					<FormField style="width:100%;height:300px" :name="field.name" v-slot="$field" :validateOnValueUpdate="true">
 						<LeafletPicker :name="field.name" :modelValue="$field.value" @change="$field.props.onChange" />
 					</FormField>
