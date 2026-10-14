@@ -1,0 +1,36 @@
+[
+	{
+		"date": "2026-10-14",
+		"post_id": "1487716",
+		"title": "A Video of the Sun",
+		"permalink": "https://science.nasa.gov/image-article/apod-2026-october-14-a-video-of-the-sun",
+		"media_type": "video",
+		"explanation": "<strong>Explanation:</strong> A video, not a picture.",
+		"credit": "A. Person",
+		"url": "https://www.youtube.com/embed/example"
+	},
+	{
+		"date": "2026-10-13",
+		"post_id": "1487715",
+		"title": "Mars and the Beehive &amp; an Aurora",
+		"permalink": "https://science.nasa.gov/image-article/apod-2026-october-13-mars-and-the-beehive",
+		"media_type": "image",
+		"explanation": "<strong>Explanation:</strong> What a cosmic coincidence!",
+		"credit": "<a href=\"https://example.test/someone\">Someone</a>",
+		"copyright": "<a href=\"https://example.test/someone\">Someone</a>",
+		"alt": "The bright Mars is near the center of a star cluster.",
+		"url": "https://science.nasa.gov/image-article/apod-2026-october-13-mars-and-the-beehive",
+		"hdurl": "https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/2026/october/MarsBeehive_large.jpg"
+	},
+	{
+		"date": "2026-10-12",
+		"post_id": "1481224",
+		"title": "Desert Stairway",
+		"permalink": "https://science.nasa.gov/image-article/apod-2026-october-12-desert-stairway",
+		"media_type": "image",
+		"explanation": "<strong>Explanation:</strong> A stairway in Chile.",
+		"credit": "Another Person",
+		"url": "https://science.nasa.gov/image-article/apod-2026-october-12-desert-stairway",
+		"hdurl": "https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/2026/october/DesertStairway_large.jpg"
+	}
+]

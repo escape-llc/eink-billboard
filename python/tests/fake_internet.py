@@ -105,6 +105,31 @@ def _wikimedia_image(request: httpx.Request) -> httpx.Response | None:
 		return _image(1280, 853, request.url.path.rsplit("/", 1)[-1], "JPEG")
 	return None
 
+# NASA's Astronomy Picture of the Day: the latest pictures (a fixture, newest first), and one day by its yymmdd id. An id ending in 99 has no picture (404), one ending in 88 is a video
+APOD_LIST = "apod-list.json"
+APOD_PATH = "/wp-json/wp/v2/apod-basic"
+
+def _apod(request: httpx.Request) -> httpx.Response | None:
+	if request.url.host == "science.nasa.gov" and request.url.path == APOD_PATH:
+		return httpx.Response(200, text=fixture_text(APOD_LIST), headers={ "Content-Type": "application/json" })
+	if request.url.host == "science.nasa.gov" and request.url.path.startswith(APOD_PATH + "/"):
+		ident = request.url.path.rsplit("/", 1)[-1]
+		if not (len(ident) == 6 and ident.isdigit()) or ident.endswith("99"):
+			return httpx.Response(404, json={ "code": "rest_post_invalid_id", "message": "Invalid post ID." })
+		day = f"20{ident[:2]}-{ident[2:4]}-{ident[4:]}"
+		kind = "video" if ident.endswith("88") else "image"
+		doc = { "date": day, "title": f"Picture of {day}", "media_type": kind, "explanation": "<strong>Explanation:</strong> text", "credit": "Someone",
+			"url": f"https://science.nasa.gov/image-article/apod-{ident}" }
+		if kind == "image":
+			doc["hdurl"] = f"https://assets.science.nasa.gov/content/dam/science/cds/apod/apod/20{ident[:2]}/picture_{ident}.jpg"
+		return httpx.Response(200, json=doc)
+	return None
+
+def _apod_image(request: httpx.Request) -> httpx.Response | None:
+	if request.url.host == "assets.science.nasa.gov" and request.url.path.lower().endswith(".jpg"):
+		return _image(1600, 1000, request.url.path.rsplit("/", 1)[-1], "JPEG")
+	return None
+
 # invented feeds for the RSS Feed data source: URL (host, path) -> fixture file; "/page" answers 200 with HTML (a cookie wall), which is no feed
 RSS_FEEDS = {
 	("news.example.test", "/feed.xml"): "rss-news.xml",
@@ -170,7 +195,7 @@ def _weather(request: httpx.Request) -> httpx.Response | None:
 		return httpx.Response(401, json={ "cod": 401, "message": "Invalid API key" })
 	return httpx.Response(200, text=fixture_text(name), headers={ "Content-Type": "application/json" })
 
-ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _rss_feed, _rss_image, _calendar, _caldav, _weather]
+ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _apod, _apod_image, _rss_feed, _rss_image, _calendar, _caldav, _weather]
 
 def install() -> FakeInternet | None:
 	"""Make every `AsyncHttpWorkerPool` talk to the fake (unless EINK_TEST_LIVE is set)."""

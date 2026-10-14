@@ -1,0 +1,44 @@
+{
+	"id": "apod",
+	"name": "NASA Picture of the Day",
+	"version": "0.0.1",
+	"class": "ApodAsync",
+	"file": "apod.py",
+	"module": "python.datasources.apod.apod",
+	"description": "NASA's Astronomy Picture of the Day: today's, a day you choose, or a random day. A day with a video instead of a picture is passed over (today, random) or reported (a chosen day). The picture is fitted to the screen with a blurred margin. No key is needed.",
+	"describe": "NASA picture of the day",
+	"disabled": false,
+	"features": ["internet", "layer-background", "layer-foreground", "media-image"],
+	"settings": {
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+			},
+			"properties": [
+				{
+					"name": "randomizeDate",
+					"type": "boolean",
+					"required": false,
+					"default": false,
+					"title": "Randomize Date",
+					"description": "A random day since 16 June 1995, when the Picture of the Day began, each time."
+				},
+				{
+					"name": "customDate",
+					"type": "string", "format": "date",
+					"required": false,
+					"default": null,
+					"title": "Custom Date",
+					"description": "A day to show. Not used when the date is randomized. Empty: today's picture (or the latest one, until today's is published).",
+					"visibleIf": { "field": "randomizeDate", "const": false }
+				}
+			]
+		}
+	}
+}
