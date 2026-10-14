@@ -22,6 +22,16 @@ class TestFreshStorage(unittest.TestCase):
 			self.assertTrue(os.path.isdir(os.path.join(folder, "schedules")))
 			cm.schedule_manager()  # does not raise
 
+	def test_a_storage_seeded_without_one_gets_it_at_the_next_start(self):
+		"""A device (or a volume) seeded before the fix: the seeding does not run again, the start must put the folder back."""
+		import shutil
+		with tempfile.TemporaryDirectory() as folder:
+			cm = ConfigurationManager(storage_path=folder)
+			cm.hard_reset()
+			shutil.rmtree(os.path.join(folder, "schedules"))
+			ConfigurationManager(storage_path=folder).ensure_folders()
+			self.assertTrue(os.path.isdir(os.path.join(folder, "schedules")))
+
 class TestConfigurationManager(unittest.TestCase):
 	@unittest.skipUnless(sys.platform == "win32", "This test is for Windows only")
 	def test_os_path_windows(self):

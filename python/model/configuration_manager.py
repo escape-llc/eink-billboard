@@ -624,6 +624,8 @@ class ConfigurationManager(ConfigurationObjectFactory):
 				self.storage_plugins,
 				self.storage_ds,
 				self.storage_settings,
+				# a storage seeded before the folder was created by the seeding (git keeps no empty folder) has none: the layers failed to start on it
+				self.storage_schedules,
 			]
 			for directory in directories:
 				if not os.path.exists(directory):
