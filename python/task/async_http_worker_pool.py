@@ -1,5 +1,7 @@
 import asyncio
 from contextvars import ContextVar
+from functools import lru_cache
+import ssl
 import threading
 from typing import Any, Callable
 import httpx
@@ -7,6 +9,18 @@ import logging
 from concurrent.futures import Future
 
 from ..task.protocols import IRequireShutdown
+
+@lru_cache(maxsize=1)
+def tls_context() -> ssl.SSLContext:
+	"""
+	What every HTTP client of ours verifies and connects with: the platform's usual settings, offering one classical key exchange group (P-256).
+	OpenSSL 3.5 (the container's Python, Debian) offers a post-quantum hybrid group first, which makes the TLS 1.3 handshake's first message large, and some hosts
+	(webcomicname.com on Tumblr) drop the connection on it: "Server disconnected without sending a response", while the same address answers a
+	TLS 1.2 client or an older OpenSSL. Every server that speaks TLS 1.3 accepts P-256. An `httpx.AsyncClient` of ours is made with `verify=tls_context()`.
+	"""
+	context = ssl.create_default_context()
+	context.set_ecdh_curve("prime256v1")
+	return context
 
 # 1. Define a ContextVar to hold the resource
 # Think of this as a global variable that is unique to each "Task chain"
@@ -31,7 +45,7 @@ class AsyncHttpWorkerPool(IRequireShutdown):
 	def _run_loop(self):
 		asyncio.set_event_loop(self.loop)
 		try:
-			self.client = httpx.AsyncClient(max_redirects=5, transport=type(self).default_transport)
+			self.client = httpx.AsyncClient(max_redirects=5, transport=type(self).default_transport, verify=tls_context())
 		except BaseException as e:
 			# start() is waiting on _loop_ready: tell it why the loop will never run
 			self._start_error = e
