@@ -25,8 +25,12 @@ import flip_to_front from "@material-symbols/svg-400/outlined/flip_to_front.svg?
 import opacity from "@material-symbols/svg-400/outlined/opacity.svg?raw"
 import priority_high from "@material-symbols/svg-400/outlined/priority_high.svg?raw"
 import picture_in_picture from "@material-symbols/svg-400/outlined/picture_in_picture.svg?raw"
+// the Scheduler's views (SchedulerView.ts MODES)
+import calendar_view_day from "@material-symbols/svg-400/outlined/calendar_view_day.svg?raw"
+import calendar_view_week from "@material-symbols/svg-400/outlined/calendar_view_week.svg?raw"
+import view_list from "@material-symbols/svg-400/outlined/view_list.svg?raw"
 
-export const MATERIAL_ICONS = { playlist_play, schedule, layers, warning, error, play_arrow, skip_next, stop, image, cloud_off, wb_sunny, screenshot_monitor, wallpaper, flip_to_front, opacity, priority_high, picture_in_picture } as const
+export const MATERIAL_ICONS = { playlist_play, schedule, layers, warning, error, play_arrow, skip_next, stop, image, cloud_off, wb_sunny, screenshot_monitor, wallpaper, flip_to_front, opacity, priority_high, picture_in_picture, calendar_view_day, calendar_view_week, view_list } as const
 export type MaterialIconName = keyof typeof MATERIAL_ICONS
 
 /** The class of a glyph: `skip_next` is `mi-skip-next`. */
