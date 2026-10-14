@@ -486,6 +486,8 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		try:
 			# base files: schedules and schemas
 			shutil.copytree(self.NVE_PATH, self.STORAGE_PATH, dirs_exist_ok=True)
+			# git keeps no empty folder, so the factory tree has none for the schedules: without it every layer fails to configure on a new device
+			os.makedirs(self.storage_schedules, exist_ok=True)
 			# extract settings: system, display
 			settings_files = os.listdir(self.storage_schemas)
 			for file in settings_files:
