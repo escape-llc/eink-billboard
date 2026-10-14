@@ -8,19 +8,15 @@
 			<span class="range-label" data-testid="range">{{ rangeText }}</span>
 		</template>
 		<template #end>
-			<div class="flex align-items-center gap-2">
-				<!-- a day or a week from today's weekday, or each task once; never before today -->
-				<SelectButton size="small" :modelValue="mode" :options="MODES" optionLabel="label" optionValue="value" :allowEmpty="false" aria-label="View"
-					@update:modelValue="(m: SchedulerMode) => setMode(m)">
-					<template #option="{ option }"><i :class="option.icon" aria-hidden="true"></i><span>{{ option.label }}</span></template>
-				</SelectButton>
-				<InputGroup class="nav-group">
-					<Button size="small" icon="pi pi-chevron-left" severity="secondary" aria-label="Back" :title="mode === 'day' ? 'The day before' : 'The week before'" :disabled="offset === 0" @click="move(-1)" />
-					<Button size="small" label="Today" severity="secondary" :disabled="offset === 0" @click="goToday" />
-					<Button size="small" icon="pi pi-chevron-right" severity="secondary" aria-label="Forward" :title="mode === 'day' ? 'The next day' : 'The next week'" @click="move(1)" />
-				</InputGroup>
+			<!-- one group: the view (a day or a week from today's weekday, or each task once), back / today / forward (never before today), a new task -->
+			<InputGroup class="scheduler-actions">
+				<Button v-for="m in MODES" :key="m.value" size="small" :icon="m.icon" :label="m.label" :aria-pressed="mode === m.value"
+					:severity="mode === m.value ? 'contrast' : 'secondary'" @click="setMode(m.value)" />
+				<Button size="small" icon="pi pi-chevron-left" severity="secondary" aria-label="Back" :title="mode === 'day' ? 'The day before' : 'The week before'" :disabled="offset === 0" @click="move(-1)" />
+				<Button size="small" label="Today" severity="secondary" :disabled="offset === 0" @click="goToday" />
+				<Button size="small" icon="pi pi-chevron-right" severity="secondary" aria-label="Forward" :title="mode === 'day' ? 'The next day' : 'The next week'" @click="move(1)" />
 				<Button size="small" label="New task" icon="pi pi-plus" :disabled="timerPlugins.length === 0" @click="handleNew" />
-			</div>
+			</InputGroup>
 		</template>
 	</Toolbar>
 	<ProgressBar v-if="loading" mode="indeterminate" style="height:4px" aria-label="Loading" data-testid="loading" />
@@ -160,7 +156,7 @@
 </template>
 <script setup lang="ts">
 import { ApiError, apiDelete, apiJson, apiPost, apiPut } from "../components/ApiClient"
-import { InputGroup, InputGroupAddon, Button, Dialog, Toolbar, Select, Checkbox, InputText, Message, SelectButton, DataTable, Column, Tag, useToast } from "primevue"
+import { InputGroup, InputGroupAddon, Button, Dialog, Toolbar, Select, Checkbox, InputText, Message, DataTable, Column, Tag, useToast } from "primevue"
 import { MODES, rangeLabel, step, switchMode, taskRows, windowOf, type SchedulerMode, type TaskRow } from "../components/SchedulerView"
 import FormField from '@primevue/forms/formfield';
 import AlCalendar from "../components/AlCalendar.vue"
@@ -598,7 +594,7 @@ const handleSubmit = () => {
 .task-title {
 	padding: 0;
 }
-.nav-group {
+.scheduler-actions {
 	width: auto;
 }
 .range-label {
