@@ -43,6 +43,18 @@ class DataSourceExecutionContext:
 	@property
 	def timestamp(self) -> datetime:
 		return self._timestamp
+	def context_for(self, source: "DataSource") -> "DataSourceExecutionContext":
+		"""
+		A context for asking another data source for its data (the Weather Overlay asks the Weather): the same services, time and size, with the other's own
+		settings and files (its `DatasourceConfigurationManager`, opened by its id as the settings routes open it). So what it keeps (its cache, its lock) is shared,
+		never copied, and the origin is not asked again. The id is the source's own (its descriptor's), never a URL's.
+		"""
+		# imported here: configuration_manager imports this module
+		from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager
+		from ..model.service_container import ServiceContainer
+		local = ServiceContainer(self._isp)
+		local.add_service(DatasourceConfigurationManager, self._isp.required(ConfigurationManager).datasource_manager(source.id))
+		return DataSourceExecutionContext(local, self._dimensions, self._timestamp)
 
 @dataclass(frozen=True,slots=True)
 class MediaRenderResult:

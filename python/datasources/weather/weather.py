@@ -6,7 +6,7 @@ import logging
 import os
 from pathlib import Path
 import re
-from typing import Any, Mapping
+from typing import Any, Collection, Mapping
 
 import httpx
 
@@ -266,6 +266,18 @@ class WeatherAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		self.logger = logging.getLogger(__name__)
 
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
+		views = chosen_views(params)
+		# only what the chosen pages need: the free plan counts calls
+		needs = ({ "current" } if "current" in views else set()) | ({ "forecast" } if "hours" in views or "days" in views else set())
+		report = await self.report_async(dsec, needs)
+		return [Page(view, report) for view in views]
+
+	async def report_async(self, dsec: DataSourceExecutionContext, needs: Collection[str]) -> Report:
+		"""
+		The weather at the device's location, for this data source and any other that shows it differently (the Weather Overlay, through
+		`dsec.context_for(weather)`): `needs` is `current` (the weather now) and/or `forecast` (the next hours and days). Every answer comes through the
+		data source's cache, so a page and an overlay of the same hours share one call. A missing location or key is a PermanentError naming the settings to fix.
+		"""
 		scm = dsec.provider.required(SettingsConfigurationManager)
 		_, system = scm.open("system").get()
 		system = system or {}
@@ -280,7 +292,6 @@ class WeatherAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		now = device_now(dsec.timestamp)
 		zone = now.tzinfo or now.astimezone().tzinfo
 		assert zone is not None
-		views = chosen_views(params)
 		report = Report("", units_for(settings.get("units"), system.get("timezoneName")), system.get("timeFormat") == "12h", now)
 		latitude, longitude = float(where["latitude"]), float(where["longitude"])
 		client = client_var.get()
@@ -290,12 +301,11 @@ class WeatherAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			# the key is not part of what is kept or what it is called: an answer is the same whoever asks
 			name = f"{path}|{latitude:.4f}|{longitude:.4f}|{report.units.system}"
 			return cached(dscm, settings, name, dsec.timestamp, lambda: fetch(client, path, latitude, longitude, report.units, key.strip()), DEFAULT_CACHE_HOURS)
-		# only what the chosen pages need: the free plan counts calls
-		if "current" in views:
+		if "current" in needs:
 			parse_current(await answer("weather"), report, zone)
-		if "hours" in views or "days" in views:
+		if "forecast" in needs:
 			parse_forecast(await answer("forecast"), report, zone)
-		return [Page(view, report) for view in views]
+		return report
 
 	async def render_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any], state: Any) -> MediaRenderResult | None:
 		if not isinstance(state, Page):
