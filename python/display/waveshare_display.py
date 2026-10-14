@@ -20,6 +20,7 @@ from typing import Any, Callable
 from PIL import Image
 
 from .display_base import DisplayBase
+from .panel_guard import PanelGuard
 from ..model.configuration_manager import ConfigurationManager
 from ..plugins.plugin_base import PermanentError
 from ..utils.image_utils import to_rgb
@@ -73,30 +74,9 @@ class WaveshareDisplay(DisplayBase):
 		self.epd: Any = None
 		self.resolution: tuple[int, int] = (0, 0)
 		# a refresh that has not come back (a panel that never says it is done): nothing else is sent to the bus until it has
-		self._worker: threading.Thread|None = None
+		self._guard = PanelGuard("waveshare")
 		self._lock = threading.Lock()
 		self.logger = logging.getLogger(__name__)
-
-	def _guarded(self, work: Callable[[], Any], seconds: float) -> Any:
-		"""Run `work` (it talks to the panel and may wait on its busy line for good) on a thread, for at most `seconds`; a failure of its own is raised here."""
-		if self._worker is not None and self._worker.is_alive():
-			raise RuntimeError("The panel has not finished the last refresh (its busy line may be stuck): not sending another.")
-		outcome: list[Any] = []
-		failure: list[BaseException] = []
-		def run() -> None:
-			try:
-				outcome.append(work())
-			except BaseException as e:
-				failure.append(e)
-		worker = threading.Thread(target=run, name="waveshare-panel", daemon=True)
-		self._worker = worker
-		worker.start()
-		worker.join(seconds)
-		if worker.is_alive():
-			raise TimeoutError(f"The panel did not answer in {seconds:g} seconds.")
-		if failure:
-			raise failure[0]
-		return outcome[0] if outcome else None
 
 	def initialize(self, cm: ConfigurationManager) -> tuple[int, int]:
 		self.logger.info(f"'{self.name}' initialize")
@@ -108,7 +88,7 @@ class WaveshareDisplay(DisplayBase):
 			start = getattr(self.epd, "init", None) or getattr(self.epd, "Init", None)
 			if not callable(start):
 				raise PermanentError("The Waveshare driver has no way to start the panel.")
-			self._guarded(start, self._start_seconds)
+			self._guard.run(start, self._start_seconds)
 			self.resolution = (int(self.epd.width), int(self.epd.height))
 		except PermanentError:
 			raise
@@ -151,7 +131,7 @@ class WaveshareDisplay(DisplayBase):
 				if callable(sleep):
 					sleep()
 			try:
-				self._guarded(refresh, self._refresh_seconds)
+				self._guard.run(refresh, self._refresh_seconds)
 			except TimeoutError:
 				raise RuntimeError(f"The panel did not finish refreshing in {self._refresh_seconds:g} seconds. Check the wiring and the busy line.") from None
 

@@ -1,3 +1,4 @@
+import threading
 import unittest
 from datetime import datetime, timezone
 from typing import Any
@@ -89,6 +90,30 @@ class TestDriver(unittest.TestCase):
 		shown.shutdown()
 		with self.assertRaises(RuntimeError):
 			shown.render(Image.new("RGB", (800, 480)), 1)
+
+class TestGuard(unittest.TestCase):
+	def test_a_panel_that_never_says_it_is_done_is_a_timeout_and_nothing_more_is_sent(self):
+		release = threading.Event()
+		class Stuck(FakeInky):
+			def show(self):
+				release.wait(5)
+		self.addCleanup(release.set)
+		shown = InkyDisplay("inky", loader=lambda: Stuck(), refresh_seconds=0.1)
+		shown.initialize(settings_of())
+		with self.assertRaisesRegex(RuntimeError, "did not finish refreshing"):
+			shown.render(Image.new("RGB", (800, 480)), 1)
+		with self.assertRaisesRegex(RuntimeError, "has not finished the last refresh"):
+			shown.render(Image.new("RGB", (800, 480)), 2)
+		release.set()
+
+	def test_a_board_that_never_answers_when_it_is_made_is_worded_not_waited_for(self):
+		release = threading.Event()
+		def silent():
+			release.wait(5)
+		self.addCleanup(release.set)
+		with self.assertRaisesRegex(PermanentError, "did not answer when it was started"):
+			InkyDisplay("inky", loader=silent, start_seconds=0.1).initialize(settings_of())
+		release.set()
 
 class TestLoading(unittest.TestCase):
 	def test_a_machine_without_the_driver_is_told_what_to_do(self):
