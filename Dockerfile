@@ -42,3 +42,14 @@ VOLUME /data
 EXPOSE 8080
 # The token comes from EINK_API_TOKEN. Publish the port on localhost only unless a token is set (see compose.yaml).
 CMD ["uv", "run", "--no-sync", "python", "-m", "python.eink-billboard", "--host", "0.0.0.0", "--port", "8080", "--storage", "/data", "--app", "/work/app/dist"]
+
+# --- app-inky: the same, with the Inky driver installed (the `device` group), to troubleshoot the driver's failure flow (#281) ------------------------
+# The container has no panel, no SPI and no I2C: the driver imports and tries to read the board's EEPROM, finds nothing and fails the way a Pi with the board
+# unplugged or I2C off does; scripts/fake_inky.py can pretend there is a board, to get the flow farther. (`spidev` has no wheel: it is built here, so the compiler is installed for this image only.)
+FROM app AS app-inky
+USER root
+RUN apt-get update 	&& apt-get install -y --no-install-recommends build-essential 	&& rm -rf /var/lib/apt/lists/* 	&& uv sync --frozen --no-dev --group device --no-install-project
+COPY scripts/fake_inky.py ./scripts/fake_inky.py
+USER eink
+# the server through the pretend board (`EINK_FAKE_INKY`, see scripts/fake_inky.py); with none set the driver is the real one and finds no board
+CMD ["uv", "run", "--no-sync", "python", "-m", "scripts.fake_inky", "--host", "0.0.0.0", "--port", "8080", "--storage", "/data", "--app", "/work/app/dist"]
