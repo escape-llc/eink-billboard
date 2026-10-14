@@ -6,7 +6,7 @@ import logging
 from httpx import HTTPError
 
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
-from ...utils.image_utils import get_image_async, to_rgb
+from ...utils.image_utils import blurred_margin, get_image_async
 from .constants import NEWSPAPERS
 
 FREEDOM_FORUM_URL = "https://cdn.freedomforum.org/dfp/jpg{}/lg/{}.jpg"
@@ -59,7 +59,7 @@ class NewspaperAsync(DataSource, MediaListAsync, MediaRenderAsync):
 
 		return self._pad_to_ratio(image, dimensions)
 	def _pad_to_ratio(self, image: Image.Image, dimensions) -> Image.Image:
-		"""Pad (never crop) the cover with white so its aspect ratio equals the target's; the cover is centred."""
+		"""Pad (never crop) the cover with a blurred copy of itself so its aspect ratio equals the target's; the cover is centred."""
 		img_width, img_height = image.size
 		desired_width, desired_height = dimensions
 		img_ratio = img_width / img_height
@@ -73,6 +73,4 @@ class NewspaperAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			canvas_size = (img_width, int(round(img_width / desired_ratio)))
 		else:
 			return image
-		canvas = Image.new("RGB", canvas_size, (255, 255, 255))
-		canvas.paste(to_rgb(image), ((canvas_size[0] - img_width) // 2, (canvas_size[1] - img_height) // 2))
-		return canvas
+		return blurred_margin(image, canvas_size, enlarge=False)

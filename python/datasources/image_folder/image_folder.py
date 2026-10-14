@@ -2,10 +2,10 @@ import logging
 import os
 from typing import Any, Mapping
 
-from PIL import Image, ImageOps, ImageFilter
+from PIL import Image, ImageOps
 from ...model.configuration_manager import DatasourceConfigurationManager
 from ...plugins.plugin_base import PermanentError
-from ...utils.image_utils import to_rgb
+from ...utils.image_utils import blurred_margin, to_rgb
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 
 def list_files_in_folder(folder_path):
@@ -28,14 +28,7 @@ def grab_image(image_path, dimensions, pad_image, logger):
 			img = ImageOps.exif_transpose(opened)  # Correct orientation using EXIF
 			# palette ('P'), bilevel ('1') and alpha images cannot be blurred/pasted as they are; transparency goes onto white
 			img = to_rgb(img)
-			img = ImageOps.contain(img, dimensions, Image.Resampling.LANCZOS)
-
-		if pad_image:
-			bkg = ImageOps.fit(img, dimensions)
-			bkg = bkg.filter(ImageFilter.BoxBlur(8))
-			img_size = img.size
-			bkg.paste(img, ((dimensions[0] - img_size[0]) // 2, (dimensions[1] - img_size[1]) // 2))
-			img = bkg
+			img = blurred_margin(img, dimensions) if pad_image else ImageOps.contain(img, dimensions, Image.Resampling.LANCZOS)
 		return img
 	except Exception as e:
 		logger.error(f"Error loading image from {image_path}: {e}")

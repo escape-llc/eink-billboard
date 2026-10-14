@@ -7,9 +7,9 @@ from io import BytesIO
 import base64
 import openai
 
-from ...utils.image_utils import get_image_async
+from ...utils.image_utils import blurred_margin, get_image_async
 from ...model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager
-from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult
+from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 
 DEFAULT_IMAGE_MODEL = "dall-e-3"
 DEFAULT_IMAGE_QUALITY = "standard"
@@ -67,7 +67,8 @@ class OpenAIAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		if state is None:
 			return None
 		image = await self._dispatch_image(dsec, state.get('api_key'), state.get('image_model'), state.get('image_quality'), state.get('text_prompt'), state.get('randomize_prompt'), state.get('orientation'))
-		return None if image is None else MediaRenderResult(image=image, title=f"OpenAI Image: {state.get('text_prompt', 'Untitled')}")
+		# the model's sizes are not the panel's shape: the margin is the picture's own blur
+		return None if image is None else MediaRenderResult(image=blurred_margin(image, target_dimensions(dsec)), title=f"OpenAI Image: {state.get('text_prompt', 'Untitled')}")
 	async def _dispatch_image(self, context: DataSourceExecutionContext, api_key, image_model, image_quality, text_prompt, randomize_prompt, orientation) -> Image.Image | None:
 		try:
 			# the client owns a connection pool: close it when done

@@ -25,7 +25,7 @@ from random import randint
 
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 from ...task.async_http_worker_pool import client_var
-from ...utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, stream_to_buffer, to_rgb
+from ...utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, blurred_margin, stream_to_buffer
 
 # a POTD original can be tens of megabytes: ask Wikipedia for a thumbnail this many times the display's long side, and refuse bigger downloads
 THUMBNAIL_FACTOR = 2
@@ -69,20 +69,10 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		pass
 	def _shrink_to_fit(self, image: Image.Image, max_width: int, max_height: int) -> Image.Image:
 		"""
-		Fit the image inside max_width x max_height (both sides), keeping the aspect ratio, and centre it on a white canvas of that size.
+		Fit the image inside max_width x max_height (both sides), keeping the aspect ratio, and centre it on a blurred copy of itself of that size.
 		Images that already fit are not enlarged. Uses high-quality resampling.
 		"""
-		orig_width, orig_height = image.size
-		scale = min(1.0, max_width / orig_width, max_height / orig_height)
-		new_width = max(1, int(orig_width * scale))
-		new_height = max(1, int(orig_height * scale))
-		if (new_width, new_height) != (orig_width, orig_height):
-			image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-		# alpha/palette images are pasted onto white paper
-		image = to_rgb(image)
-		new_image = Image.new("RGB", (max_width, max_height), (255, 255, 255))
-		new_image.paste(image, ((max_width - new_width) // 2, (max_height - new_height) // 2))
-		return new_image
+		return blurred_margin(image, (max_width, max_height), enlarge=False)
 	async def _download_image(self, url: str) -> Image.Image:
 		if url.lower().endswith(".svg"):
 			self.logger.warning(f"'{self.name}' SVG format is not supported by Pillow. Skipping image download.")

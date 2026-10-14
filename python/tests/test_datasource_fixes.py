@@ -438,25 +438,23 @@ class TestWpotd(unittest.IsolatedAsyncioTestCase):
 		src = Image.new("RGB", (4000, 3000), (255, 0, 0))
 		out = ds._shrink_to_fit(src, 800, 480)
 		self.assertEqual(out.size, (800, 480))
-		# 4:3 into 800x480 is 640x480: white bars left and right, picture in the middle
-		self.assertEqual(out.getpixel((10, 240)), (255, 255, 255))
+		# 4:3 into 800x480 is 640x480: the bars left and right are the picture's own (blurred) color, not white
+		self.assertEqual(out.getpixel((10, 240)), (255, 0, 0))
 		self.assertEqual(out.getpixel((400, 240)), (255, 0, 0))
-		self.assertEqual(out.getpixel((789, 240)), (255, 255, 255))
-	def test_tall_image_fits_inside_the_box(self):
-		out = WpotdAsync("w", "w")._shrink_to_fit(Image.new("RGB", (3000, 4000), (255, 0, 0)), 800, 480)
-		self.assertEqual(out.size, (800, 480))
-		self.assertEqual(out.getpixel((400, 240)), (255, 0, 0))
-		self.assertEqual(out.getpixel((200, 240)), (255, 255, 255))
-	def test_wide_image_fits_inside_the_box(self):
-		out = WpotdAsync("w", "w")._shrink_to_fit(Image.new("RGB", (4000, 1000), (255, 0, 0)), 800, 480)
-		self.assertEqual(out.size, (800, 480))
-		self.assertEqual(out.getpixel((400, 5)), (255, 255, 255))
-		self.assertEqual(out.getpixel((400, 240)), (255, 0, 0))
+	def test_tall_and_wide_images_fit_inside_the_box(self):
+		for size in ((3000, 4000), (4000, 1000)):
+			out = WpotdAsync("w", "w")._shrink_to_fit(Image.new("RGB", size, (255, 0, 0)), 800, 480)
+			self.assertEqual(out.size, (800, 480))
+			self.assertEqual(out.getpixel((400, 240)), (255, 0, 0))
+			self.assertNotEqual(out.getpixel((5, 5)), (255, 255, 255))
 	def test_small_image_is_centred_not_enlarged(self):
-		out = WpotdAsync("w", "w")._shrink_to_fit(Image.new("RGB", (100, 50), (255, 0, 0)), 800, 480)
+		src = Image.new("RGB", (100, 50), (0, 0, 255))
+		src.paste((255, 0, 0), (40, 0, 60, 50))
+		out = WpotdAsync("w", "w")._shrink_to_fit(src, 800, 480)
 		self.assertEqual(out.size, (800, 480))
+		# the red stripe is 20 pixels wide in the middle: not enlarged
 		self.assertEqual(out.getpixel((400, 240)), (255, 0, 0))
-		self.assertEqual(out.getpixel((300, 240)), (255, 255, 255))
+		self.assertEqual(out.getpixel((380, 240)), (0, 0, 255))
 	async def test_render_fits_portrait_canvas(self):
 		ds = WpotdAsync("w", "w")
 		client_var.set(mock_client(lambda req: httpx.Response(200, content=png_bytes((400, 300)), headers={"Content-Type": "image/png"})))
@@ -509,7 +507,8 @@ class TestNewspaper(unittest.IsolatedAsyncioTestCase):
 		self.assertEqual(out.height, 1166)
 		self.assertAlmostEqual(out.width / out.height, 800 / 480, delta=0.01)
 		self.assertEqual(out.getpixel((out.width // 2, 500)), (10, 10, 10))
-		self.assertEqual(out.getpixel((2, 500)), (255, 255, 255))
+		# the margin is the cover's own blur, not white
+		self.assertEqual(out.getpixel((2, 500)), (10, 10, 10))
 	def test_wide_cover_gets_taller_canvas(self):
 		out = self._pad((1000, 300), (800, 480))
 		self.assertEqual(out.width, 1000)

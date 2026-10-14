@@ -5,7 +5,7 @@ import shutil
 import signal
 from typing import Any, Callable, Mapping
 
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 from io import BytesIO
 import os
 import logging
@@ -70,6 +70,23 @@ def to_rgb(img: Image.Image) -> Image.Image:
 		background = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
 		return Image.alpha_composite(background, rgba).convert("RGB")
 	return img.convert("RGB")
+
+def blurred_margin(img: Image.Image, size: tuple[int, int], enlarge: bool = True) -> Image.Image:
+	"""
+	`img` fitted inside `size` (the whole picture, never cropped, the aspect ratio kept) and centred on a blurred, enlarged copy of itself, so the margin
+	is the picture's own colors, not white bars. The one way a data source fills the margin of a picture whose shape is not the panel's.
+	`enlarge=False` leaves a picture that is smaller than `size` at its own size. The blur grows with the canvas (8 pixels on a 480 pixel side).
+	"""
+	size = (max(1, size[0]), max(1, size[1]))
+	img = to_rgb(img)
+	if img.size == size:
+		return img
+	scale = min(size[0] / img.width, size[1] / img.height)
+	if enlarge or scale < 1:
+		img = ImageOps.contain(img, size, Image.Resampling.LANCZOS)
+	canvas = ImageOps.fit(img, size).filter(ImageFilter.BoxBlur(max(1, round(min(size) / 60))))
+	canvas.paste(img, ((size[0] - img.width) // 2, (size[1] - img.height) // 2))
+	return canvas
 
 def change_orientation(image: Image.Image, orientation: str, rotate180=False) -> Image.Image:
 	if orientation == 'landscape':
