@@ -231,6 +231,18 @@ class TestComic(unittest.IsolatedAsyncioTestCase):
 			items = await comic_parser.get_items_async("XKCD")
 		self.assertEqual(items, [])
 		self.assertIn("XKCD", "\n".join(logs.output))
+	async def test_the_feed_is_asked_for_under_our_own_name_not_the_libraries(self):
+		# webcomicname.com refuses `python-httpx` with a 403 and serves the same feed to any other name
+		seen: list[str] = []
+		def handler(req: httpx.Request):
+			seen.append(req.headers.get("User-Agent", ""))
+			return httpx.Response(403) if "httpx" in seen[-1] else httpx.Response(200, text="<rss version='2.0'><channel><title>x</title></channel></rss>")
+		client_var.set(mock_client(handler))
+		for name in comic_parser.COMICS:
+			with self.subTest(comic=name), self.assertLogs(comic_parser.__name__, level="ERROR"):
+				await comic_parser.get_items_async(name)
+		self.assertEqual(len(seen), len(comic_parser.COMICS))
+		self.assertFalse(any("httpx" in agent for agent in seen))
 	async def test_real_feed_still_parses(self):
 		atom = """<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>x</title><entry><title>T</title>
 		<link href="http://x/1"/><id>1</id><updated>2026-01-01T00:00:00Z</updated>

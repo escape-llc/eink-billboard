@@ -97,10 +97,13 @@ def parse_the_feed(comic_name: str, comic: dict, feed: feedparser.FeedParserDict
 
 logger = logging.getLogger(__name__)
 
+# some hosts refuse the HTTP library's own User-Agent (webcomicname.com, on Tumblr, answers 403 to `python-httpx` and 200 to a browser or any other name)
+HEADERS = { "User-Agent": "Mozilla/5.0 (compatible; eink-billboard)", "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.5" }
+
 async def get_items_async(comic_name):
 	comic = COMICS[comic_name]
 	client = client_var.get()
-	resp = await client.get(comic["feed"], follow_redirects=True)
+	resp = await client.get(comic["feed"], headers=HEADERS, follow_redirects=True)
 	resp.raise_for_status()
 	feed = feedparser.parse(resp.text)
 	if not feed.entries:
