@@ -48,9 +48,13 @@ CMD ["uv", "run", "--no-sync", "python", "-m", "python.eink-billboard", "--host"
 # unplugged or I2C off does; scripts/fake_inky.py can pretend there is a board, to get the flow farther. (`spidev` has no wheel: it is built here, so the compiler is installed for this image only.)
 FROM app AS app-device
 USER root
-RUN apt-get update 	&& apt-get install -y --no-install-recommends build-essential 	&& rm -rf /var/lib/apt/lists/* 	&& uv sync --frozen --no-dev --group device --no-install-project
+# The Pi 5's pins need the `lgpio` Python package, which is built from its source package against the C library `lg`: Debian has no package for it (Raspberry Pi OS does), so
+# that is built here from a pinned release of the same author (v0.2.2, checked by hash), with `swig` and the compiler, for this image only.
+RUN apt-get update 	&& apt-get install -y --no-install-recommends build-essential swig curl ca-certificates 	&& rm -rf /var/lib/apt/lists/* 	&& curl -fsSL -o /tmp/lg.tgz https://github.com/joan2937/lg/archive/refs/tags/v0.2.2.tar.gz 	&& echo "b08d8569d6dc8fa91a42ba1e37f620fdcb19d6bf2330e4b7d7301431ddbe124c  /tmp/lg.tgz" | sha256sum -c - 	&& tar xzf /tmp/lg.tgz -C /tmp 	&& make -C /tmp/lg-0.2.2 liblgpio.so 	&& cp /tmp/lg-0.2.2/liblgpio.so /usr/local/lib/liblgpio.so.1 && ln -s liblgpio.so.1 /usr/local/lib/liblgpio.so 	&& cp /tmp/lg-0.2.2/lgpio.h /usr/local/include/ && ldconfig 	&& rm -rf /tmp/lg.tgz /tmp/lg-0.2.2 	&& uv sync --frozen --no-dev --group device --no-install-project
 COPY scripts/fake_inky.py scripts/fake_waveshare.py ./scripts/
 USER eink
+# `import lgpio` makes a small notification file in its working directory, and /work is not the app user's: without this the import fails (FileNotFoundError '.lgd-nfy-3')
+ENV LG_WD=/tmp
 # the server through the pretend Inky board (`EINK_FAKE_INKY`, see scripts/fake_inky.py); with none set the driver is the real one and finds no board
 # (the app-waveshare service starts scripts/fake_waveshare.py instead)
 CMD ["uv", "run", "--no-sync", "python", "-m", "scripts.fake_inky", "--host", "0.0.0.0", "--port", "8080", "--storage", "/data", "--app", "/work/app/dist"]
