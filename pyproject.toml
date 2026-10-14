@@ -34,6 +34,10 @@ dev = [
 device = [
     "cysystemd==2.0.5 ; sys_platform == 'linux'",
     "inky==2.5.0 ; sys_platform == 'linux'",
+    # what the vendored Waveshare drivers import (python/display/waveshare_epd): gpiozero for the pins (its pure Python "native" pin factory on a Pi up to the 4; a Pi 5 needs the
+    # `lgpio` backend, which has no wheel for Python 3.13: `python3-lgpio` from apt, or build it with swig), spidev for the bus (inky brings it too)
+    "gpiozero==2.0.1.post3 ; sys_platform == 'linux'",
+    "spidev==3.8 ; sys_platform == 'linux'",
 ]
 
 [tool.coverage.run]
@@ -41,6 +45,7 @@ omit = [
     "*.html",
     "*.css",
     "*/tests/*",
+    "*/waveshare_epd/*",
 ]
 
 [tool.coverage.report]
@@ -48,16 +53,21 @@ omit = [
     "*.html",
     "*.css",
     "*/tests/*",
+    "*/waveshare_epd/*",
 ]
 
 [tool.mypy]
 # Type checks cover the Python sources and tests; third-party packages without type stubs are not checked.
 files = ["python"]
+# Waveshare's own drivers, vendored as they are (python/display/waveshare_epd/VENDORED.md)
+exclude = ["python/display/waveshare_epd/"]
 ignore_missing_imports = true
 
 [tool.ruff]
 # Only the Python sources; the rest of the repo has no Python to lint.
 include = ["python/**/*.py", "scripts/**/*.py"]
+# Waveshare's own drivers, vendored as they are (python/display/waveshare_epd/VENDORED.md)
+extend-exclude = ["python/display/waveshare_epd"]
 
 [tool.ruff.lint]
 # Baseline (#25): syntax errors and undefined names only, both of which fail at run time.

@@ -43,7 +43,8 @@ class TestPyproject(unittest.TestCase):
 		"""The driver is imported when the display is made (`import` inside the function that needs it), so a machine without it still starts."""
 		offenders = []
 		for folder, _, names in os.walk(os.path.join(ROOT, "python")):
-			if os.sep + "tests" in folder:
+			# the vendored Waveshare drivers (python/display/waveshare_epd) are loaded by name when the display is made, never imported by a module of ours
+			if os.sep + "tests" in folder or "waveshare_epd" in folder:
 				continue
 			for name in names:
 				if name.endswith(".py"):

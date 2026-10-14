@@ -31,7 +31,7 @@ services:
   # No hardware is passed in on purpose.
   app-inky:
     profiles: ["inky"]
-    build: { context: ., target: app-inky }
+    build: { context: ., target: app-device }
     ports:
       - "127.0.0.1:8081:8080"
     environment:
@@ -42,6 +42,22 @@ services:
       EINK_WATCH_POLL: ${EINK_WATCH_POLL:-2}
     volumes:
       - storage-inky:/data
+  # The same for a Waveshare panel: `podman compose --profile waveshare up --build -d app-waveshare` on http://localhost:8082, own storage. Choose the `waveshare` Display Type and a
+  # Waveshare Model, save, restart. `EINK_FAKE_WAVESHARE=ok|busy-stuck|spi-off` pretends there is a Raspberry Pi with a panel (scripts/fake_waveshare.py); empty: the driver finds no Pi.
+  app-waveshare:
+    profiles: ["waveshare"]
+    build: { context: ., target: app-device }
+    command: ["uv", "run", "--no-sync", "python", "-m", "scripts.fake_waveshare", "--host", "0.0.0.0", "--port", "8080", "--storage", "/data", "--app", "/work/app/dist"]
+    ports:
+      - "127.0.0.1:8082:8080"
+    environment:
+      EINK_FAKE_WAVESHARE: ${EINK_FAKE_WAVESHARE:-}
+      EINK_API_TOKEN: ${EINK_API_TOKEN:-}
+      EINK_PUBLIC_URL: ${EINK_WAVESHARE_PUBLIC_URL:-http://localhost:8082}
+      EINK_WATCH_POLL: ${EINK_WATCH_POLL:-2}
+    volumes:
+      - storage-waveshare:/data
 volumes:
   storage:
   storage-inky:
+  storage-waveshare:
