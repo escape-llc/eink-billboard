@@ -236,6 +236,57 @@ class TestCache(unittest.IsolatedAsyncioTestCase):
 		await asyncio.gather(*(self.open(dscm, ["current"]) for _ in range(5)))
 		self.assertEqual(self.asked(), ["weather"])
 
+class TestAnotherSourceAsks(unittest.IsolatedAsyncioTestCase):
+	"""A data source that shows the weather differently (the Weather Overlay) asks the Weather through `context_for`: its settings, its cache, one call."""
+	def setUp(self):
+		self.fake = FakeInternet()
+		client_var.set(httpx.AsyncClient(transport=self.fake))
+		folder = tempfile.mkdtemp(prefix="eink-weather-test-")
+		self.addCleanup(shutil.rmtree, folder, True)
+		self.cm = ConfigurationManager(storage_path=folder)
+		self.cm.hard_reset()
+		save_datasource_settings(self.cm, "weather", { "apiKey": KEY, "units": "auto", "cacheHours": 6 })
+		self.weather = WeatherAsync("weather", "Weather")
+
+	def other(self, now=NOW) -> DataSourceExecutionContext:
+		"""The context another data source gets: its own folder, and the services every source has."""
+		root = ServiceContainer()
+		root.add_service(ConfigurationManager, self.cm)
+		root.add_service(DatasourceConfigurationManager, self.cm.datasource_manager("weather-overlay"))
+		root.add_service(SettingsConfigurationManager, cast(Any, FakeSettings()))
+		return DataSourceExecutionContext(root, (246, 96), now)
+
+	def test_the_context_is_the_weathers_folder_with_the_same_time_and_size(self):
+		mine = self.other()
+		theirs = mine.context_for(self.weather)
+		self.assertEqual(theirs.provider.required(DatasourceConfigurationManager).datasource_id, "weather")
+		self.assertEqual(mine.provider.required(DatasourceConfigurationManager).datasource_id, "weather-overlay")
+		self.assertEqual((theirs.timestamp, theirs.dimensions), (NOW, (246, 96)))
+		# everything else is the caller's
+		self.assertIs(theirs.provider.required(SettingsConfigurationManager), mine.provider.required(SettingsConfigurationManager))
+
+	async def test_a_page_and_another_source_share_one_call(self):
+		await self.weather.open_async(self.other().context_for(self.weather), { "views": ["current", "days"] })
+		report = await self.weather.report_async(self.other(NOW + timedelta(hours=2)).context_for(self.weather), { "current", "forecast" })
+		self.assertEqual(sorted(self.asked()), ["forecast", "weather"], "the second asker read the Weather's cache")
+		self.assertIsNotNone(report.current)
+		self.assertTrue(report.days)
+		# nothing of the weather is kept in the asker's own folder
+		self.assertEqual(self.cm.datasource_manager("weather-overlay").list_files("cache-"), [])
+
+	async def test_only_what_is_needed_is_asked(self):
+		report = await self.weather.report_async(self.other().context_for(self.weather), { "current" })
+		self.assertEqual(self.asked(), ["weather"])
+		self.assertEqual(report.days, [])
+
+	async def test_the_weathers_settings_problems_are_the_askers(self):
+		save_datasource_settings(self.cm, "weather", { "apiKey": None, "units": "auto", "cacheHours": 6 })
+		with self.assertRaisesRegex(PermanentError, "Weather settings"):
+			await self.weather.report_async(self.other().context_for(self.weather), { "current" })
+
+	def asked(self) -> list[str]:
+		return [r.url.path.rsplit("/", 1)[-1] for r in self.fake.requests]
+
 class TestOpen(unittest.IsolatedAsyncioTestCase):
 	def setUp(self):
 		self.fake = FakeInternet()
