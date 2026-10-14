@@ -36,7 +36,7 @@ def chosen_view(params: Mapping[str, Any]) -> str:
 	return str(view)
 
 def needs_of(view: str) -> set[str]:
-	"""Only the answer the view shows: the free plan counts calls (the Weather keeps each for its `cacheHours`)."""
+	"""Only the answer the view shows: the free plan counts calls (the Weather keeps each answer for its own time)."""
 	return { "current" } if view == "now" else { "forecast" }
 
 def view_lines(view: str, report: Report) -> tuple[list[list[Run]], str|None, str]:

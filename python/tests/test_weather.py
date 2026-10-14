@@ -43,12 +43,12 @@ class FakeSettings:
 		return _Cob(self.docs.get(name))
 
 def weather_settings(settings: dict|None = None) -> DatasourceConfigurationManager:
-	"""The data source's own folder in a private storage, with its settings written (`cacheHours` 0 unless a test asks: most tests count calls)."""
+	"""The data source's own folder in a private storage, with its settings written (both times 0 unless a test asks: most tests count calls)."""
 	folder = tempfile.mkdtemp(prefix="eink-weather-test-")
 	atexit.register(shutil.rmtree, folder, True)
 	cm = ConfigurationManager(storage_path=folder)
 	cm.hard_reset()
-	save_datasource_settings(cm, "weather", { "apiKey": KEY, "units": "auto", "cacheHours": 0, **(settings or {}) })
+	save_datasource_settings(cm, "weather", { "apiKey": KEY, "units": "auto", "forecastCacheHours": 0, "currentCacheHours": 0, **(settings or {}) })
 	return cm.datasource_manager("weather")
 
 def make_context(settings: dict|None = None, orientation: str = "landscape", dscm: DatasourceConfigurationManager|None = None, now: datetime = NOW, **system) -> DataSourceExecutionContext:
@@ -176,7 +176,7 @@ class TestPages(unittest.TestCase):
 			self.assertTrue(icon_svg(code).startswith("<svg"), code)
 
 class TestCache(unittest.IsolatedAsyncioTestCase):
-	"""The API's answers are kept for the data source's `cacheHours`, shared by every page and task, and the free plan's calls are for new answers only."""
+	"""The API's answers are kept for the data source's kept times, shared by every page and task, and the free plan's calls are for new answers only."""
 	def setUp(self):
 		self.fake = FakeInternet()
 		client_var.set(httpx.AsyncClient(transport=self.fake))
@@ -188,38 +188,38 @@ class TestCache(unittest.IsolatedAsyncioTestCase):
 		return await WeatherAsync("weather", "Weather").open_async(make_context(dscm=dscm, now=now), { "views": views })
 
 	async def test_a_second_visit_in_six_hours_asks_nobody(self):
-		dscm = weather_settings({ "cacheHours": 6, "currentCacheHours": 6 })
+		dscm = weather_settings({ "forecastCacheHours": 6, "currentCacheHours": 6 })
 		await self.open(dscm, ["current", "hours"])
 		await self.open(dscm, ["current", "days"], NOW + timedelta(hours=5))
 		self.assertEqual(sorted(self.asked()), ["forecast", "weather"], "one call of each, for every page")
 		await self.open(dscm, ["current"], NOW + timedelta(hours=7))
 		self.assertEqual(sorted(self.asked()), ["forecast", "weather", "weather"], "the current answer was older than six hours")
 
-	async def test_the_weather_now_is_asked_again_sooner_than_the_forecast_and_never_kept_longer(self):
-		dscm = weather_settings({ "cacheHours": 6, "currentCacheHours": 0.5 })
+	async def test_each_kind_of_answer_has_its_own_time(self):
+		dscm = weather_settings({ "forecastCacheHours": 6, "currentCacheHours": 0.5 })
 		await self.open(dscm, ["current", "days"])
 		await self.open(dscm, ["current", "days"], NOW + timedelta(minutes=20))
 		self.assertEqual(sorted(self.asked()), ["forecast", "weather"], "both kept")
 		await self.open(dscm, ["current", "days"], NOW + timedelta(minutes=40))
 		self.assertEqual(sorted(self.asked()), ["forecast", "weather", "weather"], "the weather now is older than half an hour, the forecast is not")
-		await self.open(dscm, ["current"], NOW + timedelta(hours=7))
-		self.assertEqual(sorted(self.asked()), ["forecast", "weather", "weather", "weather"])
-		# a longer time than `cacheHours` is cut to it; 0 asks every time
-		short = weather_settings({ "cacheHours": 1, "currentCacheHours": 5 })
+		await self.open(dscm, ["current", "days"], NOW + timedelta(hours=7))
+		self.assertEqual(sorted(self.asked()), ["forecast", "forecast", "weather", "weather", "weather"])
+		# no time is cut by the other: a current time longer than the forecast's is its own; 0 asks every time for that kind only
+		long_now = weather_settings({ "forecastCacheHours": 1, "currentCacheHours": 5 })
 		self.fake.requests.clear()
-		await self.open(short, ["current"])
-		await self.open(short, ["current"], NOW + timedelta(hours=2))
-		self.assertEqual(self.asked(), ["weather", "weather"])
-		every = weather_settings({ "cacheHours": 6, "currentCacheHours": 0 })
+		await self.open(long_now, ["current", "days"])
+		await self.open(long_now, ["current", "days"], NOW + timedelta(hours=2))
+		self.assertEqual(sorted(self.asked()), ["forecast", "forecast", "weather"])
+		every_now = weather_settings({ "forecastCacheHours": 6, "currentCacheHours": 0 })
 		self.fake.requests.clear()
-		await self.open(every, ["current", "days"])
-		await self.open(every, ["current", "days"])
+		await self.open(every_now, ["current", "days"])
+		await self.open(every_now, ["current", "days"])
 		self.assertEqual(sorted(self.asked()), ["forecast", "weather", "weather"])
 
 	async def test_the_default_is_six_hours_and_zero_asks_every_time(self):
 		dscm = weather_settings()
-		self.assertEqual(dscm.open().get()[1]['cacheHours'], 0)
-		cm_settings = weather_settings({ "cacheHours": 6 })
+		self.assertEqual((dscm.open().get()[1]['forecastCacheHours'], dscm.open().get()[1]['currentCacheHours']), (0, 0))
+		cm_settings = weather_settings({ "forecastCacheHours": 6, "currentCacheHours": 6 })
 		await self.open(cm_settings, ["current"])
 		await self.open(cm_settings, ["current"])
 		self.assertEqual(self.asked(), ["weather"])
@@ -228,14 +228,14 @@ class TestCache(unittest.IsolatedAsyncioTestCase):
 		self.assertEqual(self.asked()[1:], ["weather", "weather"])
 
 	async def test_a_place_or_units_that_changed_is_a_new_question(self):
-		dscm = weather_settings({ "cacheHours": 6 })
+		dscm = weather_settings({ "forecastCacheHours": 6, "currentCacheHours": 6 })
 		ds = WeatherAsync("weather", "Weather")
 		await ds.open_async(make_context(dscm=dscm), { "views": ["current"] })
 		await ds.open_async(make_context(dscm=dscm, location={ "latitude": 40.0, "longitude": -74.0 }), { "views": ["current"] })
 		self.assertEqual(self.asked(), ["weather", "weather"])
 
 	async def test_the_key_is_never_kept_or_named_in_the_cache(self):
-		dscm = weather_settings({ "cacheHours": 6 })
+		dscm = weather_settings({ "forecastCacheHours": 6, "currentCacheHours": 6 })
 		await self.open(dscm, ["current", "days"])
 		names = dscm.list_files("cache-")
 		self.assertEqual(len(names), 2)
@@ -244,7 +244,7 @@ class TestCache(unittest.IsolatedAsyncioTestCase):
 			self.assertNotIn(KEY, json.dumps(dscm.file(name).get()[1]))
 
 	async def test_when_the_api_is_down_the_old_answer_is_used(self):
-		dscm = weather_settings({ "cacheHours": 1 })
+		dscm = weather_settings({ "forecastCacheHours": 1, "currentCacheHours": 1 })
 		await self.open(dscm, ["current"])
 		def down(request: httpx.Request) -> httpx.Response:
 			raise httpx.ConnectError("down")
@@ -253,7 +253,7 @@ class TestCache(unittest.IsolatedAsyncioTestCase):
 		self.assertEqual([p.view for p in pages], ["current"], "the old answer")
 
 	async def test_five_slots_at_once_ask_once(self):
-		dscm = weather_settings({ "cacheHours": 6 })
+		dscm = weather_settings({ "forecastCacheHours": 6, "currentCacheHours": 6 })
 		await asyncio.gather(*(self.open(dscm, ["current"]) for _ in range(5)))
 		self.assertEqual(self.asked(), ["weather"])
 
@@ -266,7 +266,7 @@ class TestAnotherSourceAsks(unittest.IsolatedAsyncioTestCase):
 		self.addCleanup(shutil.rmtree, folder, True)
 		self.cm = ConfigurationManager(storage_path=folder)
 		self.cm.hard_reset()
-		save_datasource_settings(self.cm, "weather", { "apiKey": KEY, "units": "auto", "cacheHours": 6, "currentCacheHours": 6 })
+		save_datasource_settings(self.cm, "weather", { "apiKey": KEY, "units": "auto", "forecastCacheHours": 6, "currentCacheHours": 6 })
 		self.weather = WeatherAsync("weather", "Weather")
 
 	def other(self, now=NOW) -> DataSourceExecutionContext:
@@ -301,7 +301,7 @@ class TestAnotherSourceAsks(unittest.IsolatedAsyncioTestCase):
 		self.assertEqual(report.days, [])
 
 	async def test_the_weathers_settings_problems_are_the_askers(self):
-		save_datasource_settings(self.cm, "weather", { "apiKey": None, "units": "auto", "cacheHours": 6 })
+		save_datasource_settings(self.cm, "weather", { "apiKey": None, "units": "auto", "forecastCacheHours": 6, "currentCacheHours": 6 })
 		with self.assertRaisesRegex(PermanentError, "Weather settings"):
 			await self.weather.report_async(self.other().context_for(self.weather), { "current" })
 
