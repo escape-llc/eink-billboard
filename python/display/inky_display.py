@@ -3,7 +3,7 @@ The Pimoroni Inky panel (#281), "auto mode": the driver reads the board's EEPROM
 
 The driver (`inky`, with `spidev`, `smbus2` and `gpiod`) is part of the `device` dependency group, Linux only: it is imported **here, when the display is made**, never at the top of a
 module, so Windows, the container and a Pi without it all start (`test_pyproject`). The Display task owns this display like the others: it makes it, asks for its resolution, draws
-on it (`render` is slow, an e-ink refresh takes seconds, and runs off the event loop) and shuts it down. When the driver cannot be loaded the display does not start, and the message
+on it (`render` is slow, an e-ink refresh takes seconds, and runs off the event loop; the driver stage guards it with a time, `panel_guard.py`) and shuts it down. When the driver cannot be loaded the display does not start, and the message
 here is what the web app's status says (the messages are ours: they reach the status as they are, see `PermanentError`).
 """
 import importlib
@@ -15,11 +15,15 @@ from typing import Any, Callable
 from PIL import Image
 
 from .display_base import DisplayBase
+from .panel_guard import PanelGuard
 from ..model.configuration_manager import ConfigurationManager
 from ..plugins.plugin_base import PermanentError
 from ..utils.image_utils import to_rgb
 
 DEFAULT_SATURATION = 0.5
+# the longest a refresh may take (the 7-color Impression takes about 35 seconds); some models wait on the busy line for good (panel_guard.py)
+REFRESH_SECONDS = 180.0
+START_SECONDS = 60.0
 
 def load_driver() -> Any:
 	"""The board the driver finds (`inky.auto.auto`), or a `PermanentError` that says, in our words, what is wrong and what to do about it."""
@@ -39,9 +43,12 @@ def load_driver() -> Any:
 
 class InkyDisplay(DisplayBase):
 	"""`loader` makes the driver's board (a test gives a fake one); by default it is `load_driver`."""
-	def __init__(self, name: str, loader: Callable[[], Any]|None = None):
+	def __init__(self, name: str, loader: Callable[[], Any]|None = None, refresh_seconds: float = REFRESH_SECONDS, start_seconds: float = START_SECONDS):
 		super().__init__(name)
 		self._loader = loader or load_driver
+		self._refresh_seconds = refresh_seconds
+		self._start_seconds = start_seconds
+		self._guard = PanelGuard("inky")
 		self.device: Any = None
 		self.display_settings: dict[str, Any] = {}
 		self.resolution: tuple[int, int] = (0, 0)
@@ -54,9 +61,11 @@ class InkyDisplay(DisplayBase):
 		_, stored = cm.settings_manager().open("display").get()
 		self.display_settings = dict(stored or {})
 		try:
-			self.device = self._loader()
+			self.device = self._guard.run(self._loader, self._start_seconds)
 		except PermanentError:
 			raise
+		except TimeoutError as e:
+			raise PermanentError("The Inky display did not answer when it was started. Check the wiring and that SPI and I2C are enabled (raspi-config), then restart. The log has the detail.") from e
 		except Exception as e:
 			raise PermanentError("The Inky display could not be started. The log has the detail.") from e
 		try:
@@ -81,11 +90,17 @@ class InkyDisplay(DisplayBase):
 			picture = picture.resize(self.resolution, Image.Resampling.LANCZOS)
 		with self._lock:
 			# only the 7-colour boards take a saturation (their palette is blended with it); the others quantize to their own colors
-			if "saturation" in inspect.signature(self.device.set_image).parameters:
-				self.device.set_image(picture, saturation=self.saturation())
-			else:
-				self.device.set_image(picture)
-			self.device.show()
+			device = self.device
+			def refresh() -> None:
+				if "saturation" in inspect.signature(device.set_image).parameters:
+					device.set_image(picture, saturation=self.saturation())
+				else:
+					device.set_image(picture)
+				device.show()
+			try:
+				self._guard.run(refresh, self._refresh_seconds)
+			except TimeoutError:
+				raise RuntimeError(f"The panel did not finish refreshing in {self._refresh_seconds:g} seconds. Check the wiring and the busy line.") from None
 
 	def shutdown(self) -> None:
 		# the driver holds the SPI and GPIO lines until it is collected; the panel keeps what it shows with no power
