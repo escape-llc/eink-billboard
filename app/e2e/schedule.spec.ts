@@ -148,6 +148,24 @@ test("a new task is offered the timer plugins only, and the form follows the plu
 	await expect(created.locator("input[name=slideMinutes]")).toHaveValue("1")
 	watch.expectNone()
 })
+test("the task dialog has one set of controls, in its toolbar: delete for a stored task, save, reset", async ({ page }) => {
+	const watch = watchProblems(page)
+	await openFirstQuarterHourTask(page)
+	const d = dialog(page)
+	// nothing repeats at the bottom
+	await expect(d.getByRole("button", { name: "Save", exact: true })).toHaveCount(1)
+	await expect(d.getByRole("button", { name: "Cancel" })).toHaveCount(0)
+	await expect(d.getByRole("button", { name: "Delete" })).toHaveCount(1)
+	// a new task has nothing to delete
+	await d.getByRole("button", { name: "Close" }).click()
+	await expect(d).toBeHidden()
+	await page.getByRole("button", { name: "New task" }).click()
+	const created = page.getByRole("dialog", { name: "New task" })
+	await expect(created.getByRole("button", { name: "Save", exact: true })).toHaveCount(1)
+	await expect(created.getByRole("button", { name: "Delete" })).toHaveCount(0)
+	watch.expectNone()
+})
+
 test("a task can be deleted after a confirmation", async ({ page }) => {
 	const watch = watchProblems(page)
 	await openFirstQuarterHourTask(page)
