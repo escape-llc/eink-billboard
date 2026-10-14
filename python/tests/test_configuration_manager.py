@@ -13,6 +13,15 @@ from pathlib import Path
 from ..model.configuration_manager import ConfigurationManager, FileConfiguration, _internal_save
 from ..model.configuration_manager import ConfigurationObject
 
+class TestFreshStorage(unittest.TestCase):
+	def test_a_new_device_has_a_schedules_folder_so_the_layers_can_start(self):
+		"""Git keeps no empty folder: the factory tree had none, and the playlist and timer layers failed on every new install (found on a Pi)."""
+		with tempfile.TemporaryDirectory() as folder:
+			cm = ConfigurationManager(storage_path=folder)
+			cm.hard_reset()
+			self.assertTrue(os.path.isdir(os.path.join(folder, "schedules")))
+			cm.schedule_manager()  # does not raise
+
 class TestConfigurationManager(unittest.TestCase):
 	@unittest.skipUnless(sys.platform == "win32", "This test is for Windows only")
 	def test_os_path_windows(self):
