@@ -19,7 +19,7 @@
 		</Toolbar>
 		<ProgressBar v-if="loading" mode="indeterminate" style="height:4px" aria-label="Loading" data-testid="loading" />
 		<Message v-if="dirty" severity="info" size="small" variant="simple" class="mt-1">Unsaved changes to "{{ playlistName }}".</Message>
-		<Message v-if="conflict" severity="warn" :closable="false" class="mt-1">
+		<Message size="small" v-if="conflict" severity="warn" :closable="false" class="mt-1">
 			<div class="flex align-items-center gap-2">
 				<span>{{ conflict.message }}</span>
 				<Button size="small" label="Reload" icon="pi pi-refresh" severity="secondary" @click="reloadPlaylist" />
@@ -84,7 +84,7 @@
 								<InputGroupAddon>
 									<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" style="flex-shrink:0;flex-grow:1">Plugin</label>
 								</InputGroupAddon>
-								<Select :options="pluginOptions" optionLabel="name" optionValue="id" v-model="editModel.plugin_name" />
+								<Select size="small" :options="pluginOptions" optionLabel="name" optionValue="id" v-model="editModel.plugin_name" />
 							</InputGroup>
 						</template>
 					</BasicForm>
@@ -97,24 +97,24 @@
 		</div>
 
 		<Dialog v-model:visible="nameOpen" modal :header="nameDialogRename ? 'Rename playlist' : 'New playlist'" style="width:24rem">
-			<InputText v-model="nameValue" aria-label="Playlist name" fluid autofocus @keyup.enter="confirmName" />
+			<InputText size="small" v-model="nameValue" aria-label="Playlist name" fluid autofocus @keyup.enter="confirmName" />
 			<div class="flex gap-2 justify-content-end pt-2">
-				<Button type="button" label="Cancel" severity="secondary" @click="nameOpen = false"></Button>
-				<Button type="button" label="OK" :disabled="!nameValue.trim() || saving" @click="confirmName"></Button>
+				<Button size="small" type="button" label="Cancel" severity="secondary" @click="nameOpen = false"></Button>
+				<Button size="small" type="button" label="OK" :disabled="!nameValue.trim() || saving" @click="confirmName"></Button>
 			</div>
 		</Dialog>
 		<Dialog v-model:visible="deleteOpen" modal header="Delete playlist?" style="width:24rem">
 			<p class="mt-0">"{{ playlistName }}" and its tracks will be removed.</p>
 			<div class="flex gap-2 justify-content-end">
-				<Button type="button" label="Keep" severity="secondary" @click="deleteOpen = false"></Button>
-				<Button type="button" label="Delete" severity="danger" :disabled="saving" @click="deletePlaylist"></Button>
+				<Button size="small" type="button" label="Keep" severity="secondary" @click="deleteOpen = false"></Button>
+				<Button size="small" type="button" label="Delete" severity="danger" :disabled="saving" @click="deletePlaylist"></Button>
 			</div>
 		</Dialog>
 		<Dialog v-model:visible="discardOpen" modal header="Discard unsaved changes?" style="width:24rem" @hide="onDiscardHide">
 			<p class="mt-0">The changes to "{{ playlistName }}" were not saved.</p>
 			<div class="flex gap-2 justify-content-end">
-				<Button type="button" label="Keep editing" severity="secondary" @click="discardOpen = false"></Button>
-				<Button type="button" label="Discard" severity="danger" @click="confirmDiscard"></Button>
+				<Button size="small" type="button" label="Keep editing" severity="secondary" @click="discardOpen = false"></Button>
+				<Button size="small" type="button" label="Discard" severity="danger" @click="confirmDiscard"></Button>
 			</div>
 		</Dialog>
 	</div>

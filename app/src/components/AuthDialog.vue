@@ -11,20 +11,20 @@
 			<p class="auth-help">{{ help }}</p>
 			<div v-if="authPrompt.mode === 'setup'" class="auth-field">
 				<label for="auth-code">Setup code</label>
-				<InputText id="auth-code" v-model="code" fluid autocomplete="off" inputmode="numeric" placeholder="1234 5678" aria-label="Setup code" />
+				<InputText size="small" id="auth-code" v-model="code" fluid autocomplete="off" inputmode="numeric" placeholder="1234 5678" aria-label="Setup code" />
 			</div>
 			<div class="auth-field">
 				<label for="auth-secret">{{ secretLabel }}</label>
-				<InputText id="auth-secret" v-model="secret" type="password" fluid :autocomplete="authPrompt.mode === 'setup' ? 'new-password' : 'current-password'" :aria-label="secretLabel" />
+				<InputText size="small" id="auth-secret" v-model="secret" type="password" fluid :autocomplete="authPrompt.mode === 'setup' ? 'new-password' : 'current-password'" :aria-label="secretLabel" />
 			</div>
 			<div v-if="authPrompt.mode === 'setup'" class="auth-field">
 				<label for="auth-again">Repeat the password</label>
-				<InputText id="auth-again" v-model="again" type="password" fluid autocomplete="new-password" aria-label="Repeat the password" />
+				<InputText size="small" id="auth-again" v-model="again" type="password" fluid autocomplete="new-password" aria-label="Repeat the password" />
 			</div>
 			<Message v-if="authPrompt.error" severity="error" size="small" variant="simple" role="alert">{{ authPrompt.error }}</Message>
 			<div class="auth-buttons">
-				<Button type="button" label="Cancel" severity="secondary" text :disabled="authPrompt.busy" @click="cancelAuth" />
-				<Button type="submit" :label="submitLabel" :loading="authPrompt.busy" />
+				<Button size="small" type="button" label="Cancel" severity="secondary" text :disabled="authPrompt.busy" @click="cancelAuth" />
+				<Button size="small" type="submit" :label="submitLabel" :loading="authPrompt.busy" />
 			</div>
 		</form>
 	</Dialog>

@@ -24,7 +24,7 @@ onMounted(() => { load(); timer = setInterval(load, POLL_MS) })
 onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 </script>
 <template>
-	<Button
+	<Button size="small"
 		v-if="status"
 		:icon="icon"
 		:severity="severity"

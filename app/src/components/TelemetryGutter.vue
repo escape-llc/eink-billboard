@@ -130,6 +130,8 @@ function describe(e: TelemetryEvent): string {
 	overflow-y: auto;
 	border-radius: var(--p-toolbar-border-radius);
 	border: solid 1px var(--p-toolbar-border-color);
+	/* the panel's own surface, as the other panels have: it follows the theme and dark mode */
+	background: var(--p-content-background);
 }
 .gutter-head {
 	display: flex;

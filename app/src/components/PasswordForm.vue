@@ -7,19 +7,19 @@
 		<form class="password-fields" @submit.prevent="submit">
 			<div v-if="info.passwordSet" class="password-field">
 				<label for="pw-current">Current password</label>
-				<InputText id="pw-current" v-model="current" type="password" autocomplete="current-password" aria-label="Current password" />
+				<InputText size="small" id="pw-current" v-model="current" type="password" autocomplete="current-password" aria-label="Current password" />
 			</div>
 			<div class="password-field">
 				<label for="pw-new">New password</label>
-				<InputText id="pw-new" v-model="next" type="password" autocomplete="new-password" aria-label="New password" />
+				<InputText size="small" id="pw-new" v-model="next" type="password" autocomplete="new-password" aria-label="New password" />
 			</div>
 			<div class="password-field">
 				<label for="pw-again">Repeat the new password</label>
-				<InputText id="pw-again" v-model="again" type="password" autocomplete="new-password" aria-label="Repeat the new password" />
+				<InputText size="small" id="pw-again" v-model="again" type="password" autocomplete="new-password" aria-label="Repeat the new password" />
 			</div>
 			<Message v-if="problem" severity="error" size="small" variant="simple" role="alert">{{ problem }}</Message>
 			<Message v-if="done" severity="success" size="small" variant="simple" role="status">{{ done }}</Message>
-			<div><Button type="submit" :label="info.passwordSet ? 'Change password' : 'Set password'" :loading="busy" /></div>
+			<div><Button size="small" type="submit" :label="info.passwordSet ? 'Change password' : 'Set password'" :loading="busy" /></div>
 		</form>
 	</section>
 </template>

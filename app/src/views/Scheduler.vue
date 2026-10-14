@@ -39,7 +39,7 @@
 		</template>
 	</AlCalendar>
 	<Dialog v-model:visible="dialogOpen" modal :header="editTarget?.id ? 'Edit task' : 'New task'" style="width:60%; font-size:90%">
-		<Message v-if="conflict" severity="warn" :closable="false" class="mb-2">
+		<Message size="small" v-if="conflict" severity="warn" :closable="false" class="mb-2">
 			<div class="flex align-items-center gap-2">
 				<span>{{ conflict.message }}</span>
 				<Button size="small" label="Reload" icon="pi pi-refresh" severity="secondary" @click="reloadTask" />
@@ -72,7 +72,7 @@
 					<InputGroupAddon>
 						<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" style="flex-shrink:0;flex-grow:1">Schedule</label>
 					</InputGroupAddon>
-					<Select :options="documents" optionLabel="name" optionValue="id" v-model="newTaskDocument" />
+					<Select size="small" :options="documents" optionLabel="name" optionValue="id" v-model="newTaskDocument" />
 				</InputGroup>
 				<InputGroup>
 					<InputGroupAddon>
@@ -98,26 +98,26 @@
 					<InputGroupAddon>
 						<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" style="flex-shrink:0;flex-grow:1">Plugin</label>
 					</InputGroupAddon>
-					<Select :options="pluginOptions" optionLabel="name" optionValue="id" name="plugin_name" v-model="editModel.plugin_name" />
+					<Select size="small" :options="pluginOptions" optionLabel="name" optionValue="id" name="plugin_name" v-model="editModel.plugin_name" />
 				</InputGroup>
 				<Message v-if="!isPluginValid"
 					severity="error" size="small" variant="simple">{{ pluginErrorMessage }}</Message>
 			</template>
 		</BasicForm>
 		<div class="flex gap-2 pt-2 justify-content-between">
-			<Button v-if="editTarget?.id" type="button" label="Delete" icon="pi pi-trash" severity="danger" variant="text" @click="deleteOpen = true"></Button>
+			<Button size="small" v-if="editTarget?.id" type="button" label="Delete" icon="pi pi-trash" severity="danger" variant="text" @click="deleteOpen = true"></Button>
 			<span v-else></span>
 			<div class="flex gap-2">
-				<Button type="button" label="Cancel" severity="secondary" @click="dialogOpen = false"></Button>
-				<Button type="button" label="Save" :disabled="!editModelValid || saving" @click="handleSubmit"></Button>
+				<Button size="small" type="button" label="Cancel" severity="secondary" @click="dialogOpen = false"></Button>
+				<Button size="small" type="button" label="Save" :disabled="!editModelValid || saving" @click="handleSubmit"></Button>
 			</div>
 		</div>
 	</Dialog>
 	<Dialog v-model:visible="deleteOpen" modal header="Delete task?" style="width:24rem">
 		<p class="mt-0">"{{ editModel.title }}" will be removed from the schedule.</p>
 		<div class="flex gap-2 justify-content-end">
-			<Button type="button" label="Keep" severity="secondary" @click="deleteOpen = false"></Button>
-			<Button type="button" label="Delete" severity="danger" :disabled="saving" @click="deleteTask"></Button>
+			<Button size="small" type="button" label="Keep" severity="secondary" @click="deleteOpen = false"></Button>
+			<Button size="small" type="button" label="Delete" severity="danger" :disabled="saving" @click="deleteTask"></Button>
 		</div>
 	</Dialog>
 	</div>
