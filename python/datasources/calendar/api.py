@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Body
 
-from ...task.async_http_worker_pool import AsyncHttpWorkerPool
+from ...task.async_http_worker_pool import AsyncHttpWorkerPool, tls_context
 from ...utils.url_guard import UrlRefused, fetch_checked
 from ...web.deps import CM, TOD
 from .accounts import SESSIONS, AccountError, TokenStore, account_names, find_account, finish_google, poll_microsoft, start
@@ -32,7 +32,7 @@ async def _test(value: Any, now: datetime) -> dict:
 	"""
 	if not isinstance(value, str) or not value.strip():
 		return { "ok": False, "message": "Enter an address first." }
-	async with httpx.AsyncClient(timeout=TIMEOUT, transport=AsyncHttpWorkerPool.default_transport) as client:
+	async with httpx.AsyncClient(timeout=TIMEOUT, transport=AsyncHttpWorkerPool.default_transport, verify=tls_context()) as client:
 		try:
 			body = await fetch_checked(client, web_url(value.strip()), HEADERS, MAX_CALENDAR_BYTES)
 			cal = parse_calendar(body)
@@ -86,7 +86,7 @@ def _refused(problem: AccountError) -> dict:
 	return { "done": True, "ok": False, "message": str(problem) }
 
 async def _client_run(step) -> dict:
-	async with httpx.AsyncClient(timeout=TIMEOUT, transport=AsyncHttpWorkerPool.default_transport) as client:
+	async with httpx.AsyncClient(timeout=TIMEOUT, transport=AsyncHttpWorkerPool.default_transport, verify=tls_context()) as client:
 		try:
 			return await step(client)
 		except AccountError as problem:

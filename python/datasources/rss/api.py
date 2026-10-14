@@ -5,7 +5,7 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Body
 
-from ...task.async_http_worker_pool import AsyncHttpWorkerPool
+from ...task.async_http_worker_pool import AsyncHttpWorkerPool, tls_context
 from ...utils.url_guard import UrlRefused, fetch_checked
 from .rss import HEADERS, MAX_FEED_BYTES, parse_stories, plain_text
 
@@ -24,7 +24,7 @@ async def _test(value: Any) -> dict:
 	if not isinstance(value, str) or not value.strip():
 		return { "ok": False, "message": "Enter an address first." }
 	# a client of its own: the web app has no pool of its own, and a test is rare. The tests' transport is installed the same way as the pool's.
-	async with httpx.AsyncClient(timeout=TIMEOUT, transport=AsyncHttpWorkerPool.default_transport) as client:
+	async with httpx.AsyncClient(timeout=TIMEOUT, transport=AsyncHttpWorkerPool.default_transport, verify=tls_context()) as client:
 		try:
 			body = await fetch_checked(client, value.strip(), HEADERS, MAX_FEED_BYTES)
 			stories = parse_stories(body, "test")
