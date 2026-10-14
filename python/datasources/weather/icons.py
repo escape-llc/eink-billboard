@@ -22,16 +22,19 @@ def _svg(body: str, weight: int = 4) -> str:
 	return (f'<svg class="wx-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="{weight}" stroke-linecap="round" stroke-linejoin="round" '
 		f'aria-hidden="true">{body}</svg>')
 
+# the drawings' bodies, in the 64 grid, stroked (no fill)
 _GROUPS = {
-	"02": lambda night: _svg((_MOON_SMALL if night else _SUN_SMALL) + f'<path d="{_CLOUD}" transform="translate(5 8)"/>'),
-	"03": lambda night: _svg(f'<path d="{_CLOUD_HIGH}" transform="translate(0 6)"/>'),
-	"04": lambda night: _svg(f'<path d="{_CLOUD_HIGH}" transform="translate(0 4)"/><path d="{_CLOUD}" transform="translate(6 2)"/>'),
-	"09": lambda night: _svg(f'<path d="{_CLOUD_HIGH}" transform="translate(0 4)"/>{_RAIN}'),
-	"10": lambda night: _svg(f'<path d="{_CLOUD_HIGH}" transform="translate(0 4)"/>{_RAIN}'),
-	"11": lambda night: _svg(f'<path d="{_CLOUD_HIGH}" transform="translate(0 2)"/>{_BOLT}'),
-	"13": lambda night: _svg(f'<path d="{_CLOUD_HIGH}" transform="translate(0 4)"/>{_FLAKES}'),
-	"50": lambda night: _svg(_MIST),
+	"02": lambda night: (_MOON_SMALL if night else _SUN_SMALL) + f'<path d="{_CLOUD}" transform="translate(5 8)"/>',
+	"03": lambda night: f'<path d="{_CLOUD_HIGH}" transform="translate(0 6)"/>',
+	"04": lambda night: f'<path d="{_CLOUD_HIGH}" transform="translate(0 4)"/><path d="{_CLOUD}" transform="translate(6 2)"/>',
+	"09": lambda night: f'<path d="{_CLOUD_HIGH}" transform="translate(0 4)"/>{_RAIN}',
+	"10": lambda night: f'<path d="{_CLOUD_HIGH}" transform="translate(0 4)"/>{_RAIN}',
+	"11": lambda night: f'<path d="{_CLOUD_HIGH}" transform="translate(0 2)"/>{_BOLT}',
+	"13": lambda night: f'<path d="{_CLOUD_HIGH}" transform="translate(0 4)"/>{_FLAKES}',
+	"50": lambda night: _MIST,
 }
+# the stroke width of a weather drawing, in the 64 grid
+ICON_WEIGHT = 4
 
 # the figures of the hours and days table, as drawings instead of words: a thermometer, an arrow up and down, an umbrella, a drop, the wind
 _STATS = {
@@ -49,11 +52,16 @@ def stat_svg(key: str) -> str:
 	# heavier than the weather drawings: they are small, and a thin line is lost on the panel
 	return "" if body is None else _svg(body, 6)
 
-def icon_svg(code: object) -> str:
-	"""The drawing for an OpenWeatherMap icon code (`01d`, `10n`, ...); a code we do not know gets the plain cloud."""
+def icon_body(code: object) -> str:
+	"""The strokes of the drawing for an OpenWeatherMap icon code (`01d`, `10n`, ...), in the 64 grid, for a page that draws them itself (an overlay strokes them
+	twice, the outline under the line); a code we do not know gets the plain cloud."""
 	text = str(code or "")
 	group, night = text[:2], text[2:3] == "n"
 	if group == "01":
-		return _svg(_MOON if night else _SUN)
+		return _MOON if night else _SUN
 	draw = _GROUPS.get(group)
 	return draw(night) if draw else _GROUPS["03"](night)
+
+def icon_svg(code: object) -> str:
+	"""The drawing for an OpenWeatherMap icon code, as an `<svg>` in the text color."""
+	return _svg(icon_body(code), ICON_WEIGHT)

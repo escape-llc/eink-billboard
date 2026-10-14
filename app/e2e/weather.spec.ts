@@ -9,7 +9,7 @@ test("the weather settings link to where an API key is got, and the key is a pas
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Data Sources" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
-	await page.getByRole("option", { name: /^weather/i }).click()
+	await page.getByRole("option", { name: "weather", exact: true }).click()
 	const link = page.getByRole("link", { name: "Get a free API key" })
 	await expect(link).toBeVisible()
 	await expect(link).toHaveAttribute("href", "https://home.openweathermap.org/users/sign_up")
