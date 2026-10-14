@@ -87,7 +87,7 @@ class Harness:
 		test.addCleanup(shutil.rmtree, folder, True)
 		self.cm = ConfigurationManager(storage_path=folder)
 		self.cm.hard_reset()
-		save_datasource_settings(self.cm, "weather", { "apiKey": KEY, "units": "auto", "cacheHours": 6, "currentCacheHours": 6, **(settings or {}) })
+		save_datasource_settings(self.cm, "weather", { "apiKey": KEY, "units": "auto", "forecastCacheHours": 6, "currentCacheHours": 6, **(settings or {}) })
 		self.weather = WeatherAsync("weather", "Weather")
 		self.sources = { "weather": self.weather } if sources is None else sources
 

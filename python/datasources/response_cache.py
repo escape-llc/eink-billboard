@@ -37,10 +37,13 @@ def _fresh(doc: Mapping[str, Any], now: datetime, ttl: timedelta) -> bool:
 	return -age <= CLOCK_SLACK if age < timedelta(0) else age < ttl
 
 async def cached(dscm: DatasourceConfigurationManager, settings: Mapping[str, Any], key: str, now: datetime,
-		fetch: Callable[[], Awaitable[Mapping[str, Any]]], default_hours: float = 0.0) -> Mapping[str, Any]:
-	"""The answer for `key`: the kept one if it is younger than the data source's `cacheHours` setting, else `fetch()`'s (and kept)."""
+		fetch: Callable[[], Awaitable[Mapping[str, Any]]], default_hours: float = 0.0, setting: str = "cacheHours") -> Mapping[str, Any]:
+	"""
+	The answer for `key`: the kept one if it is younger than the data source's `setting` (`cacheHours`; a source with several kinds of answer has one setting for each,
+	as the Weather's current and forecast), else `fetch()`'s (and kept).
+	"""
 	now = aware(now)
-	hours = number(settings.get("cacheHours"), default_hours)
+	hours = number(settings.get(setting), default_hours)
 	if hours <= 0:
 		return await fetch()
 	ttl = timedelta(hours=hours)
