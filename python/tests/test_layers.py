@@ -190,7 +190,7 @@ class PlaylistLayerTests(unittest.TestCase):
 		route, message = self.layer.router.send.call_args.args
 		self.assertEqual(route, "display")
 		self.assertIsInstance(message, DisplayImage)
-		self.assertEqual((message.title, message.layer), ("Nothing to show", "background"))
+		self.assertEqual((message.title, message.layer), ("Nothing to show", "override"))
 
 	def test_a_failing_pass_holds_each_slot_instead_of_spinning(self):
 		import asyncio, time
@@ -334,6 +334,8 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.assertEqual(calls, ["t0", "t1"])
 		shown = [(m.title, kind) for kind, m in self.sent if kind == "display" for m in [m]]
 		self.assertEqual([t for t, _ in shown], ["Error: Track 0", "Error: Track 1", "Error: playback stopped"])
+		# every error page is foreground (override): the overlays are not drawn on it, they would compete with its text
+		self.assertEqual({m.layer for kind, m in self.sent if kind == "display"}, {"override"})
 		# the page is told what failed and why, in our own words
 		first = self.render_error.call_args_list[0].args
 		self.assertEqual((first[2], first[3]), ("Track 0", ["the folder is gone"]))
