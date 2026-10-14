@@ -40,6 +40,7 @@
 	</div>
 </template>
 <script setup lang="ts">
+import { missingUses } from "./DataSourceUses"
 import { apiJson, joinUrl } from "./ApiClient"
 //import { InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Message, Select } from 'primevue';
 import Form from "@primevue/forms/form"
@@ -195,6 +196,7 @@ function formProperties(schema: SchemaType|undefined, owner: Owner|undefined) :a
 					const target = fx.list.find((vx: any) => vx.value === svalue)
 					if(target) {
 						fx.children = formProperties(target.schema?.schema as SchemaType|undefined, target.owner)
+						fx.usesMissing = missingUses(target.uses, dataSources.value)
 					}
 				}
 			}
@@ -240,7 +242,7 @@ function lookupSchema(schema: SchemaType, lookup:string): LookupValue[] {
 					return plugins.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings), owner: { kind: "plugin", id: px.id } }))
 				}
 				else if(lku.schema === "data-sources") {
-					return dataSources.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings), owner: { kind: "datasource", id: px.id } }))
+					return dataSources.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings), uses: px.uses, owner: { kind: "datasource", id: px.id } }))
 				}
 				else {
 					console.warn("Unknown lookup schema", lku.schema)
@@ -401,6 +403,7 @@ const handleFormFieldEvent = (data:any) => {
 			flatNames(field.children ?? []).forEach(name => form.value?.setFieldValue(name, null))
 			const chosen = data.selected?.schema?.schema as SchemaType|undefined
 			field.children = formProperties(chosen, data.selected?.owner)
+			field.usesMissing = missingUses(data.selected?.uses, dataSources.value)
 			// the new fields register with the form when they render: a value set before then is dropped (setFieldValue ignores an unknown field),
 			// so each default is also where a new field reads its first value, and is set again once the fields are there
 			const defaults = applyDefaults(field.children)

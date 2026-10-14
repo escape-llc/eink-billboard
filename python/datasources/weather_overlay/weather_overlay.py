@@ -11,7 +11,7 @@ from typing import Any, Mapping
 from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
 from ...model.theme import current_inputs
 from ...plugins.plugin_base import PermanentError
-from ..data_source import DataSource, DataSourceExecutionContext, DataSourceManager, MediaItemAsync, MediaRenderAsync, MediaRenderResult
+from ..data_source import DataSource, DataSourceExecutionContext, MediaItemAsync, MediaRenderAsync, MediaRenderResult
 from ..overlay_text import OverlayIcon, Run, outline_factor, overlay_margin, render_overlay, zone_valign
 from ..weather.icons import ICON_WEIGHT, icon_body
 from ..weather.weather import Report, WeatherAsync
@@ -67,16 +67,10 @@ class WeatherOverlayAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
 
-	def _weather(self, dsec: DataSourceExecutionContext) -> WeatherAsync:
-		weather = dsec.provider.required(DataSourceManager).get_source(WEATHER_ID)
-		if not isinstance(weather, WeatherAsync):
-			raise PermanentError("The Weather data source is not available. The weather overlay uses its settings.")
-		return weather
-
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> Any:
 		view = chosen_view(params)
-		weather = self._weather(dsec)
-		return (view, await weather.report_async(dsec.context_for(weather), needs_of(view)))
+		weather, weather_dsec = dsec.use(WEATHER_ID, WeatherAsync)
+		return (view, await weather.report_async(weather_dsec, needs_of(view)))
 
 	async def render_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any], state: Any) -> MediaRenderResult | None:
 		if not (isinstance(state, tuple) and len(state) == 2 and isinstance(state[1], Report)):

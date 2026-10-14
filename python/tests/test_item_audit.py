@@ -9,6 +9,7 @@ fill them in (the test storage and the browser tests' storage). The conventions 
 """
 import json
 import os
+import re
 import unittest
 from collections import defaultdict
 from typing import Any
@@ -87,6 +88,31 @@ class TestDescriptors(unittest.TestCase):
 			mine = { p["name"] for p in properties(plugin) }
 			for sid, source in DESCRIPTORS.sources.items():
 				self.assertEqual(mine & { p["name"] for p in properties(source) }, set(), f"{pid} and {sid} are shown in one form and name the same property")
+
+class TestUses(unittest.TestCase):
+	"""A data source that asks another says so in its descriptor (`uses`): the form can warn when the other is missing, and a cycle cannot be built."""
+	def test_a_used_source_exists_is_not_itself_and_nothing_uses_in_a_circle(self):
+		graph = { id_: list(info.get("uses") or []) for id_, info in DESCRIPTORS.sources.items() }
+		for id_, used in graph.items():
+			for other in used:
+				self.assertIn(other, DESCRIPTORS.sources, f"{id_} uses {other}: no such data source")
+				self.assertNotEqual(other, id_)
+		def reaches(start: str, seen: set[str]) -> bool:
+			for other in graph.get(start, []):
+				if other in seen or reaches(other, seen | { other }):
+					return True
+			return False
+		for id_ in graph:
+			self.assertFalse(reaches(id_, { id_ }), f"{id_} uses itself through others")
+
+	def test_a_source_whose_code_asks_another_declares_it(self):
+		for id_, info in DESCRIPTORS.sources.items():
+			path = os.path.join(ROOT, *info["module"].split(".")[1:]) + ".py"
+			with open(path, encoding="utf-8") as f:
+				# the code, not the docstrings that name the method
+				code = re.sub(r'"""[\s\S]*?"""', "", f.read())
+			asks = ".use(" in code or ".context_for(" in code
+			self.assertEqual(asks, bool(info.get("uses")), f"{id_}: `uses` in the descriptor must match whether the code asks another data source")
 
 class TestStoredItems(unittest.TestCase):
 	def _items(self):
