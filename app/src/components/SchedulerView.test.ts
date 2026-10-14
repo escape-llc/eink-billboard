@@ -30,8 +30,8 @@ describe("the scheduler's window", () => {
 
 describe("the list of tasks", () => {
 	const schedules = { doc: { items: [
-		{ id: "a", title: "Clock", enabled: true, task: { plugin_name: "overlay" } },
-		{ id: "b", title: "Poem", enabled: true, task: { plugin_name: "interstitial" } },
+		{ id: "a", title: "Clock", enabled: true, trigger: { on_startup: true }, task: { plugin_name: "overlay" } },
+		{ id: "b", title: "Poem", enabled: true, trigger: { on_startup: false }, task: { plugin_name: "interstitial" } },
 		{ id: "c", title: "Off", enabled: false, task: { plugin_name: "overlay" } },
 	] } }
 	const at = (h: number) => new Date(Date.UTC(2026, 9, 13, h))
@@ -43,10 +43,10 @@ describe("the list of tasks", () => {
 	]
 	it("has each task once, with its first run and how many, in order of first run", () => {
 		const rows = taskRows(events, schedules, id => ({ overlay: "Overlay", interstitial: "Priority Update" })[id] ?? id)
-		expect(rows.map(r => [r.title, r.plugin, r.runs, r.next?.getUTCHours() ?? null, r.enabled])).toEqual([
-			["Poem", "Priority Update", 1, 9, true],
-			["Clock", "Overlay", 2, 10, true],
-			["Off", "Overlay", 0, null, false],
+		expect(rows.map(r => [r.title, r.plugin, r.runs, r.next?.getUTCHours() ?? null, r.enabled, r.startup])).toEqual([
+			["Poem", "Priority Update", 1, 9, true, false],
+			["Clock", "Overlay", 2, 10, true, true],
+			["Off", "Overlay", 0, null, false, false],
 		])
 		// the row opens the task in its document
 		expect(rows[0]!.data).toMatchObject({ id: "b", schedule: "doc" })

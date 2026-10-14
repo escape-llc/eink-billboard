@@ -9,7 +9,7 @@
 			<InputGroupAddon class="field-label" :class="{ 'label-top': tall }">
 				<slot name="label" v-bind="{ field, fieldState }">
 					<label :style="{'width': props.fieldNameWidth, 'max-width': props.fieldNameWidth }"
-						style="flex-shrink:0;flex-grow:1" :for="field.name">{{ field.title }}</label>
+						style="flex-shrink:0;flex-grow:1" :for="field.name">{{ field.title }}<Tag v-if="isNew" class="new-tag" size="small" severity="info" value="new" title="Not in this item yet: it starts at its default" /></label>
 				</slot>
 			</InputGroupAddon>
 			<template v-if="field.type === 'boolean'">
@@ -105,6 +105,7 @@
 				:fieldNameWidth="fieldNameWidth"
 				:baseUrl="baseUrl"
 				:showHelp="showHelp"
+				:newFields="newFields"
 				@form-field-event="(data: FieldEventData) => emits('form-field-event', data)"
 			>
 				<!-- Forward all slots to descendants -->
@@ -116,7 +117,7 @@
 	</template>
 </template>
 <script setup lang="ts">
-import { Button, Message, InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Select, DatePicker, MultiSelect } from 'primevue';
+import { Button, Message, InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Select, DatePicker, MultiSelect, Tag } from 'primevue';
 import FormField from '@primevue/forms/formfield';
 import LeafletPicker from './LeafletPicker.vue';
 import ArrayField from './ArrayField.vue';
@@ -124,7 +125,7 @@ import ColorField from './ColorField.vue';
 import TestUrlButton from './TestUrlButton.vue';
 import { isoToDate, dateToIso } from './FormDates';
 import { isVisible } from './FormVisibility';
-import { computed, toRaw } from 'vue';
+import { computed, nextTick, onMounted, toRaw, watch } from 'vue';
 export interface PropsType {
 	field: any
 	// pass the v-slot="$form" to this prop
@@ -134,6 +135,8 @@ export interface PropsType {
 	baseUrl?: string
 	/** show the field's `description` under it (BasicForm's `showHelp`) */
 	showHelp?: boolean
+	/** the names of the fields the stored document lacks (BasicForm's `showChanges`): they are tagged "new" */
+	newFields?: Set<string>
 }
 export interface SchemaChangeData {
 	type: 'schema-change'
@@ -170,6 +173,16 @@ const safeLink = computed(() => {
 	return link && typeof link.label === 'string' && /^https:\/\/[^\s]+$/.test(String(link.url)) ? link : null
 })
 const isInvalid = computed(() => !!fieldState.value.invalid);
+const isNew = computed(() => props.newFields?.has(props.field.name) === true);
+/** A field that is shown with no value takes its default: it was hidden when the document was saved (stored as null), or the document is older than the field. It is then there to see and change, not an error to find. */
+function takeDefault() {
+	const dflt = props.field.default
+	if(props.field.type === 'header' || dflt === undefined || dflt === null) return
+	const held = fieldState.value?.value
+	if(held === null || held === undefined) emits('form-field-event', { type: 'set-value', field: props.field, value: structuredClone(toRaw(dflt)) })
+}
+watch(visible, now => { if(now) nextTick(takeDefault) })
+onMounted(() => nextTick(takeDefault))
 // a field as tall as a map or a list of rows: its label sits at the top, beside the first line, not in the middle of the block
 const tall = computed(() => props.field.type === 'location' || props.field.type === 'array');
 // a multi-select's choices: fixed ones as `{ name, value }`, like a lookup's list
@@ -186,6 +199,10 @@ const errorMessage = computed(() => {
 /* the label keeps its width: a wide row editor beside it must not squeeze it until its text spills over the border */
 .field-label {
 	flex: 0 0 auto;
+}
+.new-tag {
+	margin-left: .4rem;
+	vertical-align: middle;
 }
 .label-top {
 	align-items: flex-start;

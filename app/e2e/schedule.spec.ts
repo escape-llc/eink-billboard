@@ -148,21 +148,40 @@ test("a new task is offered the timer plugins only, and the form follows the plu
 	await expect(created.locator("input[name=slideMinutes]")).toHaveValue("1")
 	watch.expectNone()
 })
-test("the task dialog has one set of controls, in its toolbar: delete for a stored task, save, reset", async ({ page }) => {
+test("the task dialog has one set of controls, in its toolbar: delete for a stored task, save, cancel", async ({ page }) => {
 	const watch = watchProblems(page)
 	await openFirstQuarterHourTask(page)
 	const d = dialog(page)
 	// nothing repeats at the bottom
 	await expect(d.getByRole("button", { name: "Save", exact: true })).toHaveCount(1)
-	await expect(d.getByRole("button", { name: "Cancel" })).toHaveCount(0)
+	await expect(d.getByRole("button", { name: "Cancel", exact: true })).toHaveCount(1)
 	await expect(d.getByRole("button", { name: "Delete" })).toHaveCount(1)
-	// a new task has nothing to delete
-	await d.getByRole("button", { name: "Close" }).click()
+	// nothing to save until the task is edited
+	const save = d.getByRole("button", { name: "Save", exact: true })
+	await expect(save).toBeDisabled()
+	await d.locator("input[name=title]").fill("Edited")
+	await expect(save).toBeEnabled()
+	// cancel closes the dialog and keeps nothing: an edit is not saved, and the task opens again as stored
+	await d.locator("input[name=title]").fill("Not saved")
+	await d.getByRole("button", { name: "Cancel", exact: true }).click()
+	await expect(d).toBeHidden()
+	expect(storedTask("task1").title).toBe("Quarter-hour clock")
+	await page.locator(".event").filter({ hasText: "Quarter-hour clock" }).first().click()
+	await expect(d.locator("input[name=title]")).toHaveValue("Quarter-hour clock")
+	// a new task has nothing to delete, and cancel closes it too
+	await d.getByRole("button", { name: "Cancel", exact: true }).click()
 	await expect(d).toBeHidden()
 	await page.getByRole("button", { name: "New task" }).click()
 	const created = page.getByRole("dialog", { name: "New task" })
 	await expect(created.getByRole("button", { name: "Save", exact: true })).toHaveCount(1)
 	await expect(created.getByRole("button", { name: "Delete" })).toHaveCount(0)
+	// a new task has nothing to compare with: it is saved when it is valid
+	await created.locator("input[name=title]").fill("A new one")
+	await created.locator(".p-select").filter({ hasText: "Data Source" }).first().click()
+	await page.getByRole("option").first().click()
+	await expect(created.getByRole("button", { name: "Save", exact: true })).toBeEnabled()
+	await created.getByRole("button", { name: "Cancel", exact: true }).click()
+	await expect(created).toBeHidden()
 	watch.expectNone()
 })
 
@@ -258,6 +277,10 @@ test("the toolbar shows a day or a week from today, moves forward and back but n
 
 test("the list shows each task once and opens it", async ({ page }) => {
 	const watch = watchProblems(page)
+	// one task runs at startup
+	const doc = JSON.parse(original)
+	doc.items[0].trigger.on_startup = true
+	fs.writeFileSync(FILE, JSON.stringify(doc, null, 2))
 	await page.goto("/#/schedule")
 	await expect(page.locator(".event").first()).toBeVisible()
 	const repeats = await page.locator(".event").filter({ hasText: "Quarter-hour clock" }).count()
@@ -268,6 +291,11 @@ test("the list shows each task once and opens it", async ({ page }) => {
 	const row = list.getByRole("row").filter({ hasText: "Quarter-hour clock" })
 	await expect(row).toHaveCount(1)
 	await expect(row.locator(".runs")).toHaveText(/^\d+$/)
+	// which tasks run at startup: a check in its own column, from the task's trigger
+	await expect(list.getByRole("columnheader", { name: "Run At Startup" })).toBeVisible()
+	await expect(list.locator("td.startup i.pi-check")).toHaveCount(1)
+	await expect(row.locator("td.startup i.pi-check")).toHaveCount(1)
+	await expect(list.getByRole("row").filter({ hasText: "Paused year progress" }).locator("td.startup i")).toHaveCount(0)
 	await list.getByRole("button", { name: "Edit Quarter-hour clock" }).click()
 	await expect(dialog(page)).toBeVisible()
 	await expect(dialog(page).locator("input[name=title]")).toHaveValue("Quarter-hour clock")

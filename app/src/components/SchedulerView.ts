@@ -39,7 +39,7 @@ export function rangeLabel(start: string, days: number): string {
 }
 
 /** A task's runs in the window: the task once, its first run and how many (an event carries the task in `data`, with its document in `schedule`). */
-export type TaskRow = { key: string, title: string, plugin: string, enabled: boolean, next: Date|null, runs: number, data: any }
+export type TaskRow = { key: string, title: string, plugin: string, enabled: boolean, startup: boolean, next: Date|null, runs: number, data: any }
 
 /** Each task once, from the events of the window and the tasks of every document (a task that does not run in the window is listed with no run), in order of first run. */
 export function taskRows(events: { start: Date, data?: any }[], schedules: Record<string, { items?: any[] }>, pluginName: (id: string) => string): TaskRow[] {
@@ -47,7 +47,7 @@ export function taskRows(events: { start: Date, data?: any }[], schedules: Recor
 	for (const [schedule, doc] of Object.entries(schedules ?? {})) {
 		for (const item of doc?.items ?? []) {
 			const key = `${schedule}/${item.id}`
-			rows.set(key, { key, title: String(item.title ?? ""), plugin: pluginName(String(item.task?.plugin_name ?? "")), enabled: !!item.enabled, next: null, runs: 0, data: { ...item, schedule } })
+			rows.set(key, { key, title: String(item.title ?? ""), plugin: pluginName(String(item.task?.plugin_name ?? "")), enabled: !!item.enabled, startup: item.trigger?.on_startup === true, next: null, runs: 0, data: { ...item, schedule } })
 		}
 	}
 	for (const event of events) {

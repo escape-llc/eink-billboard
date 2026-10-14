@@ -185,3 +185,47 @@ test("the help under the track's fields can be hidden from the header, and the p
 	await expect(help.first()).toBeVisible()
 	watch.expectNone()
 })
+
+// A stored track is compared with the plugin's and the data source's current properties: a property it lacks is tagged new (and takes its default), one the schema
+// no longer defines is listed dimmed, by name, and left out when the track is saved. A weather track before the calendar one used to leave a stale "Required" on Agenda Days.
+test("a stored track shows what is new and what is no longer used, and a field the schema fills is not an error", async ({ page }) => {
+	const watch = watchProblems(page)
+	const track = (id: string, title: string, content: object) => ({ type: "PlaylistSchedule", plugin_name: "slide-show", id, title, content })
+	const doc = JSON.parse(fs.readFileSync(FILE, "utf8"))
+	doc.items = [
+		track("w", "0 Item", { dataSource: "weather", views: ["current"], title: null, fontSize: "normal", slideMax: 0, slideMinutes: 2, showAs: "auto" }),
+		// no `fontSize`, no `listMode`: new; `washStyle` and `oldSetting`: deleted
+		track("c", "1 Item", { dataSource: "calendar", views: ["agenda"], calendars: [], holidaySets: [], agendaDays: 7, title: "Agenda", slideMax: 0, slideMinutes: 2, showAs: "auto", weeksAhead: null, washStyle: "soft", oldSetting: 3 }),
+	]
+	fs.writeFileSync(FILE, JSON.stringify(doc, null, 2))
+	await page.goto("/#/playlist")
+	await row(page, "0 Item").click()
+	await expect(page.locator(".track-editor #views")).toBeVisible()
+	await row(page, "1 Item").click()
+	const editor = page.locator(".track-editor")
+	await expect(editor.locator("#agendaDays")).toHaveValue("7")
+	// no error on a field that has its value
+	await expect(editor.locator(".p-message-error")).toHaveCount(0)
+	// new: the fields the track lacks, tagged, at their defaults
+	await expect(editor.locator("label[for=fontSize] .new-tag")).toHaveText("new")
+	await expect(editor.locator("label[for=listMode] .new-tag")).toHaveText("new")
+	await expect(editor.locator("label[for=agendaDays] .new-tag")).toHaveCount(0)
+	// deleted: names only, never values
+	const stale = editor.getByTestId("stale-field")
+	await expect(stale).toHaveText([/washStyle/, /oldSetting/])
+	await expect(editor.getByTestId("stale-fields")).not.toContainText("soft")
+	// applying the track leaves them out
+	await apply(page).click()
+	await save(page).click()
+	await expect(page.getByText("Playlist saved")).toBeVisible()
+	const content = stored().items.find((x: { id: string }) => x.id === "c").content
+	expect(Object.keys(content)).not.toContain("washStyle")
+	expect(Object.keys(content)).not.toContain("oldSetting")
+	expect(content.fontSize).toBe("normal")
+	expect(content.agendaDays).toBe(7)
+	// a track that was just added has nothing to compare with
+	await page.getByRole("button", { name: "Add track" }).click()
+	await expect(page.locator(".track-editor .new-tag")).toHaveCount(0)
+	await expect(page.getByTestId("stale-fields")).toHaveCount(0)
+	watch.expectNone()
+})

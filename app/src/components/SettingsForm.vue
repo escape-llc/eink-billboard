@@ -1,5 +1,5 @@
 <template>
-	<BasicForm ref="bf" :form :initialValues :baseUrl="baseUrl" :owner="owner" :showHelp="showHelp" @validate="handleValidate" @submit="submitForm">
+	<BasicForm ref="bf" :form :initialValues :baseUrl="baseUrl" :owner="owner" :showHelp="showHelp" :showChanges="true" @validate="handleValidate" @submit="submitForm">
 		<template #empty>
 			<p style="margin:auto">No Settings defined.</p>
 		</template>

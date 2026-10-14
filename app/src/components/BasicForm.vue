@@ -21,11 +21,19 @@
 						</slot>
 					</template>
 					<template v-else>
-						<BasicFormField :field="field" :formContext="$form" :fieldNameWidth="fieldNameWidth" :baseUrl="baseUrl" :showHelp="showHelp" @form-field-event="handleFormFieldEvent">
+						<BasicFormField :field="field" :formContext="$form" :fieldNameWidth="fieldNameWidth" :baseUrl="baseUrl" :showHelp="showHelp" :newFields="newNames" @form-field-event="handleFormFieldEvent">
 						</BasicFormField>
 					</template>
 				</template>
 				<slot name="after-fields"></slot>
+				<!-- what the document has and the schema no longer defines: names only (a value can be a secret); saving leaves them out -->
+				<section v-if="staleKeys.length" class="stale-fields" aria-label="No longer used" data-testid="stale-fields">
+					<div class="stale-heading">No longer used</div>
+					<div v-for="key in staleKeys" :key="key" class="stale-field" data-testid="stale-field">
+						<span class="stale-name">{{ key }}</span>
+						<Tag size="small" severity="secondary" value="left out when you save" />
+					</div>
+				</section>
 			</template>
 			<slot name="footer"></slot>
 		</Form>
@@ -35,6 +43,7 @@
 import { apiJson, joinUrl } from "./ApiClient"
 //import { InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Message, Select } from 'primevue';
 import Form from "@primevue/forms/form"
+import { Tag } from "primevue"
 import { ref, toRaw, nextTick, watch, inject, computed } from "vue"
 import z from "zod"
 import BasicFormField from './BasicFormField.vue'
@@ -62,6 +71,8 @@ export interface PropsType {
 	addInitialValues?: AddInitialValuesType
 	/** show each field's `description` (its help text) under it; a header button can turn it off where the help is long */
 	showHelp?: boolean
+	/** for a stored document: mark the fields it lacks (new in the schema), and list what it has that the schema no longer defines (deleted) */
+	showChanges?: boolean
 }
 export interface ValidateEventData {
 	result: z.ZodSafeParseResult<any>
@@ -99,6 +110,8 @@ watch(() => props.initialValues, (nv) => {
 			const addv = props.addInitialValues()
 			ox = Object.assign(ox, addv) // ensure new object reference to trigger form update
 		}
+		// the fields a data source brings depend on the value that chooses it: take the new values first, or the defaults are those of the previous track's source
+		localValues.value = ox
 		// a value the document does not have yet starts at the descriptor's default (a new playlist track, say)
 		const dflts = props.form?.schema ? applyDefaults(formProperties(props.form.schema, props.owner), ox) : []
 		dflts.forEach(([name, value]) => { ox[name] = value })
@@ -298,10 +311,24 @@ const setServerErrors = (errors: { path?: unknown[], message?: string }[]): numb
 	nextTick().then(_ => form.value?.validate())
 	return matched
 }
-const resolver = ({ values }: { values: Record<string, any> }) => {
+/**
+ * The values the rules read: what the form holds, and for a field of the schema it does not hold yet the value the form opened with (defaults included).
+ * A field mounts only after the field it depends on is set (`visibleIf`), so for a moment it is in the schema and not in the form's values: it must not be
+ * judged missing then, and a field the document lacks is the schema's to fill, not to ignore.
+ */
+function withSchemaValues(values: Record<string, any>): Record<string, any> {
+	const complete = { ...values }
+	for(const name of flatNames(localProperties.value)) {
+		if(complete[name] === undefined && localValues.value?.[name] !== undefined) complete[name] = localValues.value[name]
+	}
+	return complete
+}
+const resolver = ({ values: held }: { values: Record<string, any> }) => {
 	const errors:Record<PropertyKey,any> = {};
+	const values = held
 	if(!currentResolver) return { values, errors };
-	const result = currentResolver(values).safeParse(values);
+	const complete = withSchemaValues(held)
+	const result = currentResolver(complete).safeParse(complete);
 	if(!result.success) {
 		result.error.issues.forEach(issue => {
 			const field = issue.path[0];
@@ -320,7 +347,7 @@ const resolver = ({ values }: { values: Record<string, any> }) => {
 			errors[name] = entries.map(entry => ({ message: entry.message, path: entry.path }))
 		}
 	}
-	emits('validate', { result, values });
+	emits('validate', { result, values: complete });
 	return {
 		values, // (Optional) Used to pass current form values to submit event.
 		errors
@@ -328,11 +355,12 @@ const resolver = ({ values }: { values: Record<string, any> }) => {
 }
 const handleSubmit = (data:any) => {
 	lastSubmitted = data.values ?? {}
-	const result = currentResolver?.(data.values)?.safeParse(data.values);
+	const complete = withSchemaValues(data.values ?? {})
+	const result = currentResolver?.(complete)?.safeParse(complete);
 	if(result?.success) {
 		// a hidden field is not applicable: it is saved as null
 		const saved = result.data as Record<string, unknown>
-		hiddenNames(localProperties.value, data.values).forEach(name => { saved[name] = null })
+		hiddenNames(localProperties.value, complete).forEach(name => { saved[name] = null })
 	}
 	emits('submit', { result, data });
 }
@@ -389,8 +417,40 @@ const handleFormFieldEvent = (data:any) => {
 		}
 	}
 }
+/** What the stored document has and the schema no longer defines (a property that was removed or renamed). `_`-keys are the document's own (`_id`, `_rev`). */
+const staleKeys = computed<string[]>(() => {
+	if(!props.showChanges || !props.initialValues) return []
+	const known = new Set(flatNames(localProperties.value))
+	return Object.keys(props.initialValues).filter(key => !key.startsWith("_") && !known.has(key))
+})
+/** What the schema defines and the stored document lacks (a property added since it was saved): it starts at its default and is marked. A document with no properties yet is new, and everything in it would be too. */
+const newNames = computed<Set<string>>(() => {
+	const held = props.initialValues as Record<string, unknown> | undefined
+	if(!props.showChanges || !held || Object.keys(held).every(key => key.startsWith("_"))) return new Set()
+	return new Set(flatNames(localProperties.value).filter(name => !(name in held)))
+})
 const isDirty = computed(() => Object.values<{ dirty?: boolean }>(form.value?.states ?? {}).some(st => st.dirty))
 defineExpose({ submit, reset, setServerErrors, isDirty })
 </script>
 <style scoped>
+.stale-fields {
+	margin-top: .5rem;
+	opacity: .6;
+}
+.stale-heading {
+	font-weight: bold;
+	font-size: .85rem;
+	text-transform: uppercase;
+	letter-spacing: .04rem;
+}
+.stale-field {
+	display: flex;
+	align-items: center;
+	gap: .5rem;
+	padding: .2rem 0;
+	text-decoration: line-through;
+}
+.stale-field :deep(.p-tag) {
+	text-decoration: none;
+}
 </style>
