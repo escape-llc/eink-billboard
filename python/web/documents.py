@@ -4,6 +4,7 @@ Helpers for the settings documents served by the API: secret handling, validatio
 A document is a dict stored as JSON. The API adds `_id` and `_rev` (a hash of the stored content) on the way out,
 and requires the same `_rev` on the way back in; a stale `_rev` is a 409 conflict.
 """
+import copy
 import logging
 import math
 import re
@@ -354,6 +355,28 @@ def _offers(source: dict, lookup: Any) -> bool:
 	if not have:
 		return False
 	return not wanted or any(f in have for f in wanted)
+
+def content_with_defaults(plugins: dict, datasources: dict, plugin_name: Any, content: dict) -> dict:
+	"""
+	`content` with each property its plugin and chosen data source declare, and it lacks, at the descriptor's `default` (a copy; the stored item is not changed).
+	This is what the form shows and saves, so an item that was never saved again (older than the property, or written by hand) runs as the form says it would.
+	A property with no default (null: the user supplies it) and a hidden one (see `visibleIf`) stay as they are.
+	"""
+	plugin = plugins.get(plugin_name)
+	if plugin is None or not isinstance(content, dict):
+		return content
+	props, lookups = instance_properties(plugin)
+	candidates = list(props)
+	for prop in props:
+		chosen = content.get(prop.get("name")) if prop.get("type") == "schema" else None
+		source = datasources.get(chosen) if isinstance(chosen, str) else None
+		if source is not None:
+			candidates.extend(instance_properties(source)[0])
+	wanted = { p["name"]: p["default"] for p in candidates if p.get("name") and p.get("type") != "header" and p.get("default") is not None and p["name"] not in content }
+	if not wanted:
+		return content
+	hidden = hidden_names(candidates, { **content, **wanted })
+	return { **content, **{ name: copy.deepcopy(value) for name, value in wanted.items() if name not in hidden } }
 
 def plugin_content_errors(plugins: dict, datasources: dict, plugin_name: Any, content: dict, path: list,
 		settings_of: Callable[[str, str], dict|None]|None = None) -> list[dict]:

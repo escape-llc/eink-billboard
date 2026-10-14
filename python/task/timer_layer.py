@@ -27,7 +27,7 @@ from ..task.message_router import MessageRouter
 from ..task.timer import IProvideTimer, TimerThreadService
 from ..model.theme import ThemeInputs, current_inputs
 from ..utils.error_image import error_detail, render_error_image, safe_reason
-from ..web.documents import plugin_content_errors
+from ..web.documents import content_with_defaults, plugin_content_errors
 
 class PlaylistStateDict(TypedDict):
 	current_playlist: Playlist
@@ -228,6 +228,10 @@ class TimerLayer(DispatcherTask):
 			self.logger.error(f"Cannot start {kind} task, plugin '{item.task.plugin_name}' for task '{item.title}' is not available.")
 			await self._show_error(item, f"Plugin '{item.task.plugin_name}' is not available", tod.current_time())
 			return
+		# a property the task lacks runs at the descriptor's default, as the form shows it (the stored task is not changed)
+		if isinstance(item.task.content, dict):
+			item.task.content = content_with_defaults({ p["info"].get("id"): p for p in (self.plugin_info or []) },
+				{ d["info"].get("id"): d for d in (self.cm.enum_datasources() if self.cm is not None else []) }, item.task.plugin_name, item.task.content)
 		try:
 			self.logger.info(f"Starting {kind} task '{item.title}' using plugin '{item.task.plugin_name}'.")
 			# this task's own event: the one passed to the layer task is the layer's, and is set when the layer ends
