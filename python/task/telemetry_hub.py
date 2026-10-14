@@ -84,6 +84,16 @@ def _named(value: Any) -> Any:
 		return safe_value(getattr(info, "name", None) or value.get("name") or (info.get("name") if isinstance(info, Mapping) else None))
 	return safe_value(value)
 
+def _is_ours(error: Any) -> bool:
+	"""A failure whose message is ours to show (a `PermanentError`, as `safe_reason` treats it: it says what is wrong and what to do)."""
+	# imported here: plugin_base imports half the application
+	from ..plugins.plugin_base import PermanentError
+	return isinstance(error, PermanentError)
+
+def _ours(error: Any) -> str:
+	"""The failure's own words after a colon when they are ours to show, else nothing (the caller ends the sentence)."""
+	return f": {str(error).rstrip('.')}" if _is_ours(error) else ""
+
 @dataclass(eq=False)
 class Subscriber:
 	"""One WebSocket client: events reach its queue on its own loop; `missed` counts what a full queue dropped."""
@@ -122,12 +132,15 @@ class TelemetryHub(MessageSink):
 		self._max_images = max_images
 		self._current: dict|None = None
 		self._status: dict[str, str] = {}
+		# why a component failed, when the failure is ours to word (see _is_ours)
+		self._reasons: dict[str, Any] = {}
 
 	# ---- in ----
 	def accept(self, msg: BasicMessage) -> None:
 		if isinstance(msg, ConfigureNotify) and msg.token in COMPONENTS:
 			with self._lock:
 				self._status[msg.token] = "failed" if msg.error else "ok"
+				self._reasons[msg.token] = msg.content if msg.error and _is_ours(msg.content) else None
 		event = self._event(msg)
 		if event is None:
 			return
@@ -149,7 +162,7 @@ class TelemetryHub(MessageSink):
 		if isinstance(msg, ConfigureNotify):
 			if not msg.error:
 				return None
-			return { "ts": _instant(msg.timestamp), "source": "application", "kind": "configure-failed", "message": f"'{msg.token}' could not be configured.", "values": {} }
+			return { "ts": _instant(msg.timestamp), "source": "application", "kind": "configure-failed", "message": f"'{msg.token}' could not be configured{_ours(msg.content)}.", "values": {} }
 		if not isinstance(msg, Telemetry):
 			return None
 		values = dict(msg.values or {})
@@ -189,11 +202,12 @@ class TelemetryHub(MessageSink):
 		"""How bringing each component up went: `ok`, `failed`, or `starting` (not reported yet, or waiting for the display). The words are ours, never the error's."""
 		with self._lock:
 			state = dict(self._status)
+			reasons = dict(self._reasons)
 		components = {}
 		for name in COMPONENTS:
 			current = state.get(name, "starting")
 			if current == "failed":
-				message = "Could not be set up. See the log, fix the settings, then restart."
+				message = f"Could not be set up{_ours(reasons.get(name))}. See the log, fix the settings, then restart."
 			elif current == "ok":
 				message = "Running."
 			elif name != "display" and state.get("display") == "failed":

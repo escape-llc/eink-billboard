@@ -25,5 +25,23 @@ services:
     volumes:
       # a name is the named volume below (seeded on the first start); a path (./.storage) is that folder of the host, used as it is
       - ${EINK_STORAGE:-storage}:/data
+  # The same server with the Inky driver installed, to see what a device without its panel does (#281): `podman compose --profile inky up --build -d app-inky`, on
+  # http://localhost:8081 with a storage of its own. Choose the `inky` Display Type in the Display settings, save, and restart it (`podman compose --profile inky restart app-inky`):
+  # the driver loads, finds no board (there is no I2C here) and the status button says why. `EINK_FAKE_INKY=ok` (or busy-stuck, spi-off, unknown-board) pretends there is one.
+  # No hardware is passed in on purpose.
+  app-inky:
+    profiles: ["inky"]
+    build: { context: ., target: app-inky }
+    ports:
+      - "127.0.0.1:8081:8080"
+    environment:
+      # what the pretend board does (scripts/fake_inky.py): ok | busy-stuck | spi-off | unknown-board; empty: no board at all (the real driver finds none)
+      EINK_FAKE_INKY: ${EINK_FAKE_INKY:-}
+      EINK_API_TOKEN: ${EINK_API_TOKEN:-}
+      EINK_PUBLIC_URL: ${EINK_INKY_PUBLIC_URL:-http://localhost:8081}
+      EINK_WATCH_POLL: ${EINK_WATCH_POLL:-2}
+    volumes:
+      - storage-inky:/data
 volumes:
   storage:
+  storage-inky:

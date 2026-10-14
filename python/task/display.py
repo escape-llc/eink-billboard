@@ -136,6 +136,10 @@ class Display(DispatcherTask):
 				except ImportError as ie:
 					raise ValueError(f"The 'tk' display requires tkinter, which is not available: {ie}") from ie
 				self.display = TkinterWindow("tk")
+			elif display_type == "inky":
+				# the driver is imported when the display is initialized (below), on the device only; this module does not need it
+				from ..display.inky_display import InkyDisplay
+				self.display = InkyDisplay("inky")
 			else:
 				raise ValueError(f"Unrecognized display type: '{display_type}'")
 			ts = msg.content.isp.get_service(IProvideTimer)
