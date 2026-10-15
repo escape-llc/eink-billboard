@@ -22,6 +22,7 @@
 					"required": true,
 					"default": null,
 					"title": "Prompt",
+					"format": "multiline",
 					"description": "What to draw."
 				},
 				{
