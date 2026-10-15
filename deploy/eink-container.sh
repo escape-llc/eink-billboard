@@ -11,6 +11,8 @@
 #   deploy/eink-container.sh display TYPE [MODEL]
 #                                                choose the display and restart: mock, inky, or waveshare with its model (e.g. "display waveshare epd7in3e")
 #   deploy/eink-container.sh models              the Waveshare models there are drivers for
+#   deploy/eink-container.sh detect              ask whether an Inky panel is attached (an Inky says what it is; a Waveshare cannot)
+#   deploy/eink-container.sh autostart on|off    start the app when the Pi starts, or not (status: which it is)
 #   deploy/eink-container.sh reset-password      forget the device password (it asks for a new setup code); asks first
 #   deploy/eink-container.sh wipe                delete everything the app keeps (settings, schedules, password) and start as new; asks first
 #   deploy/eink-container.sh help                this text
@@ -24,7 +26,7 @@
 #
 # What the Pi needs: Raspberry Pi OS 64-bit, Podman (sudo apt install podman), SPI on (and I2C for an Inky panel: sudo raspi-config, Interface Options),
 # and your user in the spi, i2c and gpio groups. "check" says which of these is missing and how to fix it.
-# The app is not started again when the Pi restarts (yet): run "start" after a reboot.
+# After a reboot the app starts again only with "autostart on" (the bootstrap turns it on).
 # This script never prints the settings: they can hold API keys and passwords.
 set -u
 set -o pipefail
@@ -200,6 +202,7 @@ cmd_stop() {
 	if exists; then
 		podman rm -f "$NAME" >/dev/null 2>&1 || fail "it could not be stopped: podman rm -f $NAME"
 		say "Stopped. The settings, schedules and password are kept (in the volume '$VOLUME'); '$SCRIPT start' starts it again."
+		systemctl --user is-enabled "$UNIT_NAME" >/dev/null 2>&1 && say "(Autostart is on but has no container to start until then; '$SCRIPT autostart off' turns it off.)"
 	else
 		say "The app is not running."
 	fi
@@ -323,6 +326,11 @@ EOF
 	done <<< "$inside"
 	cmd_code | sed 's/^/        /'
 
+	local auto
+	if auto=$(cmd_autostart status); then note "autostart $auto"; else info "autostart $auto"; fi
+	local detected
+	detected=$(cmd_detect); info "$detected"
+
 	section "the display, from the log"
 	local shown
 	shown=$(display_lines)
@@ -398,6 +406,85 @@ EOF
 	display_lines "$since" | sed 's/^/    /'
 }
 
+# asks the I2C bus whether an Inky panel is attached (it says what it is from a small memory chip on the board): prints what answered;
+# returns 0 for an Inky, 3 for none, 4 when it could not tell (no I2C device in the container, the app not running)
+cmd_detect() {
+	running || { say "The app is not running, so the panel cannot be asked:  $SCRIPT start"; return 4; }
+	podman exec "$NAME" test -e /dev/i2c-1 2>/dev/null || { say "The app has no I2C bus (is I2C on? '$SCRIPT check' says), so an Inky cannot be detected."; return 4; }
+	local answer
+	answer=$(podman exec -i "$NAME" "$PY" - 2>&1 <<'EOF'
+import sys
+sys.path.insert(0, "/work")
+try:
+	from inky.eeprom import read_eeprom
+	found = read_eeprom()
+except Exception as e:
+	print("error", type(e).__name__)
+	sys.exit(4)
+if found is None:
+	print("none")
+	sys.exit(3)
+print("inky", found.get_variant(), f"{found.width}x{found.height}")
+EOF
+)
+	local status=$?
+	case "$status" in
+		0) say "An Inky panel answered: ${answer#inky }." ;;
+		3) say "No Inky panel answered on the I2C bus (none attached, or not seated on the pins)." ;;
+		*) say "Could not ask the I2C bus (${answer:-no answer})." ; status=4 ;;
+	esac
+	return "$status"
+}
+
+UNIT_NAME=eink-billboard.service
+unit_file() { say "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/$UNIT_NAME"; }
+
+# start at boot: a unit of your own (systemd --user) that starts the container, and "linger", which runs your units at boot without a login
+cmd_autostart() {
+	case "${1:-status}" in
+		on)
+			exists || fail "start the app first (the unit starts the container 'start' made):  $SCRIPT start"
+			[ -n "${XDG_RUNTIME_DIR:-}" ] && systemctl --user show-environment >/dev/null 2>&1 \
+				|| fail "your user's systemd is not reachable from this shell (logged in with su or sudo?). Log in as $(id -un) directly (or over ssh) and run it again."
+			mkdir -p "$(dirname "$(unit_file)")"
+			cat > "$(unit_file)" <<EOF
+# made by $SCRIPT autostart on: starts the eInk Billboard container when the Pi starts
+[Unit]
+Description=eInk Billboard (the Podman container $NAME)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=$(command -v podman) start $NAME
+ExecStop=$(command -v podman) stop -t 15 $NAME
+
+[Install]
+WantedBy=default.target
+EOF
+			systemctl --user daemon-reload && systemctl --user enable "$UNIT_NAME" >/dev/null 2>&1 || fail "the unit could not be enabled:  systemctl --user status $UNIT_NAME"
+			if [ "$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null)" != "yes" ]; then
+				say "Your units run at boot only with 'linger' on; turning it on (sudo asks for your password):"
+				sudo loginctl enable-linger "$(id -un)" || fail "linger is not on, so the app will not start at boot:  sudo loginctl enable-linger $(id -un)"
+			fi
+			say "The app now starts when the Pi starts." ;;
+		off)
+			systemctl --user disable "$UNIT_NAME" >/dev/null 2>&1
+			rm -f "$(unit_file)"
+			systemctl --user daemon-reload >/dev/null 2>&1
+			say "The app no longer starts when the Pi starts (it keeps running now; '$SCRIPT stop' stops it)." ;;
+		status)
+			if systemctl --user is-enabled "$UNIT_NAME" >/dev/null 2>&1; then
+				if [ "$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null)" = "yes" ]; then say "on: the app starts when the Pi starts."
+				else say "the unit is on, but linger is off, so it does not start at boot:  sudo loginctl enable-linger $(id -un)"; return 1; fi
+			else
+				say "off: the app does not start when the Pi starts ('$SCRIPT autostart on')."; return 1
+			fi ;;
+		*) fail "autostart takes on, off or status." ;;
+	esac
+}
+
 confirm() {
 	# $1: what will happen; $2: the word to type
 	say "$1"
@@ -442,6 +529,8 @@ case "$command" in
 	check) cmd_check ;;
 	display) cmd_display "$@" ;;
 	models) cmd_models ;;
+	detect) cmd_detect ;;
+	autostart) cmd_autostart "$@" ;;
 	reset-password) cmd_reset_password ;;
 	wipe) cmd_wipe ;;
 	*) say "There is no command '$command'."; say ""; cmd_help; exit 2 ;;
