@@ -143,6 +143,7 @@ def run_application(args: argparse.Namespace) -> None:
 	xapp: Application = Application(APPNAME, sink)
 	xapp.setup_notice = lambda: setup_notice(app.state.access, port, public_url)
 	app.state.access.on_claimed = xapp.setup_done
+	app.state.access.on_code_changed = xapp.setup_code_changed
 	watcher_sink.add(xapp)
 	try:
 		xapp.start()

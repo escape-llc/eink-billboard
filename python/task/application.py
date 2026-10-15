@@ -3,7 +3,7 @@ import threading
 from datetime import datetime, timedelta
 from typing import Callable
 
-from .messages import ConfigurationChanged, ConfigurationWatcherEvent, StartEvent, StartOptions, StopEvent, QuitMessage, Telemetry
+from .messages import ConfigurationChanged, ConfigurationWatcherEvent, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, Telemetry
 from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
 from .protocols import MessageSink, IProvideTimer
 from .display import Display
@@ -21,6 +21,8 @@ from ..task.timer import IProvideTimer
 from ..task.timer_layer import TimerLayer
 
 SETUP_TITLE = "Set up this device"
+# the setup page has no end of its own: it comes down when the device is claimed (`PriorityRevoke`), so it holds the panel until then
+SETUP_HOLD = timedelta(days=3650)
 
 class Application(DispatcherTask):
 	def __init__(self, name = None, sink: MessageSink|None = None):
@@ -38,6 +40,9 @@ class Application(DispatcherTask):
 		self.root_container: IServiceProvider|None = None
 		# lines for a page on the panel while the device is not set up yet (None: nothing to say); see eink-billboard.py
 		self.setup_notice: Callable[[], list[str]|None]|None = None
+		# an unclaimed device does not play: the layers' configuration waits here until the device is claimed (None: nothing is held)
+		self._held: tuple[ConfigureEvent, ConfigureEvent]|None = None
+		self._panel: tuple[int, int]|None = None
 
 	def _start_event(self, msg: StartEvent):
 		try:
@@ -81,10 +86,25 @@ class Application(DispatcherTask):
 			plcontainer.add_service(IProvideTimer, ipt)
 			tlcontainer.add_service(IProvideTimer, ipt)
 		configs = ConfigureEvent(msg.timestamp, ConfigureOptions(cm=self.cm, isp=plcontainer), "playlist-layer", self)
-		self.playlist_layer.accept(configs)
 		configt = ConfigureEvent(msg.timestamp, ConfigureOptions(cm=self.cm, isp=tlcontainer), "timer-layer", self)
+		self._panel = (msg.width, msg.height)
+		if self._unclaimed():
+			# the tracks do not go into play mode until the owner has claimed the device: the panel holds the setup page, and the layers start when it is claimed
+			self._held = (configs, configt)
+			self.logger.info(f"'{self.name}' the device is not claimed: the layers wait for it.")
+			self._show_setup_notice(msg.width, msg.height, msg.timestamp)
+			return
+		self._start_layers(configs, configt)
+	def _unclaimed(self) -> bool:
+		try:
+			return bool(self.setup_notice()) if self.setup_notice is not None else False
+		except Exception as e:
+			self.report_failure("Could not tell whether the device is claimed", e)
+			return False
+	def _start_layers(self, configs: ConfigureEvent, configt: ConfigureEvent):
+		assert self.playlist_layer is not None and self.timer_layer is not None
+		self.playlist_layer.accept(configs)
 		self.timer_layer.accept(configt)
-		self._show_setup_notice(msg.width, msg.height, msg.timestamp)
 	def _show_setup_notice(self, width: int, height: int, timestamp: datetime):
 		"""A device nobody has claimed shows how to claim it on its own panel for a while: whoever can see it is the owner."""
 		try:
@@ -92,18 +112,41 @@ class Application(DispatcherTask):
 			if not lines or self.cm is None:
 				return
 			image = render_error_image(self.cm.static_manager(), (width, height), SETUP_TITLE, lines, current_inputs(self.cm.settings_manager()))
-			self.router.send("display", PriorityImage(timestamp, SETUP_TITLE, image, timedelta(minutes=10)))  # type: ignore[union-attr]
+			self.router.send("display", PriorityImage(timestamp, SETUP_TITLE, image, SETUP_HOLD))  # type: ignore[union-attr]
 			shown_on = self.display.display if self.display is not None else None
 			if isinstance(shown_on, MockDisplay):
 				self.logger.warning(f"The mock display has no panel to read the setup code from: it is in the log line 'This device is not set up yet', and the page is saved in {shown_on.output_folder}")
 		except Exception as e:
 			self.report_failure("Could not show the setup page", e)
+	def _now(self) -> datetime:
+		tod = self.root_container.get_service(TimeOfDay) if self.root_container is not None else None
+		return tod.current_time() if tod else datetime.now().astimezone()
 	def setup_done(self) -> None:
-		"""The device was claimed: the setup page comes off the panel now, not when its ten minutes are up."""
+		"""The device was claimed (called from the web app's thread): the application's own thread takes the setup page down and starts the layers."""
+		try:
+			self.accept(SetupDone(self._now()))
+		except ValueError:
+			self.logger.debug(f"'{self.name}' stopped before the device was claimed.")
+	def setup_code_changed(self) -> None:
+		"""The setup code was replaced (called from the web app's thread)."""
+		try:
+			self.accept(SetupCodeChanged(self._now()))
+		except ValueError:
+			self.logger.debug(f"'{self.name}' stopped before the setup code changed.")
+	def _setup_done(self, msg: SetupDone):
 		if self.router is None:
 			return
-		tod = self.root_container.get_service(TimeOfDay) if self.root_container is not None else None
-		self.router.send("display", PriorityRevoke(tod.current_time() if tod else datetime.now().astimezone(), SETUP_TITLE))
+		self.router.send("display", PriorityRevoke(msg.timestamp, SETUP_TITLE))
+		held, self._held = self._held, None
+		if held is not None:
+			self.logger.info(f"'{self.name}' the device was claimed: the layers start.")
+			self._start_layers(*held)
+	def _setup_code_changed(self, msg: SetupCodeChanged):
+		"""The page on the panel must not show a code that no longer works: take it down and put the new one up."""
+		if self.router is None or self._held is None or self._panel is None:
+			return
+		self.router.send("display", PriorityRevoke(msg.timestamp, SETUP_TITLE))
+		self._show_setup_notice(self._panel[0], self._panel[1], msg.timestamp)
 	def _configure_notify(self, msg: ConfigureNotify):
 		# STEP 4 playback started if layer configured successfully
 		self.logger.info(f"'{self.name}' ConfigureNotify {msg.token} {msg.error} {msg.content}.")

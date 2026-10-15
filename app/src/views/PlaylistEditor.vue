@@ -47,7 +47,7 @@
 					</li>
 				</ul>
 				<p v-if="currentId && tracks.length === 0" class="m-1">No tracks yet.</p>
-				<p v-if="!currentId" class="m-1">Create a playlist to add tracks.</p>
+				<p v-if="!currentId" class="m-1">{{ playlists.length === 0 ? "This device has no playlist yet, so its panel has nothing to show. Create one (the + button above), add tracks, and save it." : "Choose or create a playlist to add tracks." }}</p>
 			</div>
 
 			<div class="track-editor">
