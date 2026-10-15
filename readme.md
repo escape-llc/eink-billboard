@@ -480,9 +480,9 @@ The sign-in's tokens are kept in `datasources/calendar/tokens.json` in the stora
 
 ## Generated Image Data Source
 A picture drawn by an AI image model from your prompt, which an AI text model can rewrite first so no two are alike.
-* **Choose each part**: the track's **Image Source** draws (OpenAI Image) and its **Text Source** rewrites the prompt (OpenAI Text). Each part's own fields (the model, the quality, ...) show under its choice. A Google provider is next, so the text of one provider can go with the picture of another.
-* **The keys are the providers'**: Settings, Data Sources, `openai` (Test lists the image models the key may use). The model lists come from the provider, kept for a day.
-* **The panel's own shape**: `gpt-image-2` and later draw at the panel's ratio; older models draw a fixed size, shown with a blurred margin.
+* **Choose each part**: the track's **Image Source** draws (OpenAI Image) and its **Text Source** rewrites the prompt (OpenAI Text). Each part's own fields (the model, the quality, ...) show under its choice. Each part is a provider's: **OpenAI** or **Google**, so the text of one can go with the picture of the other (GPT text, a Gemini picture).
+* **The keys are the providers'**: Settings, Data Sources, `openai` or `google-ai` (Test lists the image models the key may use). The model lists come from the provider, kept for a day. A Google key is a **Google AI Studio key** (it starts with `AQ.`); the shapes and sizes a Gemini picture takes are read from Google's own description of its API.
+* **The panel's shape**: `gpt-image-2` and later draw at the panel's ratio; Gemini draws at the ratio Google offers nearest it; older OpenAI models draw a fixed size. What does not fill the panel is shown with a blurred margin.
 * A track from before that names `openai-image` as its data source says to choose Generated Image instead; the OpenAI key moved to the `openai` settings at the first start.
 
 ## Weather Data Source

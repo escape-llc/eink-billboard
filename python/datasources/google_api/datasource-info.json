@@ -1,0 +1,76 @@
+{
+	"id": "google-ai",
+	"name": "Google AI",
+	"version": "0.0.1",
+	"class": "GoogleApi",
+	"file": "google_api.py",
+	"module": "python.datasources.google_api.google_api",
+	"description": "Google's Gemini API for the Generated Image: the AI Studio key and the models it may use, shared by the Google Text and Google Image parts.",
+	"disabled": false,
+	"features": ["internet", "api-key", "paid-service", "api", "ai-provider"],
+	"router": {
+		"id": "google-router",
+		"class": "google_router",
+		"file": "api.py",
+		"module": "python.datasources.google_api.api"
+	},
+	"settings": {
+		"schema": {
+			"properties": [
+				{
+					"name": "apiKey",
+					"type": "string",
+					"required": true,
+					"writeOnly": true,
+					"default": null,
+					"pattern": "^AQ\\.[A-Za-z0-9._\\-]+$",
+					"title": "API Key",
+					"description": "A Google AI Studio key: create one in AI Studio (it starts with AQ.; an older AIza key is not accepted). Test asks Google which image models it may use.",
+					"test": { "url": "/api/datasource/google-ai/test" },
+					"link": { "url": "https://aistudio.google.com/apikey", "label": "Get a key in AI Studio" }
+				},
+				{
+					"name": "modelsCacheHours",
+					"type": "number",
+					"required": true,
+					"default": 24,
+					"minimum": 0,
+					"maximum": 168,
+					"step": 1,
+					"minFractionDigits": 0,
+					"maxFractionDigits": 1,
+					"title": "Keep the Model List (hours)",
+					"description": "How long the list of models Google lets the key use is kept for the forms and tasks. A new or retired model shows up after this. 0: ask every time."
+				},
+				{
+					"name": "discoveryCacheHours",
+					"type": "number",
+					"required": true,
+					"default": 168,
+					"minimum": 0,
+					"maximum": 720,
+					"step": 24,
+					"minFractionDigits": 0,
+					"maxFractionDigits": 0,
+					"title": "Keep Google's API Description (hours)",
+					"description": "How long Google's description of its API (the picture shapes and sizes it takes) is kept. 0: ask every time."
+				},
+				{
+					"name": "staleDays",
+					"type": "integer",
+					"required": true,
+					"default": 30,
+					"minimum": 0,
+					"title": "Forget Unused Answers After (days)",
+					"description": "A kept answer nobody has used for this many days (an old key's model list) is removed. 0: never."
+				}
+			]
+		},
+		"default": {
+			"apiKey": null,
+			"modelsCacheHours": 24,
+			"discoveryCacheHours": 168,
+			"staleDays": 30
+		}
+	}
+}

@@ -237,7 +237,71 @@ def _openai(request: httpx.Request) -> httpx.Response | None:
 			"parallel_tool_calls": True, "tool_choice": "auto", "tools": [] })
 	return _openai_error(404, "unknown_url", "Unknown request URL.")
 
-ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _apod, _apod_image, _rss_feed, _rss_image, _calendar, _caldav, _weather, _openai]
+# Google's Gemini API: AI Studio authorization keys ("AQ."), sent in the x-goog-api-key header only ("AQ.good" works, "AQ.busy" is a 429, "AQ.broke" a
+# 403 saying the key type is unsupported; any other key, and a key in the address, is refused as the real service does). The discovery document is public
+# and a fixture (trimmed to the schemas the code reads); the model list is a fixture served in two pages; a picture is a generated PNG in the shape asked,
+# and the aspect ratio and size must be ones the discovery document lists (and the model takes: Flash Lite Image only 1K, Nano Banana no 512).
+GOOGLE_DISCOVERY = "google-discovery.json"
+GOOGLE_MODELS = "google-models.json"
+
+def _google_error(status: int, code: str, reason: str|None = None) -> httpx.Response:
+	error: dict = { "code": status, "message": "Google's own text, which can quote things (AQ.leaked).", "status": code }
+	if reason:
+		error["details"] = [{ "@type": "type.googleapis.com/google.rpc.ErrorInfo", "reason": reason }]
+	return httpx.Response(status, json={ "error": error })
+
+def _google_discovered() -> tuple[list[str], list[str]]:
+	props = json.loads(fixture_text(GOOGLE_DISCOVERY))["schemas"]["ImageConfig"]["properties"]
+	import re
+	return (re.findall(r"`(\d+:\d+)`", props["aspectRatio"]["description"]), re.findall(r"`(\d+K|512)`", props["imageSize"]["description"]))
+
+def _google(request: httpx.Request) -> httpx.Response | None:
+	if request.url.host != "generativelanguage.googleapis.com":
+		return None
+	if request.url.path == "/$discovery/rest":
+		return httpx.Response(200, text=fixture_text(GOOGLE_DISCOVERY), headers={ "Content-Type": "application/json" })
+	key = request.headers.get("x-goog-api-key", "")
+	if "key" in request.url.params or request.headers.get("Authorization"):
+		return _google_error(401, "UNAUTHENTICATED", "ACCESS_TOKEN_TYPE_UNSUPPORTED")
+	if key == "AQ.busy":
+		return _google_error(429, "RESOURCE_EXHAUSTED")
+	if key == "AQ.broke":
+		return _google_error(403, "PERMISSION_DENIED", "ACCESS_TOKEN_TYPE_UNSUPPORTED")
+	if key != "AQ.good":
+		return _google_error(400, "INVALID_ARGUMENT", "API_KEY_INVALID")
+	if request.method == "GET" and request.url.path == "/v1beta/models":
+		everything = json.loads(fixture_text(GOOGLE_MODELS))["models"]
+		half = len(everything) // 2
+		if request.url.params.get("pageToken") == "p2":
+			return httpx.Response(200, json={ "models": everything[half:] })
+		return httpx.Response(200, json={ "models": everything[:half], "nextPageToken": "p2" })
+	prefix, _, rest = request.url.path.partition("/v1beta/models/")
+	model, _, action = rest.partition(":")
+	if request.method != "POST" or prefix != "" or action != "generateContent":
+		return _google_error(404, "NOT_FOUND")
+	if model not in { m["baseModelId"] for m in json.loads(fixture_text(GOOGLE_MODELS))["models"] }:
+		return _google_error(404, "NOT_FOUND")
+	body = json.loads(request.read() or b"{}")
+	config = body.get("generationConfig") or {}
+	if "IMAGE" not in (config.get("responseModalities") or []):
+		text = "A lighthouse drawn as a woodcut by Hokusai, in a storm of paper cranes"
+		return httpx.Response(200, json={ "candidates": [{ "content": { "role": "model", "parts": [{ "text": text }] }, "finishReason": "STOP" }] })
+	image = config.get("imageConfig") or {}
+	ratios, sizes = _google_discovered()
+	size = image.get("imageSize")
+	if "flash-lite-image" in model:
+		sizes = [s for s in sizes if s == "1K"]
+	if "nano-banana" in model:
+		sizes = [s for s in sizes if s != "512"]
+	if image.get("aspectRatio") not in ratios or size not in sizes:
+		return _google_error(400, "INVALID_ARGUMENT")
+	w, _, h = str(image["aspectRatio"]).partition(":")
+	scale = { "512": 40, "1K": 80, "2K": 160, "4K": 320 }[size]
+	png = synthetic_image(int(w) * scale // max(int(w), int(h)), int(h) * scale // max(int(w), int(h)), model, "PNG")
+	return httpx.Response(200, json={ "candidates": [{ "content": { "role": "model", "parts": [
+		{ "text": "Here is the picture." }, { "inlineData": { "mimeType": "image/png", "data": base64.b64encode(png).decode() } }] }, "finishReason": "STOP" }] })
+
+ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _apod, _apod_image, _rss_feed, _rss_image, _calendar, _caldav, _weather, _openai, _google]
 
 def install() -> FakeInternet | None:
 	"""Make every `AsyncHttpWorkerPool` talk to the fake (unless EINK_TEST_LIVE is set)."""

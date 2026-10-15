@@ -1,0 +1,30 @@
+{
+	"id": "google-text",
+	"name": "Google Text",
+	"version": "0.0.1",
+	"class": "GoogleTextAsync",
+	"file": "google_text.py",
+	"module": "python.datasources.google_text.google_text",
+	"description": "A Gemini model writes the prompt of a Generated Image. The key is in the Google AI settings.",
+	"disabled": false,
+	"uses": ["google-ai"],
+	"features": ["api", "ai-text"],
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+				"textModel": { "url": "/api/datasource/google-ai/lookups/text-models" }
+			},
+			"properties": [
+				{
+					"name": "textModel",
+					"type": "string",
+					"required": true,
+					"default": "gemini-3.5-flash",
+					"title": "Text Model",
+					"description": "The Gemini text model that rewrites the prompt, from those your API key may use.",
+					"lookup": "textModel"
+				}
+			]
+		}
+	}
+}

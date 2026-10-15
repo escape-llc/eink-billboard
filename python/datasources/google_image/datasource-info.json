@@ -1,0 +1,40 @@
+{
+	"id": "google-image",
+	"name": "Google Image",
+	"version": "0.0.1",
+	"class": "GoogleImageAsync",
+	"file": "google_image.py",
+	"module": "python.datasources.google_image.google_image",
+	"description": "A Gemini image model draws the picture of a Generated Image. The key is in the Google AI settings.",
+	"disabled": false,
+	"uses": ["google-ai"],
+	"features": ["api", "ai-image"],
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+				"imageModel": { "url": "/api/datasource/google-ai/lookups/image-models" },
+				"quality": { "url": "/api/datasource/google-ai/lookups/qualities" }
+			},
+			"properties": [
+				{
+					"name": "imageModel",
+					"type": "string",
+					"required": true,
+					"default": "gemini-nano-banana-2.1",
+					"title": "Image Model",
+					"description": "The Gemini image models your API key may use. The picture is drawn at the shape Google offers nearest the panel's, with a blurred margin for the rest.",
+					"lookup": "imageModel"
+				},
+				{
+					"name": "quality",
+					"type": "string",
+					"required": true,
+					"default": "auto",
+					"title": "Quality",
+					"description": "The size Google draws at: Auto 1K, High 2K, Maximum 4K (higher costs more). A model that does not take the size uses the nearest one below it.",
+					"lookup": "quality"
+				}
+			]
+		}
+	}
+}

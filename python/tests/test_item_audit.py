@@ -35,6 +35,8 @@ SAME_NAME_DIFFERENT = {
 	"views": "the calendar's views and the weather's are different pages",
 	"showAs": "the choices differ by layer: a playlist page, or a timer task's image",
 	"slideMinutes": "the default differs: a playlist slot, or a priority image",
+	"imageModel": "each provider's own image models (OpenAI, Google), chosen from its own list",
+	"textModel": "each provider's own text models (OpenAI, Google), chosen from its own list",
 }
 TYPES: dict[str, Any] = { "string": str, "integer": int, "number": (int, float), "boolean": bool, "array": list }
 
