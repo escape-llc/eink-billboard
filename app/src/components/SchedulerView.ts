@@ -39,15 +39,24 @@ export function rangeLabel(start: string, days: number): string {
 }
 
 /** A task's runs in the window: the task once, its first run and how many (an event carries the task in `data`, with its document in `schedule`). */
-export type TaskRow = { key: string, title: string, plugin: string, enabled: boolean, startup: boolean, next: Date|null, runs: number, data: any }
+export type TaskRow = { key: string, title: string, plugin: string, trigger: string, enabled: boolean, startup: boolean, next: Date|null, runs: number, data: any }
 
-/** Each task once, from the events of the window and the tasks of every document (a task that does not run in the window is listed with no run), in order of first run. */
-export function taskRows(events: { start: Date, data?: any }[], schedules: Record<string, { items?: any[] }>, pluginName: (id: string) => string): TaskRow[] {
+const DAY_NAMES: Record<string, string> = { dayofweek: "Day-of-Week", dayofmonth: "Day-of-Month", dayandmonth: "Day-and-Month" }
+const TIME_NAMES: Record<string, string> = { hourly: "Hourly", hourofday: "Hour-of-Day", specific: "Specific" }
+/** What kind of trigger a task has, as the editor names its two parts: "Day-of-Week/Hourly". */
+export function triggerText(trigger: { day?: { type?: string }, time?: { type?: string } } | undefined): string {
+	const day = DAY_NAMES[String(trigger?.day?.type)]
+	const time = TIME_NAMES[String(trigger?.time?.type)]
+	return [day, time].filter(Boolean).join("/")
+}
+
+/** Each task once, from the events of the window (`runs` counts the whole window, `next` the first run from `now`) and the tasks of every document (a task that does not run in the window is listed with no run), in order of first run. */
+export function taskRows(events: { start: Date, data?: any }[], schedules: Record<string, { items?: any[] }>, pluginName: (id: string) => string, now: Date = new Date()): TaskRow[] {
 	const rows = new Map<string, TaskRow>()
 	for (const [schedule, doc] of Object.entries(schedules ?? {})) {
 		for (const item of doc?.items ?? []) {
 			const key = `${schedule}/${item.id}`
-			rows.set(key, { key, title: String(item.title ?? ""), plugin: pluginName(String(item.task?.plugin_name ?? "")), enabled: !!item.enabled, startup: item.trigger?.on_startup === true, next: null, runs: 0, data: { ...item, schedule } })
+			rows.set(key, { key, title: String(item.title ?? ""), plugin: pluginName(String(item.task?.plugin_name ?? "")), trigger: triggerText(item.trigger), enabled: !!item.enabled, startup: item.trigger?.on_startup === true, next: null, runs: 0, data: { ...item, schedule } })
 		}
 	}
 	for (const event of events) {
@@ -56,7 +65,8 @@ export function taskRows(events: { start: Date, data?: any }[], schedules: Recor
 		const row = rows.get(`${data.schedule}/${data.id}`)
 		if (!row) continue
 		row.runs++
-		if (row.next === null || event.start < row.next) row.next = event.start
+		// the window starts at today's midnight, so its first runs may have passed: the next one is the first from now on
+		if (event.start >= now && (row.next === null || event.start < row.next)) row.next = event.start
 	}
 	const time = (row: TaskRow) => row.next?.getTime() ?? Number.POSITIVE_INFINITY
 	return [...rows.values()].sort((a, b) => time(a) - time(b) || a.title.localeCompare(b.title))

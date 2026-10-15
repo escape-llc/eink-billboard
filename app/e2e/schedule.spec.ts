@@ -291,6 +291,9 @@ test("the list shows each task once and opens it", async ({ page }) => {
 	const row = list.getByRole("row").filter({ hasText: "Quarter-hour clock" })
 	await expect(row).toHaveCount(1)
 	await expect(row.locator(".runs")).toHaveText(/^\d+$/)
+	// the kind of trigger, as the editor names it
+	await expect(list.getByRole("columnheader", { name: "Trigger" })).toBeVisible()
+	await expect(row).toContainText(/(Day-of-Week|Day-of-Month|Day-and-Month)\/(Hourly|Hour-of-Day|Specific)/)
 	// which tasks run at startup: a check in its own column, from the task's trigger
 	await expect(list.getByRole("columnheader", { name: "Run At Startup" })).toBeVisible()
 	await expect(list.locator("td.startup i.pi-check")).toHaveCount(1)
