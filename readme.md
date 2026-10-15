@@ -71,7 +71,11 @@ After you sign in, the web app opens the playlist page, since a new device has n
 
 ## Update
 
-Run the setup command again. It brings `~/eink-billboard` up to date, builds what changed and restarts the app, keeping your settings, playlists and password.
+```
+~/eink-billboard/deploy/eink-container.sh update
+```
+
+It fetches the latest code into `~/eink-billboard`, builds it and restarts the app, keeping your settings, playlists and password; when there is nothing new it says so and leaves the app running. (Running the setup command again does the same, and also re-checks the Pi.)
 
 ## On your network
 
@@ -114,7 +118,8 @@ Every command first checks the basics (Linux, not root, Podman and curl installe
 | Command | What it does |
 |---|---|
 | `help` | Lists the commands and settings. |
-| `build` | Builds the app's image (`localhost/eink-device`) from the clone: 15 to 20 minutes the first time, a few minutes after an update. Checks for about 4 GB of free space first, records the commit it was built from, and writes everything to `~/.cache/eink-billboard/build.log`; on failure it shows the end of that log. |
+| `update` | **Brings it up to date:** fetches the latest code into the clone, builds it and starts it (your data is kept). When nothing is new and the app already runs it, it says so and does nothing. Refuses when the clone has changes of your own. `update TAG` switches to a release by its tag, once there are releases; a plain `update` on a release stays on it. |
+| `build` | Builds the app's image (`localhost/eink-device`) from the clone as it is, without fetching anything (`update` fetches): 15 to 20 minutes the first time, a few minutes after an update. Checks for about 4 GB of free space first, records the commit it was built from, and writes everything to `~/.cache/eink-billboard/build.log`; on failure it shows the end of that log. |
 | `start` | Starts the app (or replaces the running one; the data is kept) on port 8080 of every address of the Pi. Passes in the panel's devices that exist (`/dev/spidev0.0`, `/dev/spidev0.1`, `/dev/i2c-1`, `/dev/gpiochip0`) with your `spi`, `i2c` and `gpio` groups, warns when a group is missing, refuses a port that is already in use, waits up to 90 seconds for the app to answer (showing its last log lines if it stops), then prints the setup code. Also `restart`. |
 | `stop` | Stops and removes the container. The settings, playlists and password are kept, in the volume `eink-data`. |
 | `logs` | The app's log; `logs -f` follows it (Ctrl+C to stop). |

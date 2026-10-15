@@ -48,7 +48,7 @@ Run it again at any time: it continues after a restart it asked for, and later i
 Options (after "| bash -s --"):  --dry-run  say what it would do, change nothing     --yes  ask nothing     --help  this text
 Settings:  EINK_DISPLAY  mock, inky or waveshare:MODEL      EINK_REF  branch or tag (master)
            EINK_DIR      where to clone (~/eink-billboard)  EINK_REPO the repository
-Afterwards:  ~/eink-billboard/deploy/eink-container.sh help
+Afterwards:  ~/eink-billboard/deploy/eink-container.sh help      (update: ~/eink-billboard/deploy/eink-container.sh update)
 EOF
 				return 0 ;;
 			*) printf 'eink-billboard bootstrap: unknown option %s (--yes, --dry-run, --help)\n' "$arg" >&2; return 2 ;;

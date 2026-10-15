@@ -2,7 +2,8 @@
 # eInk Billboard in a Podman container on a Raspberry Pi 4 or 5, built from this checkout.
 # Everything needed to build it, run it and find out why it does not work. Run it as yourself (not with sudo), from anywhere:
 #
-#   deploy/eink-container.sh build               build the image from this checkout (15 to 20 minutes the first time, a few after a change)
+#   deploy/eink-container.sh update [TAG]        bring it up to date: fetch the latest code, build it, start it (data kept); TAG switches to that release
+#   deploy/eink-container.sh build               build the image from this checkout as it is (15 to 20 minutes the first time, a few after a change)
 #   deploy/eink-container.sh start               start the app (or start it again), with the panel's devices, on port 8080 of every address of the Pi
 #   deploy/eink-container.sh stop                stop it (the settings, schedules and password are kept)
 #   deploy/eink-container.sh logs [-f]           the app's log (-f follows it; Ctrl+C to stop)
@@ -147,7 +148,61 @@ cmd_build() {
 		fail "the build failed (the whole of it is in $log). A network error: try again. Out of space: podman image prune."
 	fi
 	say ""
-	say "Built $IMAGE (commit $commit). Start it with:  $SCRIPT start"
+	# "update" starts it next by itself
+	if [ "${IN_UPDATE:-0}" = 1 ]; then say "Built $IMAGE (commit $commit)."; else say "Built $IMAGE (commit $commit). Start it with:  $SCRIPT start"; fi
+}
+
+# the commit the image was built from (its label), or "unknown"
+image_commit() {
+	local built
+	built=$(podman image inspect -f '{{index .Labels "eink.commit"}}' "$IMAGE" 2>/dev/null)
+	case "$built" in ''|'<no value>') echo unknown ;; *) echo "$built" ;; esac
+}
+
+# fetch the latest code, build it, start it: the one command for "bring it up to date" ($1, optional: a branch or tag to switch to)
+cmd_update() {
+	local want=${1:-}
+	command -v git >/dev/null || fail "git is not installed. Install it with:  sudo apt install -y git"
+	git -C "$HERE" rev-parse --git-dir >/dev/null 2>&1 || fail "$HERE is not a git clone, so it cannot be updated. Run the setup command again, it makes one."
+	git -C "$HERE" diff --quiet && git -C "$HERE" diff --cached --quiet \
+		|| fail "the clone in $HERE has changes of its own, and updating would mix them in. Undo them (git -C $HERE stash), then run it again."
+
+	section "Getting the latest code"
+	local before branch
+	before=$(git -C "$HERE" rev-parse --short HEAD)
+	git -C "$HERE" fetch --tags --prune origin || fail "the latest code could not be fetched: is the Pi on the internet?"
+	if [ -n "$want" ]; then
+		git -C "$HERE" rev-parse -q --verify "origin/$want^{commit}" >/dev/null 2>&1 || git -C "$HERE" rev-parse -q --verify "refs/tags/$want^{commit}" >/dev/null 2>&1 \
+			|| fail "there is no branch or tag '$want'. The branches and tags there are:  git -C $HERE branch -r; git -C $HERE tag"
+		git -C "$HERE" checkout -q "$want" || fail "could not switch to '$want'."
+	fi
+	if branch=$(git -C "$HERE" symbolic-ref -q --short HEAD); then
+		git -C "$HERE" rev-parse -q --verify "origin/$branch" >/dev/null \
+			|| fail "the branch '$branch' is not in the repository the clone came from, so there is nothing to update it from. Go back to the usual one:  $SCRIPT update master"
+		# a branch moves on: take what is new (only forward; a clone with commits of its own is not touched)
+		git -C "$HERE" merge -q --ff-only "origin/$branch" 2>/dev/null \
+			|| fail "the clone cannot simply move forward to the latest '$branch' (it has commits of its own). Nothing was changed."
+		say "On $branch, now at commit $(git -C "$HERE" rev-parse --short HEAD) (was $before)."
+	else
+		# a tag stays where it is: a newer release is chosen by name, "update v1.2"
+		say "On $(git -C "$HERE" describe --tags --exact-match 2>/dev/null || echo "commit $before"), which does not move. For another release:  $SCRIPT update <tag>"
+	fi
+
+	local now
+	now=$(git -C "$HERE" rev-parse --short HEAD)
+	if [ "$now" = "$(image_commit)" ] && podman image exists "$IMAGE"; then
+		if running; then
+			say "The app already runs this code: nothing to do."
+			return 0
+		fi
+		say "The image is already built from this code."
+	else
+		section "Building"
+		IN_UPDATE=1 cmd_build
+	fi
+
+	section "Starting"
+	cmd_start
 }
 
 cmd_start() {
@@ -269,18 +324,17 @@ cmd_check() {
 	section "the app"
 	if podman image exists "$IMAGE"; then
 		local built
-		built=$(podman image inspect -f '{{index .Labels "eink.commit"}}' "$IMAGE" 2>/dev/null)
-		case "$built" in ''|'<no value>') built=unknown ;; esac
+		built=$(image_commit)
 		local checkout
 		checkout=$(git -C "$HERE" rev-parse --short HEAD 2>/dev/null || echo unknown)
 		note "image $IMAGE, built $(podman image inspect -f '{{.Created}}' "$IMAGE" | cut -c1-16) from commit $built"
 		if [ "$built" = "$checkout" ]; then
 			note "the image is this checkout's commit"
 		elif [ "$built" = unknown ] || [ "$checkout" = unknown ]; then
-			info "cannot tell whether the image is this checkout's commit ($checkout); to be sure: '$SCRIPT build', then '$SCRIPT start'"
+			info "cannot tell whether the image is this checkout's commit ($checkout); to be sure: '$SCRIPT update'"
 		else
 			# not a fault (the app runs as built), but the clone has moved on since: what runs is not what is checked out
-			info "this checkout is at commit $checkout, the image at $built: to run the checkout, '$SCRIPT build', then '$SCRIPT start'"
+			info "this checkout is at commit $checkout, the image at $built: to run the checkout, '$SCRIPT update'"
 		fi
 	else
 		problem "no image yet:  $SCRIPT build"
@@ -531,6 +585,7 @@ preflight "$command"
 shift
 case "$command" in
 	build) cmd_build ;;
+	update) cmd_update "$@" ;;
 	start|restart) cmd_start ;;
 	stop) cmd_stop ;;
 	logs) cmd_logs "$@" ;;
