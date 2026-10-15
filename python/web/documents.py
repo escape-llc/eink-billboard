@@ -165,7 +165,8 @@ def _check_value(prop: dict, value: Any, lookups: dict) -> str|None:
 			return "Enter a valid URL"
 		if prop.get("format") == "color" and value != "" and not _COLOR.match(value):
 			return NOT_A_COLOR
-		if value != "":
+		# a write-only field's mask stands for the stored value (restored before a save is checked; one that cannot be is `unrestored_masks`'s)
+		if value != "" and not (prop.get("writeOnly") is True and value == SECRET_MASK):
 			if prop.get("minLength") is not None and len(value) < prop["minLength"]:
 				return f"At least {prop['minLength']} characters"
 			if prop.get("maxLength") is not None and len(value) > prop["maxLength"]:

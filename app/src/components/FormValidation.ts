@@ -38,6 +38,8 @@ export const isUri = (value: string, schemes: readonly string[] = DEFAULT_SCHEME
 
 // `format: "color"`: the same expression as `_COLOR` in python/web/documents.py
 const COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+/** What the server sends for a stored write-only value (SECRET_MASK in python/web/documents.py). */
+export const SECRET_MASK = "********"
 
 const emptyToNull = (val: unknown) => (val === "" || val === undefined ? null : val)
 
@@ -62,9 +64,11 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 			}
 			let base: z.ZodTypeAny = z.string()
 			if (required) base = (base as z.ZodString).min(1, { error: messages.required })
+			// a write-only field shows the mask for the stored value: the rules below are the stored value's, checked by the server once it is restored
+			const masked = (v: unknown) => px.writeOnly === true && v === SECRET_MASK
 			// the length and pattern rules apply to a value that is there: "" is unset, which `required` handles
-			if (px.minLength !== undefined) base = base.refine((v: unknown) => v === "" || (v as string).length >= px.minLength!, { error: messages.atLeast(px.minLength) })
-			if (px.maxLength !== undefined) base = base.refine((v: unknown) => (v as string).length <= px.maxLength!, { error: messages.atMost(px.maxLength) })
+			if (px.minLength !== undefined) base = base.refine((v: unknown) => v === "" || masked(v) || (v as string).length >= px.minLength!, { error: messages.atLeast(px.minLength) })
+			if (px.maxLength !== undefined) base = base.refine((v: unknown) => masked(v) || (v as string).length <= px.maxLength!, { error: messages.atMost(px.maxLength) })
 			if (px.format === "uri") {
 				const schemes = px.schemes
 				base = base.refine((v: unknown) => v === "" || isUri(v as string, schemes), { error: messages.url })
@@ -74,7 +78,7 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 			}
 			if (px.pattern) {
 				const re = new RegExp(px.pattern)
-				base = base.refine((v: unknown) => v === "" || re.test(v as string), { error: messages.format })
+				base = base.refine((v: unknown) => v === "" || masked(v) || re.test(v as string), { error: messages.format })
 			}
 			if (px.enum && px.enum.length > 0) {
 				const allowed = px.enum

@@ -1,0 +1,116 @@
+{
+  "models": [
+    {
+      "name": "models/gemini-3.5-flash",
+      "baseModelId": "gemini-3.5-flash",
+      "version": "001",
+      "displayName": "gemini-3.5-flash",
+      "supportedGenerationMethods": [
+        "generateContent",
+        "countTokens"
+      ]
+    },
+    {
+      "name": "models/gemini-3.1-pro-preview",
+      "baseModelId": "gemini-3.1-pro-preview",
+      "version": "001",
+      "displayName": "gemini-3.1-pro-preview",
+      "supportedGenerationMethods": [
+        "generateContent",
+        "countTokens"
+      ]
+    },
+    {
+      "name": "models/gemini-nano-banana-2.1",
+      "baseModelId": "gemini-nano-banana-2.1",
+      "version": "001",
+      "displayName": "gemini-nano-banana-2.1",
+      "supportedGenerationMethods": [
+        "generateContent",
+        "countTokens"
+      ]
+    },
+    {
+      "name": "models/gemini-3.1-flash-image",
+      "baseModelId": "gemini-3.1-flash-image",
+      "version": "001",
+      "displayName": "gemini-3.1-flash-image",
+      "supportedGenerationMethods": [
+        "generateContent",
+        "countTokens"
+      ]
+    },
+    {
+      "name": "models/gemini-3.1-flash-lite-image",
+      "baseModelId": "gemini-3.1-flash-lite-image",
+      "version": "001",
+      "displayName": "gemini-3.1-flash-lite-image",
+      "supportedGenerationMethods": [
+        "generateContent"
+      ]
+    },
+    {
+      "name": "models/gemini-3-pro-image",
+      "baseModelId": "gemini-3-pro-image",
+      "version": "001",
+      "displayName": "gemini-3-pro-image",
+      "supportedGenerationMethods": [
+        "generateContent"
+      ]
+    },
+    {
+      "name": "models/gemini-2.5-flash-image",
+      "baseModelId": "gemini-2.5-flash-image",
+      "version": "001",
+      "displayName": "gemini-2.5-flash-image",
+      "supportedGenerationMethods": [
+        "generateContent"
+      ]
+    },
+    {
+      "name": "models/gemini-3.5-flash-live",
+      "baseModelId": "gemini-3.5-flash-live",
+      "version": "001",
+      "displayName": "gemini-3.5-flash-live",
+      "supportedGenerationMethods": [
+        "bidiGenerateContent"
+      ]
+    },
+    {
+      "name": "models/gemini-embedding-002",
+      "baseModelId": "gemini-embedding-002",
+      "version": "001",
+      "displayName": "gemini-embedding-002",
+      "supportedGenerationMethods": [
+        "embedContent"
+      ]
+    },
+    {
+      "name": "models/gemini-3.5-flash-preview-tts",
+      "baseModelId": "gemini-3.5-flash-preview-tts",
+      "version": "001",
+      "displayName": "gemini-3.5-flash-preview-tts",
+      "supportedGenerationMethods": [
+        "generateContent"
+      ]
+    },
+    {
+      "name": "models/text-embedding-005",
+      "baseModelId": "text-embedding-005",
+      "version": "001",
+      "displayName": "text-embedding-005",
+      "supportedGenerationMethods": [
+        "embedContent"
+      ]
+    },
+    {
+      "name": "models/imagen-4.0-generate-001",
+      "baseModelId": "imagen-4.0-generate-001",
+      "version": "001",
+      "displayName": "imagen-4.0-generate-001",
+      "supportedGenerationMethods": [
+        "predict"
+      ]
+    }
+  ]
+}

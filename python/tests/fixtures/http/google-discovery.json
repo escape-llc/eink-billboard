@@ -1,0 +1,35 @@
+{
+  "kind": "discovery#restDescription",
+  "name": "generativelanguage",
+  "version": "v1beta",
+  "schemas": {
+    "ImageConfig": {
+      "id": "ImageConfig",
+      "type": "object",
+      "properties": {
+        "aspectRatio": {
+          "type": "string",
+          "description": "Optional. The aspect ratio of the image to generate. Supported aspect ratios: `1:1`, `1:4`, `4:1`, `1:8`, `8:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, or `21:9`. If not specified, the model will choose a default aspect ratio based on any reference images provided."
+        },
+        "imageSize": {
+          "type": "string",
+          "description": "Optional. Specifies the size of generated images. Supported values are `512`, `1K`, `2K`, `4K`. If not specified, the model will use default value `1K`."
+        }
+      }
+    },
+    "GenerationConfig": {
+      "id": "GenerationConfig",
+      "type": "object",
+      "properties": {
+        "responseModalities": {
+          "type": "array",
+          "description": "Optional. The requested modalities of the response.",
+          "items": {
+            "type": "string",
+            "enum": ["MODALITY_UNSPECIFIED", "TEXT", "IMAGE", "AUDIO"]
+          }
+        }
+      }
+    }
+  }
+}

@@ -479,6 +479,33 @@
 			"error": "Not in the expected format"
 		},
 		{
+			"name": "a write-only field's mask is not checked against the pattern (the stored value is, on the server)",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": true,
+				"type": "string",
+				"writeOnly": true,
+				"pattern": "^AQ\\.[A-Za-z0-9._\\-]+$",
+				"minLength": 12
+			},
+			"value": "********",
+			"error": null
+		},
+		{
+			"name": "a write-only field's new value is checked against the pattern",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": true,
+				"type": "string",
+				"writeOnly": true,
+				"pattern": "^AQ\\.[A-Za-z0-9._\\-]+$"
+			},
+			"value": "AIzaSyExample",
+			"error": "Not in the expected format"
+		},
+		{
 			"name": "string pattern, empty is unset",
 			"field": {
 				"name": "f",
