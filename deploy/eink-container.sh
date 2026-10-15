@@ -203,6 +203,15 @@ cmd_update() {
 
 	section "Starting"
 	cmd_start
+
+	# the build moved the image's name to the new one, and the old one (and the layers only it used) are left behind, a few GB each time; the
+	# container now runs the new image, so they are unused. Only unused images go; a failure here is not one for the update.
+	local before_kb after_kb
+	before_kb=$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print $4}')
+	if podman image prune -f >/dev/null 2>&1; then
+		after_kb=$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print $4}')
+		[ -n "$before_kb" ] && [ -n "$after_kb" ] && [ "$after_kb" -gt "$before_kb" ] && say "Removed old images: $(( (after_kb - before_kb) / 1024 )) MB freed."
+	fi
 }
 
 cmd_start() {
