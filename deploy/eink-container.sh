@@ -271,8 +271,17 @@ cmd_check() {
 		local built
 		built=$(podman image inspect -f '{{index .Labels "eink.commit"}}' "$IMAGE" 2>/dev/null)
 		case "$built" in ''|'<no value>') built=unknown ;; esac
+		local checkout
+		checkout=$(git -C "$HERE" rev-parse --short HEAD 2>/dev/null || echo unknown)
 		note "image $IMAGE, built $(podman image inspect -f '{{.Created}}' "$IMAGE" | cut -c1-16) from commit $built"
-		info "this checkout is at commit $(git -C "$HERE" rev-parse --short HEAD 2>/dev/null || echo unknown): if it differs, '$SCRIPT build' then '$SCRIPT start' to run it"
+		if [ "$built" = "$checkout" ]; then
+			note "the image is this checkout's commit"
+		elif [ "$built" = unknown ] || [ "$checkout" = unknown ]; then
+			info "cannot tell whether the image is this checkout's commit ($checkout); to be sure: '$SCRIPT build', then '$SCRIPT start'"
+		else
+			# not a fault (the app runs as built), but the clone has moved on since: what runs is not what is checked out
+			info "this checkout is at commit $checkout, the image at $built: to run the checkout, '$SCRIPT build', then '$SCRIPT start'"
+		fi
 	else
 		problem "no image yet:  $SCRIPT build"
 	fi
