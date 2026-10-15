@@ -48,8 +48,17 @@
 							</div>
 						</div>
 					</li>
+					<!-- a new track is a draft until it is applied: shown where it will go, not part of the playlist (no unsaved change until then) -->
+					<li v-if="draft" class="selected draft" data-testid="draft-track">
+						<div class="track-row">
+							<div class="track-meta">
+								<div class="title">{{ editModel.title || "Untitled" }}</div>
+								<div>New track: apply it to add it, or cancel</div>
+							</div>
+						</div>
+					</li>
 				</ul>
-				<p v-if="currentId && tracks.length === 0" class="m-1">No tracks yet.</p>
+				<p v-if="currentId && tracks.length === 0 && !draft" class="m-1">No tracks yet.</p>
 				<p v-if="!currentId" class="m-1">{{ playlists.length === 0 ? "This device has no playlist yet, so its panel has nothing to show. Create one (the + button above), add tracks, and save it." : "Choose or create a playlist to add tracks." }}</p>
 			</div>
 
@@ -158,6 +167,8 @@ const saving = ref(false)
 const conflict = ref<{ message: string, rev: string|undefined }|null>(null)
 const serverProblems = ref<string[]>([])
 const selectedIndex = ref<number | null>(null)
+// a track being added: edited like the others, but not in the playlist (nor an unsaved change) until it is applied; cancel drops it
+const draft = ref<PlaylistItem | null>(null)
 const nameOpen = ref(false)
 const nameDialogRename = ref(false)
 const nameValue = ref("")
@@ -170,7 +181,7 @@ const selectKey = ref(0)
 // editing model separate from the track until Apply
 const editModel = reactive<Record<string,any>>({} as any) // start with empty model, populate on track select
 
-const selectedTrack = computed(() => (selectedIndex.value !== null ? tracks.value[selectedIndex.value] : null))
+const selectedTrack = computed(() => draft.value ?? (selectedIndex.value !== null ? tracks.value[selectedIndex.value] : null))
 const selectedPlugin = computed(() => pluginList.value.find(p => p.id === editModel.plugin_name) || null)
 // a playlist track plays on the background or foreground layer: the plugins for the timer layers (priority, overlay) are not offered.
 // A stored track keeps its plugin (and shows it) even when it would not be offered now
@@ -187,7 +198,17 @@ const handleValidate = (e: ValidateEventData) => {
 }
 /** Apply: the form's fields (only the selected plugin's) are the track's content; title and plugin are the editor's. */
 const submitForm = (data:any) => {
-	if(!data.result?.success || selectedIndex.value === null) return
+	if(!data.result?.success) return
+	if(draft.value) {
+		// the draft becomes a track of the playlist: only now is it a change to save
+		tracks.value.push({ ...draft.value, title: editModel.title, plugin_name: editModel.plugin_name, type: "PlaylistSchedule", content: structuredClone(data.result.data) })
+		draft.value = null
+		selectedIndex.value = tracks.value.length - 1
+		dirty.value = true
+		serverProblems.value = []
+		return
+	}
+	if(selectedIndex.value === null) return
 	const index = selectedIndex.value
 	const old = tracks.value[index]
 	if(!old) return
@@ -218,9 +239,11 @@ function resetMessages() {
 function addTrack() {
 	const first = playlistPlugins.value[0]
 	if(!first) return
-	tracks.value.push({ id: uid(), plugin_name: first.id, type: "PlaylistSchedule", title: "Untitled", content: {} })
-	dirty.value = true
-	selectTrack(tracks.value.length - 1)
+	// a draft, not a track yet: nothing changes in the playlist until it is applied
+	const track: PlaylistItem = { id: uid(), plugin_name: first.id, type: "PlaylistSchedule", title: "Untitled", content: {} }
+	draft.value = track
+	selectedIndex.value = null
+	load(track)
 }
 
 function removeTrack(idx: number) {
@@ -244,20 +267,33 @@ function moveTrack(idx: number, by: number) {
 	else if (selectedIndex.value === to) selectedIndex.value = idx
 }
 
+/** Put a track into the editor (a copy: the track changes only on Apply). */
+function load(trk: PlaylistItem) {
+	editModel.id = trk.id
+	editModel.plugin_name = trk.plugin_name
+	editModel.type = trk.type
+	editModel.title = trk.title
+	editModel.content = JSON.parse(JSON.stringify(trk.content || {})) // clone
+}
 function selectTrack(idx: number) {
+	// choosing another track leaves a draft that was not applied: it is dropped, as cancel would
+	draft.value = null
 	selectedIndex.value = idx
 	const trk = tracks.value[idx]
-	if(trk) {
-		editModel.id = trk.id
-		editModel.plugin_name = trk.plugin_name
-		editModel.type = trk.type
-		editModel.title = trk.title
-		editModel.content = JSON.parse(JSON.stringify(trk.content || {})) // clone
-	}
+	if(trk) load(trk)
 }
 
 function cancelEdit() {
-	if (selectedIndex.value !== null) selectTrack(selectedIndex.value)
+	if (draft.value) {
+		// cancel on a new track: it was never added, so nothing is left behind
+		draft.value = null
+		selectedIndex.value = null
+		editModel.id = undefined
+		editModel.plugin_name = undefined
+		editModel.title = undefined
+		editModel.content = {}
+	}
+	else if (selectedIndex.value !== null) selectTrack(selectedIndex.value)
 	else {
 		editModel.id = undefined
 		editModel.plugin_name = undefined
@@ -297,6 +333,7 @@ function adopt(doc: any, keepSelection = false) {
 	playlistName.value = doc.name
 	docRev.value = doc._rev
 	tracks.value = structuredClone(doc.items)
+	draft.value = null
 	dirty.value = false
 	resetMessages()
 	const keep = keepSelection ? selectedIndex.value : null
@@ -317,6 +354,7 @@ async function loadPlaylists(selectId?: string) {
 			playlistName.value = undefined
 			docRev.value = undefined
 			tracks.value = []
+			draft.value = null
 			selectedIndex.value = null
 			dirty.value = false
 		}
@@ -574,6 +612,12 @@ onMounted(() => {
 .selected {
 	background: var(--p-highlight-background);
 	border: 1px solid var(--p-content-border-color);
+}
+/* a new track not applied yet: where it will go, dashed and muted, since it is not part of the playlist */
+.draft {
+	border-style: dashed;
+	color: var(--p-text-muted-color);
+	font-style: italic;
 }
 .track-editor {
 	flex: 1;
