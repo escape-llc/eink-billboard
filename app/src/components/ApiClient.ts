@@ -31,10 +31,9 @@ import { ref } from "vue"
 import { promptForAuth, type AccessInfo, type AuthMode, type SendResult, type Values } from "./AuthPrompt"
 
 /**
- * Counts the sign-ins of this page. What the page shows was loaded before the sign-in (or not at all) and the storage may have changed
- * since (edited by hand, another browser), so `App.vue` keys the routed view on it: the current page is built again and reads everything anew.
- * It moves as soon as every request that waited for the sign-in has been sent again: a save that asked for it reaches the server before the new page
- * reads, and the old page is gone before its retried answers come back (a page that showed them and was then rebuilt lost what was typed into it).
+ * Counts the sign-ins of this page. What the page shows was loaded before the sign-in (or not at all), the storage may have changed since (edited by
+ * hand, another browser) and the device may run a newer build, so `App.vue` reloads the whole page when it moves (see `SignedIn.ts`).
+ * It moves once every request that waited for the sign-in has been answered: a save that asked for it is done before the page goes.
  */
 export const signInCount = ref(0)
 
@@ -91,7 +90,7 @@ let epoch = 0
 // The prompt was cancelled or the server refused the token: do not keep asking while this page is open.
 // The requests fail with the server's message, and reloading the page asks again.
 let declined = false
-// the requests that waited for a sign-in and have not been sent again yet; the last one moves `signInCount`
+// the requests that waited for a sign-in and have not been answered again yet; the last one moves `signInCount`
 let waiting = 0
 let signedIn = false
 
@@ -129,25 +128,19 @@ export async function apiFetch(url: string, init?: RequestInit): Promise<Respons
 		return ok
 	}).finally(() => { signingIn = null })
 	waiting++
-	let ok = false
 	try {
-		ok = await signingIn
+		if(!await signingIn) {
+			throw await toApiError(rx)
+		}
+		rx = await send()
+		if(rx.status === 401) {
+			throw await toApiError(rx)
+		}
+		return rx
 	}
 	finally {
-		if(!ok) {
-			retried()
-		}
+		retried()
 	}
-	if(!ok) {
-		throw await toApiError(rx)
-	}
-	const retry = send()
-	retried()
-	rx = await retry
-	if(rx.status === 401) {
-		throw await toApiError(rx)
-	}
-	return rx
 }
 
 /** GET (or the given method) and parse the JSON body; rejects with ApiError when the status is not 2xx. */

@@ -4,8 +4,8 @@
  * resumes after the last event it has (`since`), and when the server asks for a sign-in (close code 4401) it signs in through ApiClient.
  * Nothing is stored in the browser: the events live as long as the page.
  */
-import { reactive, watch } from "vue"
-import { apiJson, joinUrl, signInCount } from "./ApiClient"
+import { reactive } from "vue"
+import { apiJson, joinUrl } from "./ApiClient"
 
 export type TelemetryEvent = {
 	seq?: number
@@ -125,20 +125,6 @@ export class TelemetryLink {
 		this.connect()
 	}
 
-	/** After a sign-in: what is shown now, read again, and the socket opened again at once (from the last event, so nothing is missed), not at its next retry. */
-	refresh(): void {
-		if (!this.running) return
-		apiJson<TelemetryEvent | null>(joinUrl(this.base || "/", "api/display/current")).then(e => { if (e) this.state.current = e }).catch(() => {})
-		if (this.timer) clearTimeout(this.timer)
-		this.timer = undefined
-		const socket = this.socket
-		// no longer this link's socket: its close does not schedule a retry
-		this.socket = null
-		socket?.close()
-		this.retry = FIRST_RETRY_MS
-		this.connect()
-	}
-
 	stop(): void {
 		this.running = false
 		if (this.timer) clearTimeout(this.timer)
@@ -217,11 +203,6 @@ export class TelemetryLink {
 let shared: TelemetryLink | null = null
 /** The page's one link (the gutter and anything else that wants to follow the device share it). */
 export function useTelemetry(base: string = import.meta.env.VITE_API_URL ?? "/"): TelemetryLink {
-	if (!shared) {
-		const link = new TelemetryLink(base)
-		// the routed page is built again after a sign-in (signInCount); the link lives outside it, so it catches up by itself
-		watch(signInCount, () => link.refresh())
-		shared = link
-	}
+	shared ??= new TelemetryLink(base)
 	return shared
 }

@@ -1172,8 +1172,12 @@ class TestWebApp(unittest.TestCase):
 			with self.subTest(path):
 				self.assertEqual(self.client.get(path).headers.get("cache-control"), "no-cache")
 
-	def test_missing_file_falls_back_to_the_app(self):
-		self.assertIn("spa", self.client.get("/assets/missing.js").text)
+	def test_a_missing_route_is_the_app_and_a_missing_bundle_is_a_404(self):
+		self.assertIn("spa", self.client.get("/some/route").text)
+		# a chunk of another build (a tab opened before an update): the app's page in its place cannot run as a module
+		missing = self.client.get("/assets/Settings-OLDHASH.js")
+		self.assertEqual(missing.status_code, 404)
+		self.assertNotIn("spa", missing.text)
 
 	def test_api_paths_never_fall_back_to_spa(self):
 		resp = self.client.get("/api/whatever")

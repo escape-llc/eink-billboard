@@ -7,7 +7,7 @@ from typing import Any, Mapping
 from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from ..model.configuration_manager import ConfigurationManager
 from ..model.service_container import IServiceProvider
@@ -137,6 +137,10 @@ def _mount_web_app(app: FastAPI, app_path: str|None) -> None:
 	@app.get("/{path:path}", include_in_schema=False)
 	def web_app(path: str):
 		file = _file_in_bundle(path)
+		if file is None and path.startswith("assets/"):
+			# a bundle of another build (a tab opened before an update asks for its old chunks): a 404, never the app's page, which a
+			# browser cannot run as a module (it showed "Failed to fetch dynamically imported module" with a 200); the app reloads itself
+			return JSONResponse({ "success": False, "message": "Not found", "id": None }, status_code=404, headers=revalidate)
 		if file is None:
 			return FileResponse(index, media_type="text/html", headers=revalidate)
 		if path.startswith("assets/"):
