@@ -89,6 +89,12 @@ def create_hash(data:dict) -> str:
 # the file primitives are in storage_files; these names stay for the tests that exercise them
 from .storage_files import load_json as _internal_load, save_json as _internal_save
 
+# settings that moved from one data source to another (`upgrade_settings`, once per storage): (from, to, keys). The Weather's went to the
+# OpenWeatherMap API data source that asks the origin for it and the Weather Overlay.
+SETTINGS_MOVES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+	("weather", "openweathermap", ("apiKey", "units", "currentCacheHours", "forecastCacheHours", "staleDays")),
+)
+
 type LoadFunc = Callable[[str], dict|None]
 type SaveFunc = Callable[[str, dict], None]
 type HashFunc = Callable[[dict], str]
@@ -589,6 +595,29 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		that is not there or does not load is left alone. Returns the documents that changed, by their file name.
 		"""
 		changed: list[str] = []
+		def move(source: str, target: str, keys: tuple[str, ...]) -> None:
+			"""
+			The `keys` of one data source's settings, moved to another's: they are what the user set (the new document holds only its seeded defaults
+			before), and they leave the old document, so a second start has nothing to move.
+			"""
+			src = self.datasource_manager(source).settings_path()
+			stored = _internal_load(src) if os.path.isfile(src) else None
+			if not isinstance(stored, dict):
+				return
+			present = [k for k in keys if k in stored]
+			if not present:
+				return
+			dst = self.datasource_manager(target).settings_path()
+			there = _internal_load(dst) if os.path.isfile(dst) else {}
+			if not isinstance(there, dict):
+				return
+			_internal_save(dst, { **there, **{ k: copy.deepcopy(stored[k]) for k in present } })
+			# out of the old document too: its schema no longer marks a key write-only, so the settings route would send it as it is
+			_internal_save(src, { k: v for k, v in stored.items() if k not in present })
+			# the names only: a value can be a secret
+			logger.info(f"Settings moved from datasources/{source} to datasources/{target}: {', '.join(present)}")
+			changed.append(f"datasources/{source}")
+			changed.append(f"datasources/{target}")
 		def upgrade(path: str, defaults: object, label: str) -> None:
 			if not isinstance(defaults, dict) or not os.path.isfile(path):
 				return
@@ -601,6 +630,9 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			_internal_save(path, { **stored, **copy.deepcopy(missing) })
 			changed.append(label)
 		with self._lock:
+			# first, so the defaults below are added to the moved document
+			for source, target, keys in SETTINGS_MOVES:
+				move(source, target, keys)
 			if os.path.isdir(self.storage_schemas):
 				for name in sorted(os.listdir(self.storage_schemas)):
 					if name.endswith(".json"):

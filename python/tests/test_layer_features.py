@@ -26,6 +26,35 @@ def layers(features: list[str]) -> set[str]:
 def media(features: list[str]) -> set[str]:
 	return {f for f in features if f.startswith("media-")}
 
+def is_api(source: dict) -> bool:
+	"""An API data source (`DataSourceApi`): data for other sources, drawn by none of its own."""
+	return "api" in (source.get("features") or [])
+
+class TestApiDataSources(unittest.TestCase):
+	"""An API data source is data only: no layer, no media, no plugin offers it; its class answers `open_async` and draws nothing; another source uses it."""
+	def test_an_api_source_has_no_layer_or_media_and_no_plugin_offers_it(self):
+		apis = [s for s in SOURCES if is_api(s)]
+		self.assertTrue(apis)
+		for source in apis:
+			with self.subTest(source["id"]):
+				self.assertEqual((layers(source["features"]), media(source["features"])), (set(), set()))
+				self.assertFalse(any(source in offered(p) for p in PLUGINS.values()))
+
+	def test_its_class_is_data_only(self):
+		import importlib
+		from ..datasources.data_source import DataSourceApi
+		for source in (s for s in SOURCES if is_api(s)):
+			with self.subTest(source["id"]):
+				kind = getattr(importlib.import_module(source["module"]), source["class"])
+				self.assertTrue(issubclass(kind, DataSourceApi), "implements DataSourceApi")
+				self.assertFalse(hasattr(kind, "render_async"), "an API data source renders nothing")
+
+	def test_another_source_uses_it(self):
+		used = { u for s in SOURCES for u in (s.get("uses") or []) }
+		for source in (s for s in SOURCES if is_api(s)):
+			with self.subTest(source["id"]):
+				self.assertIn(source["id"], used, "no data source uses it")
+
 class TestPluginsAndSourcesAgree(unittest.TestCase):
 	"""
 	A plugin is offered the data sources of the layer it works on (its lookup asks for `layer-*`), and it advertises the media it handles
@@ -52,12 +81,16 @@ class TestPluginsAndSourcesAgree(unittest.TestCase):
 
 	def test_every_source_declares_a_layer_and_its_media(self):
 		for source in SOURCES:
+			if is_api(source):
+				continue
 			with self.subTest(source["id"]):
 				self.assertTrue(layers(source["features"]), "no layer-* feature")
 				self.assertTrue(media(source["features"]), "no media-* feature")
 
 	def test_every_source_is_offered_by_a_plugin_of_its_layer(self):
 		for source in SOURCES:
+			if is_api(source):
+				continue
 			with self.subTest(source["id"]):
 				self.assertTrue(any(source in offered(p) for p in PLUGINS.values()), "no plugin offers it")
 

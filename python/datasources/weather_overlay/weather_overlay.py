@@ -1,8 +1,8 @@
 """
 The weather for an overlay zone (#157): the weather now, today's range, or the next days, as outlined text (python/datasources/overlay_text.py).
 
-It has no settings and no cache of its own: it asks the Weather data source for its report (`report_async`, through `dsec.context_for(weather)`), so the
-API key, the units and the kept answers are the Weather's, and a Weather page and this overlay of the same hours make one call.
+It has no settings and no cache of its own: it asks the OpenWeatherMap API data source for its report (`dsec.use`), so the API key, the units and
+the kept answers are that source's, and a Weather page and this overlay of the same hours make one call.
 """
 import asyncio
 import logging
@@ -14,10 +14,10 @@ from ...plugins.plugin_base import PermanentError
 from ..data_source import DataSource, DataSourceExecutionContext, MediaItemAsync, MediaRenderAsync, MediaRenderResult
 from ..overlay_text import OverlayIcon, Run, outline_factor, overlay_margin, render_overlay, zone_valign
 from ..weather.icons import ICON_WEIGHT, icon_body
-from ..weather.weather import Report, WeatherAsync
+from ..openweathermap.openweathermap import OpenWeatherMapApi, Report
 
-# the data source it asks: the Weather's id (its descriptor's), never a value from a request
-WEATHER_ID = "weather"
+# the API data source it asks: its descriptor's id, never a value from a request
+OPENWEATHERMAP_ID = "openweathermap"
 VIEWS = ("now", "today", "outlook")
 OUTLOOK_DAYS = 3
 
@@ -62,15 +62,15 @@ def view_lines(view: str, report: Report) -> tuple[list[list[Run]], str|None, st
 	return lines, None, " · ".join("".join(text for text, _ in line) for line in lines)
 
 class WeatherOverlayAsync(DataSource, MediaItemAsync, MediaRenderAsync):
-	"""The weather as an overlay: it asks the Weather data source, whose settings and kept answers it shares."""
+	"""The weather as an overlay: it asks the OpenWeatherMap API data source, whose settings and kept answers it shares."""
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
 
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> Any:
 		view = chosen_view(params)
-		weather, weather_dsec = dsec.use(WEATHER_ID, WeatherAsync)
-		return (view, await weather.report_async(weather_dsec, needs_of(view)))
+		api, api_dsec = dsec.use(OPENWEATHERMAP_ID, OpenWeatherMapApi)
+		return (view, await api.open_async(api_dsec, { "needs": sorted(needs_of(view)) }))
 
 	async def render_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any], state: Any) -> MediaRenderResult | None:
 		if not (isinstance(state, tuple) and len(state) == 2 and isinstance(state[1], Report)):

@@ -106,6 +106,17 @@ class MediaRenderAsync(Protocol):
 	async def render_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any], state:Any) -> MediaRenderResult | None:
 		...
 
+@runtime_checkable
+class DataSourceApi(Protocol):
+	"""
+	Data only: the answer of an origin (an API) for `params`, possibly one it kept (see `response_cache.cached`), for other data sources to show
+	(they ask it with `dsec.use`). It renders nothing and is never a plugin's source: its descriptor has the `api` feature and no `layer-*` or `media-*`
+	one. It holds what the origin needs (the key, the kept times) in its own settings, so every source that shows the data shares them and one answer.
+	What `params` and the answer are is the source's own, documented on its class (the OpenWeatherMap one takes `needs` and answers a `Report`).
+	"""
+	async def open_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any]) -> Any:
+		...
+
 def target_dimensions(dsec: DataSourceExecutionContext, display_settings: Mapping[str, Any]|None = None) -> tuple[int, int]:
 	"""
 	The (width, height) a datasource must render at.

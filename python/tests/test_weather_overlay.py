@@ -8,6 +8,7 @@ import httpx
 
 from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager
 from ..datasources.overlay_text import fit_block
+from ..datasources.openweathermap.openweathermap import OpenWeatherMapApi
 from ..datasources.weather.weather import WeatherAsync
 from ..datasources.weather_overlay.weather_overlay import WeatherOverlayAsync, chosen_view, needs_of, view_lines
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
@@ -79,7 +80,7 @@ class TestFitBlock(unittest.TestCase):
 		self.assertGreater(with_icon.lines[0].x, x + side)
 
 class Harness:
-	"""A storage with the Weather's settings, and the context the Weather Overlay gets (its own folder; the Weather found by the DataSourceManager)."""
+	"""A storage with the OpenWeatherMap settings, and the context the Weather Overlay gets (its own folder; the API data source found by the DataSourceManager)."""
 	def __init__(self, test: unittest.TestCase, sources: dict|None = None, settings: dict|None = None):
 		self.fake = FakeInternet()
 		client_var.set(httpx.AsyncClient(transport=self.fake))
@@ -87,9 +88,9 @@ class Harness:
 		test.addCleanup(shutil.rmtree, folder, True)
 		self.cm = ConfigurationManager(storage_path=folder)
 		self.cm.hard_reset()
-		save_datasource_settings(self.cm, "weather", { "apiKey": KEY, "units": "auto", "forecastCacheHours": 6, "currentCacheHours": 6, **(settings or {}) })
+		save_datasource_settings(self.cm, "openweathermap", { "apiKey": KEY, "units": "auto", "forecastCacheHours": 6, "currentCacheHours": 6, **(settings or {}) })
 		self.weather = WeatherAsync("weather", "Weather")
-		self.sources = { "weather": self.weather } if sources is None else sources
+		self.sources = { "openweathermap": OpenWeatherMapApi("openweathermap", "OpenWeatherMap") } if sources is None else sources
 
 	def context(self, now=NOW, own="weather-overlay") -> DataSourceExecutionContext:
 		root = ServiceContainer()
@@ -111,17 +112,19 @@ class TestAsksTheWeather(unittest.IsolatedAsyncioTestCase):
 		for view in ("now", "today", "outlook"):
 			await overlay.open_async(h.context(NOW + timedelta(hours=1)), { "view": view })
 		self.assertEqual(sorted(h.asked()), ["forecast", "weather"])
-		# it keeps nothing of its own
-		self.assertEqual(h.cm.datasource_manager("weather-overlay").list_files("cache-"), [])
+		# neither keeps anything of its own: the answers are the API data source's
+		for own in ("weather-overlay", "weather"):
+			self.assertEqual(h.cm.datasource_manager(own).list_files("cache-"), [])
+		self.assertEqual(len(h.cm.datasource_manager("openweathermap").list_files("cache-")), 2)
 
-	async def test_without_the_weather_it_says_so(self):
+	async def test_without_the_api_data_source_it_says_so(self):
 		h = Harness(self, sources={})
-		with self.assertRaisesRegex(PermanentError, "Weather data source is not available"):
+		with self.assertRaisesRegex(PermanentError, "Openweathermap data source is not available"):
 			await WeatherOverlayAsync("weather-overlay", "Weather Overlay").open_async(h.context(), { "view": "now" })
 
-	async def test_the_weathers_settings_problems_are_its(self):
+	async def test_the_api_data_sources_settings_problems_are_its(self):
 		h = Harness(self, settings={ "apiKey": None })
-		with self.assertRaisesRegex(PermanentError, "Weather settings"):
+		with self.assertRaisesRegex(PermanentError, "OpenWeatherMap settings"):
 			await WeatherOverlayAsync("weather-overlay", "Weather Overlay").open_async(h.context(), { "view": "now" })
 
 	async def test_anything_but_its_state_is_nothing_to_show(self):

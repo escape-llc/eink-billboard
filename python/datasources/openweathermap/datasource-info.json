@@ -1,0 +1,78 @@
+{
+	"id": "openweathermap",
+	"name": "OpenWeatherMap",
+	"version": "0.0.1",
+	"class": "OpenWeatherMapApi",
+	"file": "openweathermap.py",
+	"module": "python.datasources.openweathermap.openweathermap",
+	"description": "The weather at the device's location from OpenWeatherMap, for the Weather pages and the Weather Overlay: the API key, the units and the kept answers they share.",
+	"disabled": false,
+	"features": ["internet", "api-key", "api"],
+	"settings": {
+		"schema": {
+			"properties": [
+				{
+					"name": "apiKey",
+					"type": "string",
+					"required": false,
+					"writeOnly": true,
+					"default": null,
+					"title": "API Key",
+					"description": "Your OpenWeatherMap key. The free plan is enough. A new key can take a couple of hours to start working.",
+					"link": { "url": "https://home.openweathermap.org/users/sign_up", "label": "Get a free API key" }
+				},
+				{
+					"name": "units",
+					"type": "string",
+					"required": true,
+					"default": "auto",
+					"title": "Units",
+					"description": "auto: miles and Fahrenheit in the US timezones, kilometres and Celsius elsewhere.",
+					"enum": ["auto", "metric", "imperial"]
+				},
+				{
+					"name": "currentCacheHours",
+					"type": "number",
+					"required": true,
+					"default": 0.5,
+					"minimum": 0,
+					"maximum": 168,
+					"step": 0.25,
+					"minFractionDigits": 0,
+					"maxFractionDigits": 2,
+					"title": "Keep the Weather Now (hours)",
+					"description": "How long what OpenWeatherMap answered for the weather now is kept and shared by every page, overlay and task, so the free plan's calls are for new answers only. It changes quickly, so it is kept a short time. 0: ask every time."
+				},
+				{
+					"name": "forecastCacheHours",
+					"type": "number",
+					"required": true,
+					"default": 6,
+					"minimum": 0,
+					"maximum": 168,
+					"step": 0.5,
+					"minFractionDigits": 0,
+					"maxFractionDigits": 1,
+					"title": "Keep the Forecast (hours)",
+					"description": "How long what OpenWeatherMap answered for the forecast (the next hours and days) is kept and shared by every page, overlay and task. 0: ask every time."
+				},
+				{
+					"name": "staleDays",
+					"type": "integer",
+					"required": true,
+					"default": 30,
+					"minimum": 0,
+					"title": "Forget Unused Answers After (days)",
+					"description": "A kept answer nobody has used for this many days (a place you moved away from) is removed. 0: never."
+				}
+			]
+		},
+		"default": {
+			"apiKey": null,
+			"units": "auto",
+			"currentCacheHours": 0.5,
+			"forecastCacheHours": 6,
+			"staleDays": 30
+		}
+	}
+}

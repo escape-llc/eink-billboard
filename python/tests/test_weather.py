@@ -15,10 +15,12 @@ from unittest.mock import patch
 import httpx
 from PIL import Image
 
-from ..datasources.data_source import DataSourceExecutionContext
+from ..datasources.data_source import DataSourceApi, DataSourceExecutionContext, DataSourceManager
+from ..datasources.openweathermap import openweathermap as owm_module
+from ..datasources.openweathermap.openweathermap import HideKey, OpenWeatherMapApi, Report, Units, api_error, parse_current, parse_forecast, units_for
 from ..datasources.weather import weather as weather_module
 from ..datasources.weather.icons import icon_svg
-from ..datasources.weather.weather import HideKey, Page, Report, Units, WeatherAsync, api_error, chosen_views, page_params, parse_current, parse_forecast, units_for
+from ..datasources.weather.weather import Page, WeatherAsync, chosen_views, page_params
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
 from ..plugins.plugin_base import PermanentError
@@ -42,18 +44,24 @@ class FakeSettings:
 	def open(self, name: str):
 		return _Cob(self.docs.get(name))
 
-def weather_settings(settings: dict|None = None) -> DatasourceConfigurationManager:
-	"""The data source's own folder in a private storage, with its settings written (both times 0 unless a test asks: most tests count calls)."""
+API_ID = "openweathermap"
+
+def weather_settings(settings: dict|None = None) -> ConfigurationManager:
+	"""A private storage with the OpenWeatherMap API data source's settings written (both times 0 unless a test asks: most tests count calls)."""
 	folder = tempfile.mkdtemp(prefix="eink-weather-test-")
 	atexit.register(shutil.rmtree, folder, True)
 	cm = ConfigurationManager(storage_path=folder)
 	cm.hard_reset()
-	save_datasource_settings(cm, "weather", { "apiKey": KEY, "units": "auto", "forecastCacheHours": 0, "currentCacheHours": 0, **(settings or {}) })
-	return cm.datasource_manager("weather")
+	save_datasource_settings(cm, API_ID, { "apiKey": KEY, "units": "auto", "forecastCacheHours": 0, "currentCacheHours": 0, **(settings or {}) })
+	return cm
 
-def make_context(settings: dict|None = None, orientation: str = "landscape", dscm: DatasourceConfigurationManager|None = None, now: datetime = NOW, **system) -> DataSourceExecutionContext:
+def make_context(settings: dict|None = None, orientation: str = "landscape", cm: ConfigurationManager|None = None, now: datetime = NOW, own: str = "weather", **system) -> DataSourceExecutionContext:
+	"""The context a data source (the Weather, by default) gets: its own folder, and the OpenWeatherMap API data source to ask."""
+	cm = cm or weather_settings(settings)
 	root = ServiceContainer()
-	root.add_service(DatasourceConfigurationManager, dscm or weather_settings(settings))
+	root.add_service(ConfigurationManager, cm)
+	root.add_service(DatasourceConfigurationManager, cm.datasource_manager(own))
+	root.add_service(DataSourceManager, DataSourceManager({ API_ID: OpenWeatherMapApi(API_ID, "OpenWeatherMap") }))
 	root.add_service(SettingsConfigurationManager, cast(Any, FakeSettings(orientation, **system)))
 	root.add_service(StaticConfigurationManager, StaticConfigurationManager(STATIC))
 	return DataSourceExecutionContext(root, (800, 480), now)
@@ -184,8 +192,8 @@ class TestCache(unittest.IsolatedAsyncioTestCase):
 	def asked(self) -> list[str]:
 		return [r.url.path.rsplit("/", 1)[-1] for r in self.fake.requests]
 
-	async def open(self, dscm, views, now=NOW):
-		return await WeatherAsync("weather", "Weather").open_async(make_context(dscm=dscm, now=now), { "views": views })
+	async def open(self, cm, views, now=NOW):
+		return await WeatherAsync("weather", "Weather").open_async(make_context(cm=cm, now=now), { "views": views })
 
 	async def test_a_second_visit_in_six_hours_asks_nobody(self):
 		dscm = weather_settings({ "forecastCacheHours": 6, "currentCacheHours": 6 })
@@ -218,7 +226,9 @@ class TestCache(unittest.IsolatedAsyncioTestCase):
 
 	async def test_the_default_is_six_hours_and_zero_asks_every_time(self):
 		dscm = weather_settings()
-		self.assertEqual((dscm.open().get()[1]['forecastCacheHours'], dscm.open().get()[1]['currentCacheHours']), (0, 0))
+		stored = dscm.datasource_manager(API_ID).open().get()[1]
+		assert stored is not None
+		self.assertEqual((stored['forecastCacheHours'], stored['currentCacheHours']), (0, 0))
 		cm_settings = weather_settings({ "forecastCacheHours": 6, "currentCacheHours": 6 })
 		await self.open(cm_settings, ["current"])
 		await self.open(cm_settings, ["current"])
@@ -228,15 +238,18 @@ class TestCache(unittest.IsolatedAsyncioTestCase):
 		self.assertEqual(self.asked()[1:], ["weather", "weather"])
 
 	async def test_a_place_or_units_that_changed_is_a_new_question(self):
-		dscm = weather_settings({ "forecastCacheHours": 6, "currentCacheHours": 6 })
+		cm = weather_settings({ "forecastCacheHours": 6, "currentCacheHours": 6 })
 		ds = WeatherAsync("weather", "Weather")
-		await ds.open_async(make_context(dscm=dscm), { "views": ["current"] })
-		await ds.open_async(make_context(dscm=dscm, location={ "latitude": 40.0, "longitude": -74.0 }), { "views": ["current"] })
+		await ds.open_async(make_context(cm=cm), { "views": ["current"] })
+		await ds.open_async(make_context(cm=cm, location={ "latitude": 40.0, "longitude": -74.0 }), { "views": ["current"] })
 		self.assertEqual(self.asked(), ["weather", "weather"])
 
 	async def test_the_key_is_never_kept_or_named_in_the_cache(self):
-		dscm = weather_settings({ "forecastCacheHours": 6, "currentCacheHours": 6 })
-		await self.open(dscm, ["current", "days"])
+		cm = weather_settings({ "forecastCacheHours": 6, "currentCacheHours": 6 })
+		await self.open(cm, ["current", "days"])
+		# kept in the API data source's folder, not the Weather's
+		self.assertEqual(cm.datasource_manager("weather").list_files("cache-"), [])
+		dscm = cm.datasource_manager(API_ID)
 		names = dscm.list_files("cache-")
 		self.assertEqual(len(names), 2)
 		for name in names:
@@ -257,53 +270,59 @@ class TestCache(unittest.IsolatedAsyncioTestCase):
 		await asyncio.gather(*(self.open(dscm, ["current"]) for _ in range(5)))
 		self.assertEqual(self.asked(), ["weather"])
 
-class TestAnotherSourceAsks(unittest.IsolatedAsyncioTestCase):
-	"""A data source that shows the weather differently (the Weather Overlay) asks the Weather through `context_for`: its settings, its cache, one call."""
+class TestTheApiDataSource(unittest.IsolatedAsyncioTestCase):
+	"""OpenWeatherMap is an API data source (`DataSourceApi`): data only, asked by every source that shows the weather through `dsec.use`: its settings, its cache, one call."""
 	def setUp(self):
 		self.fake = FakeInternet()
 		client_var.set(httpx.AsyncClient(transport=self.fake))
-		folder = tempfile.mkdtemp(prefix="eink-weather-test-")
-		self.addCleanup(shutil.rmtree, folder, True)
-		self.cm = ConfigurationManager(storage_path=folder)
-		self.cm.hard_reset()
-		save_datasource_settings(self.cm, "weather", { "apiKey": KEY, "units": "auto", "forecastCacheHours": 6, "currentCacheHours": 6 })
-		self.weather = WeatherAsync("weather", "Weather")
+		self.cm = weather_settings({ "forecastCacheHours": 6, "currentCacheHours": 6 })
 
 	def other(self, now=NOW) -> DataSourceExecutionContext:
-		"""The context another data source gets: its own folder, and the services every source has."""
-		root = ServiceContainer()
-		root.add_service(ConfigurationManager, self.cm)
-		root.add_service(DatasourceConfigurationManager, self.cm.datasource_manager("weather-overlay"))
-		root.add_service(SettingsConfigurationManager, cast(Any, FakeSettings()))
-		return DataSourceExecutionContext(root, (246, 96), now)
+		"""The context another data source (the Weather Overlay) gets: its own folder, and the services every source has."""
+		return make_context(cm=self.cm, now=now, own="weather-overlay")
 
-	def test_the_context_is_the_weathers_folder_with_the_same_time_and_size(self):
+	def test_it_is_data_only(self):
+		api = OpenWeatherMapApi(API_ID, "OpenWeatherMap")
+		self.assertIsInstance(api, DataSourceApi)
+		self.assertFalse(hasattr(api, "render_async"), "an API data source draws nothing")
+
+	def test_use_gives_its_folder_with_the_same_time_and_size(self):
 		mine = self.other()
-		theirs = mine.context_for(self.weather)
-		self.assertEqual(theirs.provider.required(DatasourceConfigurationManager).datasource_id, "weather")
+		api, theirs = mine.use(API_ID, OpenWeatherMapApi)
+		self.assertIsInstance(api, OpenWeatherMapApi)
+		self.assertEqual(theirs.provider.required(DatasourceConfigurationManager).datasource_id, API_ID)
 		self.assertEqual(mine.provider.required(DatasourceConfigurationManager).datasource_id, "weather-overlay")
-		self.assertEqual((theirs.timestamp, theirs.dimensions), (NOW, (246, 96)))
+		self.assertEqual((theirs.timestamp, theirs.dimensions), (NOW, (800, 480)))
 		# everything else is the caller's
 		self.assertIs(theirs.provider.required(SettingsConfigurationManager), mine.provider.required(SettingsConfigurationManager))
 
 	async def test_a_page_and_another_source_share_one_call(self):
-		await self.weather.open_async(self.other().context_for(self.weather), { "views": ["current", "days"] })
-		report = await self.weather.report_async(self.other(NOW + timedelta(hours=2)).context_for(self.weather), { "current", "forecast" })
-		self.assertEqual(sorted(self.asked()), ["forecast", "weather"], "the second asker read the Weather's cache")
+		await WeatherAsync("weather", "Weather").open_async(make_context(cm=self.cm), { "views": ["current", "days"] })
+		api, api_dsec = self.other(NOW + timedelta(hours=2)).use(API_ID, OpenWeatherMapApi)
+		report = await api.open_async(api_dsec, { "needs": ["current", "forecast"] })
+		self.assertEqual(sorted(self.asked()), ["forecast", "weather"], "the second asker read the kept answers")
 		self.assertIsNotNone(report.current)
 		self.assertTrue(report.days)
-		# nothing of the weather is kept in the asker's own folder
-		self.assertEqual(self.cm.datasource_manager("weather-overlay").list_files("cache-"), [])
+		# nothing of the weather is kept in the askers' own folders
+		for own in ("weather", "weather-overlay"):
+			self.assertEqual(self.cm.datasource_manager(own).list_files("cache-"), [])
 
 	async def test_only_what_is_needed_is_asked(self):
-		report = await self.weather.report_async(self.other().context_for(self.weather), { "current" })
+		api, api_dsec = self.other().use(API_ID, OpenWeatherMapApi)
+		report = await api.open_async(api_dsec, { "needs": ["current", "radar"] })
 		self.assertEqual(self.asked(), ["weather"])
 		self.assertEqual(report.days, [])
 
-	async def test_the_weathers_settings_problems_are_the_askers(self):
-		save_datasource_settings(self.cm, "weather", { "apiKey": None, "units": "auto", "forecastCacheHours": 6, "currentCacheHours": 6 })
-		with self.assertRaisesRegex(PermanentError, "Weather settings"):
-			await self.weather.report_async(self.other().context_for(self.weather), { "current" })
+	async def test_its_settings_problems_are_the_askers(self):
+		save_datasource_settings(self.cm, API_ID, { "apiKey": None, "units": "auto", "forecastCacheHours": 6, "currentCacheHours": 6 })
+		with self.assertRaisesRegex(PermanentError, "OpenWeatherMap settings"):
+			await WeatherAsync("weather", "Weather").open_async(make_context(cm=self.cm), { "views": ["current"] })
+
+	async def test_without_it_the_weather_says_so(self):
+		context = make_context(cm=self.cm)
+		context.provider.required(DataSourceManager).sources = {}
+		with self.assertRaisesRegex(PermanentError, "Openweathermap data source is not available"):
+			await WeatherAsync("weather", "Weather").open_async(context, { "views": ["current"] })
 
 	def asked(self) -> list[str]:
 		return [r.url.path.rsplit("/", 1)[-1] for r in self.fake.requests]
@@ -375,7 +394,7 @@ class TestKeyIsNotLogged(unittest.IsolatedAsyncioTestCase):
 		with self.assertLogs("httpx", level="INFO") as logged:
 			# any other key is refused (a 401), which is also logged
 			with self.assertRaises(PermanentError):
-				await weather_module.fetch(client, "weather", 47.61, -122.33, Units("metric"), "super-secret-key")
+				await owm_module.fetch(client, "weather", 47.61, -122.33, Units("metric"), "super-secret-key")
 		text = "\n".join(logged.output)
 		self.assertIn("appid=***", text)
 		self.assertNotIn("super-secret-key", text)
