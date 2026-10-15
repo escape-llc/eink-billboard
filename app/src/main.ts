@@ -12,8 +12,11 @@ import ConfirmationService from 'primevue/confirmationservice'
 import router from './router'
 import { useThemes } from './components/ThemeTools'
 import { installMaterialIcons } from './components/MaterialIcons'
+import { installStaleBuildReload } from './components/StaleBuild'
 
 installMaterialIcons()
+// a tab opened before an update reloads itself when a page of its old build is gone
+installStaleBuildReload(router)
 
 const { DARK_MODE_SELECTOR, DefaultPreset } = useThemes(undefined);
 

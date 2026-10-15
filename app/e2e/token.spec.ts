@@ -8,18 +8,19 @@ test.use({ baseURL: PROTECTED.url })
 const BEARER = { Authorization: `Bearer ${TOKEN}` }
 const showingSettings = (page: Page) => page.locator(".p-select").filter({ hasText: "English" }).first()
 
-/** How many times the sign-in dialog appeared on the page (counted in the browser, from before the page loads). */
+/** How many times the sign-in dialog appeared, in all (seen in the browser from before each page loads, counted here: a sign-in reloads the page). */
 async function askedCount(page: Page) {
+	let opens = 0
+	await page.exposeBinding("__dialogOpened", () => { opens++ })
 	await page.addInitScript(() => {
-		const w = window as unknown as { __opens: number }
-		w.__opens = 0
+		const w = window as unknown as { __dialogOpened: () => void }
 		new MutationObserver(records => {
 			for (const r of records) for (const n of Array.from(r.addedNodes)) {
-				if (n instanceof HTMLElement && (n.matches("[data-testid=auth-dialog]") || n.querySelector("[data-testid=auth-dialog]"))) w.__opens++
+				if (n instanceof HTMLElement && (n.matches("[data-testid=auth-dialog]") || n.querySelector("[data-testid=auth-dialog]"))) w.__dialogOpened()
 			}
 		}).observe(document, { childList: true, subtree: true })
 	})
-	return () => page.evaluate(() => (window as unknown as { __opens: number }).__opens)
+	return async () => opens
 }
 
 /** Nothing but the theme may be kept in the browser: no token, no session, nothing else. */
@@ -75,28 +76,29 @@ test("the app asks for the token once, and the server remembers the sign-in", as
 
 	await page.reload()
 	await expect(showingSettings(page)).toBeVisible()
-	expect(await asked(), "questions after a reload (the session cookie is kept, so none)").toBe(0)
+	expect(await asked(), "questions after a reload (the session cookie is kept, so no new one)").toBe(1)
 	await expectOnlyTheThemeStored(page)
 	watch.expectNone()
 })
 
-// the storage may have changed while the page waited (edited by hand, another browser): the page is built again and reads it anew
-test("after signing in, the page is built again and reads what it shows anew", async ({ page }) => {
+// the storage may have changed while the page waited (edited by hand, another browser), and the device may run a newer build: the whole page loads again
+test("after signing in, the whole page is loaded again, at the same address, and says so", async ({ page }) => {
 	await stubMapTiles(page)
 	const watch = watchProblems(page, [401])
 	const asked = await askedCount(page)
-	const answered: number[] = []
-	page.on("response", rx => {
-		if(rx.url().endsWith("/api/settings/system") && rx.request().method() === "GET") answered.push(rx.status())
-	})
+	let loads = 0
+	page.on("load", () => { loads++ })
 	await page.goto("/#/settings")
 	await signInWith(page, "API token", TOKEN)
-	await expect(showingSettings(page)).toBeVisible()
-	// the page may look the same, so a toast says it was reloaded
 	await expect(page.locator(".p-toast-message-success")).toContainText("The page was reloaded with the latest data.")
-	// read by the page that asked (retried after the sign-in) and again by the page that was built anew
-	await expect.poll(() => answered.filter(s => s === 200).length).toBeGreaterThanOrEqual(2)
-	expect(await asked(), "questions: building the page again does not ask again").toBe(1)
+	await expect(showingSettings(page)).toBeVisible()
+	expect(loads, "the first load and the one after the sign-in").toBe(2)
+	expect(new URL(page.url()).hash).toBe("#/settings")
+	expect(await asked(), "questions: the reloaded page has the session").toBe(1)
+	// a reload by hand later is not a sign-in: no toast
+	await page.reload()
+	await expect(showingSettings(page)).toBeVisible()
+	await expect(page.locator(".p-toast-message-success")).toHaveCount(0)
 	watch.expectNone()
 })
 

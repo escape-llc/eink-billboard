@@ -5,14 +5,19 @@ import ThemeSelector from './components/ThemeSelector.vue'
 import TelemetryGutter from './components/TelemetryGutter.vue'
 import AuthDialog from './components/AuthDialog.vue'
 import StatusIndicator from './components/StatusIndicator.vue'
-import { ref, watch } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { signInCount } from './components/ApiClient'
+import { justSignedIn, reloadAfterSignIn } from './components/SignedIn'
 const toast = useToast()
-// the page was built again (the RouterView's key): it may look the same, so say that it read everything anew
-watch(signInCount, () => {
-	toast.add({ severity: 'success', summary: 'Signed in', detail: 'The page was reloaded with the latest data.', life: 4000 })
+// a sign-in loads the whole page again (the newest build, everything read anew): see SignedIn.ts
+watch(signInCount, () => reloadAfterSignIn())
+onMounted(() => {
+	if (justSignedIn()) {
+		// it may look the same, so say that it read everything anew
+		toast.add({ severity: 'success', summary: 'Signed in', detail: 'The page was reloaded with the latest data.', life: 4000 })
+	}
 })
 const router = useRouter();
 const menu = ref<InstanceType<typeof TieredMenu>|null>(null)
@@ -155,8 +160,7 @@ const items = ref([
 	</template>
 	</Toolbar>
 	<div class="main-area">
-		<!-- built again after a sign-in, so the page does not show what it read before it (or nothing): see signInCount -->
-		<RouterView class="router-view" :key="signInCount" />
+		<RouterView class="router-view" />
 		<TelemetryGutter v-if="gutterOpen" />
 	</div>
 	<ConfirmDialog></ConfirmDialog>
