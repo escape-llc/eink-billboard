@@ -331,17 +331,23 @@ The web app finds the server through `VITE_API_URL`: `http://localhost:8080/` in
 
 ## Running on a Raspberry Pi
 
-**In a container** (Podman, Raspberry Pi OS 64-bit, Pi 4 or 5): everything is in [`deploy/eink-container.sh`](deploy/eink-container.sh), run as your own user from a clone of this repository. It was tried on a Pi 5 with no panel attached; no panel has been driven yet.
+**In a container, set up in one command** (Raspberry Pi OS 64-bit, Pi 4 or 5), as your own user:
 
 ```
-git clone https://github.com/escape-llc/eink-billboard && cd eink-billboard
-deploy/eink-container.sh check            # what the Pi still needs (Podman, SPI, I2C, your groups), and how to fix each
-deploy/eink-container.sh build            # 15 to 20 minutes the first time
-deploy/eink-container.sh start            # prints the web app's address and the setup code
-deploy/eink-container.sh display inky     # or: display waveshare epd7in3e (models: deploy/eink-container.sh models)
+curl -fsSL https://raw.githubusercontent.com/escape-llc/eink-billboard/master/deploy/bootstrap.sh | bash
 ```
 
-`check` is the first thing to run when something does not work: it looks at the Pi, its devices, what the app can open and load from inside the container, and what the display said when it last started. `logs`, `code`, `stop`, `reset-password` and `wipe` are the rest (`help` lists them). The app is not started again after a reboot yet: run `start`.
+[`deploy/bootstrap.sh`](deploy/bootstrap.sh) says what it will do and asks once, then installs Podman and git, turns on SPI and I2C, adds you to the `spi`, `i2c` and `gpio` groups, clones the app to `~/eink-billboard`, asks which display you have (none yet, Inky, or Waveshare and its model), builds the app (15 to 20 minutes the first time), starts it on port 8080, makes it start when the Pi starts, and prints the address and the setup code. Everything else (Python, the browser that draws the pages, the drivers) is inside the container. When SPI, I2C or your groups had to change it asks you to restart and run the same command again, which then finishes in a minute or two; run it again later to update. `--dry-run` shows what it would do, `--yes` answers for you (`EINK_DISPLAY=inky`, or `waveshare:epd7in3e`), `EINK_REF` picks a branch or tag. An Inky is detected after the start; one that does not answer is a warning, not a stop.
+
+Afterwards, and to troubleshoot, everything is in [`deploy/eink-container.sh`](deploy/eink-container.sh) in the clone:
+
+```
+~/eink-billboard/deploy/eink-container.sh check        # the Pi, its devices, what the app can open and load inside the container, what the display said
+~/eink-billboard/deploy/eink-container.sh code         # the setup code again
+~/eink-billboard/deploy/eink-container.sh display inky # or: display waveshare epd7in3e (models: ... models)
+```
+
+`logs`, `start`, `stop`, `detect` (is an Inky attached?), `autostart on|off`, `reset-password` and `wipe` are the rest (`help` lists them). Tried on a Pi 5 with no panel attached; no panel has been driven yet.
 
 The usual setup is a **systemd service** on the Pi, used from another computer on the home network through the Pi's address. The other is a browser on the Pi itself (the console), where the server listens on `localhost` only.
 
