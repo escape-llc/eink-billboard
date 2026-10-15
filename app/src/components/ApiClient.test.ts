@@ -56,9 +56,10 @@ describe("ApiClient requests", () => {
 	let apiPatch: typeof import("./ApiClient").apiPatch
 	let apiDelete: typeof import("./ApiClient").apiDelete
 	let signOut: typeof import("./ApiClient").signOut
+	let signInCount: typeof import("./ApiClient").signInCount
 	beforeEach(async () => {
 		vi.resetModules()
-		;({ ApiError, apiFetch, apiJson, apiPut, apiPost, apiPatch, apiDelete, signOut } = await import("./ApiClient"))
+		;({ ApiError, apiFetch, apiJson, apiPut, apiPost, apiPatch, apiDelete, signOut, signInCount } = await import("./ApiClient"))
 		localStorage.clear()
 		sessionStorage.clear()
 		fetchMock = vi.fn()
@@ -263,6 +264,33 @@ describe("ApiClient requests", () => {
 			answerLate(jsonResponse(REFUSED, 401))
 			await expect(slow).resolves.toEqual({ ok: true })
 			expect(prompt).toHaveBeenCalledTimes(1)
+		})
+
+		// App.vue keys the routed view on signInCount: the page is built again after a sign-in, so it does not show what it read before
+		it("counts a sign-in once, after every request that waited for it was sent again", async () => {
+			const server = fakeServer("s3cret")
+			// the count as each request after the sign-in is sent: the page must not be built again before a waiting save is on its way
+			const seen: number[] = []
+			fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+				if(server.state.signedIn) {
+					seen.push(signInCount.value)
+				}
+				return server.handle(url, init)
+			})
+			await answerWith("s3cret")
+			await Promise.all(["/api/a", "/api/b", "/api/c"].map(u => apiJson(u)))
+			expect(seen).toEqual([0, 0, 0])
+			expect(signInCount.value).toBe(1)
+			await apiJson("/api/d")
+			expect(signInCount.value).toBe(1)
+		})
+
+		it("does not count a sign-in that was cancelled or refused", async () => {
+			const server = fakeServer("s3cret")
+			fetchMock.mockImplementation(server.handle)
+			await answerWith("wrong")
+			await Promise.allSettled(["/api/a", "/api/b"].map(u => apiJson(u)))
+			expect(signInCount.value).toBe(0)
 		})
 
 		it("apiFetch hands back the response of a successful retry untouched", async () => {
