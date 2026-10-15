@@ -88,6 +88,8 @@ const props = withDefaults(defineProps<PropsType>(), { fieldNameWidth: "10rem", 
 const emits = defineEmits<EmitsType>()
 const localProperties = ref<any[]>([])
 const localValues = ref<any>({})
+/** How deep a choice inside a choice goes (a plugin's data source, then the parts it chooses): the server's MAX_CHOICE_DEPTH (documents.py). Before the `immediate` watches, which use it. */
+const MAX_CHOICE_DEPTH = 3
 const injplugins = inject("settingsPluginsList", ref([]))
 const injdataSources = inject("settingsDataSourcesList", ref([]))
 const plugins = computed<any[]>(() => injplugins.value)
@@ -95,7 +97,7 @@ const dataSources = computed<any[]>(() => injdataSources.value)
 watch(() => props.form, (nv) => {
 	if(nv) {
 		// a plugin just chosen brings fields the values do not have: they start at the descriptor's default, as they do for a new item
-		applyDefaults(formProperties(nv.schema, props.owner), localValues.value).forEach(([name, value]) => { localValues.value[name] = value })
+		deepDefaults(nv.schema, props.owner)
 		ensureInitializeForm(nv.schema)
 	}
 	else {
@@ -114,9 +116,9 @@ watch(() => props.initialValues, (nv) => {
 		// the fields a data source brings depend on the value that chooses it: take the new values first, or the defaults are those of the previous track's source
 		localValues.value = ox
 		// a value the document does not have yet starts at the descriptor's default (a new playlist track, say)
-		const dflts = props.form?.schema ? applyDefaults(formProperties(props.form.schema, props.owner), ox) : []
-		dflts.forEach(([name, value]) => { ox[name] = value })
-		localValues.value = ox
+		if(props.form?.schema) {
+			deepDefaults(props.form.schema, props.owner)
+		}
 		ensureInitializeForm(props.form?.schema)
 	}
 	else {
@@ -385,6 +387,17 @@ function findField(fields: FormField[], name: string): any {
 	}
 	return undefined
 }
+/**
+ * Every default the values lack, at any depth: a default that chooses a data source (a Generated Image's parts) brings that source's fields,
+ * whose defaults apply in turn. Set on `localValues`, which the fields are built from (`formProperties` reads a choice there).
+ */
+function deepDefaults(schema: SchemaType|undefined, owner: Owner|undefined): void {
+	for(let pass = 0; pass <= MAX_CHOICE_DEPTH; pass++) {
+		const more = applyDefaults(formProperties(schema, owner), localValues.value)
+		if(more.length === 0) return
+		more.forEach(([name, value]) => { localValues.value[name] = value })
+	}
+}
 /** The `default` of each field (null and absent defaults carry no information), for values the form does not have yet. */
 function applyDefaults(fields: FormField[], values: Record<string, any> = {}): [string, unknown][] {
 	return fields.flatMap(f => [
@@ -405,12 +418,22 @@ const handleFormFieldEvent = (data:any) => {
 			field.children = formProperties(chosen, data.selected?.owner)
 			field.usesMissing = missingUses(data.selected?.uses, dataSources.value)
 			// the new fields register with the form when they render: a value set before then is dropped (setFieldValue ignores an unknown field),
-			// so each default is also where a new field reads its first value, and is set again once the fields are there
-			const defaults = applyDefaults(field.children)
-			defaults.forEach(([name, value]) => {
-				localValues.value[name] = value
-				form.value?.setFieldValue(name, value)
-			})
+			// so each default is also where a new field reads its first value, and is set again once the fields are there.
+			// Every default of the new choice applies (not the previous choice's value of a field of the same name), and a default that chooses
+			// a data source in turn (the Generated Image's parts) brings that source's fields, so the fields are built again until nothing new is chosen
+			const defaults: [string, unknown][] = []
+			const applied = new Set<string>()
+			for(let pass = 0; pass <= MAX_CHOICE_DEPTH; pass++) {
+				const more = applyDefaults(field.children).filter(([name]) => !applied.has(name))
+				if(more.length === 0) break
+				more.forEach(([name, value]) => {
+					applied.add(name)
+					defaults.push([name, value])
+					localValues.value[name] = value
+					form.value?.setFieldValue(name, value)
+				})
+				field.children = formProperties(chosen, data.selected?.owner)
+			}
 			currentResolver = createResolver(localProperties.value)
 			startLookups(chosen as SchemaType, field.children)
 			nextTick().then(_ => {

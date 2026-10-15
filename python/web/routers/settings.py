@@ -42,6 +42,10 @@ def _settings_properties(item: CollectInfoDict) -> list[dict]:
 	settings = item["info"].get("settings") or {}
 	return (settings.get("schema") or {}).get("properties") or []
 
+def _names(properties: list[dict]) -> list[str]:
+	"""The keys the settings schema declares: any other stored value is masked when served (see `get_document`)."""
+	return [p["name"] for p in properties if isinstance(p, dict) and isinstance(p.get("name"), str)]
+
 def _settings_lookups(item: CollectInfoDict) -> dict:
 	settings = item["info"].get("settings") or {}
 	return (settings.get("schema") or {}).get("lookups") or {}
@@ -94,7 +98,8 @@ def datasources_list(cm: CM):
 def get_plugin_settings(plugin_id: str, cm: CM):
 	declared, item = _find_item(cm.enum_plugins(), plugin_id, "plugin")
 	cob = cm.plugin_manager(declared).open()
-	return get_document(f"plugin-{declared}-settings", cob, secret_fields(_settings_properties(item)))
+	properties = _settings_properties(item)
+	return get_document(f"plugin-{declared}-settings", cob, secret_fields(properties), _names(properties))
 
 @router.put('/plugins/{plugin_id}/settings')
 def put_plugin_settings(plugin_id: str, cm: CM, body: dict[str, Any] = Body(...)):
@@ -107,7 +112,8 @@ def put_plugin_settings(plugin_id: str, cm: CM, body: dict[str, Any] = Body(...)
 def get_datasource_settings(datasource_id: str, cm: CM):
 	declared, item = _find_item(cm.enum_datasources(), datasource_id, "datasource")
 	cob = cm.datasource_manager(declared).open()
-	return get_document(f"datasource-{declared}-settings", cob, secret_fields(_settings_properties(item)))
+	properties = _settings_properties(item)
+	return get_document(f"datasource-{declared}-settings", cob, secret_fields(properties), _names(properties))
 
 @router.put('/datasources/{datasource_id}/settings')
 def put_datasource_settings(datasource_id: str, cm: CM, body: dict[str, Any] = Body(...)):

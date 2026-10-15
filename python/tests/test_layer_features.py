@@ -50,7 +50,10 @@ class TestApiDataSources(unittest.TestCase):
 				self.assertFalse(hasattr(kind, "render_async"), "an API data source renders nothing")
 
 	def test_another_source_uses_it(self):
-		used = { u for s in SOURCES for u in (s.get("uses") or []) }
+		# by name (`uses`), or by feature: a source's own `schema` field chooses it (the Generated Image's text and image parts)
+		chosen = { f for s in SOURCES for lk in ((s.get("instanceSettings") or {}).get("schema", {}).get("lookups") or {}).values()
+			if isinstance(lk, dict) and lk.get("schema") == "data-sources" for f in lk.get("features") or [] }
+		used = { u for s in SOURCES for u in (s.get("uses") or []) } | { s["id"] for s in SOURCES if chosen & set(s.get("features") or []) }
 		for source in (s for s in SOURCES if is_api(s)):
 			with self.subTest(source["id"]):
 				self.assertIn(source["id"], used, "no data source uses it")

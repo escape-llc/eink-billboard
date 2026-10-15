@@ -1,0 +1,57 @@
+{
+	"id": "ai-image",
+	"name": "Generated Image",
+	"version": "0.0.1",
+	"class": "GeneratedImageAsync",
+	"file": "ai_image.py",
+	"module": "python.datasources.ai_image.ai_image",
+	"description": "A picture drawn by an AI image model from your prompt, which an AI text model can rewrite first. Choose the text and the image source separately: the text of one provider can go with the picture of another. The keys are in each provider's settings.",
+	"describe": "AI image {prompt}",
+	"disabled": false,
+	"features": ["internet", "paid-service", "layer-background", "media-image"],
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+				"textSource": { "schema": "data-sources", "features": ["ai-text"] },
+				"imageSource": { "schema": "data-sources", "features": ["ai-image"] }
+			},
+			"properties": [
+				{
+					"name": "prompt",
+					"type": "string",
+					"required": true,
+					"default": null,
+					"title": "Prompt",
+					"description": "What to draw."
+				},
+				{
+					"name": "randomizePrompt",
+					"type": "boolean",
+					"required": false,
+					"default": true,
+					"title": "Rewrite the Prompt",
+					"description": "Have a text model rewrite the prompt before each picture, so no two are alike."
+				},
+				{
+					"name": "textSource",
+					"type": "schema",
+					"required": true,
+					"default": "openai-text",
+					"title": "Text Source",
+					"description": "Who rewrites the prompt.",
+					"lookup": "textSource",
+					"visibleIf": { "field": "randomizePrompt", "const": true }
+				},
+				{
+					"name": "imageSource",
+					"type": "schema",
+					"required": true,
+					"default": "openai-image",
+					"title": "Image Source",
+					"description": "Who draws the picture.",
+					"lookup": "imageSource"
+				}
+			]
+		}
+	}
+}

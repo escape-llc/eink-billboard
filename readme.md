@@ -478,6 +478,13 @@ The device signs in with an app registration of your own; nothing is shared with
 
 The sign-in's tokens are kept in `datasources/calendar/tokens.json` in the storage folder, never in the settings (which the browser reads). Delete an account, or change its client ID, and it must be connected again.
 
+## Generated Image Data Source
+A picture drawn by an AI image model from your prompt, which an AI text model can rewrite first so no two are alike.
+* **Choose each part**: the track's **Image Source** draws (OpenAI Image) and its **Text Source** rewrites the prompt (OpenAI Text). Each part's own fields (the model, the quality, ...) show under its choice. A Google provider is next, so the text of one provider can go with the picture of another.
+* **The keys are the providers'**: Settings, Data Sources, `openai` (Test lists the image models the key may use). The model lists come from the provider, kept for a day.
+* **The panel's own shape**: `gpt-image-2` and later draw at the panel's ratio; older models draw a fixed size, shown with a blurred margin.
+* A track from before that names `openai-image` as its data source says to choose Generated Image instead; the OpenAI key moved to the `openai` settings at the first start.
+
 ## Weather Data Source
 The weather at the device's location from [OpenWeatherMap](https://openweathermap.org), one page per chosen view: the weather **now**, the next day in steps of three **hours**, the next five **days**. Several views make a slot of that many pages.
 * **The place** is the `location` of the System settings (the GPS position; empty means the slot fails with a message telling you to set it).

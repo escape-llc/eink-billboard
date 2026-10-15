@@ -25,7 +25,7 @@ STORAGES = [os.path.join(ROOT, "tests", "fixtures", "storage"), os.path.join(REP
 USER_SUPPLIED = {
 	("source", "clock", "clockFace"), ("source", "clock", "primaryColor"), ("source", "clock", "secondaryColor"),
 	("source", "countdown", "title"), ("source", "countdown", "targetDate"),
-	("source", "image-folder", "folder"), ("source", "openai-image", "prompt"), ("source", "rss", "feed"),
+	("source", "image-folder", "folder"), ("source", "ai-image", "prompt"), ("source", "rss", "feed"),
 	("source", "today", "customFormat"),
 }
 # one name, different shapes (each is one form at a time, and a change of plugin or data source resets the form's values):
@@ -40,6 +40,12 @@ TYPES: dict[str, Any] = { "string": str, "integer": int, "number": (int, float),
 
 def properties(info: dict) -> list[dict]:
 	return [p for p in (info.get("instanceSettings") or {}).get("schema", {}).get("properties", []) if p.get("type") != "header"]
+
+def choices(info: dict) -> dict[str, list[str]]:
+	"""A data source's `schema` fields that choose other data sources (its parts): the field's name and the features its lookup asks for."""
+	schema = (info.get("instanceSettings") or {}).get("schema", {})
+	lookups = schema.get("lookups") or {}
+	return { p["name"]: list((lookups.get(p.get("lookup")) or {}).get("features") or []) for p in schema.get("properties", []) if p.get("type") == "schema" }
 
 class Descriptors:
 	def __init__(self):
@@ -112,7 +118,26 @@ class TestUses(unittest.TestCase):
 				# the code, not the docstrings that name the method
 				code = re.sub(r'"""[\s\S]*?"""', "", f.read())
 			asks = ".use(" in code or ".context_for(" in code
-			self.assertEqual(asks, bool(info.get("uses")), f"{id_}: `uses` in the descriptor must match whether the code asks another data source")
+			# a source that chooses its parts (a `schema` field: the Generated Image's text and image sources) asks what the task chose, which no descriptor can name
+			self.assertEqual(asks, bool(info.get("uses")) or bool(choices(info)), f"{id_}: `uses` in the descriptor must match whether the code asks another data source")
+
+	def test_a_source_and_the_parts_it_can_choose_share_no_field_name(self):
+		# every level's fields are in the one task content: a name in two levels would be one value for both
+		for id_, info in DESCRIPTORS.sources.items():
+			mine = { p["name"] for p in properties(info) }
+			parts = { lookup: [s for s in DESCRIPTORS.sources.values() if set(features) & set(s.get("features") or [])] for lookup, features in choices(info).items() }
+			for lookup, offered in parts.items():
+				for part in offered:
+					with self.subTest(source=id_, part=part["id"]):
+						self.assertEqual(mine & { p["name"] for p in properties(part) }, set())
+			# and the parts of one choice share none with the parts of another (a text part and an image part are in one task)
+			kinds = list(parts.values())
+			for n, these in enumerate(kinds):
+				for those in kinds[n + 1:]:
+					for a in these:
+						for b in those:
+							with self.subTest(source=id_, parts=(a["id"], b["id"])):
+								self.assertEqual({ p["name"] for p in properties(a) } & { p["name"] for p in properties(b) }, set())
 
 # a list source whose list is made fresh every slot (a view of now), so it is not kept; every other list is shown item by item until it is used up, then fetched again
 NOT_KEPT = { "calendar": "its pages are views of now", "weather": "its pages are views of now" }
