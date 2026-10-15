@@ -331,13 +331,25 @@ The web app finds the server through `VITE_API_URL`: `http://localhost:8080/` in
 
 ## Running on a Raspberry Pi
 
+**In a container** (Podman, Raspberry Pi OS 64-bit, Pi 4 or 5): everything is in [`deploy/eink-container.sh`](deploy/eink-container.sh), run as your own user from a clone of this repository. It was tried on a Pi 5 with no panel attached; no panel has been driven yet.
+
+```
+git clone https://github.com/escape-llc/eink-billboard && cd eink-billboard
+deploy/eink-container.sh check            # what the Pi still needs (Podman, SPI, I2C, your groups), and how to fix each
+deploy/eink-container.sh build            # 15 to 20 minutes the first time
+deploy/eink-container.sh start            # prints the web app's address and the setup code
+deploy/eink-container.sh display inky     # or: display waveshare epd7in3e (models: deploy/eink-container.sh models)
+```
+
+`check` is the first thing to run when something does not work: it looks at the Pi, its devices, what the app can open and load from inside the container, and what the display said when it last started. `logs`, `code`, `stop`, `reset-password` and `wipe` are the rest (`help` lists them). The app is not started again after a reboot yet: run `start`.
+
 The usual setup is a **systemd service** on the Pi, used from another computer on the home network through the Pi's address. The other is a browser on the Pi itself (the console), where the server listens on `localhost` only.
 
 **As a service** (`deploy/eink-billboard.service`, **not yet tested on a real Pi**: adjust the paths and groups to your install):
 
 1. Install the code in `/opt/eink-billboard` (`uv sync --frozen`, which includes the `device` group on a Pi, and `cd app && npm ci && npm run build`), and make a user for it: `sudo useradd --system --home-dir /var/lib/eink-billboard --groups spi,gpio,i2c eink`.
 2. Copy the unit, then `sudo systemctl daemon-reload && sudo systemctl enable --now eink-billboard`. It runs as that user, may write only to `/var/lib/eink-billboard` (the storage folder), and listens on port 80 without being root (`CAP_NET_BIND_SERVICE`).
-3. **Claim the device.** A new device has no password. Read its one-time setup code from the log, `journalctl -u eink-billboard | grep "setup code"` (it is also drawn on the panel for ten minutes), open `http://<the Pi's address>` or `http://<its name>.local`, enter the code and choose a password. From then on the web app asks for that password. Change it under Settings, System.
+3. **Claim the device.** A new device has no password. Read its one-time setup code from the log, `journalctl -u eink-billboard | grep "Setup code"` (it is also drawn on the panel until the device is claimed; nothing else plays until then), open `http://<the Pi's address>` or `http://<its name>.local`, enter the code and choose a password. From then on the web app asks for that password. Change it under Settings, System.
 4. **Forgot the password?** At the Pi: `sudo systemctl stop eink-billboard`, then `sudo -u eink /opt/eink-billboard/.venv/bin/python -m python.eink-billboard --storage /var/lib/eink-billboard --reset-password`, then start it again: the device is new again and logs a new setup code.
 
 **Settings for the service** go in `/etc/eink-billboard.env` (`sudo chmod 600`, owned by root; the unit reads it if it is there). Prefer it to command line options, which anyone on the Pi can read in the process list:
