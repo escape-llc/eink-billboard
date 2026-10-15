@@ -73,6 +73,28 @@ After you sign in, the web app opens the playlist page, since a new device has n
 
 Run the setup command again. It brings `~/eink-billboard` up to date, builds what changed and restarts the app, keeping your settings, playlists and password.
 
+## On your network
+
+The setup starts the app with these settings from the environment, so set them in front of `start` (or the setup command) to change them, e.g. `EINK_ALLOW_HOSTS=billboard.home.arpa ~/eink-billboard/deploy/eink-container.sh start`:
+
+| Setting | What it does |
+|---|---|
+| `EINK_PUBLIC_URL` | The address people open, shown with the setup code and on the panel's pages. The default is `http://<the Pi's address>:8080`; set it when you reach the Pi by a name of your own (`http://billboard.home.arpa:8080`) |
+| `EINK_ALLOW_HOSTS` | Names the app answers to, besides IP addresses and the Pi's own name (`<name>` and `<name>.local`), comma separated. Any other name is refused (421): that stops a web page on another site from reaching the device by DNS rebinding. A name in `EINK_PUBLIC_URL` counts too |
+| `EINK_API_TOKEN` | A token for scripts (`Authorization: Bearer ...`); it also counts as setting the device up. Passed to the container by name, never on a command line |
+
+A client that gets the password or token wrong repeatedly has to wait (429), and each failure is in the log.
+
+**HTTPS.** The app speaks plain HTTP, which is normal on a home network (the password reaches the Pi in the clear). For HTTPS put a reverse proxy in front of port 8080, for example Caddy, and add its name to `EINK_ALLOW_HOSTS`:
+
+```
+billboard.home.arpa {
+	reverse_proxy localhost:8080
+}
+```
+
+Behind a proxy the app sees plain `http`, so its session cookie is not marked `Secure` (forwarded headers are deliberately not trusted).
+
 ## When something does not work
 
 Everything for that is in one script in the clone, [`deploy/eink-container.sh`](deploy/eink-container.sh) (`help` lists it all):
@@ -422,46 +444,6 @@ Use the following recipe to get started with development (to run it on a Raspber
 * `cd app && npm run dev`
 
 The web app finds the server through `VITE_API_URL`: `http://localhost:8080/` in development (`app/.env.development`, the recipe above) and `/` in the built app, which the server serves itself (`app/.env.production`). Copy `app/.env.example` to `app/.env.local` to change it for yourself; a trailing slash is expected.
-
-## Running on a Raspberry Pi
-
-**In a container** is the way to set it up: see [Set up a Raspberry Pi](#set-up-a-raspberry-pi) at the top (one command, then [`deploy/eink-container.sh`](deploy/eink-container.sh) for everything after).
-
-**Without a container**, as a systemd service: the service runs on the Pi, used from another computer on the home network through the Pi's address. The other is a browser on the Pi itself (the console), where the server listens on `localhost` only.
-
-**As a service** (`deploy/eink-billboard.service`, **not yet tested on a real Pi**: adjust the paths and groups to your install):
-
-1. Install the code in `/opt/eink-billboard` (`uv sync --frozen`, which includes the `device` group on a Pi, and `cd app && npm ci && npm run build`), and make a user for it: `sudo useradd --system --home-dir /var/lib/eink-billboard --groups spi,gpio,i2c eink`.
-2. Copy the unit, then `sudo systemctl daemon-reload && sudo systemctl enable --now eink-billboard`. It runs as that user, may write only to `/var/lib/eink-billboard` (the storage folder), and listens on port 80 without being root (`CAP_NET_BIND_SERVICE`).
-3. **Claim the device.** A new device has no password. Read its one-time setup code from the log, `journalctl -u eink-billboard | grep "Setup code"` (it is also drawn on the panel until the device is claimed; nothing else plays until then), open `http://<the Pi's address>` or `http://<its name>.local`, enter the code and choose a password. From then on the web app asks for that password. Change it under Settings, System.
-4. **Forgot the password?** At the Pi: `sudo systemctl stop eink-billboard`, then `sudo -u eink /opt/eink-billboard/.venv/bin/python -m python.eink-billboard --storage /var/lib/eink-billboard --reset-password`, then start it again: the device is new again and logs a new setup code.
-
-**Settings for the service** go in `/etc/eink-billboard.env` (`sudo chmod 600`, owned by root; the unit reads it if it is there). Prefer it to command line options, which anyone on the Pi can read in the process list:
-
-```
-# the credential of scripts (Authorization: Bearer ...); it also signs in the web app
-EINK_API_TOKEN=a-long-random-string
-# names besides localhost, addresses and the Pi's own name that the server answers to (comma separated)
-EINK_ALLOW_HOSTS=billboard.home.arpa
-```
-
-**The address on the setup page.** The server tells you where to open the app (the log, and the panel) from the address it sees for itself, which is wrong in a container or behind a proxy. Set the one people really use with `--public-url` or `EINK_PUBLIC_URL` (for example `http://billboard.home.arpa`); its name is also one the server answers to. The compose file sets `http://localhost:8080`.
-
-**What the server accepts.** It answers only to `localhost`, IP addresses, the Pi's name and `<name>.local`: a request for any other name is refused (421), which stops a web page on another site from reaching the device by DNS rebinding. Reaching the Pi by a name of your own (a router's DNS entry, a reverse proxy) needs `EINK_ALLOW_HOSTS` or `--allow-host`. A client that gets the password or token wrong repeatedly has to wait (429), and each failure is in the log.
-
-**On a network you trust, with no password:** `--no-auth` keeps the old open behavior (it logs a warning at every start).
-
-**The console only:** `--host localhost` listens on the Pi alone and needs no password until you set one (Settings, System). `--require-auth` asks even there.
-
-**HTTPS.** The server speaks plain HTTP, which is normal on a home network (the password is sent in the clear to the Pi). For HTTPS put a reverse proxy in front, for example Caddy, and keep the server on `localhost`:
-
-```
-billboard.home.arpa {
-	reverse_proxy localhost:8080
-}
-```
-
-Start the service with `--host localhost --port 8080` and `EINK_ALLOW_HOSTS=billboard.home.arpa`. Behind a proxy the app sees plain `http`, so its session cookie is not marked `Secure` (forwarded headers are deliberately not trusted).
 
 ## Web API
 
