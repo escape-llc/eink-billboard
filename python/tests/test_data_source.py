@@ -5,7 +5,6 @@ import unittest
 from ..datasources.countdown.countdown import CountdownAsync
 from ..datasources.year_progress.year_progress import YearProgressAsync
 from ..datasources.clock.clock import ClockAsync
-from ..datasources.openai_image.openai_image import OpenAIAsync
 from ..datasources.comic.comic_feed import ComicFeedAsync
 from ..datasources.data_source import DataSourceExecutionContext, MediaItemAsync, MediaListAsync, MediaRenderAsync
 from ..datasources.wpotd.wpotd import WpotdAsync
@@ -113,14 +112,6 @@ class TestAsyncDataSources(unittest.TestCase):
 			"shrinkToFit": True
 		}
 		self.pool.submit(self.run_datasource_async, ds, params, (800,480), 1).result(timeout=60)
-	@unittest.skip("OpenAI Image tests cost money!")
-	def test_openai(self):
-		ds = OpenAIAsync("openai-image", "openai-image")
-		params = {
-			"prompt": "an electronic ink billboard in a futuristic setting",
-			"imageModel": "dall-e-3",
-		}
-		self.pool.submit(self.run_datasource_async, ds, params, (1024,1792), 1).result(timeout=60)
 	def test_clock_gradient(self):
 		ds = ClockAsync("clock-gradient", "clock")
 		params = {

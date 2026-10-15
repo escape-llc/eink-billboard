@@ -1,7 +1,7 @@
 {
 	"id": "openai-image",
 	"name": "OpenAI Image Datasource",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"class": "OpenAIAsync",
 	"file": "openai_image.py",
 	"module": "python.datasources.openai_image.openai_image",
@@ -9,6 +9,12 @@
 	"describe": "AI image {prompt}",
 	"features": ["internet", "api-key", "paid-service", "layer-background", "media-image"],
 	"disabled": false,
+	"router": {
+		"id": "openai-router",
+		"class": "openai_router",
+		"file": "api.py",
+		"module": "python.datasources.openai_image.api"
+	},
 	"settings": {
 		"schema": {
 			"properties": [
@@ -19,7 +25,9 @@
 					"writeOnly": true,
 					"default": null,
 					"title": "API Key",
-					"description": "Your OpenAI API key."
+					"description": "Your OpenAI API key. Test asks OpenAI which image models it may use.",
+					"test": { "url": "/api/datasource/openai-image/test" },
+					"link": { "url": "https://platform.openai.com/api-keys", "label": "Get an API key" }
 				}
 			]
 		},
@@ -30,35 +38,38 @@
 	},
 	"instanceSettings": {
 		"schema": {
+			"lookups": {
+				"imageModel": { "url": "/api/datasource/openai-image/lookups/image-models" },
+				"textModel": { "url": "/api/datasource/openai-image/lookups/text-models" },
+				"quality": { "url": "/api/datasource/openai-image/lookups/qualities" }
+			},
 			"properties": [
 				{
 					"name": "imageModel",
 					"type": "string",
 					"required": true,
-					"default": "dall-e-3",
+					"default": "gpt-image-2",
 					"title": "Image Model",
-					"description": "OpenAI image model.",
-					"enum": ["dall-e-3", "dall-e-2", "gpt-image-1"]
+					"description": "The image models your API key may use, as OpenAI lists them (DALL·E is retired). gpt-image-2 and later draw in the panel's own shape; older models draw a fixed size, shown with a blurred margin.",
+					"lookup": "imageModel"
 				},
 				{
-					"name": "dalle3Quality",
+					"name": "quality",
 					"type": "string",
 					"required": true,
-					"default": "standard",
-					"title": "Image Quality",
-					"description": "DALL-E 3 image quality.",
-					"enum": ["standard", "hd"],
-					"visibleIf": { "field": "imageModel", "const": "dall-e-3" }
+					"default": "auto",
+					"title": "Quality",
+					"description": "Higher costs more. A model that does not offer the level chosen uses the nearest one below it (Extra high and Maximum are gpt-image-2.5's).",
+					"lookup": "quality"
 				},
 				{
-					"name": "gptImageQuality",
+					"name": "moderation",
 					"type": "string",
 					"required": true,
-					"default": "medium",
-					"title": "Image Quality",
-					"description": "GPT Image quality.",
-					"enum": ["low", "medium", "high", "auto"],
-					"visibleIf": { "field": "imageModel", "const": "gpt-image-1" }
+					"default": "auto",
+					"title": "Moderation",
+					"description": "How strictly OpenAI filters what it draws: auto is its standard filter, low is less strict.",
+					"enum": ["auto", "low"]
 				},
 				{
 					"name": "prompt",
@@ -74,7 +85,17 @@
 					"required": false,
 					"default": true,
 					"title": "Randomize Prompt",
-					"description": "Randomize the prompt."
+					"description": "Have a text model rewrite the prompt before each picture, so no two are alike."
+				},
+				{
+					"name": "promptModel",
+					"type": "string",
+					"required": true,
+					"default": "gpt-5.6-luna",
+					"title": "Prompt Model",
+					"description": "The text model that rewrites the prompt, from those your API key may use.",
+					"lookup": "textModel",
+					"visibleIf": { "field": "randomizePrompt", "const": true }
 				}
 			]
 		}

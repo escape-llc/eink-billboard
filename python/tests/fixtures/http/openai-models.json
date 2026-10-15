@@ -1,0 +1,22 @@
+{
+  "object": "list",
+  "data": [
+    { "id": "gpt-5.6-luna", "object": "model", "created": 1788000000, "owned_by": "system" },
+    { "id": "gpt-5.6-terra", "object": "model", "created": 1788000000, "owned_by": "system" },
+    { "id": "gpt-5.6-sol", "object": "model", "created": 1788000000, "owned_by": "system" },
+    { "id": "gpt-5-mini-2025-08-07", "object": "model", "created": 1754500000, "owned_by": "system" },
+    { "id": "gpt-image-2", "object": "model", "created": 1776700000, "owned_by": "system" },
+    { "id": "gpt-image-2-2026-04-21", "object": "model", "created": 1776700000, "owned_by": "system" },
+    { "id": "gpt-image-2.5-sunburst", "object": "model", "created": 1788800000, "owned_by": "system" },
+    { "id": "gpt-image-2.5-flare", "object": "model", "created": 1788800000, "owned_by": "system" },
+    { "id": "gpt-image-1.5", "object": "model", "created": 1765800000, "owned_by": "system" },
+    { "id": "gpt-image-1-mini", "object": "model", "created": 1759000000, "owned_by": "system" },
+    { "id": "chatgpt-image-latest", "object": "model", "created": 1765800000, "owned_by": "system" },
+    { "id": "gpt-4o-mini-tts", "object": "model", "created": 1742400000, "owned_by": "system" },
+    { "id": "gpt-realtime", "object": "model", "created": 1756200000, "owned_by": "system" },
+    { "id": "gpt-5.1-codex", "object": "model", "created": 1763000000, "owned_by": "system" },
+    { "id": "omni-moderation-latest", "object": "model", "created": 1731700000, "owned_by": "system" },
+    { "id": "text-embedding-3-small", "object": "model", "created": 1705900000, "owned_by": "system" },
+    { "id": "whisper-1", "object": "model", "created": 1677500000, "owned_by": "openai-internal" }
+  ]
+}

@@ -9,6 +9,7 @@ The internet the tests talk to: no test needs the real one.
 - any other URL is a loud `httpx.ConnectError`, so a test can never reach the network by accident.
 Set `EINK_TEST_LIVE=1` to leave the real network in place (the opt-in live check).
 """
+import base64
 import io
 import json
 import os
@@ -195,7 +196,48 @@ def _weather(request: httpx.Request) -> httpx.Response | None:
 		return httpx.Response(401, json={ "cod": 401, "message": "Invalid API key" })
 	return httpx.Response(200, text=fixture_text(name), headers={ "Content-Type": "application/json" })
 
-ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _apod, _apod_image, _rss_feed, _rss_image, _calendar, _caldav, _weather]
+# OpenAI: the key says what is answered ("sk-good" the fixtures, "sk-busy" a 429, "sk-broke" a 429 insufficient_quota, any other a 401 whose message
+# quotes the key, as the real one does). The model list is a fixture (its shape: it needs a key, so it is not recorded); a picture is a generated
+# PNG of the size asked, divided by 8 (the shape is what the code checks); the size follows the rules of the model's family.
+OPENAI_MODELS = "openai-models.json"
+
+def _openai_error(status: int, code: str, message: str) -> httpx.Response:
+	return httpx.Response(status, json={ "error": { "message": message, "type": "invalid_request_error", "param": None, "code": code } })
+
+def _openai(request: httpx.Request) -> httpx.Response | None:
+	if request.url.host != "api.openai.com":
+		return None
+	key = request.headers.get("Authorization", "").removeprefix("Bearer ")
+	if key == "sk-busy":
+		return _openai_error(429, "rate_limit_exceeded", "Rate limit reached.")
+	if key == "sk-broke":
+		return _openai_error(429, "insufficient_quota", "You exceeded your current quota.")
+	if key != "sk-good":
+		return _openai_error(401, "invalid_api_key", f"Incorrect API key provided: {key}. You can find your API key at https://platform.openai.com/account/api-keys.")
+	known = { m["id"] for m in json.loads(fixture_text(OPENAI_MODELS))["data"] }
+	if request.method == "GET" and request.url.path == "/v1/models":
+		return httpx.Response(200, text=fixture_text(OPENAI_MODELS), headers={ "Content-Type": "application/json" })
+	body = json.loads(request.read() or b"{}")
+	model = body.get("model", "")
+	if model not in known:
+		return _openai_error(404, "model_not_found", f"The model `{model}` does not exist or you do not have access to it.")
+	if request.method == "POST" and request.url.path == "/v1/images/generations":
+		size = str(body.get("size", ""))
+		w, _, h = size.partition("x")
+		free = model.startswith("gpt-image-2")
+		if not (w.isdigit() and h.isdigit()) or (free and (int(w) % 16 or int(h) % 16 or not 1 / 3 <= int(w) / int(h) <= 3)) \
+				or (not free and size not in ("1024x1024", "1536x1024", "1024x1536")) or "response_format" in body or "style" in body:
+			return _openai_error(400, "invalid_value", f"Invalid value: '{size}'.")
+		png = synthetic_image(int(w) // 8, int(h) // 8, model, "PNG")
+		return httpx.Response(200, json={ "created": 1789000000, "size": size, "data": [{ "b64_json": base64.b64encode(png).decode() }] })
+	if request.method == "POST" and request.url.path == "/v1/responses":
+		text = "A lighthouse drawn as a woodcut by Hokusai, in a storm of paper cranes"
+		return httpx.Response(200, json={ "id": "resp_1", "object": "response", "created_at": 1789000000, "status": "completed", "model": model,
+			"output": [{ "type": "message", "id": "msg_1", "status": "completed", "role": "assistant", "content": [{ "type": "output_text", "text": text, "annotations": [] }] }],
+			"parallel_tool_calls": True, "tool_choice": "auto", "tools": [] })
+	return _openai_error(404, "unknown_url", "Unknown request URL.")
+
+ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _apod, _apod_image, _rss_feed, _rss_image, _calendar, _caldav, _weather, _openai]
 
 def install() -> FakeInternet | None:
 	"""Make every `AsyncHttpWorkerPool` talk to the fake (unless EINK_TEST_LIVE is set)."""

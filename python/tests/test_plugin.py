@@ -9,7 +9,6 @@ from ..datasources.comic.comic_feed import ComicFeedAsync
 from ..datasources.data_source import DataSource, DataSourceManager
 from ..datasources.image_folder.image_folder import ImageFolderAsync
 from ..datasources.newspaper.newspaper import NewspaperAsync
-from ..datasources.openai_image.openai_image import OpenAIAsync
 from ..datasources.wpotd.wpotd import WpotdAsync
 from ..model.service_container import ServiceContainer
 from ..model.schedule import PlaylistSchedule, PlaylistScheduleData
@@ -165,26 +164,6 @@ class TestAsyncPlugins(unittest.TestCase):
 		dsmap:dict[str,DataSource] = {"newspaper": NewspaperAsync("newspaper", "newspaper")}
 		datasources = DataSourceManager(dsmap)
 		display = self.run_slide_show(track, datasources, 5)
-		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
-	@unittest.skip("OpenAI Image tests cost money!")
-	def test_slide_show_with_openai(self):
-		content = {
-			"dataSource": "openai-image",
-			"prompt": "A futuristic electronic inky display showing a slideshow of images in a modern home, digital art",
-			"slideMax": 0,
-			"slideMinutes": 5,
-			"timeoutSeconds": 60
-		}
-		plugin_data = PlaylistScheduleData(content)
-		track = PlaylistSchedule(
-			plugin_name="slide-show",
-			id="10",
-			title="10 Item",
-			content=plugin_data
-		)
-		dsmap:dict[str,DataSource] = {"openai-image": OpenAIAsync("openai-image", "openai-image")}
-		datasources = DataSourceManager(dsmap)
-		display = self.run_slide_show(track, datasources, 61)
 		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
 	pass
 
