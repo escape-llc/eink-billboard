@@ -229,3 +229,20 @@ test("a stored track shows what is new and what is no longer used, and a field t
 	await expect(page.getByTestId("stale-fields")).toHaveCount(0)
 	watch.expectNone()
 })
+
+test("the landing page opens the playlist page on a device with no playlist, and stays on a device that has one", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/")
+	await expect(page.getByText("Welcome to eInk Billboard!")).toBeVisible()
+	expect(page.url()).not.toContain("/playlist")
+
+	// every playlist document is gone (a new device): the first thing to do is make one
+	for (const name of fs.readdirSync(FOLDER)) {
+		const doc = JSON.parse(fs.readFileSync(path.join(FOLDER, name), "utf8"))
+		if (doc._schema === "playlist" || doc.type === "playlist" || name === "playlist.json") fs.rmSync(path.join(FOLDER, name))
+	}
+	await page.goto("/")
+	await expect(page).toHaveURL(/#\/playlist/)
+	await expect(page.getByText(/has no playlist yet/)).toBeVisible()
+	watch.expectNone()
+})

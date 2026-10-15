@@ -77,6 +77,8 @@ class AccessState:
 		self._wrong = 0
 		# called after a new device is claimed (the panel's setup page comes down); see eink-billboard.py
 		self.on_claimed: Callable[[], None]|None = None
+		# called when the setup code is replaced after too many wrong ones (the panel's setup page must show the new one)
+		self.on_code_changed: Callable[[], None]|None = None
 
 	def _cob(self):
 		cm = self._manager()
@@ -139,12 +141,19 @@ class AccessState:
 			return False
 		if hmac.compare_digest(_plain(given).encode(), _plain(code).encode()):
 			return True
+		replaced = False
 		with self._lock:
 			self._wrong += 1
 			if self._wrong >= WRONG_CODES:
 				self._wrong = 0
 				self._code = _new_code()
+				replaced = True
 				logger.warning(f"Too many wrong setup codes: the new setup code is {self._code}")
+		if replaced and self.on_code_changed is not None:
+			try:
+				self.on_code_changed()
+			except Exception as e:
+				logger.warning(f"The panel's setup page could not be updated ({type(e).__name__}).")
 		return False
 
 def clear_password(cm: ConfigurationManager) -> bool:

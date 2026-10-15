@@ -105,12 +105,15 @@ class TestNewDeviceOnTheNetwork(AccessBase):
 	def test_the_code_is_replaced_after_too_many_wrong_ones(self):
 		access = self.app.state.access
 		self.assertEqual(access.setup_code(), CODE)
+		changed: list[int] = []
+		access.on_code_changed = lambda: changed.append(1)
 		with patch.dict(os.environ, { SETUP_CODE_ENV: "" }):
 			for _ in range(WRONG_CODES):
 				self.assertFalse(access.check_code("0000 0000"))
 			second = access.setup_code()
 		self.assertNotEqual(second, CODE)
 		self.assertRegex(second or "", r"^\d{4} \d{4}$")
+		self.assertEqual(changed, [1], "the panel's setup page is told once, so it shows the new code")
 		self.assertFalse(access.check_code(CODE), "the old one no longer works")
 
 	def test_the_telemetry_socket_waits_for_a_sign_in_too(self):
@@ -243,12 +246,70 @@ class TestSetupPageOnThePanel(unittest.TestCase):
 
 	def test_claiming_revokes_the_setup_page(self):
 		from ..task.display_messages import PriorityRevoke
-		app, _ = self.application(lambda: None)
-		app.setup_done()
+		from ..task.messages import SetupDone
+		app, now = self.application(lambda: None)
+		app._setup_done(SetupDone(now))
 		route, message = app.router.send.call_args.args
 		self.assertEqual(route, "display")
 		self.assertIsInstance(message, PriorityRevoke)
 		self.assertEqual(message.title, "Set up this device")
+
+	def test_the_setup_page_holds_the_panel_until_the_device_is_claimed(self):
+		from ..task.application import SETUP_HOLD
+		app, now = self.application(lambda: ["Open http://pi.local", "Setup code 1234 5678"])
+		app._show_setup_notice(800, 480, now)
+		self.assertGreater(app.router.send.call_args.args[1].duration.days, 365)
+		self.assertEqual(app.router.send.call_args.args[1].duration, SETUP_HOLD)
+
+	def layers_of(self, app, now, notice):
+		"""The application as the display settings find it: two layers that record what they are sent."""
+		from unittest.mock import MagicMock
+		from ..task.display_messages import DisplaySettings
+		app.setup_notice = notice
+		app.root_container = MagicMock()
+		app.root_container.get_service.return_value = None
+		app.playlist_layer, app.timer_layer = MagicMock(), MagicMock()
+		app._display_settings(DisplaySettings(now, "mock", 800, 480, []))
+		return app.playlist_layer, app.timer_layer
+
+	def test_an_unclaimed_device_does_not_start_its_layers_until_it_is_claimed(self):
+		from ..task.configure_event import ConfigureEvent
+		from ..task.messages import SetupDone
+		app, now = self.application(lambda: ["Open http://pi.local", "Setup code 1234 5678"])
+		playlist, timer = self.layers_of(app, now, lambda: ["Open http://pi.local", "Setup code 1234 5678"])
+		playlist.accept.assert_not_called()
+		timer.accept.assert_not_called()
+		self.assertEqual(app.router.send.call_args.args[1].title, "Set up this device")
+		app.setup_notice = lambda: None
+		app._setup_done(SetupDone(now))
+		for layer, token in ((playlist, "playlist-layer"), (timer, "timer-layer")):
+			[(event,), _] = layer.accept.call_args
+			self.assertIsInstance(event, ConfigureEvent)
+			self.assertEqual(event.token, token)
+		self.assertIsNone(app._held)
+
+	def test_a_claimed_device_starts_its_layers_at_once(self):
+		app, now = self.application(lambda: None)
+		playlist, timer = self.layers_of(app, now, lambda: None)
+		playlist.accept.assert_called_once()
+		timer.accept.assert_called_once()
+		app.router.send.assert_not_called()
+
+	def test_a_new_setup_code_is_put_on_the_panel(self):
+		from ..task.display_messages import PriorityImage, PriorityRevoke
+		from ..task.messages import SetupCodeChanged
+		app, now = self.application(lambda: ["Open http://pi.local", "Setup code 1234 5678"])
+		self.layers_of(app, now, lambda: ["Open http://pi.local", "Setup code 1234 5678"])
+		app.router.send.reset_mock()
+		app.setup_notice = lambda: ["Open http://pi.local", "Setup code 8765 4321"]
+		app._setup_code_changed(SetupCodeChanged(now))
+		sent = [call.args[1] for call in app.router.send.call_args_list]
+		self.assertEqual([type(m) for m in sent], [PriorityRevoke, PriorityImage])
+		# a claimed device (nothing held) has no page to refresh
+		app._held = None
+		app.router.send.reset_mock()
+		app._setup_code_changed(SetupCodeChanged(now))
+		app.router.send.assert_not_called()
 
 	def test_a_claimed_device_shows_nothing(self):
 		app, now = self.application(lambda: None)

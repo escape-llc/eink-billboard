@@ -88,6 +88,14 @@ class ConfigurationWatcherEvent(BasicMessage):
 	path: str
 
 @dataclass(frozen=True, slots=True)
+class SetupDone(BasicMessage):
+	"""The device was claimed (the web app set its password): the setup page comes down and the layers may start."""
+
+@dataclass(frozen=True, slots=True)
+class SetupCodeChanged(BasicMessage):
+	"""The setup code was replaced (too many wrong ones): the setup page on the panel shows the new one."""
+
+@dataclass(frozen=True, slots=True)
 class ConfigurationChanged(BasicMessage):
 	"""
 	Sent by the application to every task when something under the storage root changed (after the watcher's debounce).
