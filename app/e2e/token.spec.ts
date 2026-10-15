@@ -92,6 +92,8 @@ test("after signing in, the page is built again and reads what it shows anew", a
 	await page.goto("/#/settings")
 	await signInWith(page, "API token", TOKEN)
 	await expect(showingSettings(page)).toBeVisible()
+	// the page may look the same, so a toast says it was reloaded
+	await expect(page.locator(".p-toast-message-success")).toContainText("The page was reloaded with the latest data.")
 	// read by the page that asked (retried after the sign-in) and again by the page that was built anew
 	await expect.poll(() => answered.filter(s => s === 200).length).toBeGreaterThanOrEqual(2)
 	expect(await asked(), "questions: building the page again does not ask again").toBe(1)

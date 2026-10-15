@@ -5,9 +5,15 @@ import ThemeSelector from './components/ThemeSelector.vue'
 import TelemetryGutter from './components/TelemetryGutter.vue'
 import AuthDialog from './components/AuthDialog.vue'
 import StatusIndicator from './components/StatusIndicator.vue'
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { useToast } from 'primevue/usetoast';
 import { signInCount } from './components/ApiClient'
+const toast = useToast()
+// the page was built again (the RouterView's key): it may look the same, so say that it read everything anew
+watch(signInCount, () => {
+	toast.add({ severity: 'success', summary: 'Signed in', detail: 'The page was reloaded with the latest data.', life: 4000 })
+})
 const router = useRouter();
 const menu = ref<InstanceType<typeof TieredMenu>|null>(null)
 const toggleMenu = (event:MouseEvent):void => {
