@@ -14,7 +14,7 @@ from ..model.configuration_manager import ConfigurationManager, _internal_save
 from ..model.service_container import ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..web.app import WebSettings, create_app
-from ..web.documents import SECRET_MASK, plugin_content_errors, redact, resolve_settings_lookups, restore_secrets, secret_fields, settings_lookup_items, unrestored_masks, validate_properties
+from ..web.documents import SECRET_MASK, content_with_defaults, plugin_content_errors, redact, resolve_settings_lookups, restore_secrets, secret_fields, settings_lookup_items, unrestored_masks, validate_properties
 from ..web.routers.settings import _settings_lookups
 from ..web.sessions import SessionStore
 from ..web.visibility import evaluate, find_problems, hidden_names, null_hidden
@@ -442,6 +442,46 @@ class TestPluginContentErrors(unittest.TestCase):
 		errors = plugin_content_errors(self.PLUGINS, self.SOURCES, "p", { "mode": "off", "dataSource": "overlay-source" }, [])
 		self.assertEqual(errors, [])
 
+class TestChoicesInsideChoices(unittest.TestCase):
+	"""A data source can choose its own parts (the Generated Image's text and image sources): their fields are checked and filled like its own, in the one content."""
+	PLUGINS = { "show": _content_item([{ "name": "dataSource", "type": "schema", "required": True, "lookup": "ds" }],
+		{ "ds": { "schema": "data-sources", "features": ["layer-background"] } }) }
+	def _sources(self):
+		master = _content_item([
+			{ "name": "prompt", "type": "string", "required": True, "default": None },
+			{ "name": "rewrite", "type": "boolean", "default": True },
+			{ "name": "textSource", "type": "schema", "required": True, "default": "text-a", "lookup": "text", "visibleIf": { "field": "rewrite", "const": True } },
+			{ "name": "imageSource", "type": "schema", "required": True, "default": "image-a", "lookup": "image" },
+		], { "text": { "schema": "data-sources", "features": ["ai-text"] }, "image": { "schema": "data-sources", "features": ["ai-image"] } }, ["layer-background"])
+		master["info"].update(id="master", name="Master")
+		image_a = _content_item([{ "name": "imageModel", "type": "string", "required": True, "default": "m-1" }, { "name": "quality", "type": "string", "enum": ["low", "high"], "default": "low" }], features=["api", "ai-image"])
+		image_a["info"].update(id="image-a", name="Image A")
+		text_a = _content_item([{ "name": "textModel", "type": "string", "required": True, "default": "t-1" }], features=["api", "ai-text"])
+		text_a["info"].update(id="text-a", name="Text A")
+		return { "master": master, "image-a": image_a, "text-a": text_a }
+
+	def test_the_parts_fields_take_their_defaults_even_when_the_choice_is_a_default(self):
+		filled = content_with_defaults(self.PLUGINS, self._sources(), "show", { "dataSource": "master", "prompt": "p" })
+		self.assertEqual({ k: filled.get(k) for k in ("textSource", "imageSource", "textModel", "imageModel", "quality") },
+			{ "textSource": "text-a", "imageSource": "image-a", "textModel": "t-1", "imageModel": "m-1", "quality": "low" })
+		# a hidden choice brings none of its part's fields
+		quiet = content_with_defaults(self.PLUGINS, self._sources(), "show", { "dataSource": "master", "prompt": "p", "rewrite": False })
+		self.assertNotIn("textModel", quiet)
+
+	def test_the_parts_fields_are_checked_with_flat_paths(self):
+		task = { "dataSource": "master", "prompt": "p", "rewrite": True, "textSource": "text-a", "imageSource": "image-a", "textModel": "t", "imageModel": None, "quality": "mid" }
+		errors = plugin_content_errors(self.PLUGINS, self._sources(), "show", task, [])
+		self.assertEqual(errors, [{ "path": ["content", "imageModel"], "message": "Required" }, { "path": ["content", "quality"], "message": "Not one of the allowed values" }])
+		# a hidden choice is not checked, nor are its part's fields
+		self.assertEqual(plugin_content_errors(self.PLUGINS, self._sources(), "show", { **task, "rewrite": False, "textModel": None, "imageModel": "m", "quality": "low" }, []), [])
+
+	def test_a_part_chosen_where_a_page_source_belongs_says_where_it_went(self):
+		errors = plugin_content_errors(self.PLUGINS, self._sources(), "show", { "dataSource": "image-a" }, [])
+		self.assertEqual(errors, [{ "path": ["content", "dataSource"], "message": "Image A is now chosen inside Master: choose Master and pick it there" }])
+		# a part of the wrong kind is not a choice
+		wrong = plugin_content_errors(self.PLUGINS, self._sources(), "show", { "dataSource": "master", "prompt": "p", "rewrite": True, "textSource": "image-a", "imageSource": "image-a", "imageModel": "m" }, [])
+		self.assertIn({ "path": ["content", "textSource"], "message": "Not one of the allowed values" }, wrong)
+
 class TestSettingsLookups(unittest.TestCase):
 	def test_the_lookups_of_a_descriptors_settings(self):
 		self.assertEqual(_settings_lookups({ "info": { "settings": None } }), {})
@@ -732,8 +772,8 @@ class TestPluginsAndDatasources(WebApiTestBase):
 			self.assertEqual(resp.status_code, 200, resp.text)
 
 	def test_secrets_are_masked_and_kept(self):
-		url = "/api/datasources/openai-image/settings"
-		settings_file = self.write_datasource_settings("openai-image", {"apiKey": "sk-test-1"})
+		url = "/api/datasources/openai/settings"
+		settings_file = self.write_datasource_settings("openai", {"apiKey": "sk-test-1", "modelsCacheHours": 24, "staleDays": 30})
 
 		doc = self.client.get(url).json()
 		self.assertEqual(doc["apiKey"], SECRET_MASK)
@@ -759,11 +799,18 @@ class TestPluginsAndDatasources(WebApiTestBase):
 			self.assertEqual(json.load(f)["apiKey"], "sk-test-2")
 		self.assertEqual(self.client.get(url).json()["apiKey"], SECRET_MASK)
 
+	def test_a_value_the_schema_does_not_declare_is_masked(self):
+		# a key left by a setting that moved away (the OpenAI Image's key went to the OpenAI provider): its schema no longer marks it write-only
+		self.write_datasource_settings("openai-image", { "apiKey": "sk-left-behind", "empty": "" })
+		resp = self.client.get("/api/datasources/openai-image/settings")
+		self.assertNotIn("sk-left-behind", resp.text)
+		self.assertEqual((resp.json()["apiKey"], resp.json()["empty"]), (SECRET_MASK, ""))
+
 class TestSecretMaskOnFirstSave(WebApiTestBase):
-	URL = "/api/datasources/openai-image/settings"
+	URL = "/api/datasources/openai/settings"
 
 	def _no_stored_settings(self):
-		settings_file = self.write_datasource_settings("openai-image", {})
+		settings_file = self.write_datasource_settings("openai", {})
 		os.remove(settings_file)
 		cob = self.cm.find(settings_file)
 		if cob is not None:
@@ -777,14 +824,14 @@ class TestSecretMaskOnFirstSave(WebApiTestBase):
 		self.assertFalse(os.path.exists(settings_file))
 
 	def test_the_literal_mask_is_refused_when_the_stored_settings_have_no_key(self):
-		self.write_datasource_settings("openai-image", { "other": 1 })
+		self.write_datasource_settings("openai", { "other": 1 })
 		doc = self.client.get(self.URL).json()
 		doc["apiKey"] = SECRET_MASK
 		_error_shape(self, self.client.put(self.URL, json=doc), 422)
 
 	def test_a_first_save_with_a_real_key_is_stored(self):
 		self._no_stored_settings()
-		self.assertEqual(self.client.put(self.URL, json={ "apiKey": "sk-new" }).status_code, 200)
+		self.assertEqual(self.client.put(self.URL, json={ "apiKey": "sk-new", "modelsCacheHours": 24, "staleDays": 30 }).status_code, 200)
 
 class TestSchemaFile(WebApiTestBase):
 	def test_a_missing_schema_file_is_the_uniform_404(self):

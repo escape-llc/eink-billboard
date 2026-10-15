@@ -90,9 +90,10 @@ def create_hash(data:dict) -> str:
 from .storage_files import load_json as _internal_load, save_json as _internal_save
 
 # settings that moved from one data source to another (`upgrade_settings`, once per storage): (from, to, keys). The Weather's went to the
-# OpenWeatherMap API data source that asks the origin for it and the Weather Overlay.
+# OpenWeatherMap API data source that asks the origin for it and the Weather Overlay; the OpenAI Image's key to the OpenAI provider its parts share.
 SETTINGS_MOVES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 	("weather", "openweathermap", ("apiKey", "units", "currentCacheHours", "forecastCacheHours", "staleDays")),
+	("openai-image", "openai", ("apiKey",)),
 )
 
 type LoadFunc = Callable[[str], dict|None]

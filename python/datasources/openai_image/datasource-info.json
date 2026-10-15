@@ -1,47 +1,19 @@
 {
 	"id": "openai-image",
-	"name": "OpenAI Image Datasource",
-	"version": "0.0.2",
-	"class": "OpenAIAsync",
+	"name": "OpenAI Image",
+	"version": "0.0.3",
+	"class": "OpenAIImageAsync",
 	"file": "openai_image.py",
 	"module": "python.datasources.openai_image.openai_image",
-	"description": "OpenAI Gen-AI images.",
-	"describe": "AI image {prompt}",
-	"features": ["internet", "api-key", "paid-service", "layer-background", "media-image"],
+	"description": "OpenAI draws the picture of a Generated Image. The key is in the OpenAI settings.",
 	"disabled": false,
-	"router": {
-		"id": "openai-router",
-		"class": "openai_router",
-		"file": "api.py",
-		"module": "python.datasources.openai_image.api"
-	},
-	"settings": {
-		"schema": {
-			"properties": [
-				{
-					"name": "apiKey",
-					"type": "string",
-					"required": true,
-					"writeOnly": true,
-					"default": null,
-					"title": "API Key",
-					"description": "Your OpenAI API key. Test asks OpenAI which image models it may use.",
-					"test": { "url": "/api/datasource/openai-image/test" },
-					"link": { "url": "https://platform.openai.com/api-keys", "label": "Get an API key" }
-				}
-			]
-		},
-		"default": {
-			"_id": "datasource-openai-image-settings",
-			"apiKey": null
-		}
-	},
+	"uses": ["openai"],
+	"features": ["api", "ai-image"],
 	"instanceSettings": {
 		"schema": {
 			"lookups": {
-				"imageModel": { "url": "/api/datasource/openai-image/lookups/image-models" },
-				"textModel": { "url": "/api/datasource/openai-image/lookups/text-models" },
-				"quality": { "url": "/api/datasource/openai-image/lookups/qualities" }
+				"imageModel": { "url": "/api/datasource/openai/lookups/image-models" },
+				"quality": { "url": "/api/datasource/openai/lookups/qualities" }
 			},
 			"properties": [
 				{
@@ -50,7 +22,7 @@
 					"required": true,
 					"default": "gpt-image-2",
 					"title": "Image Model",
-					"description": "The image models your API key may use, as OpenAI lists them (DALL·E is retired). gpt-image-2 and later draw in the panel's own shape; older models draw a fixed size, shown with a blurred margin.",
+					"description": "The OpenAI image models your API key may use, as OpenAI lists them (DALL·E is retired). gpt-image-2 and later draw in the panel's own shape; older models draw a fixed size, shown with a blurred margin.",
 					"lookup": "imageModel"
 				},
 				{
@@ -70,32 +42,6 @@
 					"title": "Moderation",
 					"description": "How strictly OpenAI filters what it draws: auto is its standard filter, low is less strict.",
 					"enum": ["auto", "low"]
-				},
-				{
-					"name": "prompt",
-					"type": "string",
-					"required": true,
-					"default": null,
-					"title": "Prompt",
-					"description": "Your Gen-AI prompt for the image."
-				},
-				{
-					"name": "randomizePrompt",
-					"type": "boolean",
-					"required": false,
-					"default": true,
-					"title": "Randomize Prompt",
-					"description": "Have a text model rewrite the prompt before each picture, so no two are alike."
-				},
-				{
-					"name": "promptModel",
-					"type": "string",
-					"required": true,
-					"default": "gpt-5.6-luna",
-					"title": "Prompt Model",
-					"description": "The text model that rewrites the prompt, from those your API key may use.",
-					"lookup": "textModel",
-					"visibleIf": { "field": "randomizePrompt", "const": true }
 				}
 			]
 		}

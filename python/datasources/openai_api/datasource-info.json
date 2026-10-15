@@ -1,0 +1,61 @@
+{
+	"id": "openai",
+	"name": "OpenAI",
+	"version": "0.0.1",
+	"class": "OpenAIApi",
+	"file": "openai_api.py",
+	"module": "python.datasources.openai_api.openai_api",
+	"description": "OpenAI for the Generated Image: the API key and the models it may use, shared by the OpenAI Text and OpenAI Image parts.",
+	"disabled": false,
+	"features": ["internet", "api-key", "paid-service", "api", "ai-provider"],
+	"router": {
+		"id": "openai-router",
+		"class": "openai_router",
+		"file": "api.py",
+		"module": "python.datasources.openai_api.api"
+	},
+	"settings": {
+		"schema": {
+			"properties": [
+				{
+					"name": "apiKey",
+					"type": "string",
+					"required": true,
+					"writeOnly": true,
+					"default": null,
+					"title": "API Key",
+					"description": "Your OpenAI API key. Test asks OpenAI which image models it may use.",
+					"test": { "url": "/api/datasource/openai/test" },
+					"link": { "url": "https://platform.openai.com/api-keys", "label": "Get an API key" }
+				},
+				{
+					"name": "modelsCacheHours",
+					"type": "number",
+					"required": true,
+					"default": 24,
+					"minimum": 0,
+					"maximum": 168,
+					"step": 1,
+					"minFractionDigits": 0,
+					"maxFractionDigits": 1,
+					"title": "Keep the Model List (hours)",
+					"description": "How long the list of models OpenAI lets the key use is kept for the forms and tasks. A new or retired model shows up after this. 0: ask every time."
+				},
+				{
+					"name": "staleDays",
+					"type": "integer",
+					"required": true,
+					"default": 30,
+					"minimum": 0,
+					"title": "Forget Unused Answers After (days)",
+					"description": "A kept model list nobody has used for this many days (an old key's) is removed. 0: never."
+				}
+			]
+		},
+		"default": {
+			"apiKey": null,
+			"modelsCacheHours": 24,
+			"staleDays": 30
+		}
+	}
+}

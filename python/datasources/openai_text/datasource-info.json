@@ -1,0 +1,30 @@
+{
+	"id": "openai-text",
+	"name": "OpenAI Text",
+	"version": "0.0.1",
+	"class": "OpenAITextAsync",
+	"file": "openai_text.py",
+	"module": "python.datasources.openai_text.openai_text",
+	"description": "OpenAI writes the prompt of a Generated Image. The key is in the OpenAI settings.",
+	"disabled": false,
+	"uses": ["openai"],
+	"features": ["api", "ai-text"],
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+				"textModel": { "url": "/api/datasource/openai/lookups/text-models" }
+			},
+			"properties": [
+				{
+					"name": "textModel",
+					"type": "string",
+					"required": true,
+					"default": "gpt-5.6-luna",
+					"title": "Text Model",
+					"description": "The OpenAI text model that rewrites the prompt, from those your API key may use.",
+					"lookup": "textModel"
+				}
+			]
+		}
+	}
+}

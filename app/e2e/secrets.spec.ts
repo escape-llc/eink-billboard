@@ -4,12 +4,12 @@ import { expect, test, type Page } from "@playwright/test"
 import { OPEN } from "./servers"
 import { saveButton, stubMapTiles, watchProblems } from "./support"
 
-// The fixture storage has a fake OpenAI key; the browser must only ever see the mask.
+// The fixture storage has a fake OpenAI key (the OpenAI provider's settings); the browser must only ever see the mask.
 const KEY = "sk-fake-e2e-key-0000"
 const NEW_KEY = "sk-fake-e2e-key-0001"
 const MASK = "********"
-const API = "/api/datasources/openai-image/settings"
-const stored = () => JSON.parse(fs.readFileSync(path.join(OPEN.storage, "datasources", "openai-image", "settings.json"), "utf8")).apiKey
+const API = "/api/datasources/openai/settings"
+const stored = () => JSON.parse(fs.readFileSync(path.join(OPEN.storage, "datasources", "openai", "settings.json"), "utf8")).apiKey
 
 test.describe.configure({ mode: "serial" })
 test.beforeEach(async ({ page }) => stubMapTiles(page))
@@ -18,7 +18,7 @@ async function openKeyForm(page: Page) {
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Data Sources" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
-	await page.getByRole("option").filter({ hasText: "openai-image" }).click()
+	await page.getByRole("option", { name: "openai", exact: true }).click()
 	return page.getByRole("tabpanel").locator("input[type=password]")
 }
 

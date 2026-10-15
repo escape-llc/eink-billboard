@@ -278,12 +278,20 @@ def load_schema_properties(schema: dict|None) -> list[dict]:
 	"""The `schema.properties` list of a schema document (`ConfigurationManager.read_schema`), or empty when there is none."""
 	return ((schema or {}).get("schema") or {}).get("properties", [])
 
-def get_document(id: str, cob: ConfigurationObject, secrets: Secrets|None = None) -> dict:
-	"""The stored document (secrets masked) with `_id` and `_rev` added; 404 when nothing is stored."""
+def get_document(id: str, cob: ConfigurationObject, secrets: Secrets|None = None, declared: Iterable[str]|None = None) -> dict:
+	"""
+	The stored document (secrets masked) with `_id` and `_rev` added; 404 when nothing is stored. With `declared` (the schema's property names),
+	a value whose key the schema does not declare is masked too: a key left by a setting that moved away (the schema that marked it write-only is
+	another's now) must not be sent as it is. The form lists such a key by name, under "No longer used", and leaves it out on save.
+	"""
 	rev, document = cob.get()
 	if document is None:
 		raise ApiError(404, f"{id}: not found", id, rev=None)
-	document = redact(document, secrets or Secrets())
+	secrets = secrets or Secrets()
+	if declared is not None:
+		known = set(declared)
+		secrets = Secrets(secrets.names | { k for k in document if k not in known and not k.startswith("_") }, secrets.rows)
+	document = redact(document, secrets)
 	document[HASH_KEY] = rev
 	document[ID_KEY] = id
 	return document
@@ -360,22 +368,63 @@ def _offers(source: dict, lookup: Any) -> bool:
 		return False
 	return not wanted or any(f in have for f in wanted)
 
+# how deep a choice inside a choice goes (a plugin's data source, then the parts a data source chooses: the Generated Image's text and image sources)
+MAX_CHOICE_DEPTH = 3
+
+def chosen_sources(datasources: dict, props: list[dict], lookups: dict, content: dict, depth: int = 0, seen: frozenset = frozenset()) -> list[dict]:
+	"""
+	The data sources `content` chooses, at any depth: a `schema` property that is shown and names a source that has one of its lookup's features,
+	then that source's own `schema` properties in turn (the form does the same: the fields of a choice show under it). Each source once, at most
+	MAX_CHOICE_DEPTH deep. The names are flat: every level's fields live in the one `content`.
+	"""
+	if depth >= MAX_CHOICE_DEPTH:
+		return []
+	found: list[dict] = []
+	hidden = hidden_names(props, content)
+	for prop in props:
+		if prop.get("type") != "schema" or prop.get("name") in hidden:
+			continue
+		chosen = content.get(prop.get("name"))
+		source = datasources.get(chosen) if isinstance(chosen, str) else None
+		if source is None or chosen in seen or not _offers(source, lookups.get(prop.get("lookup"))):
+			continue
+		found.append(source)
+		sprops, slookups = instance_properties(source)
+		found.extend(chosen_sources(datasources, sprops, slookups, content, depth + 1, seen | { chosen }))
+	return found
+
+def _used_by(datasources: dict, source: dict) -> list[str]:
+	"""The names of the data sources that choose this one inside them (an API data source chosen where only a page source can be)."""
+	sid, have = source["info"].get("id"), set(source["info"].get("features") or [])
+	names = []
+	for other in datasources.values():
+		props, lookups = instance_properties(other)
+		asks = any(p.get("type") == "schema" and have & set((lookups.get(p.get("lookup")) or {}).get("features") or []) for p in props)
+		if sid in (other["info"].get("uses") or []) or asks:
+			names.append(str(other["info"].get("name") or other["info"].get("id")))
+	return sorted(names)
+
 def content_with_defaults(plugins: dict, datasources: dict, plugin_name: Any, content: dict) -> dict:
 	"""
-	`content` with each property its plugin and chosen data source declare, and it lacks, at the descriptor's `default` (a copy; the stored item is not changed).
-	This is what the form shows and saves, so an item that was never saved again (older than the property, or written by hand) runs as the form says it would.
-	A property with no default (null: the user supplies it) and a hidden one (see `visibleIf`) stay as they are.
+	`content` with each property its plugin and chosen data sources declare (at any depth, see `chosen_sources`), and it lacks, at the descriptor's
+	`default` (a copy; the stored item is not changed). This is what the form shows and saves, so an item that was never saved again (older than
+	the property, or written by hand) runs as the form says it would. A property with no default (null: the user supplies it) and a hidden one
+	(see `visibleIf`) stay as they are.
 	"""
 	plugin = plugins.get(plugin_name)
 	if plugin is None or not isinstance(content, dict):
 		return content
 	props, lookups = instance_properties(plugin)
-	candidates = list(props)
-	for prop in props:
-		chosen = content.get(prop.get("name")) if prop.get("type") == "schema" else None
-		source = datasources.get(chosen) if isinstance(chosen, str) else None
-		if source is not None:
-			candidates.extend(instance_properties(source)[0])
+	def defaults_of(fields: list[dict]) -> dict:
+		return { p["name"]: p["default"] for p in fields if p.get("name") and p.get("default") is not None and p["name"] not in content }
+	# a choice's default can choose the next one (a Generated Image track saved before its parts had a default): applied until nothing new is chosen
+	chosen: list[dict] = []
+	for _ in range(MAX_CHOICE_DEPTH + 1):
+		again = chosen_sources(datasources, props, lookups, { **content, **defaults_of([*props, *(p for s in chosen for p in instance_properties(s)[0])]) })
+		if [s["info"].get("id") for s in again] == [s["info"].get("id") for s in chosen]:
+			break
+		chosen = again
+	candidates = [*props, *(p for s in chosen for p in instance_properties(s)[0])]
 	wanted = { p["name"]: p["default"] for p in candidates if p.get("name") and p.get("type") != "header" and p.get("default") is not None and p["name"] not in content }
 	if not wanted:
 		return content
@@ -385,28 +434,38 @@ def content_with_defaults(plugins: dict, datasources: dict, plugin_name: Any, co
 def plugin_content_errors(plugins: dict, datasources: dict, plugin_name: Any, content: dict, path: list,
 		settings_of: Callable[[str, str], dict|None]|None = None) -> list[dict]:
 	"""
-	The plugin exists and `content` follows its settings (and its data source's); `path` is where `plugin_name` and `content` live in the item (`["task"]` for a timer task, none for a track).
-	`settings_of(kind, id)` gives the stored settings of a `"plugin"` or `"datasource"`, which the `settings` lookups of its instance fields choose from.
+	The plugin exists and `content` follows its settings and its chosen data sources' (at any depth: a source's own choice of others, see `chosen_sources`);
+	`path` is where `plugin_name` and `content` live in the item (`["task"]` for a timer task, none for a track). Paths are flat (`["content", "<field>"]`):
+	every level's fields live in the one `content`. `settings_of(kind, id)` gives the stored settings of a `"plugin"` or `"datasource"`, which the
+	`settings` lookups of its instance fields choose from.
 	"""
 	plugin = plugins.get(plugin_name)
 	if plugin is None:
 		return [{ "path": [*path, "plugin_name"], "message": "Unknown plugin" }]
-	props, lookups = instance_properties(plugin)
-	if settings_of:
-		lookups = resolve_settings_lookups(lookups, settings_of("plugin", plugin["info"].get("id")))
-	errors = validate_properties(content, props, lookups)
-	hidden = hidden_names(props, content)
-	for prop in props:
-		# a hidden choice is not applicable: its data source's fields are not checked either
-		chosen = content.get(prop.get("name")) if prop.get("type") == "schema" and prop.get("name") not in hidden else None
-		if isinstance(chosen, str) and chosen:
+	def resolved(kind: str, item: dict, lookups: dict) -> dict:
+		if not settings_of:
+			return lookups
+		return resolve_settings_lookups(lookups, settings_of(kind, item["info"].get("id")),
+			(lambda other: settings_of("datasource", other) if other in datasources else None) if kind == "datasource" else None)
+	errors: list[dict] = []
+	def check(props: list[dict], lookups: dict, depth: int, seen: frozenset) -> None:
+		errors.extend(validate_properties(content, props, lookups))
+		hidden = hidden_names(props, content)
+		for prop in props:
+			# a hidden choice is not applicable: its data source's fields are not checked either
+			chosen = content.get(prop.get("name")) if prop.get("type") == "schema" and prop.get("name") not in hidden else None
+			if not (isinstance(chosen, str) and chosen):
+				continue
 			source = datasources.get(chosen)
 			if source is None or not _offers(source, lookups.get(prop.get("lookup"))):
-				errors.append({ "path": [prop["name"]], "message": "Not one of the allowed values" })
-			else:
+				# only the plugin's own choice: inside a source that chooses parts, a part of the wrong kind is just not one of the choices
+				users = _used_by(datasources, source) if depth == 0 and source is not None and "api" in (source["info"].get("features") or []) else []
+				# an API data source is chosen inside another (an `openai-image` track from before the Generated Image): say where it went
+				message = f"{source['info'].get('name')} is now chosen inside {users[0]}: choose {users[0]} and pick it there" if source is not None and users else "Not one of the allowed values"
+				errors.append({ "path": [prop["name"]], "message": message })
+			elif depth + 1 < MAX_CHOICE_DEPTH and chosen not in seen:
 				sprops, slookups = instance_properties(source)
-				if settings_of:
-					slookups = resolve_settings_lookups(slookups, settings_of("datasource", source["info"].get("id")),
-						lambda other: settings_of("datasource", other) if other in datasources else None)
-				errors.extend(validate_properties(content, sprops, slookups))
+				check(sprops, resolved("datasource", source, slookups), depth + 1, seen | { chosen })
+	props, lookups = instance_properties(plugin)
+	check(props, resolved("plugin", plugin, lookups), 0, frozenset())
 	return [{ "path": [*path, "content", *e["path"]], "message": e["message"] } for e in errors]
