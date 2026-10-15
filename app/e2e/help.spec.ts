@@ -21,7 +21,7 @@ test("a settings form hides its help from its header", async ({ page }) => {
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Data Sources" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
-	await page.getByRole("option", { name: "weather", exact: true }).click()
+	await page.getByRole("option", { name: "openweathermap", exact: true }).click()
 	await toggles(page, page.getByRole("tabpanel"))
 	watch.expectNone()
 })

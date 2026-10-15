@@ -57,7 +57,7 @@ class TestConfigurationManager(unittest.TestCase):
 		list = cm.enum_datasources()
 		self.assertIsNotNone(list)
 		by_id = { px['info']['id']: px['info'] for px in list }
-		self.assertEqual(set(by_id), { 'calendar', 'clock', 'comic', 'countdown', 'image-folder', 'newspaper', 'openai-image', 'rss', 'today', 'weather', 'weather-overlay', 'reminder-overlay', 'apod', 'wpotd', 'year_progress' })
+		self.assertEqual(set(by_id), { 'calendar', 'clock', 'comic', 'countdown', 'image-folder', 'newspaper', 'openai-image', 'openweathermap', 'rss', 'today', 'weather', 'weather-overlay', 'reminder-overlay', 'apod', 'wpotd', 'year_progress' })
 		self.assertEqual(by_id['clock']['class'], 'ClockAsync')
 		self.assertEqual(by_id['comic']['class'], 'ComicFeedAsync')
 		self.assertEqual(by_id['today']['class'], 'TodayAsync')
@@ -79,7 +79,7 @@ class TestConfigurationManager(unittest.TestCase):
 		infos = cm.enum_datasources()
 		datasources = cm.load_datasources(infos)
 		self.assertIsNotNone(datasources)
-		self.assertEqual(len(datasources), 15)
+		self.assertEqual(len(datasources), 16)
 		datasource = datasources.get('comic', None)
 		self.assertIsNotNone(datasource, 'datasource comic failed')
 		if datasource is not None:
@@ -131,6 +131,28 @@ class TestConfigurationManager(unittest.TestCase):
 			_, read = cm.settings_manager().open("theme").get()
 			assert read is not None
 			self.assertEqual(read["fontBody"], "Jost")
+
+	def test_settings_that_moved_to_another_data_source_go_there_once(self):
+		with tempfile.TemporaryDirectory() as tempdir:
+			cm = ConfigurationManager(storage_path=tempdir)
+			cm.hard_reset()
+			weather = os.path.join(tempdir, "datasources", "weather", "settings.json")
+			os.makedirs(os.path.dirname(weather), exist_ok=True)
+			with open(weather, "w") as f:
+				json.dump({ "apiKey": "owm-secret", "units": "imperial", "currentCacheHours": 1, "forecastCacheHours": 3, "staleDays": 9, "other": True }, f)
+			with self.assertLogs("python.model.configuration_manager", level="INFO") as logged:
+				changed = cm.upgrade_settings()
+			self.assertIn("datasources/openweathermap", changed)
+			self.assertNotIn("owm-secret", "\n".join(logged.output), "the names only, never a value")
+			_, moved = cm.datasource_manager("openweathermap").open().get()
+			assert moved is not None
+			self.assertEqual({ k: moved[k] for k in ("apiKey", "units", "currentCacheHours", "forecastCacheHours", "staleDays") },
+				{ "apiKey": "owm-secret", "units": "imperial", "currentCacheHours": 1, "forecastCacheHours": 3, "staleDays": 9 })
+			# out of the old document (its schema no longer masks the key), what was not moved stays
+			with open(weather) as f:
+				self.assertEqual(json.load(f), { "other": True })
+			# once: the old document holds nothing to move any more
+			self.assertEqual(cm.upgrade_settings(), [])
 
 	def test_a_missing_or_unreadable_settings_file_is_left_alone(self):
 		with tempfile.TemporaryDirectory() as tempdir:
