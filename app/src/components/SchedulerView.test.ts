@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { daysOf, rangeLabel, step, switchMode, taskRows, windowOf } from "./SchedulerView"
+import { daysOf, rangeLabel, step, switchMode, taskRows, triggerText, windowOf } from "./SchedulerView"
 
 describe("the scheduler's window", () => {
 	it("is a day or a week from the offset, starting on today's weekday", () => {
@@ -30,7 +30,7 @@ describe("the scheduler's window", () => {
 
 describe("the list of tasks", () => {
 	const schedules = { doc: { items: [
-		{ id: "a", title: "Clock", enabled: true, trigger: { on_startup: true }, task: { plugin_name: "overlay" } },
+		{ id: "a", title: "Clock", enabled: true, trigger: { on_startup: true, day: { type: "dayofweek" }, time: { type: "hourly" } }, task: { plugin_name: "overlay" } },
 		{ id: "b", title: "Poem", enabled: true, trigger: { on_startup: false }, task: { plugin_name: "interstitial" } },
 		{ id: "c", title: "Off", enabled: false, task: { plugin_name: "overlay" } },
 	] } }
@@ -42,7 +42,7 @@ describe("the list of tasks", () => {
 		{ start: at(11), data: undefined },
 	]
 	it("has each task once, with its first run and how many, in order of first run", () => {
-		const rows = taskRows(events, schedules, id => ({ overlay: "Overlay", interstitial: "Priority Update" })[id] ?? id)
+		const rows = taskRows(events, schedules, id => ({ overlay: "Overlay", interstitial: "Priority Update" })[id] ?? id, at(0))
 		expect(rows.map(r => [r.title, r.plugin, r.runs, r.next?.getUTCHours() ?? null, r.enabled, r.startup])).toEqual([
 			["Poem", "Priority Update", 1, 9, true, false],
 			["Clock", "Overlay", 2, 10, true, true],
@@ -50,6 +50,17 @@ describe("the list of tasks", () => {
 		])
 		// the row opens the task in its document
 		expect(rows[0]!.data).toMatchObject({ id: "b", schedule: "doc" })
+	})
+	it("names the trigger as the editor does, and the next run is the first one from now on", () => {
+		const rows = taskRows(events, schedules, id => id, at(10))
+		const clock = rows.find(r => r.title === "Clock")!
+		expect(clock.trigger).toBe("Day-of-Week/Hourly")
+		// the 09:00 and 10:00 runs have passed (a window starts at midnight); all of its runs are still counted
+		expect([clock.next?.getUTCHours(), clock.runs]).toEqual([10, 2])
+		expect(rows.find(r => r.title === "Poem")!.next).toBeNull()
+		expect(taskRows(events, schedules, id => id, at(11)).find(r => r.title === "Clock")!.next?.getUTCHours()).toBe(12)
+		expect(triggerText({ day: { type: "dayofmonth" }, time: { type: "hourofday" } })).toBe("Day-of-Month/Hour-of-Day")
+		expect(triggerText(undefined)).toBe("")
 	})
 	it("is empty without documents", () => {
 		expect(taskRows([], {}, id => id)).toEqual([])

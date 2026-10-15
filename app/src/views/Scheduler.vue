@@ -1,6 +1,6 @@
 <template>
 	<div class="flex flex-column scheduler" style="width:100%;justify-items: stretch;align-items: stretch;">
-	<Toolbar class="p-0">
+	<Toolbar class="p-2">
 		<template #start>
 			<div style="font-size:150%">Scheduler</div>
 		</template>
@@ -29,6 +29,7 @@
 				</template>
 			</Column>
 			<Column field="plugin" header="Plugin" />
+			<Column field="trigger" header="Trigger" />
 			<Column header="Next run">
 				<template #body="{ data }">{{ data.next ? runText(data.next) : (data.enabled ? "Not this week" : "") }}</template>
 			</Column>
