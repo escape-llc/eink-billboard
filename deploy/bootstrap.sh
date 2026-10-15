@@ -40,6 +40,8 @@ main() {
 	done
 
 	say() { printf '%s\n' "$*"; }
+	# the copy in the clone does not repeat what the downloaded one already said about this computer
+	first() { [ "$FROM_CLONE" -eq 1 ] || "$@"; }
 	step() { printf '\n==> %s\n' "$*"; }
 	warn() { printf '\nWARNING: %s\n' "$*" >&2; }
 	fail() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
@@ -67,7 +69,7 @@ main() {
 	}
 
 	# ---- what this Pi is -----------------------------------------------------------------------------------------------------------------------
-	step "Checking this computer"
+	first step "Checking this computer"
 	[ "$(uname -s)" = "Linux" ] || fail "this is for a Raspberry Pi with Raspberry Pi OS."
 	[ "$(id -u)" -ne 0 ] || fail "run this as your own user, not with sudo or as root (it asks for your password when it needs it):
        curl -fsSL https://raw.githubusercontent.com/escape-llc/eink-billboard/master/deploy/bootstrap.sh | bash"
@@ -75,16 +77,16 @@ main() {
 	arch=$(uname -m)
 	model=$( { tr -d '\0' < /proc/device-tree/model; } 2>/dev/null || echo "not a Raspberry Pi")
 	os=$( . /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-unknown}")
-	say "$model, $os, $arch"
+	first say "$model, $os, $arch"
 	[ "$arch" = "aarch64" ] || fail "this needs the 64-bit Raspberry Pi OS (this one is $arch). Install it with Raspberry Pi Imager (Raspberry Pi OS 64-bit), then run this again."
 	case "$model" in
 		*"Raspberry Pi 4"*|*"Raspberry Pi 5"*|*"Compute Module 4"*|*"Compute Module 5"*) ;;  # the 400 and 500 too
-		*"Raspberry Pi"*) warn "this was made for a Raspberry Pi 4 or 5; on $model it may be too slow or short of memory. Going on." ;;
-		*) warn "this does not look like a Raspberry Pi: the app will run, but without a panel to drive. Going on." ;;
+		*"Raspberry Pi"*) first warn "this was made for a Raspberry Pi 4 or 5; on $model it may be too slow or short of memory. Going on." ;;
+		*) first warn "this does not look like a Raspberry Pi: the app will run, but without a panel to drive. Going on." ;;
 	esac
 	command -v apt-get >/dev/null || fail "this needs Raspberry Pi OS (or another Debian): apt-get is missing."
 	command -v sudo >/dev/null || fail "sudo is missing: it is needed to install Podman. Ask whoever set up this Pi."
-	command -v curl >/dev/null || say "(curl will be installed)"
+	command -v curl >/dev/null || first say "(curl will be installed)"
 	if ! curl -fsS --max-time 15 -o /dev/null https://github.com 2>/dev/null; then
 		command -v curl >/dev/null && fail "github.com cannot be reached: is the Pi on the internet?"
 	fi
@@ -98,12 +100,15 @@ main() {
 	[ -c /dev/spidev0.0 ] || need_spi=1
 	[ -c /dev/i2c-1 ] || need_i2c=1
 	if { [ "$need_spi" -eq 1 ] || [ "$need_i2c" -eq 1 ]; } && ! command -v raspi-config >/dev/null; then
-		warn "SPI or I2C is off and raspi-config is missing: add dtparam=spi=on and dtparam=i2c_arm=on to /boot/firmware/config.txt yourself and restart. Going on."
+		first warn "SPI or I2C is off and raspi-config is missing: add dtparam=spi=on and dtparam=i2c_arm=on to /boot/firmware/config.txt yourself and restart. Going on."
 		need_spi=0; need_i2c=0
 	fi
+	# a group is added to the system's list at once, but reaches you only at your next login: so a group in the list and not in this session needs a restart, not adding again
+	local relogin=0
 	for g in spi i2c gpio; do
 		getent group "$g" >/dev/null || continue
-		id -nG | tr ' ' '\n' | grep -qx "$g" || groups_missing+=("$g")
+		if ! id -nG "$(id -un)" | tr ' ' '\n' | grep -qx "$g"; then groups_missing+=("$g")
+		elif ! id -nG | tr ' ' '\n' | grep -qx "$g"; then relogin=1; fi
 	done
 	local subids=1
 	grep -q "^$(id -un):" /etc/subuid 2>/dev/null && grep -q "^$(id -un):" /etc/subgid 2>/dev/null || subids=0
@@ -126,7 +131,7 @@ main() {
 	fi
 
 	# ---- the Pi itself (sudo) --------------------------------------------------------------------------------------------------------------------
-	local reboot=0
+	local reboot=$relogin
 	if [ ${#packages[@]} -gt 0 ] || [ "$subids" -eq 0 ] || [ "$need_spi" -eq 1 ] || [ "$need_i2c" -eq 1 ] || [ ${#groups_missing[@]} -gt 0 ]; then
 		step "Setting up the Pi (sudo asks for your password)"
 		if [ ${#packages[@]} -gt 0 ]; then
