@@ -50,6 +50,25 @@ test("a track edit is applied to the working copy and saved with the whole playl
 	watch.expectNone()
 })
 
+test("Apply is disabled until the selected track is edited (#334)", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/playlist")
+	await row(page, "Morning slides").click()
+	const title = page.locator(".track-editor input[type=text]").first()
+	await expect(title).toHaveValue("Morning slides")
+	await expect(apply(page)).toBeDisabled()
+	await title.fill("Morning, edited")
+	await expect(apply(page)).toBeEnabled()
+	await title.fill("Morning slides")
+	await expect(apply(page)).toBeDisabled()
+	// a field of the form counts too
+	const field = page.locator(".track-editor input.p-inputnumber-input").first()
+	await field.fill("7")
+	await field.blur()
+	await expect(apply(page)).toBeEnabled()
+	watch.expectNone()
+})
+
 test("tracks can be added, moved and removed, and the order is saved", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/playlist")
@@ -218,7 +237,10 @@ test("a stored track shows what is new and what is no longer used, and a field t
 	const stale = editor.getByTestId("stale-field")
 	await expect(stale).toHaveText([/washStyle/, /oldSetting/])
 	await expect(editor.getByTestId("stale-fields")).not.toContainText("soft")
-	// applying the track leaves them out
+	// applying the track leaves them out (Apply waits for an edit, as for any track)
+	await expect(apply(page)).toBeDisabled()
+	await editor.locator("#agendaDays").fill("8")
+	await editor.locator("#agendaDays").blur()
 	await apply(page).click()
 	await save(page).click()
 	await expect(page.getByText("Playlist saved")).toBeVisible()
@@ -226,7 +248,7 @@ test("a stored track shows what is new and what is no longer used, and a field t
 	expect(Object.keys(content)).not.toContain("washStyle")
 	expect(Object.keys(content)).not.toContain("oldSetting")
 	expect(content.fontSize).toBe("normal")
-	expect(content.agendaDays).toBe(7)
+	expect(content.agendaDays).toBe(8)
 	// a track that was just added has nothing to compare with
 	await page.getByRole("button", { name: "Add track" }).click()
 	await expect(page.locator(".track-editor .new-tag")).toHaveCount(0)
