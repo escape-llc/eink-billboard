@@ -79,6 +79,10 @@
 					</FormField>
 				</InputGroupAddon>
 			</template>
+			<template v-else-if="field.type === 'string' && field.format === 'multiline' && !field.writeOnly">
+				<Textarea style="flex-grow:1" :name="field.name" :id="field.name" :invalid="isInvalid" size="small" :rows="field.rows ?? 3" autoResize
+					:placeholder="field.title" fluid />
+			</template>
 			<template v-else>
 				<InputText style="flex-grow:1" :name="field.name" :id="field.name" :invalid="isInvalid" size="small" :type="field.writeOnly ? 'password' : field.format === 'uri' ? 'url' : 'text'"
 					:autocomplete="field.writeOnly ? 'new-password' : undefined"
@@ -118,7 +122,7 @@
 	</template>
 </template>
 <script setup lang="ts">
-import { Button, Message, InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Select, DatePicker, MultiSelect, Tag } from 'primevue';
+import { Button, Message, InputGroup, ToggleSwitch, InputGroupAddon, InputText, Textarea, InputNumber, Select, DatePicker, MultiSelect, Tag } from 'primevue';
 import FormField from '@primevue/forms/formfield';
 import LeafletPicker from './LeafletPicker.vue';
 import ArrayField from './ArrayField.vue';

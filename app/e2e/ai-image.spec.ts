@@ -53,14 +53,14 @@ test("a Generated Image track shows each part's fields under its choice and save
 	await editor(page).locator(".p-toggleswitch").filter({ has: page.locator("#randomizePrompt") }).click()
 	await expect(editor(page).getByText("Text Source", { exact: true })).toBeHidden()
 	await expect(editor(page).getByText("Text Model", { exact: true })).toBeHidden()
-	await editor(page).locator("input[name=prompt]").fill("a lighthouse in a storm")
+	await editor(page).locator("textarea[name=prompt]").fill("a lighthouse in a storm,\nat night")
 	await field(page, "gpt-image-2").click()
 	await page.getByRole("option").filter({ hasText: "gpt-image-2.5-flare" }).first().click()
 	await page.getByRole("button", { name: "Apply track" }).click()
 	await page.getByRole("button", { name: "Save playlist" }).click()
 	await expect(page.getByText("Playlist saved")).toBeVisible()
 	const saved = JSON.parse(fs.readFileSync(FILE, "utf8")).items.find((x: { title: string }) => x.title === "Pictures").content
-	expect(saved).toMatchObject({ dataSource: "ai-image", prompt: "a lighthouse in a storm", randomizePrompt: false, imageSource: "openai-image",
+	expect(saved).toMatchObject({ dataSource: "ai-image", prompt: "a lighthouse in a storm,\nat night", randomizePrompt: false, imageSource: "openai-image",
 		imageModel: "gpt-image-2.5-flare", quality: "auto", moderation: "auto" })
 	// hidden: saved as nothing
 	expect(saved.textSource ?? null).toBeNull()
@@ -76,7 +76,7 @@ test("choosing a Google image source swaps that part's fields, and GPT text goes
 	await field(page, "Data Source").click()
 	await page.getByRole("option").filter({ hasText: "Generated Image" }).first().click()
 	await expect(editor(page).getByText("Moderation", { exact: true })).toBeVisible()
-	await editor(page).locator("input[name=prompt]").fill("a lighthouse")
+	await editor(page).locator("textarea[name=prompt]").fill("a lighthouse")
 	// the image part is Google's now: its model list, no OpenAI-only field; the text part stays OpenAI's
 	await field(page, "OpenAI Image").click()
 	await page.getByRole("option").filter({ hasText: "Google Image" }).first().click()

@@ -264,7 +264,7 @@ class TestLinks(unittest.TestCase):
 class TestDescriptorRules(unittest.TestCase):
 	"""Every descriptor in the repository: names the form can hold, types both validators know, defaults that pass their own rules."""
 	KNOWN_TYPES = ("string", "boolean", "number", "integer", "location", "schema", "array", "header")
-	FORMATS = ("date", "uri", "color")
+	FORMATS = ("date", "uri", "color", "multiline")
 	# names the descriptors used before the JSON Schema ones; nothing accepts them any more
 	REMOVED = { "label": "title", "min": "minimum", "max": "maximum", "secret": "writeOnly" }
 	REMOVED_PREDICATE = { "eq": "const", "ne": "not + const", "in": "enum" }
@@ -296,6 +296,12 @@ class TestDescriptorRules(unittest.TestCase):
 				for old, new in self.REMOVED.items():
 					self.assertNotIn(old, prop, f"`{old}` is now `{new}`")
 				self.assertFalse(self._predicate_keys(prop.get("visibleIf")) & set(self.REMOVED_PREDICATE), "a visibleIf uses a removed operator")
+				if prop.get("format") == "multiline":
+					self.assertEqual(prop.get("type"), "string", "`multiline` is a string's format")
+					self.assertNotIn("writeOnly", prop, "a secret is one line (a password input)")
+				if "rows" in prop:
+					self.assertEqual(prop.get("format"), "multiline", "`rows` belongs to a `multiline`")
+					self.assertTrue(isinstance(prop["rows"], int) and 1 <= prop["rows"] <= 20)
 				if "schemes" in prop:
 					self.assertEqual(prop.get("format"), "uri", "`schemes` belongs to a `uri`")
 					self.assertTrue(prop["schemes"] and all(isinstance(x, str) and x for x in prop["schemes"]))

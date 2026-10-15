@@ -1097,6 +1097,32 @@
 			"error": null
 		},
 		{
+			"name": "multiline text keeps its line breaks",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": true,
+				"type": "string",
+				"format": "multiline",
+				"maxLength": 20
+			},
+			"value": "one\ntwo",
+			"error": null
+		},
+		{
+			"name": "multiline text over its maximum",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": true,
+				"type": "string",
+				"format": "multiline",
+				"maxLength": 5
+			},
+			"value": "one\ntwo",
+			"error": "At most 5 characters"
+		},
+		{
 			"name": "color, three digits",
 			"field": {
 				"name": "f",
