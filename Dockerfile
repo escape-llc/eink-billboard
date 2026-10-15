@@ -3,7 +3,7 @@
 # Normally driven through compose.yaml.
 
 # --- web app bundle -------------------------------------------------------------------------
-FROM node:22-slim AS web
+FROM node:24-slim AS web
 # The type-check imports the shared rule cases from python/tests, so keep the repository layout.
 WORKDIR /repo/app
 COPY app/package.json app/package-lock.json ./
