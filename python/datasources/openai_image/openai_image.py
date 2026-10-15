@@ -1,139 +1,149 @@
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 from PIL import Image
-from openai import BadRequestError
 import logging
-import re
 from io import BytesIO
 import base64
+
+import httpx
 import openai
 
-from ...utils.image_utils import blurred_margin, get_image_async
-from ...model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager
+from ...plugins.plugin_base import PermanentError
+from ...task.async_http_worker_pool import AsyncHttpWorkerPool, tls_context
+from ...utils.image_utils import blurred_margin
+from ...model.configuration_manager import DatasourceConfigurationManager
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
+from .models import DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL, MODERATIONS, family_of, is_retired, quality_for, size_for
 
-DEFAULT_IMAGE_MODEL = "dall-e-3"
-DEFAULT_IMAGE_QUALITY = "standard"
-IMAGE_MODELS = ["dall-e-3", "dall-e-2", "gpt-image-1"]
+TIMEOUT = 120.0
 
-# OpenAI error texts can quote (part of) the API key: never let one reach a log or a result
-_KEY_PATTERN = re.compile(r"sk-[A-Za-z0-9_\-]+")
+def openai_client(api_key: str) -> openai.AsyncOpenAI:
+	"""A client on an HTTP client of ours: our TLS context (see `tls_context`), and in the tests the fake internet. Closing it closes both."""
+	http = httpx.AsyncClient(transport=AsyncHttpWorkerPool.default_transport, verify=tls_context(), timeout=TIMEOUT)
+	# the SDK runs on `httpx2` and is typed for its client, but takes an `httpx` one too (`openai._httpx2`, the legacy client): ours is httpx, as the pool's is
+	return openai.AsyncOpenAI(api_key=api_key, timeout=TIMEOUT, max_retries=2, http_client=cast(Any, http))
 
-def redact_secrets(text: str, api_key: str|None = None) -> str:
-	if api_key:
-		text = text.replace(api_key, "sk-***")
-	return _KEY_PATTERN.sub("sk-***", text)
-
-def _bad_request_message(bre: BadRequestError) -> str:
-	body = bre.body
+def _code(error: openai.APIStatusError) -> str:
+	"""OpenAI's error code (`invalid_api_key`, `model_not_found`, ...): only the code reaches a message, never OpenAI's text (it can quote the key)."""
+	body = error.body
 	if isinstance(body, dict):
-		message = body.get("message")
-		if message:
-			return str(message)
-	elif isinstance(body, str) and body:
-		return body
-	return bre.message
+		inner = body.get("error") if isinstance(body.get("error"), dict) else body
+		code = inner.get("code") if isinstance(inner, dict) else None
+		if isinstance(code, str) and code.replace("_", "").isalnum() and len(code) <= 60:
+			return code
+	return ""
+
+def openai_problem(error: Exception, model: str = "") -> Exception:
+	"""
+	What went wrong, in our words: a PermanentError when trying again cannot help (the key, the model, the account's credit), else a RuntimeError.
+	Never the exception's text, which can hold the key.
+	"""
+	named = f" {model}" if model else ""
+	if isinstance(error, openai.AuthenticationError):
+		return PermanentError("OpenAI refused the API key: check it in the OpenAI Image settings.")
+	if isinstance(error, openai.PermissionDeniedError):
+		return PermanentError(f"OpenAI does not let this key use the model{named} (the organization may need to be verified).")
+	if isinstance(error, openai.NotFoundError):
+		return PermanentError(f"OpenAI does not offer the model{named} to this key: choose another in the task.")
+	if isinstance(error, openai.RateLimitError):
+		if _code(error) == "insufficient_quota":
+			return PermanentError("The OpenAI account has no credit left.")
+		return RuntimeError("OpenAI is busy (429): it is tried again later.")
+	if isinstance(error, openai.BadRequestError):
+		code = _code(error)
+		return RuntimeError(f"OpenAI refused the request ({code})." if code else "OpenAI refused the request.")
+	if isinstance(error, openai.APIStatusError):
+		return RuntimeError(f"OpenAI answered {error.status_code}.")
+	if isinstance(error, (openai.APITimeoutError, httpx.TimeoutException)):
+		return RuntimeError("OpenAI did not answer in time.")
+	if isinstance(error, (openai.APIConnectionError, httpx.HTTPError)):
+		return RuntimeError("Could not reach OpenAI.")
+	return RuntimeError(f"The OpenAI request failed ({type(error).__name__}).")
+
+def stored_api_key(dscm: DatasourceConfigurationManager) -> str:
+	_, settings = dscm.open().get()
+	api_key = (settings or {}).get("apiKey")
+	if not api_key:
+		raise PermanentError("Enter the OpenAI API key in the OpenAI Image settings.")
+	return str(api_key)
 
 class OpenAIAsync(DataSource, MediaListAsync, MediaRenderAsync):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
-		dscm = dsec.provider.required(DatasourceConfigurationManager)
-		scm = dsec.provider.required(SettingsConfigurationManager)
-		ds_cob = dscm.open()
-		_, ds_settings = ds_cob.get()
-		if not ds_settings:
-			raise RuntimeError("Open AI Image datasource not configured.")
-		api_key = ds_settings.get("apiKey", None)
-		if not api_key:
-			raise RuntimeError("OPEN AI API Key not configured.")
-		text_prompt = params.get("prompt", "")
-		image_model = params.get("imageModel", DEFAULT_IMAGE_MODEL)
-		if image_model not in IMAGE_MODELS:
-			raise RuntimeError(f"Invalid Image Model provided: {image_model}")
-		# each model has its own quality names (the descriptor shows only the one that applies)
-		if image_model == "gpt-image-1":
-			image_quality = params.get('gptImageQuality') or "medium"
-		else:
-			image_quality = params.get('dalle3Quality') or DEFAULT_IMAGE_QUALITY
-		randomize_prompt = params.get('randomizePrompt') == True
-		display_cob = scm.open("display")
-		_, display_settings = display_cob.get()
-		if display_settings is None:
-			raise RuntimeError("Display settings not found.")
-		orientation = display_settings.get("orientation", "landscape")
-		return [{ "api_key": api_key, "text_prompt": text_prompt, "image_model": image_model, "image_quality": image_quality, "randomize_prompt": randomize_prompt, "orientation": orientation }]
+		api_key = stored_api_key(dsec.provider.required(DatasourceConfigurationManager))
+		image_model = params.get("imageModel") or DEFAULT_IMAGE_MODEL
+		if is_retired(image_model):
+			raise PermanentError(f"OpenAI retired the image model {image_model}: choose another in the task.")
+		family = family_of(image_model)
+		if family is None:
+			raise PermanentError(f"{image_model} is not an image model this data source can use: choose another in the task.")
+		moderation = params.get("moderation")
+		width, height = target_dimensions(dsec)
+		return [{
+			"api_key": api_key,
+			"text_prompt": params.get("prompt") or "",
+			"image_model": image_model,
+			"image_quality": quality_for(family, params.get("quality")),
+			"size": size_for(family, width, height),
+			"moderation": moderation if moderation in MODERATIONS else "auto",
+			"randomize_prompt": params.get("randomizePrompt") is True,
+			"prompt_model": params.get("promptModel") or DEFAULT_TEXT_MODEL,
+		}]
 	async def render_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any], state:Any) -> MediaRenderResult | None:
 		if state is None:
 			return None
-		image = await self._dispatch_image(dsec, state.get('api_key'), state.get('image_model'), state.get('image_quality'), state.get('text_prompt'), state.get('randomize_prompt'), state.get('orientation'))
-		# the model's sizes are not the panel's shape: the margin is the picture's own blur
-		return None if image is None else MediaRenderResult(image=blurred_margin(image, target_dimensions(dsec)), title=f"OpenAI Image: {state.get('text_prompt', 'Untitled')}")
-	async def _dispatch_image(self, context: DataSourceExecutionContext, api_key, image_model, image_quality, text_prompt, randomize_prompt, orientation) -> Image.Image | None:
+		image = await self._dispatch_image(state)
+		# a free size has the panel's shape already (a margin of a pixel or two at most); a fixed size gets the picture's own blur around it
+		return None if image is None else MediaRenderResult(image=blurred_margin(image, target_dimensions(dsec)), title=f"OpenAI Image: {state.get('text_prompt') or 'Untitled'}")
+	async def _dispatch_image(self, state: Mapping[str, Any]) -> Image.Image | None:
+		image_model = state.get("image_model") or DEFAULT_IMAGE_MODEL
+		# the model being asked, so that a failure names the right one
+		asking = image_model
 		try:
 			# the client owns a connection pool: close it when done
-			async with openai.AsyncOpenAI(api_key = api_key, timeout=60, max_retries=3) as ai_client:
-				if randomize_prompt:
-					text_prompt = await OpenAIAsync.fetch_image_prompt(self.logger, ai_client, text_prompt)
-
-				return await OpenAIAsync.fetch_image(
-					self.logger,
-					ai_client,
-					text_prompt,
-					model=image_model,
-					quality=image_quality,
-					orientation=orientation
-				)
-		except BadRequestError as bre:
-			message = redact_secrets(_bad_request_message(bre), api_key)
-			self.logger.error(f"Open AI Bad Request: {message}")
-			raise RuntimeError(f"Open AI Bad Request: {message}") from None
+			async with openai_client(state["api_key"]) as ai_client:
+				prompt = state.get("text_prompt") or ""
+				if state.get("randomize_prompt"):
+					asking = state.get("prompt_model") or DEFAULT_TEXT_MODEL
+					prompt = await OpenAIAsync.fetch_image_prompt(self.logger, ai_client, asking, prompt)
+					asking = image_model
+				return await OpenAIAsync.fetch_image(self.logger, ai_client, prompt, model=image_model, quality=state.get("image_quality") or "auto",
+					size=state.get("size") or "1024x1024", moderation=state.get("moderation") or "auto")
+		except PermanentError:
+			raise
 		except Exception as e:
-			message = redact_secrets(str(e), api_key)
-			self.logger.error(f"Failed to make Open AI request: {message}")
-			# `from None`: the original exception text (and traceback chain) can hold the key
-			raise RuntimeError(f"Open AI request failure: {message}") from None
+			problem = openai_problem(e, asking)
+			# the type and our words only: the exception's text can quote the key
+			self.logger.error(f"OpenAI request failed ({type(e).__name__}): {problem}")
+			raise problem from None
 	@staticmethod
-	async def fetch_image(logger, ai_client, prompt, model="dall-e-3", quality="standard", orientation="landscape"):
-		logger.info(f"fetch_image prompt: {prompt}, model: {model}, quality: {quality}")
+	async def fetch_image(logger, ai_client, prompt: str, model: str = DEFAULT_IMAGE_MODEL, quality: str = "auto", size: str = "1024x1024", moderation: str = "auto") -> Image.Image:
+		"""
+		One picture from `images.generate`. A GPT image model always answers base64 (`response_format` and `style` are for the retired DALL·E);
+		the background is opaque, as the panel has no transparency.
+		"""
+		logger.info(f"fetch_image model: {model}, quality: {quality}, size: {size}, prompt: {prompt}")
 		prompt += (
 			". The image should fully occupy the entire canvas without any frames, "
-			"borders, or cropped areas. No blank spaces or artificial framing."
-		)
-		prompt += (
+			"borders, or cropped areas. No blank spaces or artificial framing. "
 			"Focus on simplicity, bold shapes, and strong contrast to enhance clarity "
 			"and visual appeal. Avoid excessive detail or complex gradients, ensuring "
 			"the design works well with flat, vibrant colors."
 		)
-		# the display schema has "landscape"/"portrait" ("horizontal" is accepted as landscape); anything but portrait is wide
-		wide = orientation != "portrait"
-		args = {
-			"model": model,
-			"prompt": prompt,
-			"size": "1024x1024",
-		}
-		if model == "dall-e-3":
-			args["size"] = "1792x1024" if wide else "1024x1792"
-			args["quality"] = quality
-		elif model == "gpt-image-1":
-			args["size"] = "1536x1024" if wide else "1024x1536"
-			args["quality"] = quality
-
-		response = await ai_client.images.generate(**args)
-		if model in ["dall-e-3", "dall-e-2"]:
-			image_url = response.data[0].url
-			img = await get_image_async(image_url)
-			return img
-		elif model == "gpt-image-1":
-			image_base64 = response.data[0].b64_json
-			image_bytes = base64.b64decode(image_base64)
-			img = Image.open(BytesIO(image_bytes))
-			return img
-		return None
+		response = await ai_client.images.generate(model=model, prompt=prompt, size=size, quality=quality, moderation=moderation,
+			background="opaque", output_format="png", n=1)
+		data = response.data[0].b64_json if response.data else None
+		if not data:
+			raise RuntimeError("OpenAI answered without a picture.")
+		img = Image.open(BytesIO(base64.b64decode(data)))
+		img.load()
+		return img.convert("RGB")
 	@staticmethod
-	async def fetch_image_prompt(logger, ai_client, from_prompt=None):
-		logger.info(f"fetch_image_prompt")
-		system_content = (
+	async def fetch_image_prompt(logger, ai_client, model: str = DEFAULT_TEXT_MODEL, from_prompt: str | None = None) -> str:
+		"""A new prompt from a text model (the Responses API, which every current text model takes); the prompt given when the answer is empty."""
+		logger.info(f"fetch_image_prompt model: {model}")
+		instructions = (
 			"You are a creative assistant generating extremely random and unique image prompts. "
 			"Avoid common themes. Focus on unexpected, unconventional, and bizarre combinations "
 			"of art style, medium, subjects, time periods, and moods. No repetition. Prompts "
@@ -146,7 +156,7 @@ class OpenAIAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			"Let's see what your AI mind can cook up!"
 		)
 		if from_prompt and from_prompt.strip():
-			system_content = (
+			instructions = (
 				"You are a creative assistant specializing in generating highly descriptive "
 				"and unique prompts for creating images. When given a short or simple image "
 				"description, your job is to rewrite it into a more detailed, imaginative, "
@@ -165,21 +175,7 @@ class OpenAIAsync(DataSource, MediaListAsync, MediaRenderAsync):
 				"true to the original idea. Include vivid imagery and descriptive details. "
 				"Avoid changing the subject of the prompt."
 			)
-		# Make the API call
-		response = await ai_client.chat.completions.create(
-			model="gpt-4o",
-			messages=[
-				{
-					"role": "system",
-					"content": system_content
-				},
-				{
-					"role": "user",
-					"content": user_content
-				}
-			],
-			temperature=1
-		)
-		prompt = response.choices[0].message.content.strip()
+		response = await ai_client.responses.create(model=model, instructions=instructions, input=user_content)
+		prompt = (response.output_text or "").strip()
 		logger.info(f"fetch_image_prompt.Generated: {prompt}")
-		return prompt
+		return prompt or (from_prompt or "")

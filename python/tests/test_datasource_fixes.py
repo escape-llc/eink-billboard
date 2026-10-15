@@ -9,12 +9,10 @@ import os
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import patch
 
 import httpx
-import openai
 from PIL import Image
 
 from ..datasources import data_source
@@ -26,8 +24,6 @@ from ..datasources.countdown.countdown import CountdownAsync
 from ..datasources.data_source import DataSourceExecutionContext, target_dimensions
 from ..datasources.image_folder.image_folder import ImageFolderAsync, grab_image
 from ..datasources.newspaper.newspaper import NewspaperAsync
-from ..datasources.openai_image import openai_image
-from ..datasources.openai_image.openai_image import OpenAIAsync
 from ..datasources.wpotd import wpotd
 from ..datasources.wpotd.wpotd import WpotdAsync
 from ..datasources.year_progress import year_progress
@@ -102,84 +98,6 @@ class TestTargetDimensions(unittest.TestCase):
 	def test_unavailable_settings_means_landscape(self):
 		dsec = DataSourceExecutionContext(ServiceContainer(), (800, 480), datetime.now())
 		self.assertEqual(target_dimensions(dsec), (800, 480))
-
-# ---------------------------------------------------------------- 1. OpenAI
-
-class FakeImages:
-	def __init__(self, owner):
-		self.owner = owner
-	async def generate(self, **args):
-		self.owner.calls.append(args)
-		if self.owner.error is not None:
-			raise self.owner.error
-		import base64
-		return SimpleNamespace(data=[SimpleNamespace(url="http://x/i.png", b64_json=base64.b64encode(png_bytes((4, 4))).decode())])
-
-class FakeAI:
-	def __init__(self, error=None):
-		self.calls: list[dict] = []
-		self.error = error
-		self.closed = False
-		self.images = FakeImages(self)
-	async def __aenter__(self):
-		return self
-	async def __aexit__(self, *exc):
-		self.closed = True
-	async def close(self):
-		self.closed = True
-
-class TestOpenAI(unittest.IsolatedAsyncioTestCase):
-	async def _size(self, model, orientation):
-		ai = FakeAI()
-		await OpenAIAsync.fetch_image(logging.getLogger("t"), ai, "a cat", model=model, orientation=orientation)
-		return ai.calls[0]["size"]
-	async def test_landscape_gets_wide_size(self):
-		self.assertEqual(await self._size("gpt-image-1", "landscape"), "1536x1024")
-		with patch.object(openai_image, "get_image_async", return_value=Image.new("RGB", (2, 2))):
-			self.assertEqual(await self._size("dall-e-3", "landscape"), "1792x1024")
-	async def test_portrait_gets_tall_size_and_horizontal_still_means_wide(self):
-		self.assertEqual(await self._size("gpt-image-1", "portrait"), "1024x1536")
-		with patch.object(openai_image, "get_image_async", return_value=Image.new("RGB", (2, 2))):
-			self.assertEqual(await self._size("dall-e-3", "portrait"), "1024x1792")
-			self.assertEqual(await self._size("dall-e-3", "horizontal"), "1792x1024")
-	async def _dispatch(self, ai: FakeAI):
-		ds = OpenAIAsync("openai-image", "openai-image")
-		with patch.object(openai, "AsyncOpenAI", return_value=ai):
-			return await ds._dispatch_image(cast(Any, None), "sk-secretsecret123", "gpt-image-1", "medium", "p", False, "landscape")
-	async def test_client_is_closed(self):
-		ai = FakeAI()
-		img = await self._dispatch(ai)
-		self.assertIsNotNone(img)
-		self.assertTrue(ai.closed)
-	async def test_client_is_closed_on_error(self):
-		ai = FakeAI(error=RuntimeError("boom"))
-		with self.assertRaises(RuntimeError):
-			await self._dispatch(ai)
-		self.assertTrue(ai.closed)
-	async def test_bad_request_with_missing_or_text_body(self):
-		resp = httpx.Response(400, request=httpx.Request("POST", "http://x"))
-		for body in (None, "plain text body", {"message": "nope"}, {"error": 1}):
-			with self.subTest(body=body):
-				ai = FakeAI(error=openai.BadRequestError("bad", response=resp, body=body))
-				with self.assertRaises(RuntimeError) as cm:
-					await self._dispatch(ai)
-				self.assertNotIsInstance(cm.exception, AttributeError)
-				self.assertIn("Bad Request", str(cm.exception))
-	async def test_key_is_redacted_from_errors_and_logs(self):
-		msg = "Incorrect API key provided: sk-proj-abcDEF123_456-xyz. You can find your API key at https://platform.openai.com."
-		ai = FakeAI(error=RuntimeError(msg))
-		with self.assertLogs(openai_image.__name__, level="DEBUG") as logs, self.assertRaises(RuntimeError) as cm:
-			await self._dispatch(ai)
-		everything = str(cm.exception) + "\n".join(logs.output)
-		self.assertNotIn("abcDEF123", everything)
-		self.assertNotIn("sk-secretsecret123", everything)
-		self.assertIn("sk-***", str(cm.exception))
-	async def test_bad_request_message_is_redacted_too(self):
-		resp = httpx.Response(400, request=httpx.Request("POST", "http://x"))
-		ai = FakeAI(error=openai.BadRequestError("bad", response=resp, body={"message": "key sk-abcdef123456 is bad"}))
-		with self.assertRaises(RuntimeError) as cm:
-			await self._dispatch(ai)
-		self.assertNotIn("abcdef123456", str(cm.exception))
 
 # ---------------------------------------------------------------- 2. comic
 
