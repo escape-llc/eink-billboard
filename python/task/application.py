@@ -15,7 +15,7 @@ from ..model.service_container import IServiceProvider, ServiceContainer
 from ..model.time_of_day import TimeOfDay
 from ..task.display_messages import DisplaySettings, PriorityImage, PriorityRevoke
 from ..model.theme import current_inputs
-from ..utils.error_image import render_error_image
+from ..utils.error_image import WebAddress, render_error_image
 from ..task.playlist_layer import PlaylistLayer
 from ..task.timer import IProvideTimer
 from ..task.timer_layer import TimerLayer
@@ -85,6 +85,10 @@ class Application(DispatcherTask):
 		if ipt:
 			plcontainer.add_service(IProvideTimer, ipt)
 			tlcontainer.add_service(IProvideTimer, ipt)
+		web = self.root_container.get_service(WebAddress)
+		if web:
+			plcontainer.add_service(WebAddress, web)
+			tlcontainer.add_service(WebAddress, web)
 		configs = ConfigureEvent(msg.timestamp, ConfigureOptions(cm=self.cm, isp=plcontainer), "playlist-layer", self)
 		configt = ConfigureEvent(msg.timestamp, ConfigureOptions(cm=self.cm, isp=tlcontainer), "timer-layer", self)
 		self._panel = (msg.width, msg.height)
@@ -111,7 +115,8 @@ class Application(DispatcherTask):
 			lines = self.setup_notice() if self.setup_notice is not None else None
 			if not lines or self.cm is None:
 				return
-			image = render_error_image(self.cm.static_manager(), (width, height), SETUP_TITLE, lines, current_inputs(self.cm.settings_manager()))
+			# the lines say where to open the web app and the code: not an error, so no "cannot show this" and no hint about the settings
+			image = render_error_image(self.cm.static_manager(), (width, height), SETUP_TITLE, lines, current_inputs(self.cm.settings_manager()), heading="EINK BILLBOARD", hint=False)
 			self.router.send("display", PriorityImage(timestamp, SETUP_TITLE, image, SETUP_HOLD))  # type: ignore[union-attr]
 			shown_on = self.display.display if self.display is not None else None
 			if isinstance(shown_on, MockDisplay):

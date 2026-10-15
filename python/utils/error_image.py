@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 import os
 import re
 import textwrap
@@ -11,6 +12,13 @@ from ..model.theme import ThemeInputs
 from ..plugins.plugin_base import PermanentError, RenderSession
 
 logger = logging.getLogger(__name__)
+
+@dataclass(frozen=True, slots=True)
+class WebAddress:
+	"""Where people open the web app (the setup address: --public-url, else the device's own), a service the layers read so their error pages can say where to fix things."""
+	url: str
+
+ERROR_HEADING = "CANNOT SHOW THIS"
 
 # the error page wears the device theme like the plugins' pages (static/render: plugin.html extended by error.html, which carries its own CSS; plugin.css and themes.css are shared)
 
@@ -66,17 +74,21 @@ def _clean(text: str) -> str:
 	text = _SECRET.sub(lambda m: f"{m.group(1)}{m.group(2)}<hidden>", text)
 	return text if len(text) <= MAX_REASON else text[:MAX_REASON - 1] + "…"
 
-def render_error_image(stm: StaticConfigurationManager|None, dimensions: tuple[int, int], title: str, lines: list[str], theme: ThemeInputs|None = None, compact: bool = False) -> Image.Image:
+def render_error_image(stm: StaticConfigurationManager|None, dimensions: tuple[int, int], title: str, lines: list[str], theme: ThemeInputs|None = None, compact: bool = False,
+	address: str|None = None, heading: str = ERROR_HEADING, hint: bool = True) -> Image.Image:
 	"""
 	The page for a slot that failed: what failed (`title`) and why (`lines`), in the theme of the other pages (blocking: Chromium).
 	`compact` is the layout for a small box (an overlay zone): the heading and the title, then the reason if it fits; nothing wraps, the rest is clipped.
 	When the themed page cannot be made (no `stm`, or the browser is what failed) a plain page is drawn instead, so the user still sees the error.
 	It holds nothing that changes (no clock): the same failure gives the same pixels, and the display can tell nothing needs redrawing.
+	The page carries the logo (not in the compact layout) and, with `address`, says where the web app is; `heading` and `hint` change it for a page that is not an error (the setup page).
 	"""
 	if stm is not None:
 		try:
 			render_dir = os.path.join(stm.ROOT_PATH, "render")
-			image = RenderSession(stm, render_dir, "error.html", theme).render(dimensions, { "settings": {}, "title": title, "lines": lines, "compact": compact })
+			hint_text = (f"Check the settings in the web app at {address}" if address else "Check the settings in the web app") if hint else None
+			page = { "settings": {}, "title": title, "lines": lines, "compact": compact, "heading": heading, "hint": hint_text, "logo": stm.image_data_url("logo.png") }
+			image = RenderSession(stm, render_dir, "error.html", theme).render(dimensions, page)
 			if image is not None:
 				return image
 		except Exception as e:

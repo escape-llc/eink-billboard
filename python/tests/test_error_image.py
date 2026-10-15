@@ -119,3 +119,30 @@ class TestPageSecurityPolicy(unittest.TestCase):
 		red, green_px, blue = rgb.getpixel((5, 5))
 		self.assertGreater(green_px, 200)
 		self.assertLess(red, 60)
+
+class TestWhatThePageSays(unittest.TestCase):
+	"""The page's words and picture: the logo, the web app's address, and the setup page's own heading (the page itself is rendered in Chromium by the tests above)."""
+	def context_of(self, **kw) -> dict:
+		seen: dict = {}
+		session = mock.MagicMock()
+		session.return_value.render.side_effect = lambda dims, page: seen.update(page) or None
+		with mock.patch.object(error_image, "RenderSession", session):
+			render_error_image(StaticConfigurationManager(STATIC), (800, 480), "Comic", ["Failed"], **kw)
+		return seen
+
+	def test_the_logo_is_ours_and_embedded(self):
+		logo = StaticConfigurationManager(STATIC).image_data_url("logo.png")
+		assert logo is not None
+		self.assertTrue(logo.startswith("data:image/png;base64,"))
+		self.assertEqual(self.context_of()["logo"], logo)
+		for name in ("../render/error.html", "logo.svg", "nothing.png"):
+			self.assertIsNone(StaticConfigurationManager(STATIC).image_data_url(name), name)
+
+	def test_an_error_page_says_where_the_web_app_is(self):
+		self.assertEqual(self.context_of(address="http://10.0.0.14:8080")["hint"], "Check the settings in the web app at http://10.0.0.14:8080")
+		self.assertEqual(self.context_of()["hint"], "Check the settings in the web app")
+		self.assertEqual(self.context_of()["heading"], "CANNOT SHOW THIS")
+
+	def test_the_setup_page_is_not_an_error(self):
+		page = self.context_of(heading="EINK BILLBOARD", hint=False)
+		self.assertEqual((page["heading"], page["hint"]), ("EINK BILLBOARD", None))

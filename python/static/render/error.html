@@ -13,6 +13,12 @@
 			width: 90%;
 			text-align: center;
 		}
+		.error-logo {
+			display: block;
+			height: 20dvh;
+			width: auto;
+			margin: 0 auto 3dvh;
+		}
 		.error-heading {
 			font-family: var(--font-heading);
 			font-size: min(7dvh, 6vw);
@@ -73,12 +79,13 @@
 {% block content %}
 <div class="error-container{% if compact %} error-compact{% endif %}">
 	<div class="error-wrapper">
-		<div class="error-heading text-secondary-1">CANNOT SHOW THIS</div>
+		{% if logo and not compact %}<img class="error-logo" src="{{ logo }}" alt="">{% endif %}
+		<div class="error-heading text-secondary-1">{{ heading }}</div>
 		<div class="error-title text-primary">{{ title }}</div>
 		{% for line in lines %}
 		<div class="error-line text-secondary-2">{{ line }}</div>
 		{% endfor %}
-		<div class="error-hint text-primary">Check the settings in the web app</div>
+		{% if hint %}<div class="error-hint text-primary">{{ hint }}</div>{% endif %}
 	</div>
 </div>
 {% endblock %}
