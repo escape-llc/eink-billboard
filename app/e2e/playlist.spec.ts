@@ -124,7 +124,11 @@ test("leaving a playlist with unsaved changes asks first", async ({ page }) => {
 	await page.getByLabel("Playlist name").fill("Other")
 	await page.getByRole("button", { name: "OK" }).click()
 	await expect(page.getByRole("combobox", { name: "Playlist" })).toContainText("Other")
+	// an applied track is an unsaved change (adding one alone is only a draft)
 	await page.getByRole("button", { name: "Add track" }).click()
+	await page.locator(".track-editor .p-select").filter({ hasText: "Data Source" }).first().click()
+	await page.getByRole("option").filter({ hasText: "Year Progress" }).first().click()
+	await apply(page).click()
 	await expect(page.getByText(/Unsaved changes/)).toBeVisible()
 	await page.getByRole("combobox", { name: "Playlist" }).click()
 	await page.getByRole("option", { name: "E2E Playlist" }).click()
@@ -266,5 +270,45 @@ test("unsaved changes are a warning across the page, its text centred", async ({
 	})
 	expect(Math.abs((text.left + text.right) / 2 - (box.left + box.right) / 2)).toBeLessThan(6)
 	expect(box.width).toBeGreaterThan(width * 0.9)
+	watch.expectNone()
+})
+
+test("a new track is a draft: cancel leaves the playlist as it was, apply adds it and only then is there something to save", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/playlist")
+	// the playlist has loaded before its rows are counted
+	await expect(row(page, "Morning slides")).toBeVisible()
+	const before = await page.locator(".track-row").count()
+	const banner = page.getByTestId("unsaved-banner")
+
+	// add, then cancel: no track left behind, nothing to save
+	await page.getByRole("button", { name: "Add track" }).click()
+	await expect(page.getByTestId("draft-track")).toBeVisible()
+	await expect(banner).toHaveCount(0)
+	await expect(save(page)).toBeDisabled()
+	expect(await page.locator(".track-list li:not(.draft) .track-row").count()).toBe(before)
+	await page.getByRole("button", { name: "Reset track" }).click()
+	await expect(page.getByTestId("draft-track")).toHaveCount(0)
+	await expect(page.locator(".track-row")).toHaveCount(before)
+	await expect(banner).toHaveCount(0)
+
+	// add, then choose another track: the draft is dropped the same way
+	await page.getByRole("button", { name: "Add track" }).click()
+	await row(page, "Morning slides").click()
+	await expect(page.getByTestId("draft-track")).toHaveCount(0)
+	await expect(page.locator(".track-row")).toHaveCount(before)
+	await expect(banner).toHaveCount(0)
+
+	// add, fill in, apply: now it is a track, and an unsaved change
+	await page.getByRole("button", { name: "Add track" }).click()
+	await page.locator(".track-editor input[type=text]").first().fill("Fourth")
+	await page.locator(".track-editor .p-select").filter({ hasText: "Data Source" }).first().click()
+	await page.getByRole("option").filter({ hasText: "Year Progress" }).first().click()
+	await apply(page).click()
+	await expect(page.getByTestId("draft-track")).toHaveCount(0)
+	await expect(row(page, "Fourth")).toBeVisible()
+	await expect(page.locator(".track-row")).toHaveCount(before + 1)
+	await expect(banner).toBeVisible()
+	await expect(save(page)).toBeEnabled()
 	watch.expectNone()
 })
