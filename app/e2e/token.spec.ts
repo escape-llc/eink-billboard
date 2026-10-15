@@ -80,6 +80,24 @@ test("the app asks for the token once, and the server remembers the sign-in", as
 	watch.expectNone()
 })
 
+// the storage may have changed while the page waited (edited by hand, another browser): the page is built again and reads it anew
+test("after signing in, the page is built again and reads what it shows anew", async ({ page }) => {
+	await stubMapTiles(page)
+	const watch = watchProblems(page, [401])
+	const asked = await askedCount(page)
+	const answered: number[] = []
+	page.on("response", rx => {
+		if(rx.url().endsWith("/api/settings/system") && rx.request().method() === "GET") answered.push(rx.status())
+	})
+	await page.goto("/#/settings")
+	await signInWith(page, "API token", TOKEN)
+	await expect(showingSettings(page)).toBeVisible()
+	// read by the page that asked (retried after the sign-in) and again by the page that was built anew
+	await expect.poll(() => answered.filter(s => s === 200).length).toBeGreaterThanOrEqual(2)
+	expect(await asked(), "questions: building the page again does not ask again").toBe(1)
+	watch.expectNone()
+})
+
 test("cancelling the prompt leaves the page without data and shows the server's message", async ({ page }) => {
 	await stubMapTiles(page)
 	const watch = watchProblems(page, [401], [/Missing or invalid API token/])

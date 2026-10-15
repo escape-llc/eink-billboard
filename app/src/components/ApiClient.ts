@@ -27,7 +27,16 @@ export function joinUrl(base: string, path: string): string {
 	return `${base.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`
 }
 
+import { ref } from "vue"
 import { promptForAuth, type AccessInfo, type AuthMode, type SendResult, type Values } from "./AuthPrompt"
+
+/**
+ * Counts the sign-ins of this page. What the page shows was loaded before the sign-in (or not at all) and the storage may have changed
+ * since (edited by hand, another browser), so `App.vue` keys the routed view on it: the current page is built again and reads everything anew.
+ * It moves as soon as every request that waited for the sign-in has been sent again: a save that asked for it reaches the server before the new page
+ * reads, and the old page is gone before its retried answers come back (a page that showed them and was then rebuilt lost what was typed into it).
+ */
+export const signInCount = ref(0)
 
 const SESSION_URL = joinUrl(import.meta.env.VITE_API_URL ?? "/", "api/session")
 
@@ -82,6 +91,16 @@ let epoch = 0
 // The prompt was cancelled or the server refused the token: do not keep asking while this page is open.
 // The requests fail with the server's message, and reloading the page asks again.
 let declined = false
+// the requests that waited for a sign-in and have not been sent again yet; the last one moves `signInCount`
+let waiting = 0
+let signedIn = false
+
+function retried(): void {
+	if(--waiting === 0 && signedIn) {
+		signedIn = false
+		signInCount.value++
+	}
+}
 
 export async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
 	const send = () => fetch(url, { credentials: "include", ...init })
@@ -102,16 +121,29 @@ export async function apiFetch(url: string, init?: RequestInit): Promise<Respons
 	signingIn ??= signIn().then(ok => {
 		if(ok) {
 			epoch++
+			signedIn = true
 		}
 		else {
 			declined = true
 		}
 		return ok
 	}).finally(() => { signingIn = null })
-	if(!await signingIn) {
+	waiting++
+	let ok = false
+	try {
+		ok = await signingIn
+	}
+	finally {
+		if(!ok) {
+			retried()
+		}
+	}
+	if(!ok) {
 		throw await toApiError(rx)
 	}
-	rx = await send()
+	const retry = send()
+	retried()
+	rx = await retry
 	if(rx.status === 401) {
 		throw await toApiError(rx)
 	}

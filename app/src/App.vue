@@ -7,6 +7,7 @@ import AuthDialog from './components/AuthDialog.vue'
 import StatusIndicator from './components/StatusIndicator.vue'
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { signInCount } from './components/ApiClient'
 const router = useRouter();
 const menu = ref<InstanceType<typeof TieredMenu>|null>(null)
 const toggleMenu = (event:MouseEvent):void => {
@@ -148,7 +149,8 @@ const items = ref([
 	</template>
 	</Toolbar>
 	<div class="main-area">
-		<RouterView class="router-view" />
+		<!-- built again after a sign-in, so the page does not show what it read before it (or nothing): see signInCount -->
+		<RouterView class="router-view" :key="signInCount" />
 		<TelemetryGutter v-if="gutterOpen" />
 	</div>
 	<ConfirmDialog></ConfirmDialog>

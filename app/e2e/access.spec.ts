@@ -82,6 +82,8 @@ test("the password is changed in the settings, and the old one stops working", a
 	await page.goto("/#/settings")
 	await dialog(page).getByLabel("Password", { exact: true }).fill(PASSWORD)
 	await dialog(page).getByRole("button", { name: "Sign in" }).click()
+	// the form is drawn behind the dialog already (GET /api/access needs no sign-in), and the page is built again once signed in: type into that one
+	await expect(dialog(page)).toBeHidden()
 	const form = page.getByTestId("password-form")
 	await expect(form).toBeVisible()
 	await expect(form.getByRole("heading", { name: "Change the device password" })).toBeVisible()
