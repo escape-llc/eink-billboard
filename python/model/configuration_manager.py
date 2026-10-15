@@ -1,3 +1,4 @@
+import base64
 import copy
 import hashlib
 import importlib
@@ -368,6 +369,17 @@ class StaticConfigurationManager:
 					"font_style": variant.get("font-style", "normal"),
 				})
 		return fonts_list
+	IMAGES = { "logo.png": "image/png" }
+	def image_data_url(self, name: str) -> str|None:
+		"""One of our pictures (`static/images`, by a name from IMAGES) as a `data:` address, the only kind a rendered page may show (its Content-Security-Policy); None when it is not there."""
+		kind = self.IMAGES.get(name)
+		if kind is None:
+			return None
+		try:
+			with open(os.path.join(self.ROOT_PATH, "images", name), "rb") as f:
+				return f"data:{kind};base64," + base64.b64encode(f.read()).decode("ascii")
+		except OSError:
+			return None
 	def get_font(self, font_name: str, font_size=50, font_weight="normal"):
 		if font_name in FONT_FAMILIES:
 			font_variants = FONT_FAMILIES[font_name]

@@ -161,7 +161,7 @@ class TestTimerLayerOverlays(unittest.TestCase):
 		layer._evaluate_plugin = lambda t: { "plugin": Boom(), "track": t }  # type: ignore
 		clock = FakeClock(NOW)
 		isp = ServiceContainer()
-		with mock.patch("python.task.timer_layer.render_error_image", side_effect=lambda stm, dims, title, lines, theme=None, compact=False: Image.new("RGB", dims)) as render:
+		with mock.patch("python.task.timer_layer.render_error_image", side_effect=lambda stm, dims, title, lines, theme=None, compact=False, **kw: Image.new("RGB", dims)) as render:
 			asyncio.run(layer._run_task_item(isp, clock, item, "scheduled", 0, None, None))
 		return [m for route, m in sent if route == "display"], render
 

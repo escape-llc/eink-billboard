@@ -217,7 +217,20 @@ class TestPublicUrl(unittest.TestCase):
 		self.assertEqual(self.main.setup_notice(access, 8080, "http://localhost:8080"), ["Open http://localhost:8080", "Setup code 1234 5678"])
 		with self.assertLogs(self.main.logger, "WARNING") as logged:
 			self.main.announce_setup_code(access, 8080, "http://localhost:8080")
-		self.assertIn("Open http://localhost:8080 and enter", logged.output[0])
+		# a block of its own, the address and the code each on a line: easy to find in a long log, and to copy
+		lines = logged.output[0].splitlines()
+		self.assertIn("  Open the web app:  http://localhost:8080", lines)
+		self.assertIn("  Setup code:        1234 5678", lines)
+		self.assertEqual(sum(1 for line in lines if line.startswith("=====")), 2)
+
+	def test_production_logs_less_than_development_and_the_environment_decides_last(self):
+		import logging
+		self.assertEqual(self.main.log_level(False, None), logging.INFO)
+		self.assertEqual(self.main.log_level(True, None), logging.DEBUG)
+		self.assertEqual(self.main.log_level(False, "debug"), logging.DEBUG)
+		self.assertEqual(self.main.log_level(True, " Warning "), logging.WARNING)
+		for unknown in ("", "loud", "5"):
+			self.assertEqual(self.main.log_level(False, unknown), logging.INFO, unknown)
 
 class TestSetupPageOnThePanel(unittest.TestCase):
 	def application(self, notice):
@@ -287,6 +300,20 @@ class TestSetupPageOnThePanel(unittest.TestCase):
 			self.assertIsInstance(event, ConfigureEvent)
 			self.assertEqual(event.token, token)
 		self.assertIsNone(app._held)
+
+	def test_the_layers_are_told_where_the_web_app_is(self):
+		from unittest.mock import MagicMock
+		from ..task.display_messages import DisplaySettings
+		from ..utils.error_image import WebAddress
+		app, now = self.application(lambda: None)
+		web = WebAddress("http://10.0.0.14:8080")
+		app.root_container = MagicMock()
+		app.root_container.get_service.side_effect = lambda kind: web if kind is WebAddress else None
+		app.playlist_layer, app.timer_layer = MagicMock(), MagicMock()
+		app._display_settings(DisplaySettings(now, "mock", 800, 480, []))
+		for layer in (app.playlist_layer, app.timer_layer):
+			[(event,), _] = layer.accept.call_args
+			self.assertIs(event.content.isp.get_service(WebAddress), web)
 
 	def test_a_claimed_device_starts_its_layers_at_once(self):
 		app, now = self.application(lambda: None)

@@ -29,6 +29,10 @@ loggers:
     level: ERROR
     handlers: [consoleHandler]
     propagate: False
+  watchdog:
+    level: WARNING    # every file the watcher sees opened, in development too
+    handlers: [consoleHandler]
+    propagate: False
   PIL:
     level: WARNING    # Only show Warnings and Errors
     handlers: [consoleHandler]

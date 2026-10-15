@@ -134,7 +134,7 @@ class TestFailedTask(unittest.TestCase):
 		clock = FakeClock(datetime(2024, 1, 1, 9, 0, tzinfo=NY))
 		isp = ServiceContainer()
 		isp.add_service(TimeOfDay, clock)
-		with mock.patch("python.task.timer_layer.render_error_image", side_effect=lambda stm, dims, title, lines, theme=None: Image.new("RGB", (8, 8))) as render:
+		with mock.patch("python.task.timer_layer.render_error_image", side_effect=lambda stm, dims, title, lines, theme=None, **kw: Image.new("RGB", (8, 8))) as render:
 			asyncio.run(layer._run_task_item(isp, clock, item, "scheduled", 0, None, None))
 		return sent, render, PriorityImage
 

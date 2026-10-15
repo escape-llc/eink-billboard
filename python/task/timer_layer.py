@@ -26,7 +26,7 @@ from ..task.playlist_layer import NextTrack, StartPlayback
 from ..task.message_router import MessageRouter
 from ..task.timer import IProvideTimer, TimerThreadService
 from ..model.theme import ThemeInputs, current_inputs
-from ..utils.error_image import error_detail, render_error_image, safe_reason
+from ..utils.error_image import WebAddress, error_detail, render_error_image, safe_reason
 from ..web.documents import content_with_defaults, plugin_content_errors
 
 class PlaylistStateDict(TypedDict):
@@ -138,6 +138,8 @@ class TimerLayer(DispatcherTask):
 			self._invalid = self._check_tasks(self.tasks)
 			self._report_invalid(self._invalid, self.tasks, msg.timestamp)
 
+			web = msg.content.isp.get_service(WebAddress)
+			self.web_address = web.url if web is not None else None
 			tod = msg.content.isp.get_service(TimeOfDay)
 			self.timebase = tod if tod is not None else SystemTimeOfDay()
 
@@ -189,6 +191,8 @@ class TimerLayer(DispatcherTask):
 			self.logger.error(f"Timer service is not available.")
 			return
 		self._run_layer_task(self.tasks, msg.timestamp)
+	# where the web app is, for the error pages (None: they do not say)
+	web_address: str|None = None
 	def _theme(self) -> ThemeInputs:
 		"""The device theme now, for the error page (the factory theme when there is no configuration)."""
 		return current_inputs(self.cm.settings_manager() if self.cm is not None else None)
@@ -210,10 +214,10 @@ class TimerLayer(DispatcherTask):
 			stm = self.cm.static_manager() if self.cm is not None else None
 			zone = self._overlay_zone(item)
 			if zone is not None:
-				image = await asyncio.to_thread(render_error_image, stm, zone.dimensions, item.title, [reason], self._theme(), True)
+				image = await asyncio.to_thread(render_error_image, stm, zone.dimensions, item.title, [reason], self._theme(), True, address=self.web_address)
 				self.router.send("display", OverlayImage(ts, item.id, zone.name, f"Error: {item.title}", image, origin=image_source("timer", item.title, item.task.plugin_name)))
 				return
-			image = await asyncio.to_thread(render_error_image, stm, self.dimensions, item.title, [reason], self._theme())
+			image = await asyncio.to_thread(render_error_image, stm, self.dimensions, item.title, [reason], self._theme(), address=self.web_address)
 			content = item.task.content if isinstance(item.task.content, dict) else {}
 			minutes = content.get("slideMinutes")
 			duration = timedelta(minutes=float(minutes) if isinstance(minutes, (int, float)) and minutes > 0 else 1.0)

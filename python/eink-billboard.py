@@ -23,6 +23,7 @@ from .model.configuration_manager import ConfigurationManager
 
 from .task.telemetry_hub import TelemetryHub
 from .task.application import Application, StartEvent
+from .utils.error_image import WebAddress
 from .task.messages import QuitMessage, StartOptions
 from .web.access import AccessState, clear_password
 from .web.app import WebSettings, create_app
@@ -54,21 +55,37 @@ def setup_address(port: int, public_url: str|None = None) -> str:
 	address = local_address() or f"{socket.gethostname()}.local"
 	return f"http://{address}" if port == 80 else f"http://{address}:{port}"
 
+def setup_banner(address: str, code: str) -> str:
+	"""The setup code as a block that stands out in a log full of other lines: the address and the code each on a line of their own, to copy."""
+	rule = "=" * 64
+	return "\n".join(["", rule, "  This device is not set up yet.", f"  Open the web app:  {address}", f"  Setup code:        {code}", "  Enter the code there to choose the device password.", rule])
+
 def announce_setup_code(access: AccessState, port: int, public_url: str|None = None) -> None:
 	"""A device that is not claimed yet tells the owner how to claim it: in the log, the one place a visitor to the web app cannot see."""
 	code = access.setup_code()
 	if code:
-		logger.warning(f"This device is not set up yet. Open {setup_address(port, public_url)} and enter the setup code {code} to choose its password.")
+		logger.warning(setup_banner(setup_address(port, public_url), code))
 
 def setup_notice(access: AccessState, port: int, public_url: str|None = None) -> list[str]|None:
 	"""The lines of the page the panel shows while the device is not claimed, or None."""
 	code = access.setup_code()
 	return [f"Open {setup_address(port, public_url)}", f"Setup code {code}"] if code else None
 
-def configure_logging() -> None:
+LOG_LEVEL_ENV = "EINK_LOG_LEVEL"
+
+def log_level(dev: bool, text: str|None) -> int:
+	"""The root level: EINK_LOG_LEVEL when it names one (DEBUG, INFO, WARNING, ERROR), else DEBUG in development and INFO in production."""
+	named = logging.getLevelName(text.strip().upper()) if text and text.strip() else None
+	if isinstance(named, int):
+		return named
+	return logging.DEBUG if dev else logging.INFO
+
+def configure_logging(dev: bool = True) -> None:
 	logfile = os.path.join(os.path.dirname(__file__), 'config', 'logging.yaml')
 	with open(logfile, 'r') as f:
 		logging.config.dictConfig(yaml.safe_load(f.read()))
+	# production logs what a person reads (the setup code is not lost in file events and timer ticks); --dev, or EINK_LOG_LEVEL, for the rest
+	logging.getLogger().setLevel(log_level(dev, os.environ.get(LOG_LEVEL_ENV)))
 	# suppress warning from inky library https://github.com/pimoroni/inky/issues/205
 	warnings.filterwarnings("ignore", message=".*Busy Wait: Held high.*")
 
@@ -161,6 +178,8 @@ def run_application(args: argparse.Namespace) -> None:
 		root.add_service(TimeOfDay, time_base)
 		root.add_service(TelemetryHub, sink)
 		root.add_service(Application, xapp)
+		# where people open the web app, for the panel's error pages ("Check the settings in the web app at ...")
+		root.add_service(WebAddress, WebAddress(setup_address(port, public_url)))
 		# before the start: the setup page asks the access rules (which read the settings through it) as soon as the display is ready
 		app.state.root_container = root
 		xapp.accept(StartEvent(time_base.current_time(), options, root))
@@ -192,8 +211,9 @@ def run_application(args: argparse.Namespace) -> None:
 			logger.info("eInk Billboard application shut down complete")
 
 def main(argv: list[str]|None = None) -> None:
-	configure_logging()
-	run_application(parse_args(argv))
+	args = parse_args(argv)
+	configure_logging(args.dev)
+	run_application(args)
 
 if __name__ == '__main__':
 	main()
