@@ -48,7 +48,7 @@ cd app && npm run e2e                      # build, then the browser tests (Play
 ```
 
 - `npm run build` runs `vue-tsc -b` first, which reports **zero** errors; keep it that way (a type error fails the build).
-- The built app uses hash routes (`/#/settings`), and Vite's default layout: `index.html` and `public/` files at the root, bundles in `assets/`.
+- The built app uses hash routes (`/#/settings`), and Vite's default layout: `index.html` and `public/` files at the root, bundles in `assets/`. The bundles are served `immutable` (their names carry a hash), everything else `no-cache` (`_mount_web_app`): an `index.html` with only a `Last-Modified` was kept by the browser, which ran the old app after an update. A tab that was open before an update still runs the old app until it is reloaded.
 - **Browser tests** (`app/e2e/`, Playwright Test): `playwright.config.ts` starts two real servers on a storage built by `scripts/e2e_storage.py` (the factory defaults plus the **synthetic** fixtures in `app/e2e/fixtures/storage`: schedules, a system settings file, a fake API key).
   No secret and none of the real test storage is involved, so they run on fork PRs. One server is open (port 8099), one requires a token (8098, `e2e-token`). They need `uv sync` and, once per Playwright version, `npx playwright install chromium` (CI does this itself). `@playwright/test` is no longer pinned to the cloud sandbox's preinstalled browser; a sandbox session installs the matching one the same way.
   `watchProblems()` in `e2e/support.ts` fails a test on any page error, console error, failed request, or HTTP error that the test did not declare, so a page that merely renders is not enough.

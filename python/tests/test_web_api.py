@@ -1120,6 +1120,10 @@ class TestWebApp(unittest.TestCase):
 		self.assertEqual(asset.text, "console.log(1)")
 		self.assertIn("immutable", asset.headers["cache-control"])
 		self.assertNotIn("immutable", logo.headers.get("cache-control", ""))
+		# index.html names this build's bundles: never kept without asking, or an update is not seen (an old tab ran the old app)
+		for path in ("/", "/index.html", "/some/deep/route", "/logo.svg"):
+			with self.subTest(path):
+				self.assertEqual(self.client.get(path).headers.get("cache-control"), "no-cache")
 
 	def test_missing_file_falls_back_to_the_app(self):
 		self.assertIn("spa", self.client.get("/assets/missing.js").text)

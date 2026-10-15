@@ -129,13 +129,17 @@ def _mount_web_app(app: FastAPI, app_path: str|None) -> None:
 			return candidate
 		return None
 
+	# index.html names the bundles of this build, and the public files keep their names across builds: the browser asks again every time
+	# (a 304 when nothing changed). Without it a browser may keep an old index.html for a while (heuristic freshness) and run the old app after an update.
+	revalidate = {"Cache-Control": "no-cache"}
+
 	# existing files are served as they are; the client-side router owns every other path
 	@app.get("/{path:path}", include_in_schema=False)
 	def web_app(path: str):
 		file = _file_in_bundle(path)
 		if file is None:
-			return FileResponse(index, media_type="text/html")
+			return FileResponse(index, media_type="text/html", headers=revalidate)
 		if path.startswith("assets/"):
 			# the file names carry a content hash, so they never change
 			return FileResponse(file, headers={"Cache-Control": "public, max-age=31536000, immutable"})
-		return FileResponse(file)
+		return FileResponse(file, headers=revalidate)
