@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Button, Popover } from 'primevue'
-import { apiJson, joinUrl } from './ApiClient'
+import { apiJson, joinUrl, signInCount } from './ApiClient'
 
 type Component = { state: "ok" | "failed" | "starting", message: string }
 type Status = { ok: boolean, components: Record<string, Component> }
@@ -22,6 +22,8 @@ const load = () => {
 }
 onMounted(() => { load(); timer = setInterval(load, POLL_MS) })
 onBeforeUnmount(() => { if (timer) clearInterval(timer) })
+// it is outside the routed page that a sign-in builds again: read now, not at the next poll
+watch(signInCount, load)
 </script>
 <template>
 	<Button size="small"

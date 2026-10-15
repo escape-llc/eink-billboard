@@ -96,8 +96,11 @@ def _signed_in(ws: WebSocket) -> bool:
 	return signed_in(ws.app, ws.headers.get("authorization"), ws.cookies.get(SESSION_COOKIE))
 
 @ws_router.websocket('/telemetry/ws')
-async def follow(ws: WebSocket, since: int = 0):
-	"""Send what is newer than `since`, then every event as it happens; a ping keeps proxies from closing a quiet link."""
+async def follow(ws: WebSocket, since: int = 0, run: str = ""):
+	"""
+	First a `hello` naming this run of the hub, then what is newer than `since`, then every event as it happens; a ping keeps proxies from closing a quiet link.
+	`seq` starts again at every start of the device: a page that names another `run` (it followed the last one) gets everything kept, whatever its `since`.
+	"""
 	if not _origin_allowed(ws) or not ws.app.state.hosts.allows(ws.headers.get("host")):
 		await ws.close(code=4403)
 		return
@@ -111,7 +114,8 @@ async def follow(ws: WebSocket, since: int = 0):
 	await ws.accept()
 	sub = hub.subscribe(asyncio.get_running_loop())
 	try:
-		last = max(0, since)
+		await ws.send_json({ "kind": "hello", "source": "telemetry", "run": hub.run })
+		last = max(0, since) if not run or run == hub.run else 0
 		for event in hub.since(last):
 			await ws.send_json(_for(ws.client, event))
 			last = event["seq"]

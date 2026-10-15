@@ -17,6 +17,7 @@ and the event holds only the digest, so pictures go to the browser over plain HT
 import asyncio
 import collections
 import io
+import secrets
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -127,6 +128,8 @@ class TelemetryHub(MessageSink):
 		self._lock = threading.Lock()
 		self._events: collections.deque[dict] = collections.deque(maxlen=max_events)
 		self._seq = 0
+		# `seq` starts again at every start: a page that followed the last run tells it by this, and asks for everything (see the WebSocket's `hello`)
+		self.run = secrets.token_hex(6)
 		self._subscribers: set[Subscriber] = set()
 		self._images: collections.OrderedDict[str, Snapshot] = collections.OrderedDict()
 		self._max_images = max_images

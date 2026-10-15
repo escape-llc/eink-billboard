@@ -21,6 +21,12 @@ from .test_web_api import WebApiTestBase
 ZONE = timezone(timedelta(hours=-7))
 NOW = datetime(2026, 10, 11, 12, 0, tzinfo=ZONE)
 
+def first_event(ws) -> dict:
+	"""The link opens with a `hello` naming the hub's run; the first event follows it."""
+	hello = ws.receive_json()
+	assert hello["kind"] == "hello", hello
+	return ws.receive_json()
+
 def shown(hub: TelemetryHub, color: str = "red", title: str = "Page") -> str:
 	"""Tell the hub the display drew a page of that color; the image's digest."""
 	img = Image.new("RGB", (800, 480), color)
@@ -184,9 +190,9 @@ class TestRoutes(WebApiTestBase):
 		ipv6 = TestClient(self.app, client=("::1", 50000))
 		self.assertIn("detail", ipv6.get("/api/telemetry").json()[0])
 		with local.websocket_connect("/api/telemetry/ws") as ws:
-			self.assertIn("detail", ws.receive_json())
+			self.assertIn("detail", first_event(ws))
 		with self.client.websocket_connect("/api/telemetry/ws") as ws:
-			self.assertNotIn("detail", ws.receive_json())
+			self.assertNotIn("detail", first_event(ws))
 
 	def test_status_is_served(self):
 		self.hub.accept(ConfigureNotify(NOW, "display", True, "boom"))  # type: ignore[call-arg]
@@ -212,10 +218,21 @@ class TestRoutes(WebApiTestBase):
 		self.hub.accept(Telemetry(NOW, "timer_layer", { "state": "waiting" }))
 		self.hub.accept(Telemetry(NOW, "timer_layer", { "state": "playing" }))
 		with self.client.websocket_connect("/api/telemetry/ws?since=1") as ws:
-			self.assertEqual(ws.receive_json()["seq"], 2)
+			self.assertEqual(first_event(ws)["seq"], 2)
 			self.hub.accept(Telemetry(NOW, "application", { "kind": "config-changed", "area": "settings", "message": "The settings changed." }))
 			event = ws.receive_json()
 			self.assertEqual((event["seq"], event["kind"], event["message"]), (3, "config-changed", "The settings changed."))
+
+	def test_a_page_that_followed_another_run_gets_everything(self):
+		# `seq` starts again at every start of the device: the page's `since` belongs to the last run, and would skip all of this one
+		self.hub.accept(Telemetry(NOW, "timer_layer", { "state": "waiting" }))
+		self.hub.accept(Telemetry(NOW, "timer_layer", { "state": "playing" }))
+		with self.client.websocket_connect("/api/telemetry/ws?since=500&run=an-earlier-run") as ws:
+			self.assertEqual(ws.receive_json(), { "kind": "hello", "source": "telemetry", "run": self.hub.run })
+			self.assertEqual(ws.receive_json()["seq"], 1)
+		with self.client.websocket_connect(f"/api/telemetry/ws?since=1&run={self.hub.run}") as ws:
+			self.assertEqual(first_event(ws)["seq"], 2)
+		self.assertNotEqual(TelemetryHub().run, self.hub.run)
 
 	def test_another_sites_page_may_not_connect(self):
 		with self.assertRaises(WebSocketDisconnect) as refused:
@@ -224,7 +241,7 @@ class TestRoutes(WebApiTestBase):
 		self.assertEqual(refused.exception.code, 4403)
 		with self.client.websocket_connect("/api/telemetry/ws", headers={ "Origin": "http://testserver" }) as ws:
 			self.hub.accept(Telemetry(NOW, "timer_layer", { "state": "waiting" }))
-			self.assertEqual(ws.receive_json()["kind"], "waiting")
+			self.assertEqual(first_event(ws)["kind"], "waiting")
 
 class TestRoutesWithAToken(WebApiTestBase):
 	token = "s3cret"
@@ -242,9 +259,9 @@ class TestRoutesWithAToken(WebApiTestBase):
 		self.assertEqual(self.client.get("/api/telemetry").status_code, 401)
 		with self.client.websocket_connect("/api/telemetry/ws", headers={ "Authorization": "Bearer s3cret" }) as ws:
 			self.hub.accept(Telemetry(NOW, "timer_layer", { "state": "waiting" }))
-			self.assertEqual(ws.receive_json()["kind"], "waiting")
+			self.assertEqual(first_event(ws)["kind"], "waiting")
 		session = self.app.state.sessions.create()
 		self.client.cookies.set(SESSION_COOKIE, session)
 		with self.client.websocket_connect("/api/telemetry/ws?since=1") as ws:
 			self.hub.accept(Telemetry(NOW, "timer_layer", { "state": "waiting" }))
-			self.assertEqual(ws.receive_json()["seq"], 2)
+			self.assertEqual(first_event(ws)["seq"], 2)
