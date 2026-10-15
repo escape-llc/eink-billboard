@@ -18,7 +18,10 @@
 			</template>
 		</Toolbar>
 		<ProgressBar v-if="loading" mode="indeterminate" style="height:4px" aria-label="Loading" data-testid="loading" />
-		<Message v-if="dirty" severity="info" size="small" variant="simple" class="mt-1">Unsaved changes to "{{ playlistName }}".</Message>
+		<!-- nothing reaches the device until the playlist is saved: a warning in its own box, across the page, not a line of small print -->
+		<Message v-if="dirty" severity="warn" size="small" icon="pi pi-exclamation-triangle" class="mt-1 unsaved-banner" data-testid="unsaved-banner" role="status">
+			Unsaved changes to "{{ playlistName }}": save the playlist to keep them.
+		</Message>
 		<Message size="small" v-if="conflict" severity="warn" :closable="false" class="mt-1">
 			<div class="flex align-items-center gap-2">
 				<span>{{ conflict.message }}</span>
@@ -485,6 +488,10 @@ onMounted(() => {
 })
 </script>
 <style scoped>
+.unsaved-banner :deep(.p-message-content) {
+	justify-content: center;
+	font-weight: 600;
+}
 .label-panel {
 	width: 20rem;
 }

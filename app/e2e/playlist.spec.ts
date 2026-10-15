@@ -246,3 +246,25 @@ test("the landing page opens the playlist page on a device with no playlist, and
 	await expect(page.getByText(/has no playlist yet/)).toBeVisible()
 	watch.expectNone()
 })
+
+test("unsaved changes are a warning across the page, its text centred", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/playlist")
+	await row(page, "Morning slides").click()
+	await page.locator(".track-editor input[type=text]").first().fill("Morning, renamed")
+	await apply(page).click()
+	const banner = page.getByTestId("unsaved-banner")
+	await expect(banner).toBeVisible()
+	await expect(banner).toHaveClass(/p-message-warn/)
+	await expect(banner).toContainText("save the playlist to keep them")
+	// the words sit in the middle of the banner, and the banner spans the page
+	const { box, text, page: width } = await banner.evaluate(el => {
+		const content = el.querySelector(".p-message-content")!
+		const range = document.createRange()
+		range.selectNodeContents(content)
+		return { box: el.getBoundingClientRect(), text: range.getBoundingClientRect(), page: el.parentElement!.getBoundingClientRect().width }
+	})
+	expect(Math.abs((text.left + text.right) / 2 - (box.left + box.right) / 2)).toBeLessThan(6)
+	expect(box.width).toBeGreaterThan(width * 0.9)
+	watch.expectNone()
+})
