@@ -34,7 +34,23 @@ main() {
 			--dry-run) DRY=1 ;;
 			--from-clone) FROM_CLONE=1 ;;
 			--needs-reboot) NEEDS_REBOOT=1 ;;
-			--help|-h) sed -n '2,/^# Everything/p' "${BASH_SOURCE[0]:-/dev/null}" 2>/dev/null | sed 's/^# \{0,1\}//'; return 0 ;;
+			# written out here, not read from this file: piped from curl, there is no file to read
+			--help|-h) cat <<'EOF'
+eInk Billboard setup for a Raspberry Pi 4 or 5 (Raspberry Pi OS 64-bit). Run it as your own user:
+
+  curl -fsSL https://raw.githubusercontent.com/escape-llc/eink-billboard/master/deploy/bootstrap.sh | bash
+
+It says what it will do and asks once, then: installs Podman and git, turns on SPI and I2C, adds you to the spi, i2c and gpio
+groups, clones the app to ~/eink-billboard, asks which display you have, builds the app (15 to 20 minutes the first time),
+starts it on port 8080, makes it start when the Pi starts, and prints the address and the setup code.
+Run it again at any time: it continues after a restart it asked for, and later it updates the app.
+
+Options (after "| bash -s --"):  --dry-run  say what it would do, change nothing     --yes  ask nothing     --help  this text
+Settings:  EINK_DISPLAY  mock, inky or waveshare:MODEL      EINK_REF  branch or tag (master)
+           EINK_DIR      where to clone (~/eink-billboard)  EINK_REPO the repository
+Afterwards:  ~/eink-billboard/deploy/eink-container.sh help
+EOF
+				return 0 ;;
 			*) printf 'eink-billboard bootstrap: unknown option %s (--yes, --dry-run, --help)\n' "$arg" >&2; return 2 ;;
 		esac
 	done
