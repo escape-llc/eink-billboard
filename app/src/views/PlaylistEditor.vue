@@ -74,7 +74,7 @@
 								<template #end>
 									<InputGroup>
 										<HelpToggle v-model="showHelp" />
-										<Button size="small" icon="pi pi-check" severity="success" aria-label="Apply track" title="Apply to the playlist (then save it)" :disabled="submitDisabled" @click="handleSubmit" />
+										<Button size="small" icon="pi pi-check" severity="success" aria-label="Apply track" title="Apply to the playlist (then save it)" :disabled="applyDisabled" @click="handleSubmit" />
 										<Button size="small" icon="pi pi-times" severity="danger" aria-label="Reset track" @click="handleReset" />
 									</InputGroup>
 								</template>
@@ -187,6 +187,14 @@ const selectedPlugin = computed(() => pluginList.value.find(p => p.id === editMo
 // A stored track keeps its plugin (and shows it) even when it would not be offered now
 const PLAYLIST_LAYERS = ["layer-background", "layer-foreground"]
 const playlistPlugins = computed(() => pluginList.value.filter(p => (p.features ?? []).some(f => PLAYLIST_LAYERS.includes(f))))
+// Apply has nothing to apply until something changed: the title, the plugin or a field (a draft is new, so it can always be applied)
+const applyDisabled = computed(() => {
+	if(submitDisabled.value) return true
+	if(draft.value) return false
+	const track = selectedTrack.value
+	if(!track) return true
+	return track.title === editModel.title && track.plugin_name === editModel.plugin_name && !bf.value?.isDirty
+})
 const pluginOptions = computed(() => pluginList.value.filter(p => playlistPlugins.value.includes(p) || p.id === editModel.plugin_name).map(p => ({ id: p.id, name: p.name })))
 
 // a track that is not saved yet has an id of ours; the server gives it its own
