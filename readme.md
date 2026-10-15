@@ -517,7 +517,7 @@ The web app's **Activity** button (top right) opens a gutter beside the page. It
 * **Recently shown:** the last few pages.
 * **Events:** what the device reports, with a source filter and "Problems only".
 
-The gutter follows a WebSocket (`/api/telemetry/ws?since=<seq>`), which reconnects on its own and resumes after the last event it had. Times are the device's, not the browser's. The other routes:
+The gutter follows a WebSocket (`/api/telemetry/ws?since=<seq>&run=<run>`), which reconnects on its own and resumes after the last event it had. `seq` starts again at every start of the device, so the link's first message, `hello`, names the run: a page that followed another run gets everything kept and starts over. After a sign-in the gutter connects again at once. Times are the device's, not the browser's. The other routes:
 * `GET /api/telemetry?since=<seq>`: the kept events, the last 200, newest last;
 * a failure's event also carries `detail`, the exception in full, but only for a page opened on the device itself (`localhost`: the connection's address is loopback); to anyone else it is left out, since the text can hold an address with a key. In a container the published port does not look local, so read the log there;
 * `GET /api/status`: how bringing up the display and the two layers went, `{ ok, components: { display | playlist-layer | timer-layer: { state: ok | failed | starting, message } } }`, in our words (a failure says to see the log); the header's status button reads it every 10 s. A failed display is not retried when its settings change (live reconfiguration is not built): fix the settings and restart;
@@ -533,7 +533,7 @@ An event is `{ seq, ts, source, kind, message?, values }`:
 | `display` | `showing` ("On deck": the page is ready for the compositor, not yet on the panel), `shown` (title, digest, size, layers; each layer says which playlist track or timer task made it: `origin`), `skipped` (identical to what is shown: not drawn again), `error` |
 | `application` | `config-changed` (the area only), `configure-failed` |
 | `Application`, `Display`, `PlaylistLayer`, `TimerLayer`, `router` | `error`: a failure the task swallowed to keep running (`report_failure`, below) |
-| `telemetry` | `gap` (a slow client missed some), `ping` |
+| `telemetry` | `hello` (the first message of the WebSocket, no `seq`: `run` names this start of the device), `gap` (a slow client missed some), `ping` |
 
 With `--token`, the WebSocket needs the session (or a Bearer header). It also refuses a page from another origin than the server's own or `--cors`.
 

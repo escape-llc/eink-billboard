@@ -59,6 +59,52 @@ describe("the link", () => {
 		expect(link.state.events.length).toBe(3)
 	})
 
+	// the gutter lives outside the routed page that a sign-in builds again: it must not wait up to 30 s for its next retry
+	it("after a sign-in, connects again at once from the last event and reads what is shown now", async () => {
+		link.start()
+		sockets[0]!.open()
+		sockets[0]!.send({ seq: 4, source: "timer_layer", kind: "waiting" })
+		for (let i = 0; i < 5; i++) { sockets[sockets.length - 1]!.drop(); vi.runOnlyPendingTimers() }
+		const before = sockets.length
+		const shown = { seq: 7, source: "display", kind: "shown", values: { digest: "cd", title: "Weather" } }
+		vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(shown), { status: 200, headers: { "Content-Type": "application/json" } })))
+		link.refresh()
+		expect(sockets.length).toBe(before + 1)
+		expect(sockets[before - 1]!.closed).toBe(true)
+		expect(sockets[before]!.url).toBe("ws://device.local/api/telemetry/ws?since=4")
+		await vi.waitFor(() => expect(link.state.current?.values?.title).toBe("Weather"))
+		// the old socket's close is not this link's any more: no retry is scheduled from it
+		sockets[before - 1]!.drop()
+		vi.advanceTimersByTime(30000)
+		expect(sockets.length).toBe(before + 1)
+	})
+
+	// `seq` starts again at every start of the device: the old run's numbers would hide everything the new one sends
+	it("when the device started again, starts over with the new run's events", () => {
+		link.start()
+		sockets[0]!.open()
+		sockets[0]!.send({ kind: "hello", source: "telemetry", run: "r1" })
+		sockets[0]!.send({ seq: 40, source: "display", kind: "shown", values: { digest: "aa", title: "Old" } })
+		sockets[0]!.drop()
+		vi.advanceTimersByTime(1000)
+		// the same run: it resumes after the last event
+		expect(sockets[1]!.url).toBe("ws://device.local/api/telemetry/ws?since=40&run=r1")
+		sockets[1]!.open()
+		sockets[1]!.send({ kind: "hello", source: "telemetry", run: "r1" })
+		expect(link.state.events.length).toBe(1)
+		sockets[1]!.drop()
+		vi.advanceTimersByTime(1000)
+		// another run: what was kept is the last run's, and the new run's low numbers are taken
+		sockets[2]!.open()
+		sockets[2]!.send({ kind: "hello", source: "telemetry", run: "r2" })
+		expect(link.state.events).toEqual([])
+		expect(link.state.current).toBeNull()
+		sockets[2]!.send({ seq: 1, source: "timer_layer", kind: "waiting" })
+		sockets[2]!.send({ seq: 2, source: "display", kind: "shown", values: { digest: "bb", title: "New" } })
+		expect(link.state.events.map(e => e.seq)).toEqual([2, 1])
+		expect(link.state.current?.values?.title).toBe("New")
+	})
+
 	it("reconnects with a growing wait and resumes after the last event", () => {
 		link.start()
 		sockets[0]!.open()

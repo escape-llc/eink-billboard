@@ -4,8 +4,8 @@
  * resumes after the last event it has (`since`), and when the server asks for a sign-in (close code 4401) it signs in through ApiClient.
  * Nothing is stored in the browser: the events live as long as the page.
  */
-import { reactive } from "vue"
-import { apiJson, joinUrl } from "./ApiClient"
+import { reactive, watch } from "vue"
+import { apiJson, joinUrl, signInCount } from "./ApiClient"
 
 export type TelemetryEvent = {
 	seq?: number
@@ -35,11 +35,12 @@ const FIRST_RETRY_MS = 1000
 const LAST_RETRY_MS = 30000
 const SIGN_IN = 4401
 
-/** The socket's address: the API's, with `ws:` or `wss:` for `http:` or `https:`. */
-export function socketUrl(base: string, since: number, page: { href: string } = window.location): string {
+/** The socket's address: the API's, with `ws:` or `wss:` for `http:` or `https:`; `run` is the hub's run that `since` counts in (see `hello`). */
+export function socketUrl(base: string, since: number, page: { href: string } = window.location, run = ""): string {
 	const url = new URL(joinUrl(base || "/", "api/telemetry/ws"), page.href)
 	url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
 	url.searchParams.set("since", String(since))
+	if (run) url.searchParams.set("run", run)
 	return url.toString()
 }
 
@@ -100,6 +101,8 @@ export class TelemetryLink {
 	readonly state = reactive({ status: "offline" as LinkStatus, events: [] as TelemetryEvent[], current: null as TelemetryEvent | null })
 	private socket: SocketLike | null = null
 	private last = 0
+	// the hub's run that `last` counts in: `seq` starts again at every start of the device
+	private run = ""
 	private retry = FIRST_RETRY_MS
 	private timer: ReturnType<typeof setTimeout> | undefined
 	private running = false
@@ -122,6 +125,20 @@ export class TelemetryLink {
 		this.connect()
 	}
 
+	/** After a sign-in: what is shown now, read again, and the socket opened again at once (from the last event, so nothing is missed), not at its next retry. */
+	refresh(): void {
+		if (!this.running) return
+		apiJson<TelemetryEvent | null>(joinUrl(this.base || "/", "api/display/current")).then(e => { if (e) this.state.current = e }).catch(() => {})
+		if (this.timer) clearTimeout(this.timer)
+		this.timer = undefined
+		const socket = this.socket
+		// no longer this link's socket: its close does not schedule a retry
+		this.socket = null
+		socket?.close()
+		this.retry = FIRST_RETRY_MS
+		this.connect()
+	}
+
 	stop(): void {
 		this.running = false
 		if (this.timer) clearTimeout(this.timer)
@@ -135,7 +152,7 @@ export class TelemetryLink {
 	private connect(): void {
 		if (!this.running) return
 		this.state.status = "connecting"
-		const socket = this.open(socketUrl(this.base, this.last))
+		const socket = this.open(socketUrl(this.base, this.last, window.location, this.run))
 		this.socket = socket
 		socket.onopen = () => {
 			if (socket !== this.socket) return
@@ -170,6 +187,18 @@ export class TelemetryLink {
 	/** One event from the link: newest first, at most `max`; `shown` is also what the panel shows now. */
 	receive(e: TelemetryEvent): void {
 		if (!e || typeof e.kind !== "string" || e.kind === "ping") return
+		if (e.kind === "hello") {
+			const run = String((e as { run?: unknown }).run ?? "")
+			if (this.run && run !== this.run) {
+				// the device started again: what was kept is of the last run, and the hub sends this one's from the start
+				this.last = 0
+				this.state.events.length = 0
+				this.state.current = null
+				apiJson<TelemetryEvent | null>(joinUrl(this.base || "/", "api/display/current")).then(c => { if (c && !this.state.current) this.state.current = c }).catch(() => {})
+			}
+			this.run = run
+			return
+		}
 		if (typeof e.seq === "number") {
 			if (e.seq <= this.last) return
 			this.last = e.seq
@@ -188,6 +217,11 @@ export class TelemetryLink {
 let shared: TelemetryLink | null = null
 /** The page's one link (the gutter and anything else that wants to follow the device share it). */
 export function useTelemetry(base: string = import.meta.env.VITE_API_URL ?? "/"): TelemetryLink {
-	shared ??= new TelemetryLink(base)
+	if (!shared) {
+		const link = new TelemetryLink(base)
+		// the routed page is built again after a sign-in (signInCount); the link lives outside it, so it catches up by itself
+		watch(signInCount, () => link.refresh())
+		shared = link
+	}
 	return shared
 }
