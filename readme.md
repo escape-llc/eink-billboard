@@ -97,21 +97,71 @@ Behind a proxy the app sees plain `http`, so its session cookie is not marked `S
 
 ## When something does not work
 
-Everything for that is in one script in the clone, [`deploy/eink-container.sh`](deploy/eink-container.sh) (`help` lists it all):
+Run `~/eink-billboard/deploy/eink-container.sh check` first. It looks at the Pi, its devices, the container and the display, and gives a fix for each problem it finds (the lines marked `FIX`). The rest of the commands are in [The command line](#the-command-line) below.
 
-| Command | What it is for |
+## The command line
+
+Everything after the setup is one script in the clone, [`deploy/eink-container.sh`](deploy/eink-container.sh). Run it as yourself, not with `sudo`, from any folder:
+
+```
+~/eink-billboard/deploy/eink-container.sh COMMAND [ARGUMENTS]
+```
+
+Every command first checks the basics (Linux, not root, Podman and curl installed, run from the clone, a valid port and address) and stops with what to do when one is wrong. Nothing it prints contains the app's settings, which can hold API keys and passwords.
+
+### Commands
+
+| Command | What it does |
 |---|---|
-| `check` | **Start here.** Looks at the Pi (64-bit, Podman, groups, SPI, I2C), its devices, whether the app answers, what it can open and load inside the container, start-at-boot, and what the display said when it last started; each problem comes with its fix |
-| `logs` / `logs -f` | The app's log (`-f` follows it) |
-| `code` | The setup code again, or whether the device is already set up |
-| `display mock` / `display inky` / `display waveshare MODEL` | Choose the display and restart; `models` lists the Waveshare models |
-| `detect` | Ask whether an Inky panel is attached |
-| `start` / `stop` | Start the app again (after a change) / stop it (your data is kept) |
-| `autostart on` / `off` | Whether the app starts when the Pi starts |
-| `reset-password` | Forgot the password: the device asks for a new setup code (asks first) |
-| `wipe` | Start over as a new device: deletes the settings, playlists and password (asks first) |
+| `help` | Lists the commands and settings. |
+| `build` | Builds the app's image (`localhost/eink-device`) from the clone: 15 to 20 minutes the first time, a few minutes after an update. Checks for about 4 GB of free space first, records the commit it was built from, and writes everything to `~/.cache/eink-billboard/build.log`; on failure it shows the end of that log. |
+| `start` | Starts the app (or replaces the running one; the data is kept) on port 8080 of every address of the Pi. Passes in the panel's devices that exist (`/dev/spidev0.0`, `/dev/spidev0.1`, `/dev/i2c-1`, `/dev/gpiochip0`) with your `spi`, `i2c` and `gpio` groups, warns when a group is missing, refuses a port that is already in use, waits up to 90 seconds for the app to answer (showing its last log lines if it stops), then prints the setup code. Also `restart`. |
+| `stop` | Stops and removes the container. The settings, playlists and password are kept, in the volume `eink-data`. |
+| `logs` | The app's log; `logs -f` follows it (Ctrl+C to stop). |
+| `code` | The address and the setup code while the device is not set up, otherwise that it is set up (or needs no code because of a token). |
+| `check` | The troubleshooting report: the Pi (64-bit, Podman version, groups, SPI, I2C), the devices, the image and the commit it came from (compared with the clone), whether the app answers, which devices it can open and which driver libraries load inside the container, the chosen display, the setup state, start-at-boot, whether an Inky answers, and what the display said when the app last started. Ends with how many things are fine and how many to fix. |
+| `display mock` | No panel: the pages are drawn but not shown. Saves the choice through the app's own settings and restarts the app, then shows whether the display started. |
+| `display inky` | A Pimoroni Inky (it says which one it is). |
+| `display waveshare MODEL` | A Waveshare panel; the model is checked against the drivers (`models`). |
+| `models` | The Waveshare models there are drivers for, e.g. `epd7in3e` for the 7.3 inch e-Paper HAT (E). |
+| `detect` | Asks the I2C bus whether an Inky is attached (a read only). Exit status 0: an Inky answered; 3: none did; 4: it could not ask (the app is not running, or I2C is off). |
+| `autostart on` | Starts the app when the Pi starts: a systemd unit of your own (`~/.config/systemd/user/eink-billboard.service`) that starts the container, and *linger*, which runs your units at boot without a login (asks for your password once). Needs the container to exist (`start` first). |
+| `autostart off` | No longer starts at boot (the app keeps running now). |
+| `autostart` | Whether it starts at boot (`status`). |
+| `reset-password` | Forgets the device password, restarts and shows the new setup code. Asks you to type `yes` first. |
+| `wipe` | Deletes everything the app keeps (settings with their API keys, playlists, schedules, password) and the container, so the next `start` is a new device. Asks you to type the volume's name (`eink-data`) first. |
 
-Run them as `~/eink-billboard/deploy/eink-container.sh check`, as yourself, not with `sudo`.
+`reset-password` and `wipe` refuse to run without someone at the keyboard to answer.
+
+### Settings
+
+Optional, from the environment, for one command (`EINK_PORT=8090 ~/eink-billboard/deploy/eink-container.sh start`):
+
+| Setting | Default | What it is |
+|---|---|---|
+| `EINK_PORT` | `8080` | The port on the Pi. Below 1024 needs a system setting, which `start` explains |
+| `EINK_PUBLIC_URL` | `http://<the Pi's address>:<port>` | The address people open the web app at (see [On your network](#on-your-network)) |
+| `EINK_ALLOW_HOSTS` | `<name>,<name>.local` | Names the app answers to besides addresses |
+| `EINK_API_TOKEN` | none | A token for scripts |
+| `EINK_NAME` | `eink` | The container's name |
+| `EINK_IMAGE` | `localhost/eink-device` | The image's name |
+| `EINK_VOLUME` | `eink-data` | The volume that holds the app's data |
+
+### The setup command's options
+
+The setup (`deploy/bootstrap.sh`) can be run again at any time; these change how it runs (after `| bash -s --`, e.g. `curl ... | bash -s -- --dry-run`):
+
+| Option or setting | What it does |
+|---|---|
+| `--dry-run` | Shows what it would do, changes nothing |
+| `--yes` | Asks nothing: goes ahead, and the display is `EINK_DISPLAY` (or the last choice, or none) |
+| `--help` | Its description |
+| `EINK_DISPLAY` | The display without asking: `mock`, `inky`, or `waveshare:MODEL` (e.g. `waveshare:epd7in3e`) |
+| `EINK_REF` | The branch or tag to install (`master`) |
+| `EINK_DIR` | Where the app is cloned (`~/eink-billboard`) |
+| `EINK_REPO` | The repository to clone |
+
+It remembers the display you chose in `~/.config/eink-billboard/display` and offers it next time.
 
 ## Remove it
 
