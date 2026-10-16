@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # the device-wide settings; anything else is a 404, never a path into the file system
-DEVICE_SETTINGS = ("system", "display", "theme")
+DEVICE_SETTINGS = ("system", "display", "theme", "master-prompts")
 
 def _device_name(name: str) -> str:
 	"""
@@ -76,6 +76,14 @@ def put_device_settings(name: str, cm: CM, body: dict[str, Any] = Body(...)):
 	cob = cm.settings_manager().open(name)
 	schema = cm.read_schema(name)
 	return put_document(f"{name}-settings", body, cob, load_schema_properties(schema), lookups=load_schema_lookups(schema))
+
+@router.get('/settings/{name}/defaults')
+def get_device_defaults(name: str, cm: CM):
+	"""
+	The factory values of a device-wide document, from the copy shipped in the NVE (not the stored schema's, and not the stored document): what a "restore the
+	default" button puts back in the form (the user saves it, or not). Only values, never the stored document's `_id` or `_rev`.
+	"""
+	return cm.shipped_settings(_device_name(name))
 
 @router.get('/schemas/{name}')
 def get_device_schema(name: str, cm: CM):

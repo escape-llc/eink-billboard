@@ -44,6 +44,13 @@ export type FieldDef = {
 	maxLength?: number
 	/** a regular expression both JavaScript and Python read the same way */
 	pattern?: string
+	/** `format: "multiline"`: the lines a text area shows before it grows */
+	rows?: number
+	/**
+	 * The fields a text may use (`{name}` in it), each with what it stands for: shown under the field, and the only names the text may hold.
+	 * The data that supplies the values lists them (a data source's `tokens`), so a name is never a guess.
+	 */
+	tokens?: { name: string, description: string }[]
 	step?: number
 	minFractionDigits?: number
 	maxFractionDigits?: number

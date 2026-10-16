@@ -5,10 +5,11 @@ The parts are API data sources (data only); this is the one that renders. Their 
 """
 from typing import Any, Mapping
 
+from ...model.configuration_manager import ConfigurationManager
 from ...plugins.plugin_base import PermanentError
 from ...utils.image_utils import blurred_margin
 from ..ai.parts import AiImageApi, AiTextApi
-from ..ai.prompt import rewrite_request
+from ..ai.prompt import master_prompts, rewrite_request
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 
 def _chosen(params: Mapping[str, Any], name: str, what: str) -> str:
@@ -32,7 +33,7 @@ class GeneratedImageAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		prompt = str(state.get("prompt") or "")
 		if params.get("randomizePrompt") is True:
 			text, text_dsec = dsec.use(_chosen(params, "textSource", "text source"), AiTextApi)
-			instructions, given = rewrite_request(prompt)
+			instructions, given = rewrite_request(master_prompts(dsec.provider.required(ConfigurationManager)), prompt)
 			prompt = (await text.open_async(text_dsec, { **params, "instructions": instructions, "input": given })) or prompt
 		image, image_dsec = dsec.use(_chosen(params, "imageSource", "image source"), AiImageApi)
 		width, height = target_dimensions(dsec)

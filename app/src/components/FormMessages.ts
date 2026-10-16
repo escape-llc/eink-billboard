@@ -20,4 +20,5 @@ export const messages = {
 	atMostItems: (n: number) => `At most ${n} items`,
 	atLeast: (n: number) => `At least ${n} characters`,
 	atMost: (n: number) => `At most ${n} characters`,
+	unknownField: (name: string) => `Unknown field {${name}}`,
 } as const

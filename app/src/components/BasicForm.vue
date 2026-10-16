@@ -456,7 +456,9 @@ const newNames = computed<Set<string>>(() => {
 	return new Set(flatNames(localProperties.value).filter(name => !(name in held)))
 })
 const isDirty = computed(() => Object.values<{ dirty?: boolean }>(form.value?.states ?? {}).some(st => st.dirty))
-defineExpose({ submit, reset, setServerErrors, isDirty })
+/** Put a value in a field (a restored default); the form is then changed, and the user saves it or not. */
+const setValue = (name: string, value: unknown) => form.value?.setFieldValue(name, value)
+defineExpose({ submit, reset, setServerErrors, isDirty, setValue })
 </script>
 <style scoped>
 .stale-fields {

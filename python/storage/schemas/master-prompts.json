@@ -1,0 +1,75 @@
+{
+	"_schema": "urn:inky:storage:schema:master-prompts:1",
+	"schema": {
+		"lookups": {},
+		"properties": [
+			{
+				"name": "inventInstructions",
+				"type": "string",
+				"format": "multiline",
+				"rows": 8,
+				"required": true,
+				"title": "Invent a Prompt: Instructions",
+				"description": "What the text model is told when the task has no prompt of its own and it must make one up (the system prompt).",
+				"maxLength": 4000,
+				"tokens": []
+			},
+			{
+				"name": "inventRequest",
+				"type": "string",
+				"format": "multiline",
+				"rows": 3,
+				"required": true,
+				"title": "Invent a Prompt: Request",
+				"description": "The request that goes with those instructions.",
+				"maxLength": 4000,
+				"tokens": []
+			},
+			{
+				"name": "rewriteInstructions",
+				"type": "string",
+				"format": "multiline",
+				"rows": 10,
+				"required": true,
+				"title": "Rewrite a Prompt: Instructions",
+				"description": "What the text model is told when it rewrites the task's prompt to be more vivid and varied (the system prompt).",
+				"maxLength": 4000,
+				"tokens": []
+			},
+			{
+				"name": "rewriteRequest",
+				"type": "string",
+				"format": "multiline",
+				"rows": 5,
+				"required": true,
+				"title": "Rewrite a Prompt: Request",
+				"description": "The request that goes with those instructions; the task's own prompt goes where the field is.",
+				"maxLength": 4000,
+				"tokens": [
+					{
+						"name": "prompt",
+						"description": "The prompt written in the task."
+					}
+				]
+			},
+			{
+				"name": "canvas",
+				"type": "string",
+				"format": "multiline",
+				"rows": 6,
+				"required": true,
+				"title": "Picture Instructions",
+				"description": "Added after every prompt that goes to an image model: a panel shows the whole canvas with few colors.",
+				"maxLength": 4000,
+				"tokens": []
+			}
+		]
+	},
+	"default": {
+		"inventInstructions": "You are a creative assistant generating extremely random and unique image prompts. Avoid common themes. Focus on unexpected, unconventional, and bizarre combinations of art style, medium, subjects, time periods, and moods. No repetition. Prompts should be 20 words or less and specify random artist, movie, tv show or time period for the theme. Do not provide any headers or repeat the request, just provide the updated prompt in your response.",
+		"inventRequest": "Give me a completely random image prompt, something unexpected and creative! Let's see what your AI mind can cook up!",
+		"rewriteInstructions": "You are a creative assistant specializing in generating highly descriptive and unique prompts for creating images. When given a short or simple image description, your job is to rewrite it into a more detailed, imaginative, and descriptive version that captures the essence of the original while making it unique and vivid. Avoid adding irrelevant details but feel free to include creative and visual enhancements. Avoid common themes. Focus on unexpected, unconventional, and bizarre combinations of art style, medium, subjects, time periods, and moods. Do not provide any headers or repeat the request, just provide your updated prompt in the response. Prompts should be 20 words or less and specify random artist, movie, tv show or time period for the theme.",
+		"rewriteRequest": "Original prompt: \"{prompt}\"\nRewrite it to make it more detailed, imaginative, and unique while staying true to the original idea. Include vivid imagery and descriptive details. Avoid changing the subject of the prompt.",
+		"canvas": "The image should fully occupy the entire canvas without any frames, borders, or cropped areas. No blank spaces or artificial framing. Focus on simplicity, bold shapes, and strong contrast to enhance clarity and visual appeal. Avoid excessive detail or complex gradients, ensuring the design works well with flat, vibrant colors."
+	}
+}

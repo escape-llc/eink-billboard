@@ -7,9 +7,10 @@ from typing import Any, Mapping
 
 from PIL import Image
 
+from ...model.configuration_manager import ConfigurationManager
 from ...plugins.plugin_base import PermanentError
 from ..ai.parts import AiImageApi
-from ..ai.prompt import CANVAS
+from ..ai.prompt import master_prompts, with_canvas
 from ..data_source import DataSourceExecutionContext
 from ..google_api.google_api import GoogleApi, checked_model
 from ..google_api.models import DEFAULT_IMAGE_MODEL, Vocabulary, is_image_model, ratio_for, size_for
@@ -31,7 +32,7 @@ class GoogleImageAsync(AiImageApi):
 		data = await provider.open_async(provider_dsec, {
 			"request": "image",
 			"model": model,
-			"prompt": str(params.get("prompt") or "") + CANVAS,
+			"prompt": with_canvas(master_prompts(dsec.provider.required(ConfigurationManager)), str(params.get("prompt") or "")),
 			"aspectRatio": ratio_for(width, height, vocabulary),
 			"imageSize": size_for(model, params.get("quality"), vocabulary),
 		})

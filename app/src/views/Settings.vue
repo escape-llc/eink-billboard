@@ -4,6 +4,7 @@
 			<Tab value="0">System</Tab>
 			<Tab value="1">Display</Tab>
 			<Tab value="2">Theme</Tab>
+			<Tab value="5">Master Prompts</Tab>
 			<Tab value="3">Plugins</Tab>
 			<Tab value="4">Data Sources</Tab>
 		</TabList>
@@ -99,6 +100,18 @@
 						<div class="type-overlay" data-testid="type-overlay" :style="{ fontFamily: fontStack(previewFontOverlay || previewFontHeading || previewFontBody) }">Friday, October 9 (overlay)</div>
 					</div>
 				</div>
+			</TabPanel>
+			<TabPanel value="5">
+				<SettingsForm
+					:title="`Master Prompts`"
+					:baseUrl="API_URL"
+					:settingsUrl="settingsPromptsUrl"
+					:settings="settingsPrompts"
+					:schema="schemaPrompts"
+					:defaultsUrl="defaultsPromptsUrl"
+					class="form"
+					@submit="submitForm"
+					/>
 			</TabPanel>
 			<TabPanel value="3">
 				<SettingsForm
@@ -221,6 +234,11 @@ const settingsThemeUrl = `${API_URL}api/settings/theme`
 const schemaThemeUrl = `${API_URL}api/schemas/theme`
 const schemaTheme = ref<any>(undefined)
 const settingsTheme = ref<any>(undefined)
+const settingsPromptsUrl = `${API_URL}api/settings/master-prompts`
+const schemaPromptsUrl = `${API_URL}api/schemas/master-prompts`
+const defaultsPromptsUrl = `${API_URL}api/settings/master-prompts/defaults`
+const schemaPrompts = ref<any>(undefined)
+const settingsPrompts = ref<any>(undefined)
 const settingsDisplayUrl = `${API_URL}api/settings/display`
 const schemaDisplayUrl = `${API_URL}api/schemas/display`
 const schemaDisplay = ref<any>(undefined)
@@ -333,10 +351,12 @@ onMounted(() => {
 		downloadToRef(schemaThemeUrl, schemaTheme)
 		downloadToRef(schemaDisplayUrl, schemaDisplay)
 		downloadToRef(schemaSystemUrl, schemaSystem)
+		downloadToRef(schemaPromptsUrl, schemaPrompts)
 		// a settings file that was never saved is a 404; fetchSettings then starts from the schema's `default`
 		downloadToRef(settingsSystemUrl, settingsSystem)
 		downloadToRef(settingsDisplayUrl, settingsDisplay)
 		downloadToRef(settingsThemeUrl, settingsTheme)
+		downloadToRef(settingsPromptsUrl, settingsPrompts)
 	})
 })
 

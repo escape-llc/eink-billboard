@@ -82,6 +82,9 @@
 			<template v-else-if="field.type === 'string' && field.format === 'multiline' && !field.writeOnly">
 				<Textarea style="flex-grow:1" :name="field.name" :id="field.name" :invalid="isInvalid" size="small" :rows="field.rows ?? 3" autoResize
 					:placeholder="field.title" fluid />
+				<!-- a settings form that knows the factory text offers it back: it goes into the field, and the user saves it or not -->
+				<Button v-if="restoreField" type="button" size="small" severity="secondary" icon="pi pi-history" :aria-label="`Restore default ${field.title}`"
+					title="Put back the factory text" @click="restoreField(field.name)" />
 			</template>
 			<template v-else>
 				<InputText style="flex-grow:1" :name="field.name" :id="field.name" :invalid="isInvalid" size="small" :type="field.writeOnly ? 'password' : field.format === 'uri' ? 'url' : 'text'"
@@ -98,6 +101,10 @@
 		<Message v-if="field.lookupError" severity="warn" size="small" variant="simple">{{ field.lookupError }}</Message>
 		<Message v-if="field.usesMissing?.length" severity="warn" size="small" variant="simple" data-testid="uses-missing">This needs the {{ field.usesMissing.join(", ") }} data source, which is not available: it will fail until it is.</Message>
 		<Message v-if="showHelp && field.description" severity="secondary" size="small" variant="simple" class="field-help">{{ field.description }}</Message>
+		<!-- the fields the text may use: always shown (not only with the help), since the text is wrong without them -->
+		<ul v-if="field.tokens?.length" class="token-list" data-testid="token-list" :aria-label="`Fields ${field.title} may use`">
+			<li v-for="token in field.tokens" :key="token.name"><code>{{ "{" + token.name + "}" }}</code> {{ token.description }}</li>
+		</ul>
 		<div v-if="safeLink">
 			<Button as="a" :href="safeLink.url" target="_blank" rel="noopener noreferrer" :label="safeLink.label" icon="pi pi-external-link" size="small" variant="text" />
 		</div>
@@ -130,7 +137,9 @@ import ColorField from './ColorField.vue';
 import TestUrlButton from './TestUrlButton.vue';
 import { isoToDate, dateToIso } from './FormDates';
 import { isVisible } from './FormVisibility';
-import { computed, nextTick, onMounted, toRaw, watch } from 'vue';
+// a settings form that can restore a field's factory text provides this (SettingsForm)
+const restoreField = inject<((name: string) => void)|null>('restoreField', null);
+import { computed, inject, nextTick, onMounted, toRaw, watch } from 'vue';
 export interface PropsType {
 	field: any
 	// pass the v-slot="$form" to this prop
@@ -201,6 +210,17 @@ const errorMessage = computed(() => {
 });
 </script>
 <style scoped>
+/* the fields a text may use: a compact list under the field, in the theme's muted text */
+.token-list {
+	list-style: none;
+	margin: 0.25rem 0 0;
+	padding: 0 0 0 0.5rem;
+	font-size: 0.85rem;
+	color: var(--p-text-muted-color);
+}
+.token-list code {
+	color: var(--p-text-color);
+}
 /* the label keeps its width: a wide row editor beside it must not squeeze it until its text spills over the border */
 .field-label {
 	flex: 0 0 auto;

@@ -7,9 +7,10 @@ from typing import Any, Mapping
 
 from PIL import Image
 
+from ...model.configuration_manager import ConfigurationManager
 from ...plugins.plugin_base import PermanentError
 from ..ai.parts import AiImageApi
-from ..ai.prompt import CANVAS
+from ..ai.prompt import master_prompts, with_canvas
 from ..data_source import DataSourceExecutionContext
 from ..openai_api.models import DEFAULT_IMAGE_MODEL, MODERATIONS, family_of, is_retired, quality_for, size_for
 from ..openai_api.openai_api import OpenAIApi
@@ -34,7 +35,7 @@ class OpenAIImageAsync(AiImageApi):
 		png = await provider.open_async(provider_dsec, {
 			"request": "image",
 			"model": model,
-			"prompt": str(params.get("prompt") or "") + CANVAS,
+			"prompt": with_canvas(master_prompts(dsec.provider.required(ConfigurationManager)), str(params.get("prompt") or "")),
 			"size": size_for(family, width, height),
 			"quality": quality_for(family, params.get("quality")),
 			"moderation": moderation if moderation in MODERATIONS else "auto",
