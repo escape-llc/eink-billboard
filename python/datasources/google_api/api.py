@@ -78,14 +78,27 @@ def models(cm: CM):
 def test_key(cm: CM, body: dict[str, Any] = Body(...)):
 	"""Ask Google with the key typed (or the saved one, when the field shows the mask): `{ ok, message }`, always 200, in our words. Never kept."""
 	value = body.get("value")
-	try:
-		if value in (None, "", SECRET_MASK):
+	if value in (None, "", SECRET_MASK):
+		try:
 			value = stored_api_key(cm.datasource_manager(DATASOURCE_ID))
-		if not isinstance(value, str):
-			raise PermanentError("Enter an API key first.")
-		ids = asyncio.run(list_model_ids(checked_key(value)))
-	except (PermanentError, RuntimeError) as problem:
-		return { "ok": False, "message": str(problem) }
+		except PermanentError:
+			return { "ok": False, "message": "Enter an API key first." }
+	if not isinstance(value, str) or not value.strip():
+		return { "ok": False, "message": "Enter an API key first." }
+	try:
+		key = checked_key(value)
+	except PermanentError:
+		return { "ok": False, "message": "That is not a Google AI Studio key: create one in AI Studio (it starts with AQ.)." }
+	# the words below are fixed by the kind of failure: nothing is taken from the error
+	try:
+		ids = asyncio.run(list_model_ids(key))
+	except PermanentError as refused:
+		if "key type" in str(refused):
+			return { "ok": False, "message": "Google did not accept this key type here: create a new key in Google AI Studio." }
+		return { "ok": False, "message": "Google refused the API key, or does not let it list models: check it in the Google AI settings." }
+	except Exception as e:
+		logger.warning(f"Testing a Google key failed ({type(e).__name__}).")
+		return { "ok": False, "message": "Google is busy or could not be reached: try again later." }
 	found = image_models(ids)
 	if not found:
 		return { "ok": False, "message": "The key works, but it may use no Gemini image model." }
