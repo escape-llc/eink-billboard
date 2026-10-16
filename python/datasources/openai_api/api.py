@@ -86,8 +86,8 @@ def models(cm: CM):
 
 def _test_words(error: Exception) -> str:
 	"""What a failed key test means: words fixed by the kind of failure, nothing taken from the error."""
-	if isinstance(error, openai.AuthenticationError):
-		return "OpenAI refused the API key: check it in the OpenAI settings."
+	if isinstance(error, (PermanentError, openai.AuthenticationError)):
+		return "OpenAI refused the API key, or does not let it list models: check it in the OpenAI settings."
 	if isinstance(error, openai.PermissionDeniedError):
 		return "OpenAI does not let this key list its models."
 	if isinstance(error, openai.RateLimitError):
@@ -113,8 +113,6 @@ def test_key(cm: CM, body: dict[str, Any] = Body(...)):
 		return { "ok": False, "message": "Enter an API key first." }
 	try:
 		ids = asyncio.run(list_model_ids(value.strip()))
-	except PermanentError as ours:
-		return { "ok": False, "message": str(ours) }
 	except Exception as e:
 		logger.warning(f"Testing an OpenAI key failed ({type(e).__name__}).")
 		return { "ok": False, "message": _test_words(e) }
