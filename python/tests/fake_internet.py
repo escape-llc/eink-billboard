@@ -301,7 +301,49 @@ def _google(request: httpx.Request) -> httpx.Response | None:
 	return httpx.Response(200, json={ "candidates": [{ "content": { "role": "model", "parts": [
 		{ "text": "Here is the picture." }, { "inlineData": { "mimeType": "image/png", "data": base64.b64encode(png).decode() } }] }, "finishReason": "STOP" }] })
 
-ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _apod, _apod_image, _rss_feed, _rss_image, _calendar, _caldav, _weather, _openai, _google]
+# Comic Vine: the key is a query parameter (`cv-good` works, `cv-busy` is over its hourly limit, any other is refused), the User-Agent must not be the HTTP library's own,
+# and the series searched for is one with COMICVINE_ISSUES issues, 100 to a page, each with a (generated) cover; "nothing-here" matches nothing
+COMICVINE_ISSUES = 250
+COMICVINE_VOLUME = 4050
+
+def _comicvine_body(status: int, code: int, error: str) -> httpx.Response:
+	return httpx.Response(status, json={ "error": error, "status_code": code, "results": [], "number_of_total_results": 0 })
+
+def _comicvine(request: httpx.Request) -> httpx.Response | None:
+	if request.url.host != "comicvine.gamespot.com":
+		return None
+	path = request.url.path
+	if path.startswith("/a/uploads/"):
+		return _image(480, 740, path.rsplit("/", 1)[-1], "JPEG")
+	if not path.startswith("/api/"):
+		return None
+	if "python-httpx" in request.headers.get("user-agent", ""):
+		return httpx.Response(403, text="Forbidden")
+	query = parse_qs(request.url.query.decode())
+	key = (query.get("api_key") or [""])[0]
+	if key == "cv-busy":
+		return _comicvine_body(420, 107, "Rate limit exceeded")
+	if key != "cv-good":
+		return _comicvine_body(401, 100, "Invalid API Key")
+	if path == "/api/search/":
+		if (query.get("resources") or [""])[0] != "volume":
+			return _comicvine_body(200, 102, "Filter Error")
+		text = (query.get("query") or [""])[0]
+		if text == "nothing-here":
+			return httpx.Response(200, json={ "error": "OK", "status_code": 1, "number_of_total_results": 0, "results": [] })
+		return httpx.Response(200, json={ "error": "OK", "status_code": 1, "number_of_total_results": 1, "results": [
+			{ "id": COMICVINE_VOLUME, "name": "Test Tales", "start_year": "1951", "count_of_issues": COMICVINE_ISSUES, "publisher": { "name": "Fixture Press" } }] })
+	if path == "/api/issues/":
+		if (query.get("filter") or [""])[0] != f"volume:{COMICVINE_VOLUME}":
+			return httpx.Response(200, json={ "error": "OK", "status_code": 1, "number_of_total_results": 0, "results": [] })
+		offset, limit = int((query.get("offset") or ["0"])[0]), int((query.get("limit") or ["100"])[0])
+		results = [{ "issue_number": str(n), "name": None if n % 2 else f"Tale {n}", "cover_date": f"{1951 + n // 12}-{n % 12 + 1:02d}-01",
+			"image": { "super_url": f"https://comicvine.gamespot.com/a/uploads/scale_large/{COMICVINE_VOLUME}/{n}.jpg", "original_url": f"https://comicvine.gamespot.com/a/uploads/original/{COMICVINE_VOLUME}/{n}.jpg" } }
+			for n in range(offset + 1, min(offset + limit, COMICVINE_ISSUES) + 1)]
+		return httpx.Response(200, json={ "error": "OK", "status_code": 1, "number_of_total_results": COMICVINE_ISSUES, "results": results })
+	return httpx.Response(404, text="Not found")
+
+ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _apod, _apod_image, _rss_feed, _rss_image, _calendar, _caldav, _weather, _openai, _google, _comicvine]
 
 def install() -> FakeInternet | None:
 	"""Make every `AsyncHttpWorkerPool` talk to the fake (unless EINK_TEST_LIVE is set)."""

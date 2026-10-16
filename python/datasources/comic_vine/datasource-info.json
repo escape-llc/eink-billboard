@@ -1,0 +1,39 @@
+{
+	"id": "comic-vine",
+	"name": "Comic Vine Covers",
+	"version": "0.0.1",
+	"class": "ComicVineCoversAsync",
+	"file": "comic_vine.py",
+	"module": "python.datasources.comic_vine.comic_vine",
+	"description": "The covers of a comic series from Comic Vine, in a random order, one page per cover on a blurred margin. The API key is in the Comic Vine settings (it is free).",
+	"describe": "Comic covers {series}",
+	"keepsList": true,
+	"disabled": false,
+	"uses": ["comicvine"],
+	"features": ["internet", "layer-background", "media-list"],
+	"settings": {
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+			},
+			"properties": [
+				{
+					"name": "series",
+					"type": "string",
+					"required": true,
+					"default": null,
+					"title": "Series",
+					"description": "The comic series to show, as you would search for it. The first match is used: Test shows which one that is.",
+					"maxLength": 100,
+					"test": { "url": "/api/datasource/comicvine/test" }
+				}
+			]
+		}
+	}
+}

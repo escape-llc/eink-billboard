@@ -1,0 +1,74 @@
+{
+	"id": "comicvine",
+	"name": "Comic Vine",
+	"version": "0.0.1",
+	"class": "ComicVineApi",
+	"file": "comicvine.py",
+	"module": "python.datasources.comicvine.comicvine",
+	"description": "Comic Vine, the comic book database, for the Comic Vine Covers: the API key and the answers it keeps, shared by every task.",
+	"disabled": false,
+	"features": ["internet", "api-key", "api"],
+	"router": {
+		"id": "comicvine-router",
+		"class": "comicvine_router",
+		"file": "api.py",
+		"module": "python.datasources.comicvine.api"
+	},
+	"settings": {
+		"schema": {
+			"properties": [
+				{
+					"name": "apiKey",
+					"type": "string",
+					"required": false,
+					"writeOnly": true,
+					"default": null,
+					"title": "API Key",
+					"description": "Your Comic Vine key. It is free for personal use: sign in and the key is on the API page.",
+					"link": { "url": "https://comicvine.gamespot.com/api/", "label": "Get a free API key" }
+				},
+				{
+					"name": "volumeCacheHours",
+					"type": "number",
+					"required": true,
+					"default": 168,
+					"minimum": 0,
+					"maximum": 8760,
+					"step": 24,
+					"minFractionDigits": 0,
+					"maxFractionDigits": 1,
+					"title": "Keep Series Searches (hours)",
+					"description": "How long what Comic Vine answered for a series search is kept and shared by every task. Series do not change often. 0: ask every time."
+				},
+				{
+					"name": "issuesCacheHours",
+					"type": "number",
+					"required": true,
+					"default": 24,
+					"minimum": 0,
+					"maximum": 8760,
+					"step": 6,
+					"minFractionDigits": 0,
+					"maxFractionDigits": 1,
+					"title": "Keep Issue Lists (hours)",
+					"description": "How long what Comic Vine answered for a page of a series' issues is kept and shared by every task. Comic Vine limits how many requests an hour may make. 0: ask every time."
+				},
+				{
+					"name": "staleDays",
+					"type": "integer",
+					"required": true,
+					"default": 30,
+					"minimum": 0,
+					"title": "Forget Unused Answers After (days)",
+					"description": "A kept answer nobody has used for this many days (a series you stopped showing) is removed. 0: never."
+				}
+			]
+		},
+		"default": {
+			"apiKey": null,
+			"volumeCacheHours": 168,
+			"issuesCacheHours": 24,
+			"staleDays": 30
+		}
+	}
+}
