@@ -64,4 +64,5 @@ class TestTheSlideShow(unittest.TestCase):
 		without = content_with_defaults(self.plugins, self.sources, "slide-show", { "dataSource": "apod" })
 		self.assertEqual((with_list["listMode"], with_list["refreshHours"]), ("continue", 0))
 		self.assertTrue("listMode" not in without and "refreshHours" not in without)
-		self.assertIn("slideMax", without, "the number of slides is every source's")
+		self.assertIn("slideMax", with_list, "a source of several pages has a count")
+		self.assertNotIn("slideMax", without, "a source of one picture shows one slide")

@@ -20,11 +20,14 @@ test("the list settings are shown for a source with a list and not for a picture
 
 	await choose("NASA Picture of the Day")
 	await expect(editor.getByText("Slide Duration Minutes", { exact: true })).toBeVisible()
-	await expect(editor.getByText("Max Slides", { exact: true })).toBeVisible()
+	// one picture: the count is 1, so it is not asked
+	const maxSlides = editor.getByText("Max Slides", { exact: true })
+	await expect(maxSlides).toHaveCount(0)
 	await expect(listMode).toHaveCount(0)
 	await expect(refresh).toHaveCount(0)
 
 	await choose("Comic")
+	await expect(maxSlides).toBeVisible()
 	await expect(listMode).toBeVisible()
 	await expect(refresh).toBeVisible()
 

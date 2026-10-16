@@ -255,7 +255,7 @@ class TestSlideShowKeepsItsList(unittest.IsolatedAsyncioTestCase):
 		self.assertEqual(await self.show(ds, listMode="restart"), ["title a", "title b"])
 
 	async def test_a_source_that_is_a_view_of_now_is_never_kept(self):
-		ds = FakeList(["a", "b", "c", "d"], "clock")
+		ds = FakeList(["a", "b", "c", "d"], "calendar")
 		await self.show(ds)
 		self.assertEqual(await self.show(ds), ["title a", "title b"])
 

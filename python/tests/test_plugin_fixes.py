@@ -96,6 +96,16 @@ class TestSlideShow(unittest.IsolatedAsyncioTestCase):
 		with self.assertLogs(show.logger, level="ERROR"):
 			await show._run_slideshow(cast(Any, make_context(ds, router, timer)), cast(Any, self._track(slideMax=2)))
 		self.assertEqual([m.title for _, m in router.sent], ["title a", "title b"])
+	async def test_a_source_of_one_picture_is_one_slide_whatever_the_count(self):
+		# media-image without media-list: a count left in the task (it is hidden in the form) is ignored
+		from ..model.configuration_manager import ConfigurationManager
+		for features, shown in ((["media-image"], ["title a"]), (["media-image", "media-list"], ["title a", "title b", "title c"])):
+			ds = FakeList(["a", "b", "c"])
+			router, timer = FakeRouter(), FakeTimer()
+			context = make_context(ds, router, timer)
+			context.provider.add_service(ConfigurationManager, cast(Any, SimpleNamespace(enum_datasources=lambda features=features: [{ "info": { "id": "fake", "features": features } }])))
+			await SlideShowAsync("slide-show", "slide-show")._run_slideshow(cast(Any, context), cast(Any, self._track(slideMax=3)))
+			self.assertEqual([m.title for _, m in router.sent], shown, features)
 	async def test_task_async_sets_done_even_when_all_fail(self):
 		from ..model.schedule import PlaylistSchedule, PlaylistScheduleData
 		ds = FakeList(["bad1"])

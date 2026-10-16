@@ -43,15 +43,23 @@ def page_layer(context: PluginExecutionContext, datasource_id: str, show_as: str
 NOT_THE_LIST = ("slideMinutes", "slideMax", "showAs", "listMode", "refreshHours")
 PLUGIN_ID = "slide-show"
 
-def keeps_list(context: PluginExecutionContext, datasource_id: str) -> bool:
-	"""Whether the data source's list is a real one (`keepsList` in its descriptor), not a view of now that is made fresh every time."""
+def source_info(context: PluginExecutionContext, datasource_id: str) -> Mapping[str, Any]:
 	cm = context.provider.get_service(ConfigurationManager)
 	if cm is not None:
 		for item in cm.enum_datasources():
 			info = item["info"]
 			if info.get("id") == datasource_id:
-				return info.get("keepsList") is True
-	return False
+				return cast(Mapping[str, Any], info)
+	return {}
+
+def keeps_list(context: PluginExecutionContext, datasource_id: str) -> bool:
+	"""Whether the data source's list is a real one (`keepsList` in its descriptor), not a view of now that is made fresh every time."""
+	return source_info(context, datasource_id).get("keepsList") is True
+
+def is_single_picture(context: PluginExecutionContext, datasource_id: str) -> bool:
+	"""A source whose only medium is one picture (`media-image` without `media-list`): its count is 1, whatever the task says."""
+	features = source_info(context, datasource_id).get("features")
+	return isinstance(features, list) and "media-image" in features and "media-list" not in features
 
 class SlideShowAsync(PluginAsync):
 	def __init__(self, id, name):
@@ -95,7 +103,8 @@ class SlideShowAsync(PluginAsync):
 				lambda: dataSource.open_async(dsec, cast(Mapping[str,Any], settings)),
 				keep=keep, refresh_hours=settings.get("refreshHours"), stale_days=(plugin_settings or {}).get("staleDays"))
 			slideMinutes = settings.get("slideMinutes", 15)
-			slideMax = settings.get("slideMax", 0)
+			# a picture of the day (or a generated one) is one slide: a count left in the task is ignored
+			slideMax = 1 if is_single_picture(context, dataSourceName) else settings.get("slideMax", 0)
 			count = 0
 			failures = 0
 			last_error: Exception|None = None
