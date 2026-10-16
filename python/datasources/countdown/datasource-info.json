@@ -7,7 +7,7 @@
 	"module": "python.datasources.countdown.countdown",
 	"description": "Countdown to a specific date/time.",
 	"describe": "Countdown {title}",
-	"features": ["layer-priority", "layer-foreground", "media-image"],
+	"features": ["layer-foreground", "layer-priority", "media-image"],
 	"disabled": false,
 	"settings": {
 		"schema": {

@@ -9,7 +9,7 @@
 	"describe": "Weather {views}",
 	"disabled": false,
 	"uses": ["openweathermap"],
-	"features": ["internet", "layer-foreground", "media-list"],
+	"features": ["api-client", "layer-foreground", "media-list"],
 	"settings": {
 		"schema": {
 			"properties": [

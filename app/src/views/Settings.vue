@@ -138,23 +138,7 @@
 						</Select>
 					</template>
 					<template #header-end>
-						<div v-if="selectedPlugin" class="m-3" style="display:grid;width:100%;place-items:center;grid-template-columns: repeat(5,1fr);grid-template-rows:repeat(2,fr)">
-							<div class="plugin-label" style="grid-row:1;grid-column:1">id</div>
-							<div style="grid-row:2;grid-column:1">{{ selectedPlugin.id }}</div>
-							<div class="plugin-label" style="grid-row:1;grid-column:2">version</div>
-							<div style="grid-row:2;grid-column:2">{{ selectedPlugin.version }}</div>
-							<div class="plugin-label" style="grid-row:1;grid-column:3">enabled</div>
-							<div style="grid-row:2;grid-column:3"><i class="pi" :class="selectedPlugin.disabled ? 'pi-times' : 'pi-check'"></i></div>
-							<div class="plugin-label" style="grid-row:1;grid-column:4">description</div>
-							<div style="grid-row:2;grid-column:4">{{ selectedPlugin.description }}</div>
-							<div class="plugin-label" style="grid-row:1;grid-column:5">features</div>
-							<div v-if="selectedPlugin.features" class="flex flex-row" style="grid-row:2;grid-column:5">
-								<template v-for="feature in selectedPlugin.features">
-									<Tag class="mr-1 ml-1" :value="feature">{{ feature }}</Tag>
-								</template>
-							</div>
-							<div v-else>-</div>
-						</div>
+						<ItemInfo v-if="selectedPlugin" :item="selectedPlugin" kind="plugin" />
 					</template>
 				</SettingsForm>
 			</TabPanel>
@@ -183,23 +167,7 @@
 						</Select>
 					</template>
 					<template #header-end>
-						<div v-if="selectedDatasource" class="m-3" style="display:grid;width:100%;place-items:center;grid-template-columns: repeat(5,1fr);grid-template-rows:repeat(2,fr)">
-							<div class="plugin-label" style="grid-row:1;grid-column:1">id</div>
-							<div style="grid-row:2;grid-column:1">{{ selectedDatasource.id }}</div>
-							<div class="plugin-label" style="grid-row:1;grid-column:2">version</div>
-							<div style="grid-row:2;grid-column:2">{{ selectedDatasource.version }}</div>
-							<div class="plugin-label" style="grid-row:1;grid-column:3">enabled</div>
-							<div style="grid-row:2;grid-column:3"><i class="pi" :class="selectedDatasource.disabled ? 'pi-times' : 'pi-check'"></i></div>
-							<div class="plugin-label" style="grid-row:1;grid-column:4">description</div>
-							<div style="grid-row:2;grid-column:4">{{ selectedDatasource.description }}</div>
-							<div class="plugin-label" style="grid-row:1;grid-column:5">features</div>
-							<div v-if="selectedDatasource.features" class="flex flex-row" style="grid-row:2;grid-column:5">
-								<template v-for="feature in selectedDatasource.features">
-									<Tag class="mr-1 ml-1" :value="feature">{{ feature }}</Tag>
-								</template>
-							</div>
-							<div v-else>-</div>
-						</div>
+						<ItemInfo v-if="selectedDatasource" :item="selectedDatasource" kind="datasource" />
 					</template>
 				</SettingsForm>
 			</TabPanel>
@@ -209,13 +177,13 @@
 <script setup lang="ts">
 import { apiJson, apiPost, ApiError } from "../components/ApiClient"
 
+import ItemInfo from '../components/ItemInfo.vue';
 import Tabs from 'primevue/tabs';
 import TabList from 'primevue/tablist';
 import Tab from 'primevue/tab';
 import TabPanels from 'primevue/tabpanels';
 import TabPanel from 'primevue/tabpanel';
 import Select from 'primevue/select';
-import Tag from 'primevue/tag';
 
 import type { ValidateEventData } from "../components/BasicForm.vue"
 import SettingsForm from "../components/SettingsForm.vue"
@@ -459,10 +427,6 @@ const handleThemeValidate = (e: ValidateEventData) => {
 }
 </script>
 <style scoped>
-.plugin-label {
-	font-weight: bold;
-	font-size: 120%;
-}
 .form {
 	/* the whole tab, up to a width where a row of fields is still easy to read */
 	width: 100%;

@@ -9,7 +9,7 @@
 	"describe": "Reminders {windowMinutes} min",
 	"disabled": false,
 	"uses": ["calendar"],
-	"features": ["internet", "layer-overlay", "media-image"],
+	"features": ["layer-overlay", "media-image"],
 	"settings": {
 		"schema": {
 			"properties": [

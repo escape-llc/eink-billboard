@@ -8,7 +8,7 @@
 	"description": "A Gemini model writes the prompt of a Generated Image. The key is in the Google AI settings.",
 	"disabled": false,
 	"uses": ["google-ai"],
-	"features": ["api", "ai-text"],
+	"features": ["api", "api-client", "ai-text"],
 	"instanceSettings": {
 		"schema": {
 			"lookups": {
