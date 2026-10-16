@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 import logging
 from typing import Any
 
+import httpx
+import openai
 from fastapi import APIRouter, Body
 
 from ...model.configuration_manager import DatasourceConfigurationManager
@@ -20,7 +22,7 @@ from ...web.documents import SECRET_MASK
 from ...web.errors import ApiError
 from ..data_source import DataSourceExecutionContext
 from .models import QUALITIES, describe_models, image_models, text_models
-from .openai_api import OpenAIApi, list_model_ids, explain_failure, stored_api_key
+from .openai_api import OpenAIApi, list_model_ids, stored_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +84,22 @@ def models(cm: CM):
 	ids = _stored_ids(cm)
 	return { "image": describe_models(ids), "text": text_models(ids) }
 
+def _test_words(error: Exception) -> str:
+	"""What a failed key test means: words fixed by the kind of failure, nothing taken from the error."""
+	if isinstance(error, openai.AuthenticationError):
+		return "OpenAI refused the API key: check it in the OpenAI settings."
+	if isinstance(error, openai.PermissionDeniedError):
+		return "OpenAI does not let this key list its models."
+	if isinstance(error, openai.RateLimitError):
+		return "OpenAI is busy (429), or the account has no credit left."
+	if isinstance(error, (openai.APITimeoutError, httpx.TimeoutException)):
+		return "OpenAI did not answer in time."
+	if isinstance(error, (openai.APIConnectionError, httpx.HTTPError)):
+		return "Could not reach OpenAI."
+	if isinstance(error, openai.APIStatusError):
+		return "OpenAI did not accept the request."
+	return "The key could not be tested."
+
 @openai_router.post('/test')
 def test_key(cm: CM, body: dict[str, Any] = Body(...)):
 	"""Ask OpenAI with the key typed (or the saved one, when the field shows the mask): `{ ok, message }`, always 200, in our words. Never kept."""
@@ -98,9 +116,8 @@ def test_key(cm: CM, body: dict[str, Any] = Body(...)):
 	except PermanentError as ours:
 		return { "ok": False, "message": str(ours) }
 	except Exception as e:
-		problem = explain_failure(e)
-		logger.warning(f"Testing an OpenAI key failed ({type(e).__name__}): {problem}")
-		return { "ok": False, "message": str(problem) }
+		logger.warning(f"Testing an OpenAI key failed ({type(e).__name__}).")
+		return { "ok": False, "message": _test_words(e) }
 	found = image_models(ids)
 	if not found:
 		return { "ok": False, "message": "The key works, but it may use no GPT image model." }
