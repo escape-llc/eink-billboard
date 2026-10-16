@@ -1,9 +1,9 @@
 import feedparser
-import html
 import logging
 import re
 
 from ...task.async_http_worker_pool import client_var
+from ...utils.text_utils import unescape_text
 
 def _first(pattern: str, text: str) -> str:
 	"""The first group of the first match; a page without the match is a malformed entry (the caller skips it)."""
@@ -82,9 +82,9 @@ def parse_the_feed(comic_name: str, comic: dict, feed: feedparser.FeedParserDict
 				"count": 0,
 				# the caption and the address are cut out of the entry's HTML, so they still hold its character entities (&quot; &amp; &#039;);
 				# a title is the feed's text, which may have been escaped once more (qwantz.com does)
-				"image_url": html.unescape(comic["url"](element)),
-				"title": html.unescape(comic["title"](entry)),
-				"caption": html.unescape(comic["caption"](element)),
+				"image_url": unescape_text(comic["url"](element)),
+				"title": unescape_text(comic["title"](entry)),
+				"caption": unescape_text(comic["caption"](element)),
 			}
 			items.append(data)
 		except Exception as e:

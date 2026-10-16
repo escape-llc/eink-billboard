@@ -113,6 +113,15 @@ class TestComic(unittest.IsolatedAsyncioTestCase):
 		self.assertEqual(item["caption"], "a dude named \"JORDAN\" & it's fine")
 		self.assertEqual(item["image_url"], "http://www.qwantz.com/comics/c.png?a=1&b=2")
 		self.assertEqual(item["title"], "it's a \"title\"")
+	def test_unescape_text_reads_every_kind_of_entity_and_double_escaping(self):
+		from ..utils.text_utils import unescape_text
+		for raw, text in (
+			("&quot;JORDAN&quot;", "\"JORDAN\""), ("&amp;quot;JORDAN&amp;quot;", "\"JORDAN\""), ("&amp;amp;quot;x&amp;amp;quot;", "\"x\""),
+			("it&#039;s &#x27;ok&#x27;", "it's 'ok'"), ("a &amp; b &lt; c", "a & b < c"), ("wait&hellip; &mdash; &eacute;", "wait… — é"),
+			("plain", "plain"), ("", ""), ("AT&T, 5 & 6", "AT&T, 5 & 6"),
+		):
+			with self.subTest(raw):
+				self.assertEqual(unescape_text(raw), text)
 	def test_caption_taller_than_image_area_does_not_raise(self):
 		item = {"title": "t", "caption": "word " * 200}
 		out = _compose_image(io.BytesIO(png_bytes((100, 50))), item, self._font(), 200, 40)

@@ -5,7 +5,6 @@ The pictures come from NASA's public WordPress API (`science.nasa.gov/wp-json/wp
 A day can be a video, which cannot be shown: for the latest picture and a random day the next one is taken, for a day the user chose it is said, in our words.
 The picture (`hdurl`) is fitted to the screen with a blurred margin (`blurred_margin`).
 """
-import html
 import logging
 from datetime import date, datetime, timedelta
 from random import randint
@@ -16,6 +15,7 @@ from PIL import Image, UnidentifiedImageError
 from ...plugins.plugin_base import PermanentError
 from ...task.async_http_worker_pool import client_var
 from ...utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, blurred_margin, stream_to_buffer
+from ...utils.text_utils import unescape_text
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 
 API_URL = "https://science.nasa.gov/wp-json/wp/v2/apod-basic"
@@ -50,7 +50,7 @@ def picture_of(entry: Any) -> dict[str, Any]|None:
 	url = entry.get("hdurl")
 	if not isinstance(url, str) or not url.startswith("https://"):
 		return None
-	return { "date": str(entry.get("date") or ""), "title": html.unescape(str(entry.get("title") or "")).strip(), "url": url }
+	return { "date": str(entry.get("date") or ""), "title": unescape_text(str(entry.get("title") or "")).strip(), "url": url }
 
 class ApodAsync(DataSource, MediaListAsync, MediaRenderAsync):
 	def __init__(self, id: str, name: str):
