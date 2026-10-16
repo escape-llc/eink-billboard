@@ -50,7 +50,8 @@
 					"default": 4,
 					"minimum": 0,
 					"title": "Max Slides",
-					"description": "Maximum number of images in the slideshow. Zero for 'unlimited'."
+					"description": "Maximum number of images in the slideshow. Zero for 'unlimited'. Shown only for a data source with several pages (a source of one picture shows one).",
+					"visibleIf": { "field": "dataSource.features", "contains": "media-list" }
 				},
 				{
 					"name": "slideMinutes",

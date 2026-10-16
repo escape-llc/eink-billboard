@@ -211,7 +211,7 @@ class TestRunTimeDefaults(unittest.TestCase):
 		single = content_with_defaults(plugins, sources, "slide-show", { "dataSource": "apod" })
 		self.assertNotIn("refreshHours", single)
 		self.assertNotIn("listMode", single)
-		self.assertEqual(single["slideMax"], slide["slideMax"]["default"])
+		self.assertNotIn("slideMax", single, "one picture is one slide: no count")
 
 	def test_nothing_is_added_that_has_no_default_or_is_hidden_or_the_item_is_unchanged(self):
 		plugins, sources = self._maps()
