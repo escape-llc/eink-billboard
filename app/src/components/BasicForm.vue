@@ -21,7 +21,7 @@
 						</slot>
 					</template>
 					<template v-else>
-						<BasicFormField :field="field" :formContext="$form" :fieldNameWidth="fieldNameWidth" :baseUrl="baseUrl" :showHelp="showHelp" :newFields="newNames" @form-field-event="handleFormFieldEvent">
+						<BasicFormField :field="field" :formContext="$form" :fieldNameWidth="fieldNameWidth" :baseUrl="baseUrl" :showHelp="showHelp" :newFields="newNames" :fields="localProperties" @form-field-event="handleFormFieldEvent">
 						</BasicFormField>
 					</template>
 				</template>
@@ -244,7 +244,7 @@ function lookupSchema(schema: SchemaType, lookup:string): LookupValue[] {
 					return plugins.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings), owner: { kind: "plugin", id: px.id } }))
 				}
 				else if(lku.schema === "data-sources") {
-					return dataSources.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings), uses: px.uses, owner: { kind: "datasource", id: px.id } }))
+					return dataSources.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings), uses: px.uses, features: px.features, keepsList: px.keepsList === true, owner: { kind: "datasource", id: px.id } }))
 				}
 				else {
 					console.warn("Unknown lookup schema", lku.schema)

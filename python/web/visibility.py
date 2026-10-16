@@ -6,10 +6,29 @@ A property may carry `visibleIf`, a small JSON predicate over the other properti
 	{ "field": "randomizeDate", "const": false }    const | enum | set (true: has a value, false: has none) | contains (a list value holds it)
 	{ "all": [ ... ] }   { "any": [ ... ] }   { "not": { ... } }
 An unset value (missing, null, "") reads as null. A hidden property is not applicable: it is not validated and is stored as null.
+
+A `schema` property (a plugin's data source) also has values derived from the source it chose, which a predicate may read: `<property>.features` (its
+`features`, a list: `contains`) and `<property>.keepsList` (true when its list outlasts a visit); `derive` adds them to a document. The form derives the same.
 """
 from typing import Any, Iterable
 
 _OPERATORS = ("const", "enum", "set", "contains")
+# the values a chosen data source gives (the web app's DERIVED)
+DERIVED = ("features", "keepsList")
+
+def derive(properties: Iterable[dict], document: dict, sources: dict) -> dict:
+	"""
+	The document with `<schema property>.features` and `<schema property>.keepsList` added for each `schema` property that names a data source of `sources`
+	(by id, as the server holds them: `{ "info": ... }`); a choice that is not a source reads as no features and not kept.
+	"""
+	derived = dict(document)
+	for prop in properties or []:
+		if isinstance(prop, dict) and prop.get("type") == "schema" and isinstance(prop.get("name"), str):
+			chosen = document.get(prop["name"])
+			info = ((sources.get(chosen) if isinstance(chosen, str) else None) or {}).get("info") or {}
+			derived[f"{prop['name']}.features"] = list(info.get("features") or [])
+			derived[f"{prop['name']}.keepsList"] = info.get("keepsList") is True
+	return derived
 
 def _read(values: dict, name: str) -> Any:
 	v = values.get(name)
@@ -97,6 +116,8 @@ def find_problems(properties: Iterable[dict]) -> list[str]:
 	"""What is wrong with the `visibleIf` of these properties: a malformed predicate, a name that is no property, or a cycle."""
 	props = [p for p in properties or [] if isinstance(p, dict)]
 	names = { p["name"] for p in props if p.get("type") != "header" and "name" in p }
+	# a value derived from what a `schema` property chose is not a property of its own
+	derived = { f"{p['name']}.{kind}" for p in props if p.get("type") == "schema" and "name" in p for kind in DERIVED }
 	problems: list[str] = []
 	edges: dict[str, list[str]] = {}
 	for p in props:
@@ -106,7 +127,7 @@ def find_problems(properties: Iterable[dict]) -> list[str]:
 		if shape:
 			problems.append(f"{p.get('name')}: visibleIf {shape}")
 		refs = _referenced(p["visibleIf"])
-		problems.extend(f"{p.get('name')}: visibleIf refers to unknown field '{r}'" for r in refs if r not in names)
+		problems.extend(f"{p.get('name')}: visibleIf refers to unknown field '{r}'" for r in refs if r not in names and r not in derived)
 		edges[p["name"]] = [r for r in refs if r in names]
 	state: dict[str, int] = {}
 	def visit(n: str, path: list[str]) -> None:

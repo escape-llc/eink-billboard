@@ -201,11 +201,17 @@ class TestRunTimeDefaults(unittest.TestCase):
 
 	def test_a_missing_property_takes_the_descriptors_default_and_a_set_one_is_kept(self):
 		plugins, sources = self._maps()
-		filled = content_with_defaults(plugins, sources, "slide-show", { "dataSource": "comic-xkcd", "slideMinutes": 3 })
+		# a data source with a list that outlasts a visit has the list settings; one without (a picture of the day) does not
+		filled = content_with_defaults(plugins, sources, "slide-show", { "dataSource": "comic", "slideMinutes": 3 })
 		slide = { p["name"]: p for p in properties(DESCRIPTORS.plugins["slide-show"]) }
 		self.assertEqual(filled["refreshHours"], slide["refreshHours"]["default"])
+		self.assertEqual(filled["listMode"], slide["listMode"]["default"])
 		self.assertEqual(filled["slideMax"], slide["slideMax"]["default"])
 		self.assertEqual(filled["slideMinutes"], 3)
+		single = content_with_defaults(plugins, sources, "slide-show", { "dataSource": "apod" })
+		self.assertNotIn("refreshHours", single)
+		self.assertNotIn("listMode", single)
+		self.assertEqual(single["slideMax"], slide["slideMax"]["default"])
 
 	def test_nothing_is_added_that_has_no_default_or_is_hidden_or_the_item_is_unchanged(self):
 		plugins, sources = self._maps()

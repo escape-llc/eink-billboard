@@ -67,8 +67,9 @@
 					"required": false,
 					"default": "continue",
 					"title": "Slides in a List",
-					"description": "For a data source with a real list (a feed, a folder). continue: each visit goes on where the last one stopped, and the list is fetched again when it is used up. restart: every visit starts at the top of a new list.",
-					"enum": ["continue", "restart"]
+					"description": "Shown only for a data source with a real list (a feed, a folder). continue: each visit goes on where the last one stopped, and the list is fetched again when it is used up. restart: every visit starts at the top of a new list.",
+					"enum": ["continue", "restart"],
+					"visibleIf": { "field": "dataSource.keepsList", "const": true }
 				},
 				{
 					"name": "refreshHours",
@@ -78,7 +79,7 @@
 					"minimum": 0,
 					"title": "Fetch Again After (hours)",
 					"description": "With continue: the list is shown item by item until it is used up, then fetched again and started over, so new items turn up in time. 0: only then. More than 0: also when the list is older than this, even when some is left.",
-					"visibleIf": { "field": "listMode", "const": "continue" }
+					"visibleIf": { "all": [{ "field": "dataSource.keepsList", "const": true }, { "field": "listMode", "const": "continue" }] }
 				},
 				{ "name": "showAs", "type": "string", "required": false, "default": "auto", "title": "Show As", "description": "auto: as the data source says (a text page overrides, a picture is a background). background: the overlays are drawn on it. blend: washes over the page before it, without the overlays. override: covers everything (only a priority image is drawn over it).", "enum": ["auto", "background", "blend", "override"]}
 			]
