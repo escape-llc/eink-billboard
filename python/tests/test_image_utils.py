@@ -193,3 +193,21 @@ class TestBlurredMargin(unittest.TestCase):
 
 if __name__ == "__main__":
 	unittest.main()
+
+
+class TestChromeCommand(unittest.TestCase):
+	def test_the_environment_overrides_the_platform_default(self):
+		from unittest.mock import patch as _patch
+		# the `.env` file is not read here (a developer's own would answer for the missing variable)
+		_patch.object(image_utils, "_env_file_read", True).start()
+		self.addCleanup(_patch.stopall)
+		with _patch.dict(os.environ, { "EINK_CHROME": sys.executable }):
+			self.assertEqual(image_utils.chrome_command(), sys.executable)
+		# a browser that is not on this machine is not used (a `.env` written on another one)
+		with _patch.dict(os.environ, { "EINK_CHROME": "/not/here/headless_shell" }), self.assertLogs(image_utils.logger, level="WARNING"):
+			self.assertIn(image_utils.chrome_command(), (image_utils.WIN_CHROME_HEADLESS, image_utils.LINUX_CHROME_HEADLESS))
+		with _patch.dict(os.environ, { "EINK_CHROME": "" }):
+			self.assertIn(image_utils.chrome_command(), (image_utils.WIN_CHROME_HEADLESS, image_utils.LINUX_CHROME_HEADLESS))
+		env = { k: v for k, v in os.environ.items() if k != "EINK_CHROME" }
+		with _patch.dict(os.environ, env, clear=True):
+			self.assertIn(image_utils.chrome_command(), (image_utils.WIN_CHROME_HEADLESS, image_utils.LINUX_CHROME_HEADLESS))

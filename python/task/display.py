@@ -35,6 +35,9 @@ class Display(DispatcherTask):
 	RESULT_TIMEOUT_SECONDS = 30.0
 	# pause after an unexpected error in a loop, so a persistent error cannot spin
 	ERROR_BACKOFF_SECONDS = 1.0
+	# how long a timed image (priority, blend) waits for the panel to show it before its time starts anyway: the commit delay and a refresh
+	# (which the driver stage bounds) fit well inside it, so only a panel that never answers gets here
+	DRAWN_WAIT_SECONDS = 180.0
 	def __init__(self, name, router:MessageRouter):
 		super().__init__(name)
 		if router is None:
@@ -60,6 +63,9 @@ class Display(DispatcherTask):
 		self.task_blend: tuple[Future, threading.Event] | None = None
 		self.task_render: tuple[Future, threading.Event] | None = None
 		# overlays: the zones (set at configure) and, per zone, who put up what is there (only touched on the pool loop)
+		# the newest compositor version the panel has been given (drawn, or already showing), and who waits for which one (only touched on the pool loop)
+		self._drawn_version = 0
+		self._drawn_waiters: list[tuple[int, asyncio.Event]] = []
 		self.zones: dict[str, Zone] = {}
 		self.overlays: dict[str, tuple[str, ImageOverlay]] = {}
 		self.logger = logging.getLogger(__name__)
@@ -234,6 +240,27 @@ class Display(DispatcherTask):
 			control.ended.set()
 		elif priorityq.qsize() > 0:
 			control.revoked.add(title)
+	def _drawn_event(self, version: int) -> asyncio.Event:
+		"""Set once the panel has been given the compositor's `version` or a newer one."""
+		event = asyncio.Event()
+		if self._drawn_version >= version:
+			event.set()
+		else:
+			self._drawn_waiters.append((version, event))
+		return event
+	async def _until_drawn(self, version: int, ended: asyncio.Event) -> None:
+		"""Waits until the panel has been given `version`, the image is revoked (`ended`), or `DRAWN_WAIT_SECONDS` have passed."""
+		waits = { asyncio.ensure_future(self._drawn_event(version).wait()), asyncio.ensure_future(ended.wait()) }
+		try:
+			await asyncio.wait(waits, timeout=self.DRAWN_WAIT_SECONDS, return_when=asyncio.FIRST_COMPLETED)
+		finally:
+			for wait in waits:
+				wait.cancel()
+	def _note_drawn(self, version: int) -> None:
+		self._drawn_version = max(self._drawn_version, version)
+		for waiter in [w for w in self._drawn_waiters if w[0] <= self._drawn_version]:
+			self._drawn_waiters.remove(waiter)
+			waiter[1].set()
 	async def _task_commit_timer(self, commitq: asyncio.Queue[BasicMessage], renderq: asyncio.Queue[BasicMessage], timebase: TimeOfDay, donev: threading.Event):
 		try:
 			while True:
@@ -266,6 +293,8 @@ class Display(DispatcherTask):
 			# what the panel shows now: an image that comes out identical is not drawn again (an e-ink refresh takes seconds and wears the panel)
 			shown: bytes|None = None
 			while True:
+				# the version this pass takes from the compositor, for whoever waits to see it drawn (also when drawing it fails: nobody waits for ever)
+				taking: int|None = None
 				try:
 					_ = await taskq.get()
 					taskq.task_done()
@@ -275,7 +304,10 @@ class Display(DispatcherTask):
 					package = compsitor.commit()
 					if package is None:
 						self.logger.debug(f"Compositor no changes detected")
+						# nothing newer than what the last pass handled: whoever waits for the current version has it
+						self._note_drawn(compsitor.current_version)
 						continue
+					taking = package.version
 					shown_layers = compsitor.layers()
 					the_image, the_title = package.render()
 					if rotate: the_image = the_image.rotate(180)
@@ -284,6 +316,7 @@ class Display(DispatcherTask):
 					if digest == shown:
 						self.logger.info(f"Compositor v:{package.version} '{the_title}' looks the same as what is shown, not drawing it again")
 						self._telemetry("skipped", { "title": the_title, "version": package.version, "message": f"'{the_title}' looks the same as what is shown: not drawn again." })
+						self._note_drawn(package.version)
 						continue
 
 					displayImageCount += 1
@@ -294,10 +327,14 @@ class Display(DispatcherTask):
 					# what the panel shows now, for the telemetry link: the hub keeps the image by its digest, the event carries the digest
 					self._telemetry("shown", { "title": the_title, "version": package.version, "count": displayImageCount, "digest": digest.hex(),
 						"width": the_image.width, "height": the_image.height, "layers": shown_layers, "image": the_image })
+					# on the panel: a timed image's time starts now, not while the panel was still drawing it
+					self._note_drawn(package.version)
 					self.logger.debug(f"Start blanking period")
 					await asyncio.sleep(60.0)
 					self.logger.debug(f"End blanking period")
 				except Exception as e:
+					if taking is not None:
+						self._note_drawn(taking)
 					self.report_failure("The page could not be drawn on the panel", e)
 					await asyncio.sleep(self.ERROR_BACKOFF_SECONDS)
 		except asyncio.CancelledError:
@@ -325,10 +362,12 @@ class Display(DispatcherTask):
 					set_layer(di)
 					taskq.task_done()
 					await commitq.put(BasicMessage(msg.timestamp))
-					# TODO await the callback from the display task that the image was rendered before starting the timer
 					control.title, control.ended = msg.title, asyncio.Event()
 					try:
-						await asyncio.wait_for(control.ended.wait(), cast(PriorityImage|BlendImage, msg).duration.total_seconds())
+						# its time starts when it is on the panel (an e-ink refresh takes tens of seconds), unless it is revoked first
+						await self._until_drawn(self.compsitor.current_version, control.ended)
+						if not control.ended.is_set():
+							await asyncio.wait_for(control.ended.wait(), cast(PriorityImage|BlendImage, msg).duration.total_seconds())
 					except asyncio.TimeoutError:
 						pass
 					finally:

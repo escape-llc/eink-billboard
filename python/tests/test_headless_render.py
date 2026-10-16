@@ -7,11 +7,11 @@ import logging
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pathvalidate import sanitize_filename
 
-from ..utils.image_utils import render_html_arglist, os_type, WIN_CHROME_HEADLESS, LINUX_CHROME_HEADLESS
+from ..utils.image_utils import chrome_command, render_html_arglist
 
 logger = logging.getLogger(__name__)
 
-CHROME = WIN_CHROME_HEADLESS if os_type == "Windows" else LINUX_CHROME_HEADLESS
+CHROME = chrome_command()
 HAVE_CHROME = shutil.which(CHROME) is not None
 
 @unittest.skipUnless(HAVE_CHROME, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")

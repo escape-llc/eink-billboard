@@ -9,10 +9,11 @@ from ..model.configuration_manager import StaticConfigurationManager
 from ..model.theme import inputs_from
 from ..plugins.plugin_base import PermanentError
 from ..utils import error_image
+from ..utils.image_utils import chrome_command
 from ..utils.error_image import plain_error_image, render_error_image, safe_reason
 
 STATIC = os.path.join(os.path.dirname(__file__), "..", "static")
-HAVE_CHROME = shutil.which("chromium-headless-shell") is not None
+HAVE_CHROME = shutil.which(chrome_command()) is not None
 
 class PlainErrorImageTests(unittest.TestCase):
 	def test_same_failure_gives_the_same_pixels(self):
@@ -56,7 +57,7 @@ class ThemedErrorImageTests(unittest.TestCase):
 		for theme_class in ("text-primary", "text-secondary-1", "text-secondary-2"):
 			self.assertIn(theme_class, html)
 
-	@unittest.skipUnless(HAVE_CHROME, "needs chromium-headless-shell on PATH")
+	@unittest.skipUnless(HAVE_CHROME, "needs the headless browser (EINK_CHROME, or chromium-headless-shell on PATH)")
 	def test_renders_through_the_browser_with_the_theme_and_is_repeatable(self):
 		tinted = inputs_from({ "theme": "analogous", "hue": 200, "saturation": 60, "lightness": 50, "background": "tinted" })
 		first = render_error_image(self.stm, (800, 480), "Morning slides", ["folder: Required"], tinted)
@@ -70,7 +71,7 @@ class ThemedErrorImageTests(unittest.TestCase):
 		self.assertEqual(render_error_image(self.stm, (800, 480), "Morning slides", ["x"], inputs_from({ "background": "black" })).convert("RGB").getpixel((5, 5)), (0, 0, 0))
 		self.assertNotEqual(first.tobytes(), plain_error_image((800, 480), "Morning slides", ["folder: Required"]).convert(first.mode).tobytes())
 
-	@unittest.skipUnless(HAVE_CHROME, "needs chromium-headless-shell on PATH")
+	@unittest.skipUnless(HAVE_CHROME, "needs the headless browser (EINK_CHROME, or chromium-headless-shell on PATH)")
 	def test_the_compact_page_fits_an_overlay_zone(self):
 		image = render_error_image(self.stm, (246, 96), "Today", ["PermanentError: a very long reason that cannot fit on one line of a small box"], None, True)
 		self.assertEqual(image.size, (246, 96))

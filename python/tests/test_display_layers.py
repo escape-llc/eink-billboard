@@ -169,6 +169,52 @@ class TestDisplayRouting(unittest.TestCase):
 		asyncio.run(go())
 		self.assertEqual([di is None for di in seen], [False, True], "set for the duration, then cleared")
 
+	def test_a_timed_layers_time_starts_when_the_panel_has_it_not_when_it_was_queued(self):
+		"""The refresh of an e-ink panel takes tens of seconds: a short priority page was shown for its time less the refresh."""
+		seen: list = []
+		async def go():
+			import threading
+			taskq: asyncio.Queue = asyncio.Queue()
+			commitq: asyncio.Queue = asyncio.Queue()
+			done = threading.Event()
+			image = PriorityImage(NOW, "setup", solid(GREEN, (800, 480)), datetime.timedelta(seconds=0.1))
+			await taskq.put(image)
+			control = self.display.priority_control
+			runner = asyncio.create_task(self.display._task_timed_layer(taskq, commitq, (800, 480), None, done, lambda di: (seen.append(di), self.display.compsitor.set_layer_priority(di)), "priority", control))
+			# the panel is still drawing it: the time (0.1 s) has not started, however long it takes
+			await asyncio.sleep(0.4)
+			self.assertEqual([di is None for di in seen], [False], "still shown while the panel draws it")
+			self.display._note_drawn(self.display.compsitor.current_version)
+			await asyncio.sleep(0.4)
+			runner.cancel()
+			try:
+				await runner
+			except asyncio.CancelledError:
+				pass
+		asyncio.run(go())
+		self.assertEqual([di is None for di in seen], [False, True], "cleared after its time, counted from the draw")
+
+	def test_a_revoke_ends_a_timed_layer_that_is_still_waiting_for_the_panel(self):
+		seen: list = []
+		async def go():
+			import threading
+			taskq: asyncio.Queue = asyncio.Queue()
+			commitq: asyncio.Queue = asyncio.Queue()
+			done = threading.Event()
+			await taskq.put(PriorityImage(NOW, "setup", solid(GREEN, (800, 480)), datetime.timedelta(minutes=1)))
+			control = self.display.priority_control
+			runner = asyncio.create_task(self.display._task_timed_layer(taskq, commitq, (800, 480), None, done, lambda di: (seen.append(di), self.display.compsitor.set_layer_priority(di)), "priority", control))
+			await asyncio.sleep(0.2)
+			await self.display._task_priority_revoke(taskq, "setup")
+			await asyncio.sleep(0.2)
+			runner.cancel()
+			try:
+				await runner
+			except asyncio.CancelledError:
+				pass
+		asyncio.run(go())
+		self.assertEqual([di is None for di in seen], [False, True])
+
 class TestShowAs(unittest.TestCase):
 	def context(self, features: list[str]|None) -> PluginExecutionContext:
 		root = ServiceContainer()

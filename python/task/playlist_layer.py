@@ -316,7 +316,6 @@ class PlaylistLayer(DispatcherTask):
 			return None
 		except CancelledError as ce:
 			self.logger.info(f"'{self.name}' Layer task cancelled.")
-			# TODO we could save state here for next time
 			raise
 		finally:
 			donev.set()

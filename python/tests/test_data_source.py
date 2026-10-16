@@ -23,7 +23,7 @@ def create_data_source_context(dsid:str, schedule_ts: datetime = datetime.now(),
 	stm = cm.static_manager()
 	dscm = cm.datasource_manager(dsid)
 	root = ServiceContainer()
-	#root.add_service(ConfigurationManager, cm)
+	root.add_service(ConfigurationManager, cm)
 	root.add_service(StaticConfigurationManager, stm)
 	root.add_service(SettingsConfigurationManager, scm)
 	root.add_service(DatasourceConfigurationManager, dscm)

@@ -22,7 +22,7 @@ from ..plugins.plugin_base import PermanentError
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool, client_var
 from ..utils import url_guard
 from ..web.documents import plugin_content_errors
-from ..utils.image_utils import LINUX_CHROME_HEADLESS, WIN_CHROME_HEADLESS, os_type
+from ..utils.image_utils import chrome_command
 from ..web.deps import get_time_of_day
 from .fake_internet import FakeInternet, fixture_text
 from .test_datasource_fixes import STATIC, FakeDatasourceSettings, FakeRenderSession, _Cob
@@ -60,6 +60,8 @@ def make_context(calendars: list|None = None, holidays: list|None = None, orient
 	root.add_service(DatasourceConfigurationManager, cast(Any, FakeDatasourceSettings(settings)))
 	root.add_service(SettingsConfigurationManager, cast(Any, FakeSettings(orientation, time_format)))
 	root.add_service(StaticConfigurationManager, StaticConfigurationManager(STATIC))
+	# where the data sources' own folders are (their page templates): the source root
+	root.add_service(ConfigurationManager, ConfigurationManager())
 	return DataSourceExecutionContext(root, (800, 480), now)
 
 def family() -> Any:
@@ -439,7 +441,7 @@ class TestRender(unittest.IsolatedAsyncioTestCase):
 		page = Page("month", Slot(TODAY, ZONE, [], ["A note"]))
 		self.assertEqual(page_params(page, {}, Layout((800, 480), 1.0, False))["notes"], ["A note"])
 
-CHROME = WIN_CHROME_HEADLESS if os_type == "Windows" else LINUX_CHROME_HEADLESS
+CHROME = chrome_command()
 
 @unittest.skipUnless(shutil.which(CHROME) is not None, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")
 class TestRealPage(unittest.IsolatedAsyncioTestCase):
@@ -566,6 +568,8 @@ def kept_context(dscm: DatasourceConfigurationManager, now: datetime = NOW) -> D
 	root.add_service(DatasourceConfigurationManager, dscm)
 	root.add_service(SettingsConfigurationManager, cast(Any, FakeSettings()))
 	root.add_service(StaticConfigurationManager, StaticConfigurationManager(STATIC))
+	# where the data sources' own folders are (their page templates): the source root
+	root.add_service(ConfigurationManager, ConfigurationManager())
 	return DataSourceExecutionContext(root, (800, 480), now)
 
 def calendar_settings(**more) -> DatasourceConfigurationManager:
