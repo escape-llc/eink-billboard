@@ -588,6 +588,15 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			logger.info(f"Schemas brought up to date: {', '.join(replaced)}")
 		return replaced
 
+	def shipped_settings(self, name: str) -> dict:
+		"""
+		The factory values of a device-wide settings document: the `default` of the schema in the NVE (the shipped copy, which is not the user's to change), by the
+		name of the document. `{}` when it has none. What "restore the default" restores, and what a document that is missing or damaged is read as.
+		"""
+		document = _internal_load(os.path.join(self.NVE_PATH, "schemas", f"{leaf_name(name)}.json"))
+		default = document.get("default") if isinstance(document, dict) else None
+		return copy.deepcopy(default) if isinstance(default, dict) else {}
+
 	def upgrade_settings(self) -> list[str]:
 		"""
 		Add the settings a stored document lacks, from the defaults of its schema (the device's system, display and theme) or of its descriptor (a plugin's or a

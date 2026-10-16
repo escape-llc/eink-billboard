@@ -13,6 +13,7 @@ from datetime import date
 from typing import Any, Callable, Iterable
 
 from ..model.configuration_manager import ConfigurationObject, HASH_KEY, ID_KEY
+from ..utils.prompt_tokens import unknown_token
 from .errors import ApiError
 from .visibility import hidden_names, null_hidden
 
@@ -173,6 +174,11 @@ def _check_value(prop: dict, value: Any, lookups: dict) -> str|None:
 				return f"At most {prop['maxLength']} characters"
 			if prop.get("pattern") and not re.search(prop["pattern"], value):
 				return "Not in the expected format"
+			# the fields a text may use are the property's own `tokens` (names with descriptions): any other `{name}` is a mistake to say so now, not a hole at run time
+			if isinstance(prop.get("tokens"), list):
+				unknown = unknown_token(value, [str(t["name"]) for t in prop["tokens"] if isinstance(t, dict) and isinstance(t.get("name"), str)])
+				if unknown is not None:
+					return f"Unknown field {{{unknown}}}"
 		allowed = prop.get("enum")
 		closed = False
 		if not allowed:

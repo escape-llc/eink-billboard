@@ -2,6 +2,7 @@ import z from "zod"
 import type { FieldDef, PropertiesDef } from "./FormDefs"
 import { messages } from "./FormMessages"
 import { hiddenNames, type ValueSource } from "./FormVisibility"
+import { unknownToken } from "./PromptTokens"
 
 /** A property as the form holds it: the descriptor plus what the form resolved for it (`list` of a lookup, `children` of a `schema` field). */
 export type FormField = PropertiesDef & {
@@ -75,6 +76,14 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 			}
 			if (px.format === "color") {
 				base = base.refine((v: unknown) => v === "" || COLOR.test(v as string), { error: messages.color })
+			}
+			if (px.tokens) {
+				// the fields a text may use are the property's own list: any other `{name}` is refused now, not left as a hole at run time
+				const known = px.tokens.map(t => t.name)
+				base = base.superRefine((v: unknown, ctx) => {
+					const unknown = typeof v === "string" ? unknownToken(v, known) : undefined
+					if (unknown !== undefined) ctx.addIssue({ code: "custom", message: messages.unknownField(unknown) })
+				})
 			}
 			if (px.pattern) {
 				const re = new RegExp(px.pattern)

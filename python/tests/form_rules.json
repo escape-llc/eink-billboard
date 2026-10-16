@@ -1123,6 +1123,98 @@
 			"error": "At most 5 characters"
 		},
 		{
+			"name": "a text may use the fields its property lists",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": true,
+				"type": "string",
+				"format": "multiline",
+				"tokens": [
+					{
+						"name": "prompt",
+						"description": "The prompt written in the task."
+					},
+					{
+						"name": "temp",
+						"description": "The temperature."
+					}
+				]
+			},
+			"value": "Draw {prompt} at {temp}, twice: {temp}.",
+			"error": null
+		},
+		{
+			"name": "a field the property does not list is refused",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": true,
+				"type": "string",
+				"format": "multiline",
+				"tokens": [
+					{
+						"name": "prompt",
+						"description": "The prompt written in the task."
+					},
+					{
+						"name": "temp",
+						"description": "The temperature."
+					}
+				]
+			},
+			"value": "Draw {prompt} in {colour}",
+			"error": "Unknown field {colour}"
+		},
+		{
+			"name": "a property that lists no fields refuses every one",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": true,
+				"type": "string",
+				"format": "multiline",
+				"tokens": []
+			},
+			"value": "Hello {name}",
+			"error": "Unknown field {name}"
+		},
+		{
+			"name": "a doubled brace is a literal brace, not a field",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": true,
+				"type": "string",
+				"format": "multiline",
+				"tokens": []
+			},
+			"value": "a {{literal}} brace and { alone and } too",
+			"error": null
+		},
+		{
+			"name": "other braces are plain text",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": true,
+				"type": "string",
+				"format": "multiline",
+				"tokens": [
+					{
+						"name": "prompt",
+						"description": "The prompt written in the task."
+					},
+					{
+						"name": "temp",
+						"description": "The temperature."
+					}
+				]
+			},
+			"value": "{ \"a\": 1 } {1} {a b}",
+			"error": null
+		},
+		{
 			"name": "color, three digits",
 			"field": {
 				"name": "f",

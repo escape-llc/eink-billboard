@@ -13,6 +13,7 @@
 				</template>
 				<template #end>
 					<InputGroup>
+						<Button v-if="defaultsUrl" size="small" icon="pi pi-history" label="Restore defaults" severity="secondary" title="Put back the factory text of every field (then save)" @click="restoreAll" />
 						<HelpToggle v-model="showHelp" />
 						<Button size="small" icon="pi pi-check" severity="success" :disabled="submitDisabled" @click="submit" />
 						<Button size="small" icon="pi pi-times" severity="danger" @click="reset" />
@@ -32,7 +33,7 @@
 </template>
 <script setup lang="ts">
 import { apiJson, apiPut, ApiError } from "./ApiClient"
-import { ref, watch, nextTick, onMounted, onBeforeUnmount } from "vue"
+import { ref, watch, nextTick, onMounted, onBeforeUnmount, provide } from "vue"
 import { onBeforeRouteLeave } from "vue-router"
 import { useConfirm } from "primevue/useconfirm"
 import BasicForm from "./BasicForm.vue"
@@ -51,6 +52,8 @@ export interface PropsType {
 	schema: any
 	/** the plugin or data source whose settings these are: a `settings` lookup of a field chooses from its stored lists */
 	owner?: Owner
+	/** the factory values of these settings (the copy shipped in the NVE): a field and the whole form can put them back, for the user to save or not */
+	defaultsUrl?: string
 }
 export type SubmitEventData = {
 	result: unknown|null
@@ -209,6 +212,26 @@ const submitForm = (data:any) => {
 		emits("submit", { result: null, error: null, invalid: data })
 	}
 }
+/** The factory values, from the server's shipped copy; each goes in its field (nothing is saved until the user saves). */
+async function factoryValues(): Promise<Record<string, unknown>|undefined> {
+	try {
+		return await apiJson(props.defaultsUrl!)
+	}
+	catch(ex) {
+		emits("submit", { result: null, invalid: null, error: ex })
+		return undefined
+	}
+}
+const restoreField = async (name: string) => {
+	const values = await factoryValues()
+	if(values && name in values) bf.value?.setValue(name, values[name])
+}
+const restoreAll = async () => {
+	const values = await factoryValues()
+	if(values) Object.entries(values).forEach(([name, value]) => bf.value?.setValue(name, value))
+}
+// a field offers its own restore button only when the form has a source of factory values
+provide("restoreField", props.defaultsUrl ? restoreField : null)
 const reset = () => {
 	bf.value?.reset()
 	emits("reset", null)
