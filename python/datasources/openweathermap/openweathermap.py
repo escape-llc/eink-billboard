@@ -103,6 +103,8 @@ class Report:
 	sunset: datetime|None = None
 	hours: list[Point] = field(default_factory=list)
 	days: list[Day] = field(default_factory=list)
+	# where it was asked for (the season depends on the hemisphere)
+	latitude: float|None = None
 
 def device_now(timestamp: datetime) -> datetime:
 	"""The slot's time where the display is: the schedule's timestamp carries the system zone (naive means local)."""
@@ -189,6 +191,50 @@ async def fetch(client: httpx.AsyncClient, path: str, latitude: float, longitude
 		raise RuntimeError("OpenWeatherMap's answer is not what was expected.")
 	return data
 
+# the parts of a day, from the sun: the twilight on either side of sunrise and sunset is dawn and dusk
+TWILIGHT = timedelta(minutes=45)
+SEASONS = ("winter", "spring", "summer", "autumn")
+
+def daypart(now: datetime, sunrise: datetime|None, sunset: datetime|None) -> str|None:
+	"""`dawn`, `day`, `dusk` or `night`, or None when the sun's times are not known."""
+	if sunrise is None or sunset is None:
+		return None
+	if abs(now - sunrise) <= TWILIGHT:
+		return "dawn"
+	if abs(now - sunset) <= TWILIGHT:
+		return "dusk"
+	return "day" if sunrise < now < sunset else "night"
+
+def season(day: date, latitude: float|None) -> str|None:
+	"""The meteorological season (whole months) where the display is: the other way round south of the equator."""
+	if latitude is None:
+		return None
+	north = SEASONS[(day.month % 12) // 3]
+	return north if latitude >= 0 else SEASONS[(SEASONS.index(north) + 2) % 4]
+
+def _clock(moment: datetime|None, twelve_hour: bool) -> str|None:
+	if moment is None:
+		return None
+	return f"{moment.hour % 12 or 12}:{moment.minute:02d} {'am' if moment.hour < 12 else 'pm'}" if twelve_hour else f"{moment.hour:02d}:{moment.minute:02d}"
+
+def prompt_fields(report: Report) -> dict[str, str]:
+	"""
+	What a prompt may say about this report (the names are the descriptor's `tokens`): only what is known, so a value that is missing leaves its field out.
+	Units are the report's; a temperature is rounded to a degree.
+	"""
+	units = report.units
+	fields: dict[str, str|None] = { "place": report.place or None, "sunrise": _clock(report.sunrise, report.twelve_hour), "sunset": _clock(report.sunset, report.twelve_hour),
+		"daypart": daypart(report.now, report.sunrise, report.sunset), "season": season(report.now.date(), report.latitude) }
+	now = report.current
+	if now is not None:
+		fields.update({ "condition": now.text.lower() or None, "temp": f"{round(now.temp)}{units.temp}",
+			"feels": None if now.feels is None else f"{round(now.feels)}{units.temp}", "humidity": None if now.humidity is None else f"{now.humidity}%",
+			"wind": None if now.wind is None else f"{units.wind(now.wind)} {units.speed}" })
+	today = next((d for d in report.days if d.day == report.now.date()), None)
+	if today is not None:
+		fields.update({ "high": f"{round(today.high)}{units.temp}", "low": f"{round(today.low)}{units.temp}", "rain": None if today.rain is None else f"{round(today.rain * 100)}%" })
+	return { name: value for name, value in fields.items() if value }
+
 class OpenWeatherMapApi(DataSource, DataSourceApi):
 	"""
 	`open_async(dsec, { "needs": [...] })` answers a `Report` of the weather at the device's location: `needs` is `current` (the weather now) and/or
@@ -198,6 +244,10 @@ class OpenWeatherMapApi(DataSource, DataSourceApi):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
+
+	def prompt_fields(self, data: Any) -> Mapping[str, str]:
+		"""The values of the fields a prompt may use (`tokens` in the descriptor) for a `Report` this source answered."""
+		return prompt_fields(data)
 
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> Report:
 		needs = { n for n in (params.get("needs") or ()) if n in NEEDS }
@@ -218,6 +268,7 @@ class OpenWeatherMapApi(DataSource, DataSourceApi):
 		assert zone is not None
 		report = Report("", units_for(settings.get("units"), system.get("timezoneName")), system.get("timeFormat") == "12h", now)
 		latitude, longitude = float(where["latitude"]), float(where["longitude"])
+		report.latitude = latitude
 		client = client_var.get()
 		def answer(path: str):
 			"""The API's answer for this place: kept for the time the settings give that kind of answer (it is the same for every task), so the free plan's calls are for new answers only."""
