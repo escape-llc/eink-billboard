@@ -104,6 +104,24 @@ class TestTargetDimensions(unittest.TestCase):
 class TestComic(unittest.IsolatedAsyncioTestCase):
 	def _font(self, size=16):
 		return StaticConfigurationManager(STATIC).get_font("Jost", font_size=size)
+	def test_character_entities_in_a_caption_title_and_address_are_decoded(self):
+		"""Dinosaur Comics: the caption is the img's title attribute, cut out of the HTML, so it came through as &quot;JORDAN&quot;."""
+		import feedparser
+		description = '&lt;img src="http://www.qwantz.com/comics/c.png?a=1&amp;amp;b=2" title="a dude named &amp;quot;JORDAN&amp;quot; &amp;amp; it&amp;#039;s fine" /&gt;'
+		feed = feedparser.parse(f'<rss version="2.0"><channel><item><title>it&amp;#039;s a &amp;quot;title&amp;quot;</title><description>{description}</description></item></channel></rss>')
+		item = comic_parser.parse_the_feed("Dinosaur Comics", comic_parser.COMICS["Dinosaur Comics"], feed)[0]
+		self.assertEqual(item["caption"], "a dude named \"JORDAN\" & it's fine")
+		self.assertEqual(item["image_url"], "http://www.qwantz.com/comics/c.png?a=1&b=2")
+		self.assertEqual(item["title"], "it's a \"title\"")
+	def test_unescape_text_reads_every_kind_of_entity_and_double_escaping(self):
+		from ..utils.text_utils import unescape_text
+		for raw, text in (
+			("&quot;JORDAN&quot;", "\"JORDAN\""), ("&amp;quot;JORDAN&amp;quot;", "\"JORDAN\""), ("&amp;amp;quot;x&amp;amp;quot;", "\"x\""),
+			("it&#039;s &#x27;ok&#x27;", "it's 'ok'"), ("a &amp; b &lt; c", "a & b < c"), ("wait&hellip; &mdash; &eacute;", "wait… — é"),
+			("plain", "plain"), ("", ""), ("AT&T, 5 & 6", "AT&T, 5 & 6"),
+		):
+			with self.subTest(raw):
+				self.assertEqual(unescape_text(raw), text)
 	def test_caption_taller_than_image_area_does_not_raise(self):
 		item = {"title": "t", "caption": "word " * 200}
 		out = _compose_image(io.BytesIO(png_bytes((100, 50))), item, self._font(), 200, 40)

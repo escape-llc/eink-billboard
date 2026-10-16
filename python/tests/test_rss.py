@@ -51,6 +51,8 @@ class TestParsing(unittest.TestCase):
 		# markup that arrived escaped is dropped too
 		self.assertEqual(plain_text("&lt;p&gt;Escaped &lt;i&gt;markup&lt;/i&gt;&lt;/p&gt;"), "Escaped markup")
 		self.assertEqual(plain_text(None), "")
+		# escaped twice, as some feeds do: the same text, not a visible entity
+		self.assertEqual(plain_text("He said &amp;quot;hi&amp;quot; &amp;amp; left&amp;#039;"), "He said \"hi\" & left'")
 
 	def test_a_long_text_is_cut_at_a_word(self):
 		cut = plain_text("alpha beta gamma delta epsilon", 14)

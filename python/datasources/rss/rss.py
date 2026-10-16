@@ -1,7 +1,6 @@
 import asyncio
 import base64
 from datetime import datetime
-import html
 import io
 import logging
 import os
@@ -18,6 +17,7 @@ from ...model.theme import ThemeInputs, current_inputs
 from ...plugins.plugin_base import PermanentError, RenderSession
 from ...task.async_http_worker_pool import client_var
 from ...utils.image_utils import stream_to_buffer, to_rgb
+from ...utils.text_utils import unescape_text
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 
 # the text sizes of the descriptor, as a multiple of the page's base size
@@ -46,7 +46,7 @@ def plain_text(value: Any, limit: int|None = None) -> str:
 	text = value if isinstance(value, str) else ""
 	def strip(markup: str) -> str:
 		return _TAGS.sub("", _BLOCK_TAGS.sub(" ", markup))
-	text = _SPACE.sub(" ", strip(html.unescape(strip(text)))).strip()
+	text = _SPACE.sub(" ", strip(unescape_text(strip(text)))).strip()
 	if limit is not None and len(text) > limit:
 		cut = text[:limit].rsplit(" ", 1)[0] if " " in text[:limit] else text[:limit]
 		text = cut.rstrip(" ,;:.-") + "…"
