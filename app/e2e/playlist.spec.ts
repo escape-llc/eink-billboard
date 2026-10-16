@@ -231,6 +231,11 @@ test("a stored track shows what is new and what is no longer used, and a field t
 	await expect(editor.locator(".p-message-error")).toHaveCount(0)
 	// new: the fields the track lacks, tagged, at their defaults
 	await expect(editor.locator("label[for=fontSize] .new-tag")).toHaveText("new")
+	// the tag does not throw the line off: the title and the tag are centred on one line, and the label is centred on its row
+	const box = async (selector: string) => (await editor.locator(selector).boundingBox())!
+	const tag = await box("label[for=fontSize] .new-tag"), label = await box("label[for=fontSize]"), addon = await box(".field-label:has(label[for=fontSize])")
+	expect(Math.abs(tag.y + tag.height / 2 - (label.y + label.height / 2))).toBeLessThan(1.5)
+	expect(Math.abs(label.y + label.height / 2 - (addon.y + addon.height / 2))).toBeLessThan(1.5)
 	// a calendar has no list that outlasts a visit: the list settings are not shown for it, new or not
 	await expect(editor.locator("label[for=listMode]")).toHaveCount(0)
 	await expect(editor.locator("label[for=agendaDays] .new-tag")).toHaveCount(0)

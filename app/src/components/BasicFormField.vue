@@ -8,7 +8,7 @@
 		<InputGroup>
 			<InputGroupAddon class="field-label" :class="{ 'label-top': tall }">
 				<slot name="label" v-bind="{ field, fieldState }">
-					<label :style="{'width': props.fieldNameWidth, 'max-width': props.fieldNameWidth }"
+					<label class="field-title" :style="{'width': props.fieldNameWidth, 'max-width': props.fieldNameWidth }"
 						style="flex-shrink:0;flex-grow:1" :for="field.name">{{ field.title }}<Tag v-if="isNew" class="new-tag" size="small" severity="info" value="new" title="Not in this item yet: it starts at its default" /></label>
 				</slot>
 			</InputGroupAddon>
@@ -228,9 +228,14 @@ const errorMessage = computed(() => {
 .field-label {
 	flex: 0 0 auto;
 }
+/* the title and its "new" tag share one centred line: the tag is taller than the text, so inline it pushed the text up */
+.field-title {
+	display: flex;
+	align-items: center;
+}
 .new-tag {
 	margin-left: .4rem;
-	vertical-align: middle;
+	line-height: 1;
 }
 .label-top {
 	align-items: flex-start;
