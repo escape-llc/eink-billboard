@@ -8,7 +8,7 @@
 	"description": "OpenAI writes the prompt of a Generated Image. The key is in the OpenAI settings.",
 	"disabled": false,
 	"uses": ["openai"],
-	"features": ["api", "ai-text"],
+	"features": ["api", "api-client", "ai-text"],
 	"instanceSettings": {
 		"schema": {
 			"lookups": {

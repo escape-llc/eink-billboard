@@ -7,7 +7,7 @@
 	"module": "python.datasources.year_progress.year_progress",
 	"description": "Measure progress through the year.",
 	"describe": "Year progress",
-	"features": ["layer-priority", "layer-foreground", "media-image"],
+	"features": ["layer-foreground", "layer-priority", "media-image"],
 	"disabled": false,
 	"settings": {
 		"schema": {

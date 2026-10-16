@@ -8,7 +8,7 @@
 	"description": "A clock with various faces.",
 	"describe": "Clock {clockFace}",
 	"disabled": false,
-	"features": ["layer-priority", "layer-foreground", "media-image"],
+	"features": ["layer-foreground", "layer-priority", "media-image"],
 	"settings": {
 		"schema": {
 			"properties": [

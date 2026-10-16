@@ -8,7 +8,7 @@
 	"description": "A picture drawn by an AI image model from your prompt, which an AI text model can rewrite first. Choose the text and the image source separately: the text of one provider can go with the picture of another. The keys are in each provider's settings.",
 	"describe": "AI image {prompt}",
 	"disabled": false,
-	"features": ["internet", "paid-service", "layer-background", "media-image"],
+	"features": ["paid-service", "api-client", "layer-background", "media-image"],
 	"instanceSettings": {
 		"schema": {
 			"lookups": {

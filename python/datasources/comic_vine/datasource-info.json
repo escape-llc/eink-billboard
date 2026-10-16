@@ -10,7 +10,7 @@
 	"keepsList": true,
 	"disabled": false,
 	"uses": ["comicvine"],
-	"features": ["internet", "layer-background", "media-list"],
+	"features": ["api-client", "layer-foreground", "media-list"],
 	"settings": {
 		"schema": {
 			"properties": [

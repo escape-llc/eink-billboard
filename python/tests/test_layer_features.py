@@ -108,3 +108,42 @@ class TestPluginsAndSourcesAgree(unittest.TestCase):
 		today = next(s for s in SOURCES if s["id"] == "today")
 		self.assertIn("layer-overlay", today["features"])
 		self.assertEqual(layers(today["features"]), {"layer-overlay"})
+
+# the words a data source's `features` may use, in the order a descriptor lists them: what it needs, what it is, where it can be shown, what it makes.
+# (The Data Source settings tab explains each in a tooltip: app/src/components/ItemInfo.vue.)
+VOCABULARY = (
+	"internet", "filesystem", "api-key", "paid-service",
+	"api", "api-client", "ai-provider", "ai-text", "ai-image",
+	"layer-background", "layer-foreground", "layer-priority", "layer-overlay",
+	"media-image", "media-list",
+)
+
+class TestFeatureVocabulary(unittest.TestCase):
+	"""The feature lists say the same thing the same way: a source that asks an API data source for its data says so (`api-client`) and does not also claim the internet."""
+	def test_every_feature_is_a_known_word_listed_in_order_without_repeats(self):
+		for source in SOURCES:
+			with self.subTest(source["id"]):
+				features = source["features"]
+				self.assertEqual(len(features), len(set(features)))
+				self.assertEqual([f for f in features if f not in VOCABULARY], [])
+				self.assertEqual(features, sorted(features, key=VOCABULARY.index), "listed in the vocabulary's order")
+
+	def test_api_client_is_what_asks_an_api_source(self):
+		api_ids = { s["id"] for s in SOURCES if is_api(s) }
+		for source in SOURCES:
+			lookups = ((source.get("instanceSettings") or {}).get("schema", {}).get("lookups") or {}).values()
+			chooses_parts = any(isinstance(lk, dict) and lk.get("schema") == "data-sources" and any(f.startswith("ai-") for f in lk.get("features") or []) for lk in lookups)
+			asks = bool(set(source.get("uses") or []) & api_ids) or chooses_parts
+			with self.subTest(source["id"]):
+				self.assertEqual("api-client" in source["features"], asks, "`api-client` exactly when it uses an API source (or chooses AI parts)")
+				if asks:
+					self.assertNotIn("internet", source["features"], "it asks an API source: that one downloads")
+
+	def test_what_only_an_api_source_is(self):
+		for source in SOURCES:
+			features = set(source["features"])
+			with self.subTest(source["id"]):
+				if features & {"ai-provider", "ai-text", "ai-image", "api-key"}:
+					self.assertIn("api", features, "a key, a provider or an AI part is a data-only API source")
+				# somewhere to show it and what it shows come together
+				self.assertEqual(bool(layers(source["features"])), bool(media(source["features"])))
