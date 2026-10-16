@@ -23,7 +23,11 @@ test("the prompt lists the weather fields OpenWeatherMap supplies, and refuses a
 	await page.getByRole("option").filter({ hasText: "Weather Visualizer" }).first().click()
 	const prompt = editor.locator("textarea[name=weatherPrompt]")
 	await expect(prompt).toHaveValue(/A bold, flat-color illustration of \{place\}/)
+	// thirteen fields: the list starts closed, and opens from its summary
 	const fields = editor.getByTestId("token-list").first()
+	await expect(fields).toBeHidden()
+	await editor.getByText("Fields you may use (13)").click()
+	await expect(fields).toBeVisible()
 	for (const name of ["place", "condition", "temp", "daypart", "season", "sunrise", "rain"]) await expect(fields).toContainText(`{${name}}`)
 	await expect(fields).toContainText("The temperature now, with its unit")
 	// the fields of the text part and the image part are the Generated Image's: chosen separately, and the rewrite is off until asked for

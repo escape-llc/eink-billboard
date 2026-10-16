@@ -102,9 +102,13 @@
 		<Message v-if="field.usesMissing?.length" severity="warn" size="small" variant="simple" data-testid="uses-missing">This needs the {{ field.usesMissing.join(", ") }} data source, which is not available: it will fail until it is.</Message>
 		<Message v-if="showHelp && field.description" severity="secondary" size="small" variant="simple" class="field-help">{{ field.description }}</Message>
 		<!-- the fields the text may use: always shown (not only with the help), since the text is wrong without them -->
-		<ul v-if="field.tokens?.length" class="token-list" data-testid="token-list" :aria-label="`Fields ${field.title} may use`">
-			<li v-for="token in field.tokens" :key="token.name"><code>{{ "{" + token.name + "}" }}</code> {{ token.description }}</li>
-		</ul>
+		<!-- a long list starts closed (it is many lines); the user opens it -->
+		<details v-if="field.tokens?.length" class="token-details" :open="field.tokens.length <= TOKENS_OPEN">
+			<summary>Fields you may use ({{ field.tokens.length }})</summary>
+			<ul class="token-list" data-testid="token-list" :aria-label="`Fields ${field.title} may use`">
+				<li v-for="token in field.tokens" :key="token.name"><code>{{ "{" + token.name + "}" }}</code> {{ token.description }}</li>
+			</ul>
+		</details>
 		<div v-if="safeLink">
 			<Button as="a" :href="safeLink.url" target="_blank" rel="noopener noreferrer" :label="safeLink.label" icon="pi pi-external-link" size="small" variant="text" />
 		</div>
@@ -190,6 +194,8 @@ const safeLink = computed(() => {
 	return link && typeof link.label === 'string' && /^https:\/\/[^\s]+$/.test(String(link.url)) ? link : null
 })
 const isInvalid = computed(() => !!fieldState.value.invalid);
+/** a list of fields up to this long starts open, a longer one closed */
+const TOKENS_OPEN = 4;
 const isNew = computed(() => props.newFields?.has(props.field.name) === true);
 /** A field that is shown with no value takes its default: it was hidden when the document was saved (stored as null), or the document is older than the field. It is then there to see and change, not an error to find. */
 function takeDefault() {
@@ -214,6 +220,15 @@ const errorMessage = computed(() => {
 </script>
 <style scoped>
 /* the fields a text may use: a compact list under the field, in the theme's muted text */
+.token-details {
+	margin-top: 0.25rem;
+	font-size: 0.85rem;
+	color: var(--p-text-muted-color);
+}
+.token-details summary {
+	cursor: pointer;
+	user-select: none;
+}
 .token-list {
 	list-style: none;
 	margin: 0.25rem 0 0;
