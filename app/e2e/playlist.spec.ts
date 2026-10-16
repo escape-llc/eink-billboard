@@ -217,8 +217,8 @@ test("a stored track shows what is new and what is no longer used, and a field t
 	const doc = JSON.parse(fs.readFileSync(FILE, "utf8"))
 	doc.items = [
 		track("w", "0 Item", { dataSource: "weather", views: ["current"], title: null, fontSize: "normal", slideMax: 0, slideMinutes: 2, showAs: "auto" }),
-		// no `fontSize`, no `listMode`: new; `washStyle` and `oldSetting`: deleted
-		track("c", "1 Item", { dataSource: "calendar", views: ["agenda"], calendars: [], holidaySets: [], agendaDays: 7, title: "Agenda", slideMax: 0, slideMinutes: 2, showAs: "auto", weeksAhead: null, washStyle: "soft", oldSetting: 3 }),
+		// no `fontSize`, no `listMode`: new; `washStyle` and `oldSetting`: deleted (`textModel: null` is unset: not listed)
+		track("c", "1 Item", { dataSource: "calendar", views: ["agenda"], calendars: [], holidaySets: [], agendaDays: 7, title: "Agenda", slideMax: 0, slideMinutes: 2, showAs: "auto", weeksAhead: null, washStyle: "soft", oldSetting: 3, textModel: null }),
 	]
 	fs.writeFileSync(FILE, JSON.stringify(doc, null, 2))
 	await page.goto("/#/playlist")
@@ -233,8 +233,11 @@ test("a stored track shows what is new and what is no longer used, and a field t
 	await expect(editor.locator("label[for=fontSize] .new-tag")).toHaveText("new")
 	// the tag does not throw the line off: the title and the tag are centred on one line (a tall row aligns its label to the top on purpose)
 	const box = async (selector: string) => (await editor.locator(selector).boundingBox())!
-	const tag = await box("label[for=fontSize] .new-tag"), label = await box("label[for=fontSize]")
-	expect(Math.abs(tag.y + tag.height / 2 - (label.y + label.height / 2))).toBeLessThan(1.5)
+	// the layout settles as the page's fonts arrive: ask until it does
+	await expect.poll(async () => {
+		const tag = await box("label[for=fontSize] .new-tag"), label = await box("label[for=fontSize]")
+		return Math.abs(tag.y + tag.height / 2 - (label.y + label.height / 2)) < 1.5
+	}).toBe(true)
 	// a calendar has no list that outlasts a visit: the list settings are not shown for it, new or not
 	await expect(editor.locator("label[for=listMode]")).toHaveCount(0)
 	await expect(editor.locator("label[for=agendaDays] .new-tag")).toHaveCount(0)

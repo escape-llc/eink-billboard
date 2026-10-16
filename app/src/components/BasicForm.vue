@@ -443,11 +443,11 @@ const handleFormFieldEvent = (data:any) => {
 		}
 	}
 }
-/** What the stored document has and the schema no longer defines (a property that was removed or renamed). `_`-keys are the document's own (`_id`, `_rev`). */
+/** What the stored document has and the schema no longer defines (a property that was removed or renamed). `_`-keys are the document's own (`_id`, `_rev`); a `null` is unset, with nothing to lose (a hidden field is saved so), so it is not listed. */
 const staleKeys = computed<string[]>(() => {
 	if(!props.showChanges || !props.initialValues) return []
 	const known = new Set(flatNames(localProperties.value))
-	return Object.keys(props.initialValues).filter(key => !key.startsWith("_") && !known.has(key))
+	return Object.keys(props.initialValues).filter(key => !key.startsWith("_") && !known.has(key) && props.initialValues![key] !== null)
 })
 /** What the schema defines and the stored document lacks (a property added since it was saved): it starts at its default and is marked. A document with no properties yet is new, and everything in it would be too. */
 const newNames = computed<Set<string>>(() => {
