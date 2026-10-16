@@ -231,7 +231,8 @@ test("a stored track shows what is new and what is no longer used, and a field t
 	await expect(editor.locator(".p-message-error")).toHaveCount(0)
 	// new: the fields the track lacks, tagged, at their defaults
 	await expect(editor.locator("label[for=fontSize] .new-tag")).toHaveText("new")
-	await expect(editor.locator("label[for=listMode] .new-tag")).toHaveText("new")
+	// a calendar has no list that outlasts a visit: the list settings are not shown for it, new or not
+	await expect(editor.locator("label[for=listMode]")).toHaveCount(0)
 	await expect(editor.locator("label[for=agendaDays] .new-tag")).toHaveCount(0)
 	// deleted: names only, never values
 	const stale = editor.getByTestId("stale-field")

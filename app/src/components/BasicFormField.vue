@@ -118,6 +118,7 @@
 				:baseUrl="baseUrl"
 				:showHelp="showHelp"
 				:newFields="newFields"
+				:fields="fields"
 				@form-field-event="(data: FieldEventData) => emits('form-field-event', data)"
 			>
 				<!-- Forward all slots to descendants -->
@@ -136,7 +137,7 @@ import ArrayField from './ArrayField.vue';
 import ColorField from './ColorField.vue';
 import TestUrlButton from './TestUrlButton.vue';
 import { isoToDate, dateToIso } from './FormDates';
-import { isVisible } from './FormVisibility';
+import { derivedValues, isVisible } from './FormVisibility';
 // a settings form that can restore a field's factory text provides this (SettingsForm)
 const restoreField = inject<((name: string) => void)|null>('restoreField', null);
 import { computed, inject, nextTick, onMounted, toRaw, watch } from 'vue';
@@ -151,6 +152,8 @@ export interface PropsType {
 	showHelp?: boolean
 	/** the names of the fields the stored document lacks (BasicForm's `showChanges`): they are tagged "new" */
 	newFields?: Set<string>
+	/** every field of the form: a predicate may read what a `schema` field's chosen source says (`dataSource.keepsList`), which is in that field's list */
+	fields?: any[]
 }
 export interface SchemaChangeData {
 	type: 'schema-change'
@@ -180,7 +183,7 @@ function handleSchemaChange(event: any, field: any) {
 }
 const fieldState = computed(() => props.formContext?.[props.field.name] || {});
 // the form's field states, read by name, are the values the predicates look at
-const visible = computed(() => isVisible(props.field, (name: string) => props.formContext?.[name]?.value))
+const visible = computed(() => isVisible(props.field, derivedValues(props.fields ?? [], (name: string) => props.formContext?.[name]?.value)))
 // a link opens in a new tab and only to a secure address (the descriptor is ours, but a page is not built from what it holds without a look)
 const safeLink = computed(() => {
 	const link = props.field.link

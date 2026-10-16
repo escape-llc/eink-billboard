@@ -7,6 +7,10 @@
  *
  * Names are the form's field names (children of a `schema` field share the same namespace). An unset value (undefined, null, "")
  * reads as `null`. A field that is hidden is not applicable: it is not validated and is saved as `null`.
+ *
+ * A `schema` field (a plugin's data source) also has values derived from the source it chose, which a predicate may read: `<field>.features` (its
+ * `features`, a list: `contains`) and `<field>.keepsList` (true when its list outlasts a visit). So a setting that only means something for one kind of
+ * source (the Slide Show's list settings) is shown only when the chosen source is that kind. The server derives the same values.
  */
 import type { FormField } from "./FormValidation"
 
@@ -17,6 +21,37 @@ export type Predicate =
 	| { not: Predicate }
 
 export type ValueSource = Record<string, unknown> | ((name: string) => unknown)
+
+/** The values a `schema` field's chosen source gives: the names and what they read. */
+export const DERIVED = ["features", "keepsList"] as const
+
+/**
+ * The same values, plus the ones derived from the source each `schema` field in `fields` (children included) has chosen. `list` is what the form offers the
+ * field to choose from, each choice carrying its source's `features` and `keepsList`.
+ */
+export function derivedValues(fields: FormField[], values: ValueSource): (name: string) => unknown {
+	const chosen = (name: string) => typeof values === "function" ? values(name) : values?.[name]
+	const find = (list: FormField[], name: string): FormField | undefined => {
+		for (const px of list) {
+			if (px.name === name) return px
+			const inChild = px.children ? find(px.children, name) : undefined
+			if (inChild) return inChild
+		}
+		return undefined
+	}
+	return (name: string) => {
+		const dot = name.lastIndexOf(".")
+		const kind = dot < 0 ? undefined : name.slice(dot + 1)
+		if (kind && (DERIVED as readonly string[]).includes(kind)) {
+			const field = find(fields, name.slice(0, dot))
+			if (field?.type === "schema") {
+				const pick = (field.list ?? []).find(item => item.value === chosen(field.name)) as { features?: string[], keepsList?: boolean } | undefined
+				return kind === "features" ? (pick?.features ?? []) : (pick?.keepsList === true)
+			}
+		}
+		return chosen(name)
+	}
+}
 
 const read = (values: ValueSource, name: string): unknown => {
 	const v = typeof values === "function" ? values(name) : values?.[name]
@@ -43,12 +78,12 @@ export function evaluate(p: unknown, values: ValueSource): boolean {
 export const isVisible = (px: { visibleIf?: unknown }, values: ValueSource): boolean => evaluate(px.visibleIf, values)
 
 /** Names of the fields that are hidden for these values, children of a hidden `schema` field included. */
-export function hiddenNames(fields: FormField[], values: ValueSource, into: Set<string> = new Set(), parentHidden = false): Set<string> {
+export function hiddenNames(fields: FormField[], values: ValueSource, into: Set<string> = new Set(), parentHidden = false, derived: ValueSource = derivedValues(fields, values)): Set<string> {
 	for (const px of fields) {
 		if (px.type === "header") continue
-		const hidden = parentHidden || !isVisible(px as { visibleIf?: unknown }, values)
+		const hidden = parentHidden || !isVisible(px as { visibleIf?: unknown }, derived)
 		if (hidden) into.add(px.name)
-		if (px.children) hiddenNames(px.children, values, into, hidden)
+		if (px.children) hiddenNames(px.children, values, into, hidden, derived)
 	}
 	return into
 }
@@ -79,6 +114,12 @@ function shapeProblem(p: unknown): string | null {
 	return OPERATORS.some(op => op in o) ? null : "needs const, enum, set or contains"
 }
 
+/** `<schema field>.features` and the like: a value derived from a source a `schema` field chose, not a field of its own. */
+const isDerived = (name: string, properties: { name: string, type?: string }[]): boolean => {
+	const dot = name.lastIndexOf(".")
+	return dot > 0 && (DERIVED as readonly string[]).includes(name.slice(dot + 1)) && properties.some(p => p.name === name.slice(0, dot) && p.type === "schema")
+}
+
 /** What is wrong with the `visibleIf` of these properties: a malformed predicate, a name that is no field, or a cycle. Empty when fine. */
 export function findProblems(properties: { name: string, type?: string, visibleIf?: unknown }[]): string[] {
 	const problems: string[] = []
@@ -90,7 +131,7 @@ export function findProblems(properties: { name: string, type?: string, visibleI
 		if (shape) problems.push(`${px.name}: visibleIf ${shape}`)
 		const refs = referencedFields(px.visibleIf)
 		for (const r of refs) {
-			if (!names.has(r)) problems.push(`${px.name}: visibleIf refers to unknown field '${r}'`)
+			if (!names.has(r) && !isDerived(r, properties)) problems.push(`${px.name}: visibleIf refers to unknown field '${r}'`)
 		}
 		edges.set(px.name, refs.filter(r => names.has(r)))
 	}

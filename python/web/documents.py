@@ -15,7 +15,7 @@ from typing import Any, Callable, Iterable
 from ..model.configuration_manager import ConfigurationObject, HASH_KEY, ID_KEY
 from ..utils.prompt_tokens import unknown_token
 from .errors import ApiError
-from .visibility import hidden_names, null_hidden
+from .visibility import derive, hidden_names, null_hidden
 
 logger = logging.getLogger(__name__)
 
@@ -435,7 +435,7 @@ def content_with_defaults(plugins: dict, datasources: dict, plugin_name: Any, co
 	wanted = { p["name"]: p["default"] for p in candidates if p.get("name") and p.get("type") != "header" and p.get("default") is not None and p["name"] not in content }
 	if not wanted:
 		return content
-	hidden = hidden_names(candidates, { **content, **wanted })
+	hidden = hidden_names(candidates, derive(candidates, { **content, **wanted }, datasources))
 	return { **content, **{ name: copy.deepcopy(value) for name, value in wanted.items() if name not in hidden } }
 
 def plugin_content_errors(plugins: dict, datasources: dict, plugin_name: Any, content: dict, path: list,
@@ -456,8 +456,10 @@ def plugin_content_errors(plugins: dict, datasources: dict, plugin_name: Any, co
 			(lambda other: settings_of("datasource", other) if other in datasources else None) if kind == "datasource" else None)
 	errors: list[dict] = []
 	def check(props: list[dict], lookups: dict, depth: int, seen: frozenset) -> None:
-		errors.extend(validate_properties(content, props, lookups))
-		hidden = hidden_names(props, content)
+		# the values the chosen sources give (`dataSource.keepsList`) are what a predicate may read, as on the form
+		seen_by_form = derive(props, content, datasources)
+		errors.extend(validate_properties(seen_by_form, props, lookups))
+		hidden = hidden_names(props, seen_by_form)
 		for prop in props:
 			# a hidden choice is not applicable: its data source's fields are not checked either
 			chosen = content.get(prop.get("name")) if prop.get("type") == "schema" and prop.get("name") not in hidden else None
