@@ -28,7 +28,7 @@ from ..datasources.wpotd import wpotd
 from ..datasources.wpotd.wpotd import WpotdAsync
 from ..datasources.year_progress import year_progress
 from ..datasources.year_progress.year_progress import YearProgressAsync
-from ..model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
+from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..plugins.plugin_base import PermanentError
 from ..model.service_container import ServiceContainer
 from ..task.async_http_worker_pool import client_var
@@ -79,6 +79,8 @@ def make_dsec(orientation="landscape", dimensions=(800, 480), ts=None) -> DataSo
 	root = ServiceContainer()
 	root.add_service(SettingsConfigurationManager, cast(Any, FakeSettings({"orientation": orientation})))
 	root.add_service(StaticConfigurationManager, StaticConfigurationManager(STATIC))
+	# where the data sources' own folders are (their page templates): the source root
+	root.add_service(ConfigurationManager, ConfigurationManager())
 	return DataSourceExecutionContext(root, dimensions, ts or datetime(2026, 10, 7, 12, 0, tzinfo=TZ_TOKYO))
 
 def png_bytes(size=(40, 30), color="red", mode="RGB") -> bytes:
@@ -260,7 +262,7 @@ class TestCountdown(unittest.TestCase):
 	def _gen(self, ts, target):
 		stm = StaticConfigurationManager(STATIC)
 		with patch.object(countdown, "RenderSession", FakeRenderSession):
-			countdown.generate_image(ts, stm, (800, 480), {"targetDate": target})
+			countdown.generate_image(ts, stm, "render", (800, 480), {"targetDate": target})
 		assert FakeRenderSession.last is not None
 		return FakeRenderSession.last
 	def test_same_local_day_is_zero_days(self):
@@ -283,7 +285,7 @@ class TestYearProgress(unittest.TestCase):
 	def _gen(self, ts):
 		stm = StaticConfigurationManager(STATIC)
 		with patch.object(year_progress, "RenderSession", FakeRenderSession):
-			year_progress.generate_image(ts, stm, (800, 480), {})
+			year_progress.generate_image(ts, stm, "render", (800, 480), {})
 		assert FakeRenderSession.last is not None
 		return FakeRenderSession.last
 	def test_dec_31_morning_is_not_100_percent_or_zero_days(self):

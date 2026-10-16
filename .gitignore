@@ -7,3 +7,4 @@ tests/.storage/
 .coverage
 .e2e-storage/
 .ignore/
+.env

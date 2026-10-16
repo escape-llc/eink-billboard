@@ -12,12 +12,12 @@ from PIL import Image
 from ..datasources.data_source import DataSourceExecutionContext
 from ..datasources.rss import rss
 from ..datasources.rss.rss import RssAsync, parse_stories, plain_text
-from ..model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
+from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
 from ..plugins.plugin_base import PermanentError
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool, client_var
 from ..utils import url_guard
-from ..utils.image_utils import LINUX_CHROME_HEADLESS, WIN_CHROME_HEADLESS, os_type
+from ..utils.image_utils import chrome_command
 from .fake_internet import FakeInternet, fixture_text
 from .test_web_api import WebApiTestBase
 from .test_datasource_fixes import STATIC, FakeDatasourceSettings, FakeRenderSession, _Cob
@@ -43,6 +43,8 @@ def make_context(orientation: str = "landscape", feeds: list|None = None) -> Dat
 	root.add_service(DatasourceConfigurationManager, cast(Any, FakeDatasourceSettings({ "feeds": FEEDS if feeds is None else feeds })))
 	root.add_service(SettingsConfigurationManager, cast(Any, FakeSettings({ "orientation": orientation })))
 	root.add_service(StaticConfigurationManager, StaticConfigurationManager(STATIC))
+	# where the data sources' own folders are (their page templates): the source root
+	root.add_service(ConfigurationManager, ConfigurationManager())
 	return DataSourceExecutionContext(root, (800, 480), datetime(2026, 10, 7, 12, 0, tzinfo=timezone.utc))
 
 class TestParsing(unittest.TestCase):
@@ -188,7 +190,7 @@ class TestRender(unittest.IsolatedAsyncioTestCase):
 		with patch.object(rss, "RenderSession", FakeRenderSession):
 			self.assertIsNone(await RssAsync("rss", "rss").render_async(make_context(), { "feed": "News" }, None))
 
-CHROME = WIN_CHROME_HEADLESS if os_type == "Windows" else LINUX_CHROME_HEADLESS
+CHROME = chrome_command()
 
 @unittest.skipUnless(shutil.which(CHROME) is not None, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")
 class TestRealPage(unittest.IsolatedAsyncioTestCase):

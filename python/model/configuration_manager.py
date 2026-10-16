@@ -800,6 +800,9 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		plugins_list = self._collect_info("plugins", "plugin-info.json")
 		return plugins_list
 
+	def datasource_render_dir(self, folder: str) -> str:
+		"""The `render` folder of a data source (its page templates), by the name of its folder under `datasources`: from the source root, not from where the module happens to be."""
+		return os.path.join(self.ROOT_PATH, "datasources", leaf_name(folder), "render")
 	def enum_datasources(self) -> list[CollectInfoDict]:
 		"""Reads the datasource-info.json config JSON from each datasource folder. Excludes the base datasource."""
 		# Iterate over all plugin folders

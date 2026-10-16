@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 from typing import Any, Mapping
 
-from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
+from ...model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ...model.theme import ThemeInputs, current_inputs
 from ...plugins.plugin_base import RenderSession
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
@@ -86,10 +86,9 @@ def page_params(page: Page, params: Mapping[str, Any]) -> dict:
 	heading = params.get("title") or r.place or "Weather"
 	return { "view": page.view, "heading": heading, "unit": units.temp, "font_scale": FONT_SCALES.get(str(params.get("fontSize")), 1.0), "settings": params, **body }
 
-def generate_image(stm: StaticConfigurationManager, dimensions, template_params: dict, theme: ThemeInputs|None = None) -> MediaRenderResult | None:
+def generate_image(stm: StaticConfigurationManager, render_dir: str, dimensions, template_params: dict, theme: ThemeInputs|None = None) -> MediaRenderResult | None:
 	"""Blocking (runs Chromium). `dimensions` is the target size (see target_dimensions)."""
-	px = Path(os.path.dirname(__file__)).joinpath("render")
-	rs = RenderSession(stm, str(px.resolve()), "weather.html", theme)
+	rs = RenderSession(stm, render_dir, "weather.html", theme)
 	image = rs.render(dimensions, template_params)
 	return None if image is None else MediaRenderResult(image=image, title=template_params["heading"])
 
@@ -108,8 +107,9 @@ class WeatherAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			return None
 		scm = dsec.provider.required(SettingsConfigurationManager)
 		stm = dsec.provider.required(StaticConfigurationManager)
+		render_dir = dsec.provider.required(ConfigurationManager).datasource_render_dir("weather")
 		_, display_config = scm.open("display").get()
 		if display_config is None:
 			raise ValueError("Display settings is None")
 		template_params = page_params(state, params)
-		return await asyncio.to_thread(generate_image, stm, target_dimensions(dsec, display_config), template_params, current_inputs(scm))
+		return await asyncio.to_thread(generate_image, stm, render_dir, target_dimensions(dsec, display_config), template_params, current_inputs(scm))

@@ -12,6 +12,7 @@ import logging
 import hashlib
 import tempfile
 import subprocess
+from dotenv import load_dotenv
 from httpx import AsyncClient
 from ..task.async_http_worker_pool import client_var
 from .url_guard import stream_checked
@@ -205,8 +206,35 @@ async def render_html_arglist_async(html_str: str, arglist: list[str]) -> Image.
 
 # DO NOT USE regular Chrome it does not render correctly
 os_type = platform.system()
-WIN_CHROME_HEADLESS = "C:\\Users\\Public\\chrome-headless-shell-win64\\chrome-headless-shell.exe"
+# the browser by its name on PATH; a machine that keeps it elsewhere says where in `EINK_CHROME` (the environment, or a `.env` file: see `.env.example`)
+WIN_CHROME_HEADLESS = "chrome-headless-shell"
 LINUX_CHROME_HEADLESS = "chromium-headless-shell"
+CHROME_ENV = "EINK_CHROME"
+
+_env_file_read = False
+_missing_chrome: set[str] = set()
+
+def chrome_command() -> str:
+	"""
+	The headless browser to run: `EINK_CHROME` (a path, or a name on `PATH`) when it is set, in the environment or in the repository's `.env` file,
+	else the platform's usual name on `PATH`. Read on every render, so a test or a developer can point it elsewhere.
+	"""
+	global _env_file_read
+	if not _env_file_read:
+		_env_file_read = True
+		# a `.env` beside the source tree (never one the environment already answers: a real variable wins)
+		load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env"))
+	default = WIN_CHROME_HEADLESS if os_type == "Windows" else LINUX_CHROME_HEADLESS
+	configured = os.environ.get(CHROME_ENV)
+	if not configured:
+		return default
+	# a path that is not here is no use on this machine (a `.env` made on Windows, seen from a container that mounts the checkout): the usual name is tried
+	if shutil.which(configured) is None:
+		if configured not in _missing_chrome:
+			_missing_chrome.add(configured)
+			logger.warning(f"{CHROME_ENV} names a browser that is not here, using '{default}' instead.")
+		return default
+	return configured
 
 def _kill_process_tree(proc: subprocess.Popen) -> None:
 	"""Kill the child and everything it started (Chromium spawns helper processes)."""
@@ -234,8 +262,7 @@ def render_chrome_headless_arglist(source_html_path: str, arglist: list[str], ti
 		# every render gets its own profile so concurrent renders do not share (and lock) one
 		profile_dir = tempfile.mkdtemp(prefix="eink-chrome-")
 		command = [
-			# TODO by OS platform from .env.xxx file
-			WIN_CHROME_HEADLESS if os_type == "Windows" else LINUX_CHROME_HEADLESS,
+			chrome_command(),
 			source_html_path,
 			"--headless=new",
 			f"--screenshot={img_file_path}",

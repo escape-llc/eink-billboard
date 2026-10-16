@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 import feedparser
 from PIL import Image
 
-from ...model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
+from ...model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ...model.theme import ThemeInputs, current_inputs
 from ...plugins.plugin_base import PermanentError, RenderSession
 from ...task.async_http_worker_pool import client_var
@@ -110,10 +110,9 @@ def _picture_data_uri(buffer: io.BytesIO) -> str:
 		img.save(out, "JPEG", quality=82)
 	return "data:image/jpeg;base64," + base64.b64encode(out.getvalue()).decode("ascii")
 
-def generate_image(stm: StaticConfigurationManager, dimensions, template_params: dict, theme: ThemeInputs|None = None) -> MediaRenderResult | None:
+def generate_image(stm: StaticConfigurationManager, render_dir: str, dimensions, template_params: dict, theme: ThemeInputs|None = None) -> MediaRenderResult | None:
 	"""Blocking (runs Chromium). `dimensions` is the target size (see target_dimensions)."""
-	px = Path(os.path.dirname(__file__)).joinpath("render")
-	rs = RenderSession(stm, str(px.resolve()), "rss.html", theme)
+	rs = RenderSession(stm, render_dir, "rss.html", theme)
 	image = rs.render(dimensions, template_params)
 	return None if image is None else MediaRenderResult(image=image, title=template_params["story"]["title"])
 
@@ -161,6 +160,7 @@ class RssAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			return None
 		scm = dsec.provider.required(SettingsConfigurationManager)
 		stm = dsec.provider.required(StaticConfigurationManager)
+		render_dir = dsec.provider.required(ConfigurationManager).datasource_render_dir("rss")
 		_, display_config = scm.open("display").get()
 		if display_config is None:
 			raise ValueError("Display settings is None")
@@ -172,4 +172,4 @@ class RssAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			"settings": params,
 		}
 		# Chromium is slow and blocking: keep it off the event loop
-		return await asyncio.to_thread(generate_image, stm, target_dimensions(dsec, display_config), template_params, current_inputs(scm))
+		return await asyncio.to_thread(generate_image, stm, render_dir, target_dimensions(dsec, display_config), template_params, current_inputs(scm))

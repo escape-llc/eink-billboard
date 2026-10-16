@@ -10,11 +10,11 @@ from ..model.configuration_manager import StaticConfigurationManager
 from ..model.theme import DEFAULT_INPUTS, SCHEMES, Color, Palette, css_vars, current_inputs, current_palette, current_typography, inputs_from, palette_of
 from ..plugins import plugin_base
 from ..plugins.plugin_base import RenderSession
-from ..utils.image_utils import LINUX_CHROME_HEADLESS, WIN_CHROME_HEADLESS, os_type
+from ..utils.image_utils import chrome_command
 
 STATIC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
 THEMES_CSS = os.path.join(STATIC, "render", "themes.css")
-CHROME = WIN_CHROME_HEADLESS if os_type == "Windows" else LINUX_CHROME_HEADLESS
+CHROME = chrome_command()
 HAVE_CHROME = shutil.which(CHROME) is not None
 
 class FakeSettings:
