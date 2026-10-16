@@ -1,0 +1,69 @@
+{
+	"id": "weather-image",
+	"name": "Weather Visualizer",
+	"version": "0.0.1",
+	"class": "WeatherImageAsync",
+	"file": "weather_image.py",
+	"module": "python.datasources.weather_image.weather_image",
+	"description": "A picture of the weather where the device is, drawn by an AI image model from a prompt that talks about it ({temp}, {condition}, {daypart}...). A text model can rewrite the prompt first. The weather is OpenWeatherMap's (its key and units); the text and the picture are the Generated Image's parts, chosen separately.",
+	"describe": "Weather picture {weatherPrompt}",
+	"disabled": false,
+	"uses": ["openweathermap"],
+	"features": ["paid-service", "api-client", "layer-background", "media-image"],
+	"settings": {
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+				"textSource": { "schema": "data-sources", "features": ["ai-text"] },
+				"imageSource": { "schema": "data-sources", "features": ["ai-image"] }
+			},
+			"properties": [
+				{
+					"name": "weatherPrompt",
+					"type": "string",
+					"format": "multiline",
+					"rows": 4,
+					"required": true,
+					"default": "A bold, flat-color illustration of {place} at {daypart} in {season}: {condition}, {temp}.",
+					"title": "Prompt",
+					"description": "What to draw. The fields below stand for the weather where the device is; one that is not known drops out of the prompt.",
+					"maxLength": 1000,
+					"tokensFrom": ["openweathermap"]
+				},
+				{
+					"name": "randomizePrompt",
+					"type": "boolean",
+					"required": false,
+					"default": false,
+					"title": "Rewrite the Prompt",
+					"description": "Have a text model rewrite the prompt (the weather included) before each picture, so no two are alike. It costs one more request."
+				},
+				{
+					"name": "textSource",
+					"type": "schema",
+					"required": true,
+					"default": "openai-text",
+					"title": "Text Source",
+					"description": "Who rewrites the prompt.",
+					"lookup": "textSource",
+					"visibleIf": { "field": "randomizePrompt", "const": true }
+				},
+				{
+					"name": "imageSource",
+					"type": "schema",
+					"required": true,
+					"default": "openai-image",
+					"title": "Image Source",
+					"description": "Who draws the picture.",
+					"lookup": "imageSource"
+				}
+			]
+		}
+	}
+}

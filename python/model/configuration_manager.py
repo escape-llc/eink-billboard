@@ -816,7 +816,30 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		"""Reads the datasource-info.json config JSON from each datasource folder. Excludes the base datasource."""
 		# Iterate over all plugin folders
 		datasources_list = self._collect_info("datasources", "datasource-info.json")
+		self._resolve_tokens(datasources_list)
 		return datasources_list
+
+	@staticmethod
+	def _resolve_tokens(items: list[CollectInfoDict]) -> None:
+		"""
+		A property that says `tokensFrom: [ids]` may use the fields those data-only sources list (their descriptor's `tokens`): they are copied into the
+		property's own `tokens`, so the form (which shows them) and the server (which checks a text against them) read one list, supplied by the data behind it.
+		"""
+		supplied: dict[str, list] = {}
+		for item in items:
+			info = cast(dict, item["info"])
+			if isinstance(info.get("tokens"), list):
+				supplied[str(info.get("id"))] = info["tokens"]
+		for item in items:
+			schema = (cast(dict, item["info"]).get("instanceSettings") or {}).get("schema") or {}
+			for prop in schema.get("properties") or []:
+				if isinstance(prop, dict) and isinstance(prop.get("tokensFrom"), list):
+					merged: dict[str, Any] = {}
+					for source_id in prop["tokensFrom"]:
+						for token in supplied.get(str(source_id), []):
+							if isinstance(token, dict) and isinstance(token.get("name"), str):
+								merged.setdefault(token["name"], copy.deepcopy(token))
+					prop["tokens"] = list(merged.values())
 
 	def _resolve(self, info_path:str, info: ItemInfoDict) -> Any|None:
 		info_id = cast(str, info.get("id"))

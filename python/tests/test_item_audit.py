@@ -37,6 +37,7 @@ SAME_NAME_DIFFERENT = {
 	"slideMinutes": "the default differs: a playlist slot, or a priority image",
 	"imageModel": "each provider's own image models (OpenAI, Google), chosen from its own list",
 	"textModel": "each provider's own text models (OpenAI, Google), chosen from its own list",
+	"randomizePrompt": "the Generated Image rewrites its prompt unless told not to; the Weather Visualizer's prompt is already made from the weather, so it asks first",
 }
 TYPES: dict[str, Any] = { "string": str, "integer": int, "number": (int, float), "boolean": bool, "array": list }
 
@@ -119,7 +120,8 @@ class TestUses(unittest.TestCase):
 			with open(path, encoding="utf-8") as f:
 				# the code, not the docstrings that name the method
 				code = re.sub(r'"""[\s\S]*?"""', "", f.read())
-			asks = ".use(" in code or ".context_for(" in code
+			# the generators ask their parts through `ai/generate.py` (`check_parts`, `generate`), which does the `.use`
+			asks = ".use(" in code or ".context_for(" in code or "ai.generate import" in code
 			# a source that chooses its parts (a `schema` field: the Generated Image's text and image sources) asks what the task chose, which no descriptor can name
 			self.assertEqual(asks, bool(info.get("uses")) or bool(choices(info)), f"{id_}: `uses` in the descriptor must match whether the code asks another data source")
 
