@@ -42,9 +42,13 @@ def openai_problem(error: Exception, model: str = "") -> Exception:
 	What went wrong, in our words: a PermanentError when trying again cannot help (the key, the model, the account's credit), else a RuntimeError.
 	Never the exception's text, which can hold the key.
 	"""
-	named = f" {model}" if model else ""
 	if isinstance(error, PermanentError):
 		return error
+	return explain_failure(error, model)
+
+def explain_failure(error: Exception, model: str = "") -> Exception:
+	"""`openai_problem` for an error that is not already ours: only OpenAI's classes and codes decide the words, never the error's text."""
+	named = f" {model}" if model else ""
 	if isinstance(error, openai.AuthenticationError):
 		return PermanentError("OpenAI refused the API key: check it in the OpenAI settings.")
 	if isinstance(error, openai.PermissionDeniedError):
