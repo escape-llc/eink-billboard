@@ -79,9 +79,41 @@ class TestOpen(unittest.IsolatedAsyncioTestCase):
 
 	async def test_nasa_failing_is_worded_without_the_address(self):
 		client_var.set(mock_client(lambda request: httpx.Response(503)))
-		with self.assertLogs(apod.__name__, level="ERROR"), self.assertRaises(RuntimeError) as raised:
+		with patch.object(apod, "RETRY_DELAYS", (0.0, 0.0)), self.assertLogs(apod.__name__, level="ERROR"), self.assertRaises(RuntimeError) as raised:
 			await ApodAsync("apod", "APOD").open_async(make_dsec(ts=NOW), {})
 		self.assertNotIn("nasa.gov", str(raised.exception))
+		self.assertIn("it answered 503", str(raised.exception))
+
+	async def test_a_refusal_that_passes_is_asked_again(self):
+		"""NASA's edge answered a 403 to a request it answered a moment later: the slot is not lost to it."""
+		answers = [403, 502, 200]
+		asked = []
+		def handler(request: httpx.Request) -> httpx.Response:
+			asked.append(request.url.path)
+			status = answers.pop(0) if answers else 200
+			return httpx.Response(status, json=[{ "media_type": "image", "date": "2026-10-14", "title": "Nebula", "hdurl": "https://apod.nasa.gov/x.jpg" }]) if status == 200 else httpx.Response(status)
+		client_var.set(mock_client(handler))
+		with patch.object(apod, "RETRY_DELAYS", (0.0, 0.0)), self.assertLogs(apod.__name__, level="WARNING") as logs:
+			found = await ApodAsync("apod", "APOD").open_async(make_dsec(ts=NOW), {})
+		self.assertEqual((len(asked), found[0]["title"]), (3, "Nebula"))
+		self.assertEqual(len(logs.output), 2)
+		self.assertNotIn("nasa.gov/wp-json", "".join(logs.output))
+
+	async def test_a_day_without_a_page_is_not_asked_again_and_a_transport_failure_is_worded(self):
+		asked = []
+		def gone(request: httpx.Request) -> httpx.Response:
+			asked.append(1)
+			return httpx.Response(404, json={})
+		client_var.set(mock_client(gone))
+		with self.assertRaises(PermanentError):
+			await ApodAsync("apod", "APOD").open_async(make_dsec(ts=NOW), { "customDate": "2020-01-01" })
+		self.assertEqual(len(asked), 1)
+		def down(request: httpx.Request) -> httpx.Response:
+			raise httpx.ConnectError("refused", request=request)
+		client_var.set(mock_client(down))
+		with patch.object(apod, "RETRY_DELAYS", (0.0, 0.0)), self.assertLogs(apod.__name__, level="ERROR"), self.assertRaises(RuntimeError) as raised:
+			await ApodAsync("apod", "APOD").open_async(make_dsec(ts=NOW), {})
+		self.assertIn("ConnectError", str(raised.exception))
 
 	async def test_a_latest_list_without_a_picture_is_an_error(self):
 		client_var.set(mock_client(lambda request: httpx.Response(200, json=[{ "media_type": "video" }])))

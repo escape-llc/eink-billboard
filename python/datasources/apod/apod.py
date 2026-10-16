@@ -5,11 +5,13 @@ The pictures come from NASA's public WordPress API (`science.nasa.gov/wp-json/wp
 A day can be a video, which cannot be shown: for the latest picture and a random day the next one is taken, for a day the user chose it is said, in our words.
 The picture (`hdurl`) is fitted to the screen with a blurred margin (`blurred_margin`).
 """
+import asyncio
 import logging
 from datetime import date, datetime, timedelta
 from random import randint
 from typing import Any, Mapping
 
+import httpx
 from PIL import Image, UnidentifiedImageError
 
 from ...plugins.plugin_base import PermanentError
@@ -24,6 +26,10 @@ HEADERS = { "User-Agent": "Mozilla/5.0 (compatible; eink-billboard)", "Accept": 
 FIRST_DAY = date(1995, 6, 16)
 RANDOM_TRIES = 6
 LATEST_COUNT = 25
+# NASA's site now and then refuses or drops a request that it answers a moment later (a 403 from its edge was seen in a container that fetched fine before and after):
+# an answer like that is asked for again after these pauses (seconds) before the slot fails. A day with no page (404) is an answer, not a failure.
+RETRY_DELAYS = (2.0, 6.0)
+RETRY_STATUSES = (403, 408, 425, 429, 500, 502, 503, 504)
 MAX_IMAGE_BYTES = DEFAULT_MAX_DOWNLOAD_BYTES
 
 def day_id(day: date) -> str:
@@ -59,15 +65,28 @@ class ApodAsync(DataSource, MediaListAsync, MediaRenderAsync):
 
 	async def _get(self, path: str = "", params: Mapping[str, Any]|None = None) -> Any:
 		"""NASA's answer as JSON; None for a day it has no page for (404). Anything else that goes wrong is ours to word: never the address."""
-		try:
-			response = await client_var.get().get(f"{API_URL}{path}", params=params, headers=HEADERS, timeout=15)
-			if response.status_code == 404:
-				return None
-			response.raise_for_status()
-			return response.json()
-		except Exception as e:
-			self.logger.error(f"'{self.name}' NASA's API request failed ({type(e).__name__}).")
-			raise RuntimeError(f"'{self.name}' could not get the picture list from NASA ({type(e).__name__}).") from None
+		problem = "no answer"
+		for attempt in range(len(RETRY_DELAYS) + 1):
+			if attempt > 0:
+				await asyncio.sleep(RETRY_DELAYS[attempt - 1])
+			try:
+				response = await client_var.get().get(f"{API_URL}{path}", params=params, headers=HEADERS, timeout=15)
+				if response.status_code == 404:
+					return None
+				if response.status_code in RETRY_STATUSES:
+					problem = f"it answered {response.status_code}"
+					self.logger.warning(f"'{self.name}' NASA's API answered {response.status_code} (try {attempt + 1} of {len(RETRY_DELAYS) + 1}).")
+					continue
+				response.raise_for_status()
+				return response.json()
+			except (httpx.TimeoutException, httpx.TransportError) as e:
+				problem = type(e).__name__
+				self.logger.warning(f"'{self.name}' NASA's API request failed ({problem}, try {attempt + 1} of {len(RETRY_DELAYS) + 1}).")
+			except Exception as e:
+				self.logger.error(f"'{self.name}' NASA's API request failed ({type(e).__name__}).")
+				raise RuntimeError(f"'{self.name}' could not get the picture list from NASA ({type(e).__name__}).") from None
+		self.logger.error(f"'{self.name}' NASA's API request failed ({problem}).")
+		raise RuntimeError(f"'{self.name}' could not get the picture list from NASA ({problem}).")
 
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
 		day = chosen_day(params)
