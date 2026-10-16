@@ -20,7 +20,7 @@ from ...web.documents import SECRET_MASK
 from ...web.errors import ApiError
 from ..data_source import DataSourceExecutionContext
 from .models import QUALITIES, describe_models, image_models, text_models
-from .openai_api import OpenAIApi, list_model_ids, openai_problem, stored_api_key
+from .openai_api import OpenAIApi, list_model_ids, explain_failure, stored_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -95,8 +95,10 @@ def test_key(cm: CM, body: dict[str, Any] = Body(...)):
 		return { "ok": False, "message": "Enter an API key first." }
 	try:
 		ids = asyncio.run(list_model_ids(value.strip()))
+	except PermanentError as ours:
+		return { "ok": False, "message": str(ours) }
 	except Exception as e:
-		problem = openai_problem(e)
+		problem = explain_failure(e)
 		logger.warning(f"Testing an OpenAI key failed ({type(e).__name__}): {problem}")
 		return { "ok": False, "message": str(problem) }
 	found = image_models(ids)
