@@ -330,9 +330,12 @@ class PlaylistLayer(DispatcherTask):
 			return
 		self._cancel_restart()
 		self._task_stop()
-		self._halted = False
+		was_stopped, self._halted = self._halted, False
 		self.state = 'loaded'
 		self.logger.info(f"'{self.name}' next track: playlist {target[0]}, track {target[1]}.")
+		if was_stopped:
+			# the play/stop button follows this event
+			self._transport_telemetry(msg.timestamp, 'playing', "Playback is resumed.")
 		self._start_playback(StartPlayback(msg.timestamp, Start(target[0], target[1])))
 	async def _layer_task(self, isp: IServiceProvider, playlists: list[ScheduleLoaderDict], donev: threading.Event, start: Start|None = None) -> BasicMessage|None:
 		"""One pass over the playlists, from `start` (the top when None). Only the first track of a pass can be a resume."""

@@ -5,6 +5,17 @@
 			<Tag :severity="statusSeverity" :value="statusText" class="ml-auto" data-testid="link-status" />
 		</div>
 
+		<!-- the playlist's transport: stop (or play, when stopped) and next; the timer tasks keep running. The button follows the layer's own events -->
+		<div class="gutter-transport" role="group" aria-label="Playback">
+			<Button size="small" severity="secondary" outlined type="button" data-testid="play-stop"
+				:icon="transport.state.stopped ? 'pi pi-play' : 'pi pi-stop'"
+				:aria-label="transport.state.stopped ? 'Play' : 'Stop playback'" :title="transport.state.stopped ? 'Play' : 'Stop playback'"
+				:data-state="transport.state.stopped ? 'stopped' : 'playing'" :disabled="transport.state.busy"
+				@click="press(transport.state.stopped ? 'play' : 'stop')" />
+			<Button size="small" severity="secondary" outlined type="button" icon="pi pi-step-forward" aria-label="Next track" title="Next track"
+				data-testid="next-track" :disabled="transport.state.busy" @click="press('next')" />
+		</div>
+
 		<!-- a media player: the picture, its title and the time it was sent, and one line per layer (its glyph, then the track or task that made it) -->
 		<section v-if="current" class="gutter-now" aria-label="Now showing">
 			<button type="button" class="gutter-thumb" :aria-label="`Show ${title(current)} full size`" @click="full = current">
@@ -56,11 +67,24 @@
 </template>
 <script setup lang="ts">
 /** The live view of the device: what the panel shows, what it showed, and what the tasks report (the telemetry link). */
-import { computed, onBeforeUnmount, onMounted, ref } from "vue"
-import { Dialog, Select, Tag, ToggleSwitch } from "primevue"
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import { Button, Dialog, Select, Tag, ToggleSwitch, useToast } from "primevue"
 import { LAYERS, clockOf, isProblem, layerOf, layersOf, useTelemetry, type TelemetryEvent } from "./TelemetryLink"
+import { useTransport, type TransportCommand } from "./Transport"
 
 const link = useTelemetry()
+const transport = useTransport()
+const toast = useToast()
+// the state when the link comes up (and again when it comes back), then the layer's own events keep it right
+watch(() => link.state.status, status => { if (status === "live") void transport.load() }, { immediate: true })
+watch(() => link.state.events[0], () => transport.follow(link.state.events))
+async function press(command: TransportCommand): Promise<void> {
+	try {
+		await transport.send(command)
+	} catch (ex: any) {
+		toast.add({ severity: "error", summary: "Playback", detail: ex?.message || "The command was not accepted.", life: 5000 })
+	}
+}
 const full = ref<TelemetryEvent | null>(null)
 const source = ref<string>("all")
 const problemsOnly = ref(false)
@@ -96,6 +120,7 @@ function iconOf(e: TelemetryEvent): string {
 	if (e.kind === "track-started" || e.kind === "task-started") return "pi pi-step-backward-alt"
 	if (e.kind === "track-ended" || e.kind === "task-ended") return "pi pi-step-forward-alt"
 	if (e.kind === "stopped") return "pi pi-stop"
+	if (e.kind === "transport") return e.values?.state === "halted" ? "pi pi-stop" : "pi pi-play"
 	// a page is shown on a layer: the layer's own glyph, as in Now showing
 	if (e.kind === "showing") return LAYERS[layerOf(e.values?.layer)].glyph
 	return { playlist_layer: "pi pi-play", timer_layer: "pi pi-clock", display: "pi pi-image", application: "pi pi-cog", telemetry: "pi pi-wifi" }[e.source] ?? "pi pi-circle"
@@ -136,6 +161,10 @@ function describe(e: TelemetryEvent): string {
 .gutter-head {
 	display: flex;
 	align-items: center;
+	gap: .5rem;
+}
+.gutter-transport {
+	display: flex;
 	gap: .5rem;
 }
 .gutter-label {
