@@ -15,7 +15,7 @@ from .access import AccessState
 from .deps import require_auth
 from .errors import ApiError, error_response, install_error_handlers
 from .hosts import HostPolicy
-from .routers import access, fonts, lookups, schedule, session, settings, telemetry, theme
+from .routers import access, fonts, lookups, schedule, session, settings, telemetry, theme, transport
 from .sessions import SessionStore, SignInThrottle
 
 logger = logging.getLogger(__name__)
@@ -75,7 +75,7 @@ def create_app(web: WebSettings, root_container: IServiceProvider|None = None, r
 		)
 
 	api = APIRouter(prefix="/api", dependencies=[Depends(require_auth)])
-	for module in (settings, lookups, schedule, telemetry, fonts, theme):
+	for module in (settings, lookups, schedule, telemetry, fonts, theme, transport):
 		api.include_router(module.router)
 	for name, router in (routers or {}).items():
 		api.include_router(router)

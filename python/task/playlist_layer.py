@@ -35,10 +35,37 @@ from ..utils.error_image import WebAddress, error_detail, render_error_image, sa
 class LayerControlMessage(BasicMessage):
 	pass
 @dataclass(frozen=True, slots=True)
+class Start:
+	"""Where a pass begins: the playlist and the track (indexes), and whether that first track is entered again after an interruption (`PluginExecutionContext.resumed`)."""
+	playlist: int
+	track: int
+	resume: bool = False
+@dataclass(frozen=True, slots=True)
+class Position:
+	"""
+	The track the layer is on. The indexes say where it is in the playlists loaded; the ids say who it is, because an edit of the schedules
+	moves the indexes and keeps the ids. `resume` is whether entering it again is a resume (False: its own settings changed, so it runs afresh).
+	"""
+	playlist_id: str
+	track_id: str
+	playlist: int
+	track: int
+	resume: bool = True
+@dataclass(frozen=True, slots=True)
 class StartPlayback(LayerControlMessage):
-	pass
+	# None: from the top
+	start: Start|None = None
 @dataclass(frozen=True, slots=True)
 class NextTrack(LayerControlMessage):
+	"""Stop what is showing and go to the next track (wraps, crosses playlists). A stopped layer plays from there."""
+	pass
+@dataclass(frozen=True, slots=True)
+class StopPlayback(LayerControlMessage):
+	"""Cancel the running track; the panel keeps what it shows. Nothing starts again until `ResumePlayback` or `NextTrack`."""
+	pass
+@dataclass(frozen=True, slots=True)
+class ResumePlayback(LayerControlMessage):
+	"""Play again: the interrupted track is entered with `resumed` set, and its plugin decides whether to carry on or pass on."""
 	pass
 @dataclass(frozen=True, slots=True)
 class LayerFaulted(LayerControlMessage):
@@ -104,6 +131,13 @@ class PlaylistLayer(DispatcherTask):
 		# why each failed track failed, for its error page (our own words or an exception's type name, never the exception's text)
 		self._reasons: dict[tuple[int, int], str] = {}
 		self._restart_timer: threading.Timer|None = None
+		# stopped by a transport command: nothing starts the layer again (a reload, the restart timer, the end of a pass) until it is resumed
+		self._halted = False
+		# the track the layer is on (set on the pool's loop when each track begins; replaced whole, so a reader sees one or the other)
+		self._current: Position|None = None
+		# the playlists as the files gave them, before the layer filled the tracks' defaults: what "the schedules changed" and "this track changed" compare
+		self._loaded: str|None = None
+		self._snapshots: dict[tuple[str, str], str] = {}
 		self._reload = Coalescer(self.RELOAD_DELAY_SECONDS, self._request_reload)
 		self.logger = logging.getLogger(__name__)
 	def _evaluate_plugin(self, track: PlaylistSchedule) -> EvaluatePluginDict:
@@ -226,6 +260,10 @@ class PlaylistLayer(DispatcherTask):
 		}))
 	def _start_playback(self, msg: StartPlayback):
 		self.logger.info(f"'{self.name}' StartPlayback {self.state}")
+		if self._halted:
+			# a reload, the restart timer or the end of a pass got here after the stop: only Resume or Next starts the layer again
+			self.logger.info(f"'{self.name}' stopped, not starting playback.")
+			return
 		if self.state != 'loaded' and self.state != 'stopped':
 			self.logger.error(f"Cannot start playback, state is '{self.state}'")
 			return
@@ -233,9 +271,73 @@ class PlaylistLayer(DispatcherTask):
 			self.logger.warning(f"No playlists available to play.")
 			self._show_nothing(msg.timestamp)
 			return
-		self._run_layer_task(self.playlists, msg.timestamp)
-	async def _layer_task(self, isp: IServiceProvider, playlists: list[ScheduleLoaderDict], donev: threading.Event) -> BasicMessage|None:
+		self._run_layer_task(self.playlists, msg.timestamp, msg.start)
+	@property
+	def halted(self) -> bool:
+		"""Stopped by a transport command (the Application reads it for the play/stop button)."""
+		return self._halted
+	def _can_transport(self, what: str) -> bool:
+		"""A transport command needs playlists that were loaded and a layer that is not faulted (that waits for a configuration change instead)."""
+		if self.state in ('uninitialized', 'faulted') or len(self.playlists) == 0:
+			self.logger.info(f"'{self.name}' {what} ignored, state is '{self.state}'.")
+			return False
+		return True
+	@staticmethod
+	def _following(playlists: list[ScheduleLoaderDict], at: Position|None) -> tuple[int, int]|None:
+		"""The track after `at`: the next in its playlist, else the first of the next playlist that has one, wrapping at the end. The first track when there is no position. None: no tracks at all."""
+		counts = [len(cast(Playlist, p.get("info")).items) for p in playlists]
+		if not any(counts):
+			return None
+		pl, tk = (at.playlist, at.track + 1) if at is not None else (0, 0)
+		for _ in range(len(counts) + 1):
+			if pl >= len(counts):
+				pl, tk = 0, 0
+			if tk < counts[pl]:
+				return (pl, tk)
+			pl, tk = pl + 1, 0
+		return (0, 0)
+	def _transport_telemetry(self, ts: datetime, state: str, message: str) -> None:
+		self.router.send("telemetry", Telemetry(ts, "playlist_layer", {
+			"kind": "transport", "state": state, "message": message,
+			'current_playlist_index': -1, 'current_playlist': None, 'current_track_index': -1, 'current_track': None,
+		}))
+	def _stop_playback(self, msg: StopPlayback):
+		"""The running track is cancelled (the Slide Show keeps its list item by item, so nothing is lost); the panel keeps what it shows."""
+		if self._halted or not self._can_transport("stop"):
+			return
+		self._halted = True
+		self._cancel_restart()
+		self._task_stop()
+		self.state = 'halted'
+		self.logger.info(f"'{self.name}' stopped.")
+		self._transport_telemetry(msg.timestamp, 'halted', "Playback is stopped.")
+	def _resume_playback(self, msg: ResumePlayback):
+		"""Play again where it stopped: the track is entered with `resumed` set and its plugin decides whether to carry on or pass on."""
+		if not self._halted:
+			return
+		at = self._current
+		self._halted = False
+		self.state = 'loaded'
+		self.logger.info(f"'{self.name}' resuming.")
+		self._transport_telemetry(msg.timestamp, 'playing', "Playback is resumed.")
+		self._start_playback(StartPlayback(msg.timestamp, None if at is None else Start(at.playlist, at.track, at.resume)))
+	def _next_track(self, msg: NextTrack):
+		"""Cancel what is showing and begin at the next track (a stopped layer plays from there)."""
+		if not self._can_transport("next"):
+			return
+		target = self._following(self.playlists, self._current)
+		if target is None:
+			return
+		self._cancel_restart()
+		self._task_stop()
+		self._halted = False
+		self.state = 'loaded'
+		self.logger.info(f"'{self.name}' next track: playlist {target[0]}, track {target[1]}.")
+		self._start_playback(StartPlayback(msg.timestamp, Start(target[0], target[1])))
+	async def _layer_task(self, isp: IServiceProvider, playlists: list[ScheduleLoaderDict], donev: threading.Event, start: Start|None = None) -> BasicMessage|None:
+		"""One pass over the playlists, from `start` (the top when None). Only the first track of a pass can be a resume."""
 		self.logger.info(f"'{self.name}' Layer task started.")
+		begin = start if start is not None else Start(0, 0)
 		try:
 			tod = isp.required(TimeOfDay)
 			succeeded = 0
@@ -244,11 +346,17 @@ class PlaylistLayer(DispatcherTask):
 			plugins = {p["info"].get("id"): p for p in (self.plugin_info or [])}
 			datasources = {d["info"].get("id"): d for d in (self.cm.enum_datasources() if self.cm is not None else [])}
 			for plindex, plinfo in enumerate(playlists):
+				if plindex < begin.playlist:
+					continue
 				playlist:Playlist = cast(Playlist, plinfo.get("info"))
 				self.logger.info(f"Loaded playlist '{playlist.name}' with {len(playlist.items)} items.")
 				for tkindex, item in enumerate(playlist.items):
+					if plindex == begin.playlist and tkindex < begin.track:
+						continue
 					track:PlaylistSchedule = cast(PlaylistSchedule, item)
 					key = (plindex, tkindex)
+					self._current = Position(playlist.id, track.id, plindex, tkindex)
+					resumed = begin.resume and (plindex, tkindex) == (begin.playlist, begin.track)
 					tracks += 1
 					if self._struck_out(key):
 						# not run again, but its slot still says why
@@ -277,7 +385,7 @@ class PlaylistLayer(DispatcherTask):
 						track_done = threading.Event()
 						# the images this track sends are marked with where they come from (the telemetry says which track made what is on the panel)
 						pname = (plugins.get(track.plugin_name) or {}).get("info", {}).get("name") or track.plugin_name
-						ctx = PluginExecutionContext(self._marked(isp, image_source("playlist", track.title, pname, playlist.name)), self.dimensions, tod.current_time(), slot=f"{playlist.id}/{track.id}")
+						ctx = PluginExecutionContext(self._marked(isp, image_source("playlist", track.title, pname, playlist.name)), self.dimensions, tod.current_time(), slot=f"{playlist.id}/{track.id}", resumed=resumed)
 						# the start of the slot is what a person following the device wants to see; the end follows when the plugin returns
 						self.router.send("telemetry", Telemetry(tod.current_time(), "playlist_layer", {
 							"kind": "track-started", "state": self.state, "current_playlist_index": plindex, "current_playlist": playlist,
@@ -308,8 +416,9 @@ class PlaylistLayer(DispatcherTask):
 			if tracks > 0 and all(self._struck_out((pi, ti)) for pi, pl in enumerate(playlists) for ti, _ in enumerate(cast(Playlist, pl.get("info")).items)):
 				await self._show_faulted(playlists, tod.current_time())
 				return LayerFaulted(tod.current_time())
-			if succeeded == 0 and held == 0:
+			if succeeded == 0 and held == 0 and begin == Start(0, 0):
 				# nothing played and no slot was held (there were no tracks); do not let the next pass start at once
+				# (a pass that began further on and found nothing from there just ends: the next one is from the top)
 				self._next_backoff()
 				self.logger.warning(f"'{self.name}' no track succeeded in this pass, waiting {self._backoff:g}s before the next one.")
 				await asyncio.sleep(self._backoff)
@@ -348,7 +457,7 @@ class PlaylistLayer(DispatcherTask):
 		else:
 			self.logger.info(f"Layer task completed.")
 		self.layer_task = None
-	def _run_layer_task(self, playlists: list[ScheduleLoaderDict], timestamp: datetime):
+	def _run_layer_task(self, playlists: list[ScheduleLoaderDict], timestamp: datetime, start: Start|None = None):
 		if self.task_pool is None:
 			self.logger.error(f"No task pool available to invoke plugin start.")
 			return False
@@ -358,7 +467,7 @@ class PlaylistLayer(DispatcherTask):
 				if not self.is_stopped():
 					self.accept(AsyncTaskCompleted(timestamp, "layer_task", fut, donev))
 			sc = self._create_container()
-			fut = self.task_pool.submit(self._layer_task, sc, playlists, donev, callback=submit_callback)
+			fut = self.task_pool.submit(self._layer_task, sc, playlists, donev, start, callback=submit_callback)
 			self.layer_task = (fut, donev)
 			return True
 		except Exception as e:
@@ -387,6 +496,9 @@ class PlaylistLayer(DispatcherTask):
 			if rmsg is not None:
 				# handle any messages returned by the layer task if needed
 				self.accept(rmsg)
+			elif self._halted:
+				# the pass ended as the stop came in: it stays stopped
+				self.logger.info(f"Layer task ended while stopped.")
 			else:
 				self.logger.info(f"Layer task returned no message, forcing StartPlayback.")
 				self.state = 'stopped'
@@ -407,6 +519,9 @@ class PlaylistLayer(DispatcherTask):
 	def _layer_task_failed(self, msg: AsyncTaskCompleted, e: BaseException):
 		"""The layer coroutine raised (outside the per-track handling): report it and start the pass again after a backoff, so it cannot spin."""
 		self._clear_layer_task(msg.token, msg.donev)
+		if self._halted:
+			self.logger.warning(f"'{self.name}' the layer task failed while stopped: {e}")
+			return
 		self.state = 'stopped'
 		self._error_with_telemetry("The playlist stopped on an error", msg.timestamp, e)
 		delay = self._next_backoff()
@@ -452,17 +567,49 @@ class PlaylistLayer(DispatcherTask):
 			self._error_with_telemetry("The changed schedules do not load", msg.timestamp, e)
 			return
 		new_playlists = schedule_info.get("playlists", [])
-		if self.state != 'faulted' and self._signature(new_playlists) == self._signature(self.playlists):
+		# compared as the files gave them: the tracks the layer ran have their defaults filled in, which a freshly loaded one does not
+		new_signature = self._signature(new_playlists)
+		new_snapshots = self._snapshot(new_playlists)
+		if self.state != 'faulted' and new_signature == (self._loaded if self._loaded is not None else self._signature(self.playlists)):
 			self.logger.info(f"'{self.name}' schedules changed, playlists are the same.")
 			return
-		self.logger.info(f"'{self.name}' playlists changed, starting them again.")
 		self._cancel_restart()
 		self._task_stop()
+		# a faulted layer starts from the top; any other goes on where it was
+		located = None if self.state == 'faulted' else self._locate(new_playlists, new_snapshots, self._current)
 		self.playlists = new_playlists
+		self._loaded = new_signature
+		self._snapshots = new_snapshots
 		self._backoff = 0.0
 		self._strikes.clear()
+		self._current = located
+		if self._halted:
+			self.logger.info(f"'{self.name}' playlists changed while stopped, they wait for Play.")
+			return
+		self.logger.info(f"'{self.name}' playlists changed, starting them again.")
 		self.state = 'loaded'
-		self.accept(StartPlayback(self.timebase.current_time()))
+		self.accept(StartPlayback(self.timebase.current_time(), None if located is None else Start(located.playlist, located.track, located.resume)))
+	@staticmethod
+	def _snapshot(playlists: list[ScheduleLoaderDict]) -> dict[tuple[str, str], str]:
+		"""Each track as its file gave it, by (playlist id, track id): what "this track changed" compares."""
+		return { (pl.id, item.id): json.dumps(item.to_dict(), sort_keys=True, default=str)
+			for pl in (cast(Playlist, p.get("info")) for p in playlists if p.get("info") is not None) for item in pl.items }
+	def _locate(self, playlists: list[ScheduleLoaderDict], snapshots: dict[tuple[str, str], str], at: Position|None) -> Position|None:
+		"""
+		Where `at` is in the playlists just loaded, found by the ids (the indexes may have moved). A track whose own settings changed runs afresh (`resume` False).
+		A track that is gone leaves its place in the playlist, which now holds one the viewer has not seen. A playlist that is gone (or no position) is the top.
+		"""
+		if at is None:
+			return None
+		for pi, plinfo in enumerate(playlists):
+			pl = cast(Playlist, plinfo.get("info"))
+			if pl.id != at.playlist_id:
+				continue
+			for ti, item in enumerate(pl.items):
+				if item.id == at.track_id:
+					return Position(pl.id, item.id, pi, ti, resume=self._snapshots.get((pl.id, item.id)) == snapshots.get((pl.id, item.id)))
+			return Position(pl.id, "", pi, at.track, resume=False)
+		return None
 	def _cancel_restart(self):
 		timer = self._restart_timer
 		self._restart_timer = None
@@ -477,6 +624,8 @@ class PlaylistLayer(DispatcherTask):
 			schedule_info = sm.load()
 			sm.validate(schedule_info)
 			self.playlists = schedule_info.get("playlists", [])
+			self._loaded = self._signature(self.playlists)
+			self._snapshots = self._snapshot(self.playlists)
 
 			plugin_info = self.cm.enum_plugins()
 			self.plugin_info = plugin_info

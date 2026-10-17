@@ -16,6 +16,8 @@ class SettingsDict(TypedDict):
 	showAs: str
 
 class PriorityUpdateAsync(PluginAsync):
+	# run by the timer layer, which never sets `context.resumed`: a resumed visit would run like any other (see `PluginAsync`)
+	resume_contract = "ignores"
 	def __init__(self, id, name):
 		self._id = id
 		self._name = name

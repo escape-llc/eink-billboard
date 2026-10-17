@@ -92,6 +92,11 @@ class SetupDone(BasicMessage):
 	"""The device was claimed (the web app set its password): the setup page comes down and the layers may start."""
 
 @dataclass(frozen=True, slots=True)
+class TransportCommand(BasicMessage):
+	"""A viewer's play, stop or next (the web app, later a button on the device), for the Application to forward to the playlist layer."""
+	command: str
+
+@dataclass(frozen=True, slots=True)
 class SetupCodeChanged(BasicMessage):
 	"""The setup code was replaced (too many wrong ones): the setup page on the panel shows the new one."""
 

@@ -20,7 +20,7 @@ class PermanentError(Exception):
 	"""
 
 class PluginExecutionContext:
-	def __init__(self, isp: IServiceProvider, dimensions: tuple[int, int], timestamp: datetime, slot: str|None = None):
+	def __init__(self, isp: IServiceProvider, dimensions: tuple[int, int], timestamp: datetime, slot: str|None = None, resumed: bool = False):
 		if isp is None:
 			raise ValueError("isp is None")
 		if dimensions is None:
@@ -31,6 +31,14 @@ class PluginExecutionContext:
 		self._dimensions = dimensions
 		self._timestamp = timestamp
 		self._slot = slot
+		self._resumed = resumed
+	@property
+	def resumed(self) -> bool:
+		"""
+		The track is entered again after a stop (or a configuration change) interrupted it. A plugin that would only repeat what the panel already shows
+		returns at once (the layer then goes on to the next track); one that can carry on where it was does. Every playlist plugin honours it (see `PluginAsync`).
+		"""
+		return self._resumed
 	@property
 	def slot(self) -> str|None:
 		"""Who is running, unique on the device: the playlist's id and the track's (track ids repeat across playlists). None when not known (a timer task)."""
@@ -110,6 +118,11 @@ type TrackType = ScheduleItemBase
 
 @runtime_checkable
 class PluginAsync(Protocol):
+	"""
+	A plugin runs one visit of a track. **Every plugin handles `context.resumed`** and says how in a class attribute, `resume_contract`:
+	`"honours"` (a plugin the playlist layer runs: it carries on, or returns at once when carrying on would only repeat what the panel shows) or
+	`"ignores"` (a plugin the timer layer runs, which never sets the flag). `test_plugin_resume` fails for a plugin that says neither.
+	"""
 	@property
 	def id(self) -> str:
 		...
