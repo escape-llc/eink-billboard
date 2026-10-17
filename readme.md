@@ -379,6 +379,17 @@ Slide Show plugin advances its Data Source based on the Slideshow Time.  When th
 
 When a Playlist ends, another Playlist is selected from the schedule and started.  This may be the same Playlist.
 
+#### Transport: play, stop, next
+
+A viewer controls the Playlist Layer (the Timer Layer keeps running) with three commands. They go to the Application Task first (`Application.transport(command)`, thread-safe, called by `POST /api/transport` and, later, by a button on the device), which drops them while the device is not claimed and forwards the rest on the `playlist-layer` route.
+
+* **Stop** (`StopPlayback`) cancels the running track. The panel keeps what it shows and nothing starts the layer again (not a schedule reload, not the restart after a failure, not the end of a pass) until Play or Next.
+* **Play** (`ResumePlayback`) enters the interrupted track again with `PluginExecutionContext.resumed` set. **Every plugin handles that flag** (`resume_contract` on the class, `"honours"` or `"ignores"`; `test_transport` fails for a plugin that says neither). The Slide Show carries on with the next item of a kept list; it passes on (returns at once, and the layer goes on to the next track) for a single picture, a list that is not kept, and a kept list that was used up, so a picture is not shown or generated twice.
+* **Next** (`NextTrack`) cancels and starts at the next track, wrapping at the end and crossing playlists. A stopped layer plays from there.
+* A schedule reload goes on where the layer was instead of starting over. The track is found by the playlist's and track's ids in the new playlists and entered as a resume; a track whose own settings changed runs afresh; a track that is gone leaves its place in the playlist; a playlist that is gone, a layer that has not begun, or a faulted layer starts from the top. "The schedules changed" compares the files as they were loaded, not the tracks the layer ran (those have their defaults filled in), so saving a timer task does not touch the playlist.
+
+The layer task takes the starting coordinates (`Start`: playlist, track, resume) and begins its pass there; later passes start from the top.
+
 ### Timer Layer Task
 
 This layer runs the Timer Tasks that update the Display's Overlay/Priority Layer.  The primary algorithm is run in a dedicated `async` coroutine the task controls.
@@ -531,6 +542,7 @@ The web app's **Activity** button (top right) opens a gutter beside the page. It
 The gutter follows a WebSocket (`/api/telemetry/ws?since=<seq>&run=<run>`), which reconnects on its own and resumes after the last event it had. `seq` starts again at every start of the device, so the link's first message, `hello`, names the run: a page that followed another run gets everything kept and starts over. After a sign-in the gutter connects again at once. Times are the device's, not the browser's. The other routes:
 * `GET /api/telemetry?since=<seq>`: the kept events, the last 200, newest last;
 * a failure's event also carries `detail`, the exception in full, but only for a page opened on the device itself (`localhost`: the connection's address is loopback); to anyone else it is left out, since the text can hold an address with a key. In a container the published port does not look local, so read the log there;
+* `GET /api/transport` / `POST /api/transport`: whether playback is stopped (`{ stopped }`) and `{ command: play | stop | next }` for the Playlist Layer. The command is accepted, not done: the layer does it on its own thread and reports a `transport` event; 503 before the application has started;
 * `GET /api/status`: how bringing up the display and the two layers went, `{ ok, components: { display | playlist-layer | timer-layer: { state: ok | failed | starting, message } } }`, in our words (a failure says to see the log); the header's status button reads it every 10 s. A failed display is not retried when its settings change (live reconfiguration is not built): fix the settings and restart;
 * `GET /api/display/current`: the last `shown` event;
 * `GET /api/display/images/<digest>?size=thumb|full`: a shown image as PNG. The device keeps the last 8, in memory only.
@@ -539,7 +551,7 @@ An event is `{ seq, ts, source, kind, message?, values }`:
 
 | source | kinds |
 |---|---|
-| `playlist_layer` | `track-started`, `track-ended`, `track-failed`, `faulted`, `stopped`, `error` |
+| `playlist_layer` | `track-started`, `track-ended`, `track-failed`, `faulted`, `stopped`, `transport` (`state` `halted` after a Stop, `playing` after a Play), `error` |
 | `timer_layer` | `task-started`, `task-ended`, `task-failed`, `waiting`, `error` |
 | `display` | `showing` ("On deck": the page is ready for the compositor, not yet on the panel), `shown` (title, digest, size, layers; each layer says which playlist track or timer task made it: `origin`), `skipped` (identical to what is shown: not drawn again), `error` |
 | `application` | `config-changed` (the area only), `configure-failed` |

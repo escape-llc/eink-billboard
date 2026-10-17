@@ -13,7 +13,7 @@ from ..model.service_container import ServiceContainer
 from ..plugins.slide_show.slide_show import SlideShowAsync
 from ..task.message_router import MessageRouter
 from ..task.timer import IProvideTimer
-from .test_plugin_fixes import FakeDsm, FakeList, FakeRouter, FakeTimer
+from .test_plugin_fixes import FakeDsm, FakeItem, FakeList, FakeRouter, FakeTimer
 from ..plugins.kept_list import LIST_PREFIX, MAX_LIST_BYTES, NO_ITEM, fingerprint_of, list_file_name, open_list
 from ..datasources.keeping import prune_stale
 from .utils import temp_configuration_manager
@@ -218,7 +218,7 @@ class TestSlideShowKeepsItsList(unittest.IsolatedAsyncioTestCase):
 	def setUp(self):
 		self.cm = temp_configuration_manager(self)
 
-	def context(self, ds, slot: str|None):
+	def context(self, ds, slot: str|None, resumed: bool = False):
 		root = ServiceContainer()
 		root.add_service(ConfigurationManager, self.cm)
 		root.add_service(DataSourceManager, cast(Any, FakeDsm(ds)))
@@ -228,14 +228,14 @@ class TestSlideShowKeepsItsList(unittest.IsolatedAsyncioTestCase):
 			local = ServiceContainer(root)
 			local.add_service(DatasourceConfigurationManager, self.cm.datasource_manager(source.id))
 			return SimpleNamespace(provider=local, timestamp=T0)
-		return SimpleNamespace(provider=root, timestamp=T0, slot=slot, create_datasource_context=dsec)
+		return SimpleNamespace(provider=root, timestamp=T0, slot=slot, resumed=resumed, create_datasource_context=dsec)
 
 	def track(self, source: str = "rss", **settings):
 		return SimpleNamespace(id="t1", title="Show", content=SimpleNamespace(data={ "dataSource": source, "slideMinutes": 5, "slideMax": 2, **settings }))
 
-	async def show(self, ds, slot: str|None = "pl-a/t1", **settings) -> list[str]:
+	async def show(self, ds, slot: str|None = "pl-a/t1", resumed: bool = False, **settings) -> list[str]:
 		self.router = FakeRouter()
-		await SlideShowAsync("slide-show", "Slide Show")._run_slideshow(cast(Any, self.context(ds, slot)), cast(Any, self.track(ds.id, **settings)))
+		await SlideShowAsync("slide-show", "Slide Show")._run_slideshow(cast(Any, self.context(ds, slot, resumed)), cast(Any, self.track(ds.id, **settings)))
 		return [m.title for _, m in self.router.sent]
 
 	async def test_each_visit_shows_the_next_items_of_a_feed(self):
@@ -258,6 +258,40 @@ class TestSlideShowKeepsItsList(unittest.IsolatedAsyncioTestCase):
 		ds = FakeList(["a", "b", "c", "d"], "calendar")
 		await self.show(ds)
 		self.assertEqual(await self.show(ds), ["title a", "title b"])
+
+	async def test_a_resumed_visit_carries_on_with_the_kept_list(self):
+		ds = FakeList(["a", "b", "c", "d", "e"], "rss")
+		self.assertEqual(await self.show(ds), ["title a", "title b"])
+		self.assertEqual(await self.show(ds, resumed=True), ["title c", "title d"])
+
+	async def test_a_resumed_visit_with_nothing_kept_yet_is_a_visit_like_any_other(self):
+		ds = FakeList(["a", "b", "c"], "rss")
+		self.assertEqual(await self.show(ds, resumed=True), ["title a", "title b"])
+
+	async def test_a_resumed_visit_passes_on_when_the_list_was_used_up(self):
+		ds = FakeList(["a", "b"], "rss")
+		self.assertEqual(await self.show(ds), ["title a", "title b"])
+		ds.items = ["x", "y"]
+		# no new list, no pictures, and no "no media items" error
+		self.assertEqual(await self.show(ds, resumed=True), [])
+		# the next visit that is not a resume opens the new list, as it always did
+		self.assertEqual(await self.show(ds), ["title x", "title y"])
+
+	async def test_a_resumed_visit_passes_on_for_a_list_that_is_not_kept(self):
+		ds = FakeList(["a", "b", "c", "d"], "calendar")
+		self.assertEqual(await self.show(ds, resumed=True), [])
+		self.assertEqual(ds.rendered, [])
+
+	async def test_a_resumed_visit_passes_on_when_the_task_restarts_its_list_every_visit(self):
+		ds = FakeList(["a", "b", "c", "d"], "rss")
+		self.assertEqual(await self.show(ds, resumed=True, listMode="restart"), [])
+
+	async def test_a_resumed_visit_passes_on_for_a_single_picture(self):
+		ds = FakeItem(state="x")
+		ds.id = ds.name = "apod"
+		self.assertEqual(await self.show(ds, resumed=True), [])
+		# and a visit that is not a resume shows it
+		self.assertEqual(len(await self.show(ds)), 1)
 
 if __name__ == "__main__":
 	unittest.main()

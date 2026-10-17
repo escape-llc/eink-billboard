@@ -3,7 +3,7 @@ import threading
 from datetime import datetime, timedelta
 from typing import Callable
 
-from .messages import ConfigurationChanged, ConfigurationWatcherEvent, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, Telemetry
+from .messages import ConfigurationChanged, ConfigurationWatcherEvent, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, Telemetry, TransportCommand
 from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
 from .protocols import MessageSink, IProvideTimer
 from .display import Display
@@ -16,13 +16,16 @@ from ..model.time_of_day import TimeOfDay
 from ..task.display_messages import DisplaySettings, PriorityImage, PriorityRevoke
 from ..model.theme import current_inputs
 from ..utils.error_image import WebAddress, render_error_image
-from ..task.playlist_layer import PlaylistLayer
+from ..task.playlist_layer import NextTrack, PlaylistLayer, ResumePlayback, StopPlayback
 from ..task.timer import IProvideTimer
 from ..task.timer_layer import TimerLayer
 
 SETUP_TITLE = "Set up this device"
 # the setup page has no end of its own: it comes down when the device is claimed (`PriorityRevoke`), so it holds the panel until then
 SETUP_HOLD = timedelta(days=3650)
+
+# what a viewer may ask of the playlist layer (TransportCommand.command), and the message each becomes
+TRANSPORT_COMMANDS = ("play", "stop", "next")
 
 class Application(DispatcherTask):
 	def __init__(self, name = None, sink: MessageSink|None = None):
@@ -146,6 +149,33 @@ class Application(DispatcherTask):
 		if held is not None:
 			self.logger.info(f"'{self.name}' the device was claimed: the layers start.")
 			self._start_layers(*held)
+	def transport(self, command: str) -> bool:
+		"""A viewer's play, stop or next (called from the web app's thread, later from a button): the application's own thread forwards it. False: it is not a command, or the application has stopped."""
+		if command not in TRANSPORT_COMMANDS:
+			return False
+		try:
+			self.accept(TransportCommand(self._now(), command))
+			return True
+		except ValueError:
+			self.logger.debug(f"'{self.name}' stopped before the transport command '{command}'.")
+			return False
+	@property
+	def playback_stopped(self) -> bool:
+		"""Whether the playlist layer is stopped by a transport command (what the play/stop button shows)."""
+		return self.playlist_layer is not None and self.playlist_layer.halted
+	def _transport_command(self, msg: TransportCommand):
+		"""The first hop of a transport command: it goes to the playlist layer only (the timer layer keeps running), and not at all while the device waits to be claimed."""
+		if self.router is None:
+			return
+		if self._held is not None:
+			self.logger.info(f"'{self.name}' the device is not claimed: transport command '{msg.command}' ignored.")
+			return
+		forwarded = { "play": ResumePlayback, "stop": StopPlayback, "next": NextTrack }.get(msg.command)
+		if forwarded is None:
+			self.logger.warning(f"'{self.name}' unknown transport command '{msg.command}'.")
+			return
+		self.logger.info(f"'{self.name}' transport: {msg.command}")
+		self.router.send("playlist-layer", forwarded(msg.timestamp))
 	def _setup_code_changed(self, msg: SetupCodeChanged):
 		"""The page on the panel must not show a code that no longer works: take it down and put the new one up."""
 		if self.router is None or self._held is None or self._panel is None:

@@ -50,8 +50,10 @@ def _read(cob: ConfigurationObject) -> tuple[str|None, dict]:
 
 class KeptList:
 	"""The items of a slot's visit: `head()` is the next one and `drop()` takes it off and saves the rest. Never raises for the disk's sake."""
-	def __init__(self, items: list[Any], cob: ConfigurationObject|None = None, rev: str|None = None, doc: dict|None = None, now: datetime|None = None):
+	def __init__(self, items: list[Any], cob: ConfigurationObject|None = None, rev: str|None = None, doc: dict|None = None, now: datetime|None = None, used_up: bool = False):
 		self._items = list(items)
+		# a visit that was entered again after a stop found the slot's list already used up: there is nothing left to continue (see `open_list`)
+		self.used_up = used_up
 		self._cob = cob
 		self._rev = rev
 		self._doc = doc or {}
@@ -86,10 +88,12 @@ def _too_old(doc: dict, now: datetime, max_age: timedelta) -> bool:
 	return fetched is None or now - fetched >= max_age or fetched - now > CLOCK_SLACK
 
 async def open_list(pcm: PluginConfigurationManager|None, slot: str, fingerprint: str, now: datetime, fetch: Callable[[], Awaitable[list]],
-		keep: bool, refresh_hours: Any, stale_days: Any) -> KeptList:
+		keep: bool, refresh_hours: Any, stale_days: Any, resumed: bool = False) -> KeptList:
 	"""
 	The list of this visit of `slot`: the kept one when `keep` and it is for the same `fingerprint`, not used up and not older than `refresh_hours`
 	(0: only when it is used up), else `await fetch()` (the data source's `open_async`), kept for the next visit. `keep` false is the old way: a new list every time.
+	`resumed` (the visit is the same one, entered again after a stop): a list that is for this `fingerprint` and used up is not fetched again, the list comes back
+	empty and `used_up`, so the plugin can pass on to the next track; no list kept yet (or another one) is a visit like any other.
 	"""
 	if not keep or pcm is None:
 		return KeptList(await fetch())
@@ -97,6 +101,8 @@ async def open_list(pcm: PluginConfigurationManager|None, slot: str, fingerprint
 	prune_stale_sometimes(pcm, (LIST_PREFIX,), number(stale_days, DEFAULT_STALE_DAYS), now)
 	cob = pcm.file(list_file_name(slot))
 	rev, doc = _read(cob)
+	if resumed and doc.get("fingerprint") == fingerprint and doc.get("items") == []:
+		return KeptList([], used_up=True)
 	mine = doc.get("fingerprint") == fingerprint and bool(doc.get("items"))
 	if mine and not _too_old(doc, now, timedelta(hours=number(refresh_hours, 0))):
 		return KeptList(doc["items"], cob, rev, doc, now)

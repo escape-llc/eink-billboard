@@ -15,6 +15,8 @@ class OverlayAsync(PluginAsync):
 	(open or render gives None) takes it down. The data source renders at the zone's size, as the viewer sees it,
 	transparent where it draws nothing; it reads the task's `outline` (python/datasources/overlay_text.py) to keep its text readable over a busy picture.
 	"""
+	# run by the timer layer, which never sets `context.resumed`: a resumed visit would run like any other (see `PluginAsync`)
+	resume_contract = "ignores"
 	def __init__(self, id, name):
 		self._id = id
 		self._name = name
