@@ -535,6 +535,7 @@ The web app finds the server through `VITE_API_URL`: `http://localhost:8080/` in
 
 ## Telemetry
 The web app's **Activity** button (top right) opens a gutter beside the page. It shows:
+* **Playback:** a stop / play button and a next-track button for the playlist (see "Transport" above; the timer tasks keep running). The button follows the playlist layer's own `transport` events, and asks `GET /api/transport` when the page opens or the link comes back, so a page opened while playback is stopped shows it stopped.
 * **Now showing:** a thumbnail of what the panel shows, with the layers it was composed of (background, blend, override, timer blend, priority, overlays). Click it for full size.
 * **Recently shown:** the last few pages.
 * **Events:** what the device reports, with a source filter and "Problems only".

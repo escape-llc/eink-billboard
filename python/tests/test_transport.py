@@ -143,6 +143,14 @@ class TestNext(LayerCase):
 		self.layer._next_track(NextTrack(self.ts))
 		self.assertFalse(self.layer.halted)
 		self.assertEqual(self.started, [Start(0, 1, False)])
+		# the play/stop button follows the layer's events: it must hear that playback is back
+		states = [msg.values["state"] for route, msg in self.sent if route == "telemetry"]
+		self.assertEqual(states, ["halted", "playing"])
+
+	def test_next_on_a_layer_that_plays_says_nothing_about_playing(self):
+		self.layer._current = Position("pl1", "t0", 0, 0)
+		self.layer._next_track(NextTrack(self.ts))
+		self.assertEqual([r for r, _ in self.sent], [])
 
 	def test_next_is_ignored_when_faulted_or_there_is_nothing_to_play(self):
 		self.layer.state = "faulted"
