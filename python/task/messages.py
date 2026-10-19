@@ -97,6 +97,21 @@ class TransportCommand(BasicMessage):
 	command: str
 
 @dataclass(frozen=True, slots=True)
+class InputEvent(BasicMessage):
+	"""
+	Something that happened at an input connected to the device (a button pressed). A device puts it on the `DeviceIO` task's queue from its own thread; `DeviceIO` forwards it on the
+	`device-input` route, and the Application gives it a meaning (its bindings: `python/device/bindings.py`). `source` is the device (`buttons`), `name` which input of it (`next`),
+	`gesture` what was done (`press`, `long-press`).
+	"""
+	source: str
+	name: str
+	gesture: str
+
+@dataclass(frozen=True, slots=True)
+class ReloadDevices(BasicMessage):
+	"""The DeviceIO task's own request (after it coalesced a burst of ConfigurationChanged) to read the devices' settings again and open what they say."""
+
+@dataclass(frozen=True, slots=True)
 class SetupCodeChanged(BasicMessage):
 	"""The setup code was replaced (too many wrong ones): the setup page on the panel shows the new one."""
 

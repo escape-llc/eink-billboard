@@ -436,6 +436,16 @@ Display Task uses a dynamically determined "driver" that matches the hardware us
 * Tkinter
 	* displays a window via `Tk`
 
+### Device I/O Task
+
+Everything connected to the Pi's own lines that is **not the panel** (push buttons now, sensors on the I2C and SPI buses later) belongs to one task, `DeviceIO` (`python/task/device_io.py`, #365). The display's driver stage keeps the panel's lines; this task opens, listens to and closes the rest. It knows hardware and nothing about what an input *means*:
+
+* A device (`python/device/`) reports that something happened: `InputEvent(source, name, gesture)` (`gesture`: `press`, `long-press`). The library's callback only puts the event on this task's queue; the task forwards it on the `device-input` route and the **Application** gives it its meaning (`python/device/bindings.py`: the play/stop button toggles, the next button is next, the stop button stops; they are the same commands as the web app's buttons, and are ignored while the device is not claimed).
+* **Buttons** (Settings, **Devices** tab: `buttonPlayStop`, `buttonNext`, `buttonStop`): the GPIO (BCM) number of a push button wired between that pin and ground (the pin's pull-up holds it high; 50 ms debounce); empty means there is no such button. Nothing is imported or opened for a pin that is not set. `gpiozero` (the `device` dependency group) is imported when a button is opened; on a machine without it the status says what to do.
+* **The panel's lines are off limits** (`python/device/pins.py`): a pin is refused, in words that name it, when the panel uses it (Waveshare: 17 reset, 25 data/command, 8 chip select, 24 busy, 18 power, 10 and 11 SPI; Inky: 27 reset, 17 busy, 22 data/command, 8 chip select, 10 and 11 SPI, plus 26 and 16 on the 13.3 inch one), when it is not on the 40-pin header (2 to 27), or when two buttons share it. I2C bus 1 and SPI chip select 1 (`/dev/spidev0.1`) are left for sensors.
+* A change to the Devices settings is applied within a few seconds, without a restart; a configuration that is refused or cannot be opened leaves the one that worked in place, and the failure is told (status, telemetry `error`).
+* More devices are added in `python/device/registry.py` as they are written (an `InputDevice`: its pins, `open`, `close`).
+
 # Storage Architecture
 
 The application uses a specific "storage root" folder it keeps everything in.
@@ -557,8 +567,9 @@ An event is `{ seq, ts, source, kind, message?, values }`:
 | `playlist_layer` | `track-started`, `track-ended`, `track-failed`, `faulted`, `stopped`, `transport` (`state` `halted` after a Stop, `playing` after a Play), `error` |
 | `timer_layer` | `task-started`, `task-ended`, `task-failed`, `waiting`, `error` |
 | `display` | `showing` ("On deck": the page is ready for the compositor, not yet on the panel), `shown` (title, digest, size, layers; each layer says which playlist track or timer task made it: `origin`), `skipped` (identical to what is shown: not drawn again), `deferred` (the panel is resting after its last refresh: `seconds` until the next page is drawn), `error` |
-| `application` | `config-changed` (the area only), `configure-failed` |
-| `Application`, `Display`, `PlaylistLayer`, `TimerLayer`, `router` | `error`: a failure the task swallowed to keep running (`report_failure`, below) |
+| `application` | `config-changed` (the area only), `configure-failed`, `input` (a button or other input and the action it was bound to: `source`, `input`, `gesture`, `action`) |
+| `device-io` | `devices` (the devices were set up again after a change to the settings; which are open), `error` |
+| `Application`, `Display`, `PlaylistLayer`, `TimerLayer`, `DeviceIO`, `router` | `error`: a failure the task swallowed to keep running (`report_failure`, below) |
 | `telemetry` | `hello` (the first message of the WebSocket, no `seq`: `run` names this start of the device), `gap` (a slow client missed some), `ping` |
 
 With `--token`, the WebSocket needs the session (or a Bearer header). It also refuses a page from another origin than the server's own or `--cors`.
