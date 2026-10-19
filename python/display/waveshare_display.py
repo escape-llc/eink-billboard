@@ -82,6 +82,7 @@ class WaveshareDisplay(DisplayBase):
 		self.logger.info(f"'{self.name}' initialize")
 		_, settings = cm.settings_manager().open("display").get()
 		model = (settings or {}).get("waveshare-model")
+		self.start_gate(settings)
 		self.module = self._loader(model)
 		try:
 			self.epd = self.module.EPD()
@@ -130,10 +131,14 @@ class WaveshareDisplay(DisplayBase):
 				sleep = getattr(self.epd, "sleep", None)
 				if callable(sleep):
 					sleep()
+			# the panel's rest after its last refresh: too soon is refused (TooSoon); the rest starts again when this send ends, however it ends
+			self.gate.begin()
 			try:
 				self._guard.run(refresh, self._refresh_seconds)
 			except TimeoutError:
 				raise RuntimeError(f"The panel did not finish refreshing in {self._refresh_seconds:g} seconds. Check the wiring and the busy line.") from None
+			finally:
+				self.gate.finish()
 
 	def shutdown(self) -> None:
 		with self._lock:

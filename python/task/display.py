@@ -8,6 +8,7 @@ from typing import Any, Callable, Mapping, cast
 from .display_messages import BlendImage, ComputedImage, DisplayImage, DisplaySettings, OverlayImage, OverlayRevoke, PriorityImage, PriorityRevoke
 from .overlay_zones import ZONE_NAMES, Zone, zones_for
 from ..display.mock_display import MockDisplay
+from ..display.refresh_gate import RefreshState
 from ..display.display_base import DisplayBase
 from ..model.configuration_manager import ConfigurationManager
 from ..model.theme import current_palette
@@ -45,6 +46,8 @@ class Display(DispatcherTask):
 		self.router = router
 		self.cm: ConfigurationManager | None = None
 		self.display: DisplayBase | None = None
+		# when the panel was last refreshed and what it shows, kept across restarts so a restart does not refresh it again at once (see refresh_gate.py)
+		self.refresh_state = RefreshState(None)
 		self.timebase: TimeOfDay | None = None
 		self.timer: IProvideTimer | None = None
 		self.commit_timer: CreateTimerResult | None = None
@@ -155,6 +158,10 @@ class Display(DispatcherTask):
 			ts = msg.content.isp.get_service(IProvideTimer)
 			self.timer = ts if ts is not None else TimerThreadService(self.timebase)
 			self.resolution = self.display.initialize(self.cm)
+			self.refresh_state = RefreshState(self.cm)
+			self.refresh_state.load()
+			# a restart inside the rest after the last refresh waits out what is left of it
+			self.display.gate.restore(self.refresh_state.last_end)
 			self.logger.info(f"Loading display {display_type} {self.resolution[0]}x{self.resolution[1]}")
 			orientation = cast(str, display_settings.get("orientation", "landscape"))
 			self.zones = { zone.name: zone for zone in zones_for(self.resolution, orientation) }
@@ -251,8 +258,10 @@ class Display(DispatcherTask):
 	async def _until_drawn(self, version: int, ended: asyncio.Event) -> None:
 		"""Waits until the panel has been given `version`, the image is revoked (`ended`), or `DRAWN_WAIT_SECONDS` have passed."""
 		waits = { asyncio.ensure_future(self._drawn_event(version).wait()), asyncio.ensure_future(ended.wait()) }
+		# the panel's rest comes before the draw, so it is part of what is waited for
+		rest = self.display.gate.rest_seconds if self.display is not None else 0.0
 		try:
-			await asyncio.wait(waits, timeout=self.DRAWN_WAIT_SECONDS, return_when=asyncio.FIRST_COMPLETED)
+			await asyncio.wait(waits, timeout=self.DRAWN_WAIT_SECONDS + rest, return_when=asyncio.FIRST_COMPLETED)
 		finally:
 			for wait in waits:
 				wait.cancel()
@@ -290,14 +299,23 @@ class Display(DispatcherTask):
 		try:
 			rotate: bool = display_settings.get("rotate180", False) if display_settings is not None else False
 			displayImageCount: int = 0
-			# what the panel shows now: an image that comes out identical is not drawn again (an e-ink refresh takes seconds and wears the panel)
-			shown: bytes|None = None
+			# what the panel shows now: an image that comes out identical is not drawn again (an e-ink refresh takes seconds and wears the panel); after a restart, what it showed before
+			shown: bytes|None = bytes.fromhex(self.refresh_state.digest) if self.refresh_state.digest else None
 			while True:
 				# the version this pass takes from the compositor, for whoever waits to see it drawn (also when drawing it fails: nobody waits for ever)
 				taking: int|None = None
+				# whether this pass sent anything to the panel (a refresh that fails may have driven it all the same)
+				last_end = display.gate.last_end_wall
 				try:
 					_ = await taskq.get()
 					taskq.task_done()
+					# the panel's rest after its last refresh (the blanking period), waited out BEFORE the next image is taken: whatever arrives meanwhile is part of it, and
+					# nothing is sent to the driver during the rest (a restart or a failed refresh starts one too: the gate is in the driver stage)
+					wait = display.ready_in()
+					if wait > 0:
+						self.logger.info(f"Blanking period: the panel rests for {wait:.0f} more seconds before the next page is drawn")
+						self._telemetry("deferred", { "seconds": round(wait), "message": f"The panel is resting after its last refresh: the next page is drawn in {wait:.0f} seconds." })
+						await asyncio.sleep(wait)
 					# a page with no background under it shows the theme's color, read now so a theme change applies
 					if self.cm is not None:
 						compsitor.fill = current_palette(self.cm.settings_manager()).bg_page.rgb
@@ -324,17 +342,21 @@ class Display(DispatcherTask):
 					# render() is synchronous and slow (an e-ink refresh takes seconds): keep it off the loop; awaiting it keeps it one at a time
 					await asyncio.to_thread(display.render, the_image, displayImageCount, the_title)
 					shown = digest
+					# the end of the refresh and what the panel shows, for a restart
+					await asyncio.to_thread(self.refresh_state.save, display.gate.last_end_wall, digest.hex())
 					# what the panel shows now, for the telemetry link: the hub keeps the image by its digest, the event carries the digest
 					self._telemetry("shown", { "title": the_title, "version": package.version, "count": displayImageCount, "digest": digest.hex(),
 						"width": the_image.width, "height": the_image.height, "layers": shown_layers, "image": the_image })
 					# on the panel: a timed image's time starts now, not while the panel was still drawing it
 					self._note_drawn(package.version)
-					self.logger.debug(f"Start blanking period")
-					await asyncio.sleep(60.0)
-					self.logger.debug(f"End blanking period")
+					self.logger.debug(f"Blanking period starts: {display.gate.rest_seconds:g} seconds")
 				except Exception as e:
 					if taking is not None:
 						self._note_drawn(taking)
+					if display.gate.last_end_wall != last_end:
+						# the driver was driven and failed: the panel's content is not known, and it rests like after any refresh
+						shown = None
+						await asyncio.to_thread(self.refresh_state.save, display.gate.last_end_wall, None)
 					self.report_failure("The page could not be drawn on the panel", e)
 					await asyncio.sleep(self.ERROR_BACKOFF_SECONDS)
 		except asyncio.CancelledError:

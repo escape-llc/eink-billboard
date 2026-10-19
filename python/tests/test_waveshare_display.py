@@ -145,7 +145,8 @@ class TestDriver(unittest.TestCase):
 			def display(self, image):
 				release.wait(5)
 		self.addCleanup(release.set)
-		shown = display_with(Stuck(), refresh_seconds=0.1)
+		# no rest between refreshes here: it is the guard that refuses the second one (the rest is tested in test_refresh_gate)
+		shown = display_with(Stuck(), refresh_seconds=0.1, settings={ "refreshInterval": 0 })
 		with self.assertRaisesRegex(RuntimeError, "did not finish refreshing"):
 			shown.render(Image.new("RGB", (800, 480)), 1)
 		with self.assertRaisesRegex(RuntimeError, "has not finished the last refresh"):
