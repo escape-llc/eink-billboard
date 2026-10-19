@@ -1,4 +1,6 @@
+import sys
 import threading
+import types
 import unittest
 from datetime import datetime, timezone
 from typing import Any
@@ -27,6 +29,15 @@ class FakeInky:
 		self.calls.append(("set_image", image.size, saturation))
 	def show(self):
 		self.calls.append(("show",))
+
+class FakeBorderBoard(FakeInky):
+	"""A board that has `set_border`, which (like the driver's) keeps a color only when it is one of the board's own numbers (`accepts`)."""
+	accepts: tuple = ()
+	border_colour = 0
+	def set_border(self, colour):
+		self.calls.append(("set_border", colour))
+		if colour in self.accepts:
+			self.border_colour = colour
 
 class FakePhat:
 	"""A board whose `set_image` takes no saturation (it quantizes to its own colors)."""
@@ -66,6 +77,48 @@ class TestDriver(unittest.TestCase):
 		phat = FakePhat()
 		display_with(phat, { "saturation": 0.8 }).render(Image.new("RGB", (250, 122)), 1)
 		self.assertEqual(phat.calls, [("set_image", (250, 122)), ("show",)])
+
+	def test_the_border_color_is_the_number_of_the_boards_own_module(self):
+		# each model numbers its colors differently: a pHAT has white 0 and black 1, an Impression black 0 and white 1
+		for module_name, constants in (("fake_inky_phat", { "WHITE": 0, "BLACK": 1, "RED": 2, "YELLOW": 2 }), ("fake_inky_impression", { "BLACK": 0, "WHITE": 1, "GREEN": 2, "BLUE": 3, "RED": 4, "YELLOW": 5, "ORANGE": 6 })):
+			module = types.ModuleType(module_name)
+			for name, number in constants.items():
+				setattr(module, name, number)
+			sys.modules[module_name] = module
+			self.addCleanup(sys.modules.pop, module_name, None)
+			board_class = type("Board", (FakeBorderBoard,), { "__module__": module_name, "accepts": tuple(constants.values()) })
+			for color in ("white", "black", "red"):
+				with self.subTest(f"{module_name} {color}"):
+					board = board_class()
+					display_with(board, { "borderColor": color, "refreshInterval": 0 }).render(Image.new("RGB", (800, 480)), 1)
+					# before the picture is sent, and the number is the board's own
+					self.assertEqual(board.calls[0], ("set_border", constants[color.upper()]))
+					self.assertEqual([c[0] for c in board.calls], ["set_border", "set_image", "show"])
+
+	def test_a_color_the_board_does_not_have_is_said_once_and_the_refresh_goes_on(self):
+		module = types.ModuleType("fake_inky_two_colors")
+		module.WHITE, module.BLACK = 0, 1  # type: ignore[attr-defined]
+		sys.modules["fake_inky_two_colors"] = module
+		self.addCleanup(sys.modules.pop, "fake_inky_two_colors", None)
+		board = type("Board", (FakeBorderBoard,), { "__module__": "fake_inky_two_colors", "accepts": (0, 1) })()
+		shown = display_with(board, { "borderColor": "orange", "refreshInterval": 0 })
+		with self.assertLogs(inky_display.__name__, level="WARNING") as logged:
+			shown.render(Image.new("RGB", (800, 480)), 1)
+		self.assertEqual(len(logged.records), 1)
+		self.assertIn("no orange border", logged.output[0])
+		# the picture was sent all the same, and the warning is not repeated at the next refresh
+		self.assertEqual([c[0] for c in board.calls], ["set_image", "show"])
+		with self.assertNoLogs(inky_display.__name__, level="WARNING"):
+			shown.render(Image.new("RGB", (800, 480)), 2)
+
+	def test_a_board_that_takes_no_border_or_a_setting_that_is_not_set_is_left_alone(self):
+		board = FakeInky()
+		display_with(board, { "borderColor": "black" }).render(Image.new("RGB", (800, 480)), 1)
+		self.assertEqual([c[0] for c in board.calls], ["set_image", "show"])
+		bordered = FakeBorderBoard()
+		for unset in ({}, { "borderColor": None }, { "borderColor": "plaid" }, { "borderColor": 5 }):
+			display_with(bordered, unset).render(Image.new("RGB", (800, 480)), 1)
+		self.assertNotIn("set_border", [c[0] for c in bordered.calls])
 
 	def test_an_image_of_another_size_or_mode_is_fitted_not_refused(self):
 		board = FakeInky()

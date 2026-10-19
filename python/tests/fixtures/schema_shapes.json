@@ -218,6 +218,9 @@
 			"saturation": {
 				"type": "number"
 			},
+			"borderColor": {
+				"type": "string"
+			},
 			"width": {
 				"type": "integer"
 			},
