@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, cast
 from pathvalidate import sanitize_filename
 from PIL import Image
-from .display_base import DisplayBase
+from .display_base import DisplayBase, picture_size
 from ..model.configuration_manager import ConfigurationManager
 from pathlib import Path
 
@@ -51,10 +51,9 @@ class MockDisplay(DisplayBase):
 		if self.display_settings is None:
 			raise ValueError("display settings not found in configuration")
 		self.start_gate(self.display_settings)
-		self.output_folder = resolve_output_folder(self.display_settings.get("mock.outputFolder", None))
+		self.output_folder = resolve_output_folder(self.display_settings.get("outputFolder", "eink-billboard-mock"))
 		self.logger.info(f"mock output folder: {self.output_folder}")
-		resolution = cast(tuple[int, int], self.display_settings.get("mock.resolution", [800,480]))
-		return resolution
+		return picture_size(self.display_settings)
 
 	def shutdown(self):
 		pass
@@ -79,7 +78,7 @@ class MockDisplay(DisplayBase):
 		if self.display_settings is None:
 			self.logger.error("No display_settings loaded")
 			return
-		clean_folder = cast(bool,self.display_settings.get("mock.cleanOutputFolder", False))
+		clean_folder = cast(bool,self.display_settings.get("cleanOutputFolder", False))
 		output_dir = self.output_folder
 		if not output_dir:
 			self.logger.error("The mock display was not initialized")

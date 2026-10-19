@@ -30,6 +30,9 @@ def sources() -> dict[str, dict]:
 			schema = json.load(f)
 		found[name[:-5]] = { "urn": schema.get("_schema"), "properties": (schema.get("schema") or {}).get("properties") or [], "label": f"schemas/{name}" }
 	cm = ConfigurationManager()
+	# the display document's source is its schema together with the settings of every display device (they are chosen with its `display_type` and stored in it)
+	for device in cm.enum_displays():
+		found["display"]["properties"] = [*found["display"]["properties"], *(((device["info"].get("instanceSettings") or {}).get("schema") or {}).get("properties") or [])]
 	for kind, items in (("plugin", cm.enum_plugins()), ("datasource", cm.enum_datasources())):
 		for item in items:
 			settings = item["info"].get("settings")

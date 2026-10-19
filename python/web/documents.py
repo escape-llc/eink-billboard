@@ -209,6 +209,11 @@ def _check_value(prop: dict, value: Any, lookups: dict) -> str|None:
 	elif ptype == "schema":
 		if not isinstance(value, str):
 			return "Expected string"
+		# a settings document's `schema` field is closed to what is installed (`settings_choices` puts the choices in its lookup); a task's is checked where its sources are known (`plugin_content_errors`)
+		lookup = lookups.get(prop.get("lookup")) if prop.get("lookup") else None
+		items = lookup.get("items") if isinstance(lookup, dict) else None
+		if value != "" and isinstance(items, list) and value not in [i.get("value") for i in items if isinstance(i, dict)]:
+			return "Not one of the allowed values"
 	return None
 
 def is_multi_select(prop: dict) -> bool:
@@ -404,6 +409,25 @@ def chosen_sources(datasources: dict, props: list[dict], lookups: dict, content:
 		sprops, slookups = instance_properties(source)
 		found.extend(chosen_sources(datasources, sprops, slookups, content, depth + 1, seen | { chosen }))
 	return found
+
+def settings_choices(choices: dict, properties: list[dict], lookups: dict, document: dict) -> tuple[list[dict], dict]:
+	"""
+	The properties and lookups of a settings document together with those of what it chose with `schema` properties (the display's `display_type`: the chosen device's `instanceSettings`, at any depth as
+	for a task's content; `choices` are the installed ones by id). A `schema` lookup that names `displays` is resolved to the choices that have its features, so a value that is not one of them is refused.
+	Names are flat: every level's fields live in the one document, as the form shows them.
+	"""
+	resolved: dict = {}
+	for name, lookup in lookups.items():
+		if isinstance(lookup, dict) and lookup.get("schema") == "displays":
+			resolved[name] = { **lookup, "items": [{ "name": c["info"].get("name"), "value": ident } for ident, c in choices.items() if _offers(c, lookup)] }
+		else:
+			resolved[name] = lookup
+	extra: list[dict] = []
+	for source in chosen_sources(choices, properties, resolved, document):
+		sprops, slookups = instance_properties(source)
+		extra += sprops
+		resolved.update(slookups)
+	return [*properties, *extra], resolved
 
 def _used_by(datasources: dict, source: dict) -> list[str]:
 	"""The names of the data sources that choose this one inside them (an API data source chosen where only a page source can be)."""

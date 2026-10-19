@@ -58,13 +58,13 @@ class TestDriver(unittest.TestCase):
 
 	def test_the_saturation_is_a_setting_and_a_board_without_one_is_not_given_it(self):
 		board = FakeInky()
-		display_with(board, { "inky-saturation": 0.8 }).render(Image.new("RGB", (800, 480)), 1)
+		display_with(board, { "saturation": 0.8 }).render(Image.new("RGB", (800, 480)), 1)
 		self.assertEqual(board.calls[0], ("set_image", (800, 480), 0.8))
 		for bad in ("x", True, None):
-			self.assertEqual(display_with(FakeInky(), { "inky-saturation": bad }).saturation(), DEFAULT_SATURATION)
-		self.assertEqual(display_with(FakeInky(), { "inky-saturation": 7 }).saturation(), 1.0)
+			self.assertEqual(display_with(FakeInky(), { "saturation": bad }).saturation(), DEFAULT_SATURATION)
+		self.assertEqual(display_with(FakeInky(), { "saturation": 7 }).saturation(), 1.0)
 		phat = FakePhat()
-		display_with(phat, { "inky-saturation": 0.8 }).render(Image.new("RGB", (250, 122)), 1)
+		display_with(phat, { "saturation": 0.8 }).render(Image.new("RGB", (250, 122)), 1)
 		self.assertEqual(phat.calls, [("set_image", (250, 122)), ("show",)])
 
 	def test_an_image_of_another_size_or_mode_is_fitted_not_refused(self):

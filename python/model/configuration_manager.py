@@ -572,6 +572,9 @@ class ConfigurationManager(ConfigurationObjectFactory):
 					defx = schema.get("default", None)
 					if defx is not None:
 						settings = defx
+					# what the document chooses with a `schema` property brings its own defaults (the display's device)
+					if isinstance(settings, dict):
+						settings = { **self._chosen_defaults(schema, settings), **settings }
 					# the document carries the `_schema` of the schema it came from
 					if isinstance(settings, dict) and isinstance(schema.get(SCHEMA_KEY), str):
 						settings = { SCHEMA_KEY: schema[SCHEMA_KEY], **settings }
@@ -723,7 +726,13 @@ class ConfigurationManager(ConfigurationObjectFactory):
 					if name.endswith(".json"):
 						schema = _internal_load(os.path.join(self.storage_schemas, name)) or {}
 						stem = Path(name).stem
-						upgrade(os.path.join(self.storage_settings, f"{stem}-settings.json"), schema.get(SCHEMA_KEY), schema.get("default"), f"{stem}-settings.json")
+						path = os.path.join(self.storage_settings, f"{stem}-settings.json")
+						stored = _internal_load(path) if os.path.isfile(path) else None
+						default = schema.get("default")
+						if isinstance(default, dict) and isinstance(stored, dict):
+							# the device the document chooses brings its own defaults (the key it was missing since the choice changed)
+							default = { **default, **self._chosen_defaults(schema, { **default, **stored }) }
+						upgrade(path, schema.get(SCHEMA_KEY), default, f"{stem}-settings.json")
 			for pinfo in self.enum_plugins():
 				declared = pinfo["info"].get("id")
 				if declared:
@@ -1017,6 +1026,40 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		# Iterate over all plugin folders
 		plugins_list = self._collect_info("plugins", "plugin-info.json")
 		return plugins_list
+
+	def enum_displays(self) -> list[CollectInfoDict]:
+		"""Reads the display-info.json of each display device's folder under `displays` (mock, tk, inky, waveshare): what a `display_type` field chooses among (a `schema` lookup with `"schema": "displays"`)."""
+		return self._collect_info("displays", "display-info.json")
+
+	def create_display(self, info: CollectInfoDict) -> Any|None:
+		"""The display device a descriptor describes (its class, made with the descriptor's id as its name); None when it is disabled or its module does not load."""
+		item = info["info"]
+		if item.get("disabled", False):
+			logger.info(f"Display '{item.get('name')}' (ID: {item.get('id')}) is disabled; skipping load.")
+			return None
+		display_class = self._resolve(cast(str, info["path"]), item)
+		return display_class(item.get("id")) if display_class else None
+
+	def _chosen_defaults(self, schema: Mapping[str, Any], settings: Mapping[str, Any]) -> dict[str, Any]:
+		"""
+		The defaults of what a settings document has chosen with a `schema` property (the display's `display_type`): the `default` of each property of the chosen device's `instanceSettings`, so a
+		new storage starts with the mock display's size, and a document whose choice changed has its device's fields. The choice is looked up among the installed displays by their declared id.
+		"""
+		inner = schema.get("schema") if isinstance(schema.get("schema"), Mapping) else {}
+		lookups = (inner or {}).get("lookups") or {}
+		chosen: dict[str, Any] = {}
+		for prop in (inner or {}).get("properties") or []:
+			if not isinstance(prop, Mapping) or prop.get("type") != "schema":
+				continue
+			if (lookups.get(str(prop.get("lookup"))) or {}).get("schema") != "displays":
+				continue
+			value = settings.get(str(prop.get("name")))
+			for display in self.enum_displays():
+				if display["info"].get("id") == value:
+					for dprop in ((display["info"].get("instanceSettings") or {}).get("schema") or {}).get("properties") or []:
+						if isinstance(dprop, Mapping) and isinstance(dprop.get("name"), str) and "default" in dprop:
+							chosen[dprop["name"]] = copy.deepcopy(dprop["default"])
+		return chosen
 
 	def datasource_render_dir(self, folder: str) -> str:
 		"""The `render` folder of a data source (its page templates), by the name of its folder under `datasources`: from the source root, not from where the module happens to be."""

@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from ...model.configuration_manager import CollectInfoDict, ConfigurationManager
 from ..deps import CM
-from ..documents import get_document, instance_properties, load_schema_lookups, load_schema_properties, put_document, secret_fields, settings_lookup_items
+from ..documents import get_document, instance_properties, load_schema_lookups, load_schema_properties, put_document, secret_fields, settings_choices, settings_lookup_items
 from ..errors import ApiError
 
 logger = logging.getLogger(__name__)
@@ -80,7 +80,11 @@ def put_device_settings(name: str, cm: CM, body: dict[str, Any] = Body(...)):
 	name = _device_name(name)
 	cob = cm.settings_manager().open(name)
 	schema = cm.read_schema(name)
-	return put_document(f"{name}-settings", body, cob, load_schema_properties(schema), lookups=load_schema_lookups(schema), schema_id=(schema or {}).get("_schema"))
+	properties, lookups = load_schema_properties(schema), load_schema_lookups(schema)
+	if any(p.get("type") == "schema" for p in properties):
+		# what the document chooses (the display's device) brings its own fields, checked with the rest
+		properties, lookups = settings_choices({ str(d["info"].get("id")): d for d in cm.enum_displays() }, properties, lookups, body)
+	return put_document(f"{name}-settings", body, cob, properties, lookups=lookups, schema_id=(schema or {}).get("_schema"))
 
 @router.get('/settings/{name}/defaults')
 def get_device_defaults(name: str, cm: CM):
@@ -102,6 +106,11 @@ def get_device_schema(name: str, cm: CM):
 @router.get('/plugins/list')
 def plugins_list(cm: CM):
 	return [x.get("info") for x in cm.enum_plugins()]
+
+@router.get('/displays/list')
+def displays_list(cm: CM):
+	"""The display devices that are installed (`python/displays`): what the display type's `schema` field chooses among, each with the settings of its own."""
+	return [x.get("info") for x in cm.enum_displays()]
 
 @router.get('/datasources/list')
 def datasources_list(cm: CM):
