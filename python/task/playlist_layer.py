@@ -79,13 +79,6 @@ class TelemetryDict(TypedDict):
 	current_track_index: ReadOnly[int]
 	current_track: ReadOnly[PlaylistSchedule]
 
-class StoppedTelemetryDict(TypedDict):
-	state: ReadOnly[str]
-	current_playlist_index: ReadOnly[int]
-	current_playlist: ReadOnly[None]
-	current_track_index: ReadOnly[int]
-	current_track: ReadOnly[None]
-
 class PlaylistStateDict(TypedDict):
 	current_playlist_index: int
 	current_playlist: Playlist
@@ -517,17 +510,11 @@ class PlaylistLayer(DispatcherTask):
 				# the pass ended as the stop came in: it stays stopped
 				self.logger.info(f"Layer task ended while stopped.")
 			else:
+				# the end of a pass is not a stop and tells nobody anything (the next track's start does): it was announced as "The playlist stopped" after every pass, with the stamp of
+				# the first pass ever started (`msg.timestamp` is the stamp the pass began with, and each pass passed it on to the next), so it looked like a stop at a time long gone
 				self.logger.info(f"Layer task returned no message, forcing StartPlayback.")
 				self.state = 'stopped'
-				telemetry: StoppedTelemetryDict = {
-					"state": self.state,
-					'current_playlist_index': -1,
-					'current_playlist': None,
-					'current_track_index': -1,
-					'current_track': None,
-				}
-				self.router.send("telemetry", Telemetry(msg.timestamp, "playlist_layer", cast(Mapping[str,Any], telemetry)))
-				self.accept(StartPlayback(msg.timestamp))
+				self.accept(StartPlayback(self._now(msg.timestamp)))
 		self._clear_layer_task(msg.token, msg.donev)
 	# (token, donev) and not the message: a one-argument method annotated with a message class is registered as that message's handler
 	def _clear_layer_task(self, token: str, donev: threading.Event):
@@ -540,7 +527,7 @@ class PlaylistLayer(DispatcherTask):
 			self.logger.warning(f"'{self.name}' the layer task failed while stopped: {e}")
 			return
 		self.state = 'stopped'
-		self._error_with_telemetry("The playlist stopped on an error", msg.timestamp, e)
+		self._error_with_telemetry("The playlist stopped on an error", self._now(msg.timestamp), e)
 		delay = self._next_backoff()
 		self.logger.warning(f"'{self.name}' restarting playback in {delay:g}s.")
 		self._cancel_restart()
@@ -548,6 +535,9 @@ class PlaylistLayer(DispatcherTask):
 		timer.daemon = True
 		self._restart_timer = timer
 		timer.start()
+	def _now(self, fallback: datetime) -> datetime:
+		"""The time of what is being said now. A message's own stamp is when it was made, which for the end of a pass is when the pass began (or, passed from one pass to the next, when the first one did)."""
+		return self.timebase.current_time() if self.timebase is not None else fallback
 	def _restart_playback(self, timestamp: datetime):
 		if self.is_stopped():
 			return
