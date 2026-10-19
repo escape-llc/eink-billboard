@@ -1,5 +1,5 @@
 """
-A picture someone sent to the device (the push API's `POST /api/display/image`): checked before anything is decoded in full, then fitted to the panel. The sender is whoever has the token, so
+A picture that came from outside (the push API's `POST /api/display/image`, an Image URL data source's download): checked before anything is decoded in full, then fitted to the panel. The sender is whoever has the token, so
 the body is treated as untrusted anyway: the size is bounded, only a few picture formats are taken (found by their content, never the name or the type the sender claims), the number of pixels is
 bounded before the picture is loaded (a small file can hold a huge picture), and only the first frame of an animation is used. Every refusal is a `ValueError` in our words.
 """
@@ -14,8 +14,8 @@ MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_UPLOAD_PIXELS = 40_000_000
 FORMATS = ("PNG", "JPEG", "GIF", "WEBP")
 
-def decode_upload(data: bytes, size: tuple[int, int]) -> Image.Image:
-	"""The picture in `data` as an RGB image of exactly `size`: the whole picture, never cropped, on a blurred margin of its own colors (`blurred_margin`)."""
+def open_picture(data: bytes) -> Image.Image:
+	"""The picture in `data`, checked and decoded (a `ValueError` in our words when it cannot be used): its first frame, a phone's rotation applied, not yet fitted to anything."""
 	if not data:
 		raise ValueError("There is no picture in the request.")
 	if len(data) > MAX_UPLOAD_BYTES:
@@ -35,6 +35,10 @@ def decode_upload(data: bytes, size: tuple[int, int]) -> Image.Image:
 		picture.seek(0)
 		picture.load()
 		upright = ImageOps.exif_transpose(picture) or picture
-		return blurred_margin(to_rgb(upright), size).convert("RGB")
+		return to_rgb(upright)
 	except (OSError, SyntaxError, ValueError, EOFError, Image.DecompressionBombError):
 		raise ValueError("The picture is damaged, or cannot be read.") from None
+
+def decode_upload(data: bytes, size: tuple[int, int]) -> Image.Image:
+	"""The picture in `data` as an RGB image of exactly `size`: the whole picture, never cropped, on a blurred margin of its own colors (`blurred_margin`)."""
+	return blurred_margin(open_picture(data), size).convert("RGB")
