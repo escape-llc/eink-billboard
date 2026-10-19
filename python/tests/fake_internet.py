@@ -151,6 +151,35 @@ def _rss_image(request: httpx.Request) -> httpx.Response | None:
 		return _image(640, 360, path.rsplit("/", 1)[-1], "JPEG" if path.endswith(".jpg") else "PNG")
 	return None
 
+# invented pictures at an address, for the Image from a Web Address data source (a camera, a chart): "/snapshot.jpg" and "/portrait.png" are pictures, "/octet" a picture a camera sent as
+# application/octet-stream, "/anonymous" one with no content type at all, "/page" an HTML page, "/animated.gif" two frames, "/huge.png" a small file that holds a huge picture
+def _picture_at_an_address(request: httpx.Request) -> httpx.Response | None:
+	if request.url.host != "camera.example.test":
+		return None
+	path = request.url.path
+	if path == "/snapshot.jpg":
+		return _image(1280, 720, "snapshot", "JPEG")
+	if path == "/portrait.png":
+		return _image(300, 600, "portrait", "PNG")
+	if path == "/octet":
+		return httpx.Response(200, content=synthetic_image(400, 300, "octet", "PNG"), headers={ "Content-Type": "application/octet-stream" })
+	if path == "/anonymous":
+		return httpx.Response(200, content=synthetic_image(400, 300, "anonymous", "PNG"), headers={ "Content-Type": "" })
+	if path == "/page":
+		return httpx.Response(200, text="<html><body>Please log in</body></html>", headers={ "Content-Type": "text/html" })
+	if path == "/animated.gif":
+		frames = [Image.new("RGB", (100, 80), "red"), Image.new("RGB", (100, 80), "blue")]
+		buffer = io.BytesIO()
+		frames[0].save(buffer, "GIF", save_all=True, append_images=frames[1:], duration=100)
+		return httpx.Response(200, content=buffer.getvalue(), headers={ "Content-Type": "image/gif" })
+	if path == "/huge.png":
+		buffer = io.BytesIO()
+		Image.new("1", (9000, 9000)).save(buffer, "PNG")
+		return httpx.Response(200, content=buffer.getvalue(), headers={ "Content-Type": "image/png" })
+	if path == "/forbidden":
+		return httpx.Response(403, text="no")
+	return httpx.Response(404, text="Not found")
+
 # invented calendars for the Calendar data source: URL (host, path) -> fixture file. "/private.ics" needs the Basic sign-in user:pass,
 # "/page" is an HTML page (no calendar); dav.example.test answers a CalDAV REPORT and checks that it is one
 CALENDARS = {
@@ -343,7 +372,7 @@ def _comicvine(request: httpx.Request) -> httpx.Response | None:
 		return httpx.Response(200, json={ "error": "OK", "status_code": 1, "number_of_total_results": COMICVINE_ISSUES, "results": results })
 	return httpx.Response(404, text="Not found")
 
-ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _apod, _apod_image, _rss_feed, _rss_image, _calendar, _caldav, _weather, _openai, _google, _comicvine]
+ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _apod, _apod_image, _rss_feed, _rss_image, _picture_at_an_address, _calendar, _caldav, _weather, _openai, _google, _comicvine]
 
 def install() -> FakeInternet | None:
 	"""Make every `AsyncHttpWorkerPool` talk to the fake (unless EINK_TEST_LIVE is set)."""

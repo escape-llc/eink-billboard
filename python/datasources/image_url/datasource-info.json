@@ -1,0 +1,51 @@
+{
+	"id": "image-url",
+	"name": "Image from a Web Address",
+	"version": "0.0.1",
+	"class": "ImageUrlAsync",
+	"file": "image_url.py",
+	"module": "python.datasources.image_url.image_url",
+	"description": "One picture from a web address, fetched each time it is shown: a camera's snapshot, a dashboard or chart image, a weather map.",
+	"describe": "Picture from a web address",
+	"disabled": false,
+	"features": ["internet", "layer-background", "media-image"],
+	"router": {
+		"id": "image-url-router",
+		"class": "image_url_router",
+		"file": "api.py",
+		"module": "python.datasources.image_url.api"
+	},
+	"settings": {
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+			},
+			"properties": [
+				{
+					"name": "url",
+					"type": "string",
+					"format": "uri",
+					"required": true,
+					"default": null,
+					"title": "Picture Address",
+					"description": "The web address of the picture (http or https; PNG, JPEG, GIF or WEBP, up to 10 MB). It is fetched again every time it is shown, so an address that always gives the latest picture (a camera snapshot) always shows the latest. Test fetches it and says what it found. An address on this device, or in its link-local range, is refused.",
+					"test": { "url": "/api/datasource/image-url/test" }
+				},
+				{
+					"name": "shrinkToFit",
+					"type": "boolean",
+					"required": false,
+					"default": true,
+					"title": "Shrink to Fit",
+					"description": "Fit the whole picture inside the screen on a blurred margin of its own colors (it is never cropped, and a small picture is not enlarged). Off: the picture is given to the display as it is."
+				}
+			]
+		}
+	}
+}
