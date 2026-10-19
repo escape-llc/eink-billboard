@@ -360,6 +360,16 @@ Application Task manages the following additional components (tasks).
 * Timer Task Layer
 * Playlist Layer
 * Display
+* Device I/O
+
+### Restoring a backup: one notice, not one per file
+
+A restore (see "Backup and Restore" under Web API) writes many files at once. Today every changed file is its own change event, and each would reach every task: the layers would reload against a half-written storage, and the web app would be told thirty times. So the restore is bracketed by two messages and **the Application enforces the semantics** (it is the one place that turns the watcher's events into `ConfigurationChanged`):
+
+* `RestoreBegin` (from the route, which waits for the answer) is **refused** when the device has not been claimed or a restore is already running. Otherwise the Application goes from `idle` to `restoring`: the watcher's per-file events are **absorbed** (counted, not sent), the layers and the display hear nothing.
+* `RestoreEnd` (sent in a `finally`, so it always comes) makes it `draining`: every cached configuration object is forgotten, and the Application waits until no change event has come for 3 seconds (the watcher reports a file a debounce after it was written), at most 15 seconds.
+* Then it sends **one** `ConfigurationChanged(area="restore")` and one telemetry line (`restore`), and is `idle` again. Every task treats `restore` as "everything changed": the layers reload their schedules once, the Device I/O task reads its settings again, the Display says that the display settings apply at the next start. An edit made during the restore is covered by that one notice, never lost.
+* A lease guards against a route that dies before its end: a `restoring` state older than two minutes is ended by the Application itself, and a quit clears it, so change notices cannot stay held back.
 
 ### Playlist Layer Task
 
@@ -552,6 +562,12 @@ The web app finds the server through `VITE_API_URL`: `http://localhost:8080/` in
   * `POST /api/display/image?title=...&minutes=...` takes the picture itself as the body (PNG, JPEG, GIF or WEBP, at most 10 MB and 40 million pixels; checked by its content, only the first frame of an animation, a phone's rotation applied) and shows it whole on a blurred margin of its own colors: `curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: image/jpeg" --data-binary @door.jpg "http://pi.local:8080/api/display/image?minutes=2"`.
   * Both answer `{ "success": true, "id": "...", "title": "...", "startsInSeconds": n }`: `startsInSeconds` is the least it waits (the panel's rest after its last refresh, and the commit timer); messages queue behind each other. `DELETE /api/display/message/{id}` takes one down, showing or waiting (404 when there is none: never made, or over). Twenty messages may be waiting or showing at once (429 beyond that). A title that is already about gets ` (2)`, ` (3)`, since the title is what takes a message down.
 
+* **Backup and Restore** (#368; Settings, System tab). `POST /api/backup` with `{ "passphrase": "...", "confirm": "..." }` answers the storage as one file (`application/octet-stream`, `Cache-Control: no-store`); `POST /api/restore` with `{ "archive": "<base64 of the file>", "passphrase": "...", "apply": false }` says what would change, and with `"apply": true` writes it. Both need a **claimed** device (403 otherwise) and the usual sign-in.
+  * The file is a ZIP of the storage's JSON files (`settings/`, `schedules/`, `plugins/<id>/`, `datasources/<id>/`: the settings with their API keys, the schedules, OAuth tokens, a Slide Show's kept lists), **encrypted as one blob** so even the file names are hidden: AES-256-GCM, the key made from the passphrase by scrypt (N 2^15), the header authenticated. The passphrase is its own (12 to 256 characters, typed twice): **not the device password** (a password reset would make the backup unreadable), and kept nowhere. A wrong passphrase and a damaged file give the same answer (403).
+  * **Never in it:** the device password (the `access` settings: a restore does not change who owns the device), the `schemas` (the code refreshes them), the panel's `state` (when it was last refreshed: it describes *this* panel) and the OpenWeatherMap/Calendar/... kept answers (`cache-*`).
+  * A restore opens the file (at most 8 MB, 500 files, 32 MB unpacked, no absolute, `..` or backslash names, no links; sizes are counted as the bytes come out, never believed from the ZIP's header), checks **every document by the rules of the route that would have saved it** (a missing required value is not a reason to refuse: a device keeps an API key that is not typed in yet), and with any problem refuses the whole restore naming the file and field (`errors`, never a value). A plugin or data source this device does not have is left out and counted. Without `apply` nothing is written and the answer is the summary: each file that is new or would change, by name and kind, and how many are the same. With it, the files are written (each atomically, by name through the configuration manager); if one fails the files written before it are put back, and **nothing is ever deleted**. See "Restoring a backup" under the Application Task for the notices.
+  * The files are read while the device runs: each is whole, the set is not a point-in-time snapshot. A wrong passphrase counts against the sign-in throttle (429 after a few).
+
 ## Telemetry
 The web app's **Activity** button (top right) opens a gutter beside the page. It shows:
 * **Playback:** a stop / play button and a next-track button for the playlist (see "Transport" above; the timer tasks keep running). The button follows the playlist layer's own `transport` events, and asks `GET /api/transport` when the page opens or the link comes back, so a page opened while playback is stopped shows it stopped.
@@ -574,7 +590,7 @@ An event is `{ seq, ts, source, kind, message?, values }`:
 | `playlist_layer` | `track-started`, `track-ended` (a track whose slot shows an error page is started and ended like any other, with `track-failed` between: the page is what it showed), `track-failed`, `faulted`, `transport` (`state` `halted` after a Stop, `playing` after a Play), `error` |
 | `timer_layer` | `task-started`, `task-ended`, `task-failed`, `waiting`, `error` |
 | `display` | `showing` ("On deck": the page is ready for the compositor, not yet on the panel), `shown` (title, digest, size, layers; each layer says which playlist track or timer task made it: `origin`), `skipped` (identical to what is shown: not drawn again), `deferred` (the panel is resting after its last refresh: `seconds` until the next page is drawn), `error` |
-| `application` | `config-changed` (the area only), `configure-failed`, `input` (a button or other input and the action it was bound to: `source`, `input`, `gesture`, `action`), `pushed` (a message or picture pushed through the API: its title and minutes) |
+| `application` | `config-changed` (the area only), `restore` (a backup was restored: `ok`, `files`), `configure-failed`, `input` (a button or other input and the action it was bound to: `source`, `input`, `gesture`, `action`), `pushed` (a message or picture pushed through the API: its title and minutes) |
 | `device-io` | `devices` (the devices were set up again after a change to the settings; which are open), `error` |
 | `Application`, `Display`, `PlaylistLayer`, `TimerLayer`, `DeviceIO`, `router` | `error`: a failure the task swallowed to keep running (`report_failure`, below) |
 | `telemetry` | `hello` (the first message of the WebSocket, no `seq`: `run` names this start of the device), `gap` (a slow client missed some), `ping` |

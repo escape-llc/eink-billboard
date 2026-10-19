@@ -21,6 +21,7 @@
 					@submit="submitForm"
 					/>
 				<PasswordForm />
+				<BackupRestore />
 			</TabPanel>
 			<TabPanel value="1">
 				<SettingsForm
@@ -200,6 +201,7 @@ import Select from 'primevue/select';
 import type { ValidateEventData } from "../components/BasicForm.vue"
 import SettingsForm from "../components/SettingsForm.vue"
 import PasswordForm from "../components/PasswordForm.vue"
+import BackupRestore from "../components/BackupRestore.vue"
 import { computed, onMounted, provide, ref, toRaw, watch, type Ref } from 'vue';
 import { useToast } from 'primevue';
 

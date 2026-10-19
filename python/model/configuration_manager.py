@@ -9,6 +9,7 @@ import logging
 import shutil
 import tempfile
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, ReadOnly, TypedDict, cast
 from PIL import ImageFont
@@ -51,6 +52,49 @@ def leaf_name(name: str) -> str:
 	if not isinstance(name, str) or not _LEAF.match(name):
 		raise ValueError("Not a valid file name.")
 	return name
+
+# What a backup holds (#368): the settings, schedules and each plugin's and data source's own files. Not the `schemas` (the code refreshes them at every start) and not the `state` (the panel's last
+# refresh: the device's own bookkeeping about *this* panel, wrong on another one). Never the device password (`access`: a restore does not change who owns the device) and never an origin's
+# kept answers (`cache-*`: regenerable, and stale by the time they are restored).
+BACKUP_AREAS = ("settings", "schedules", "plugins", "datasources")
+BACKUP_NEVER = ("settings/access-settings.json",)
+BACKUP_CACHE_PREFIX = "cache-"
+# a file of a backup is a small JSON document (a storage is a few hundred kilobytes in all)
+BACKUP_MAX_FILE_BYTES = 5 * 1024 * 1024
+
+class RestoreFailed(Exception):
+	"""A file of a restore could not be written (the ones written before it were put back). `name` is the archive's file name, shown only to the person restoring."""
+	def __init__(self, name: str):
+		super().__init__("A restore could not write a file.")
+		self.name = name
+
+@dataclass(frozen=True)
+class BackupFile:
+	"""A file name of a backup, taken apart: `area` (settings, schedules, plugins, datasources), `owner` (the plugin's or data source's id; None for the others) and `stem` (the file's name, no extension)."""
+	area: str
+	owner: str|None
+	stem: str
+
+def backup_file(name: Any) -> BackupFile|None:
+	"""
+	The parts of a backup's file name, or None when a backup may not hold it: not `<area>/<file>.json` (settings, schedules) or `<area>/<id>/<file>.json` (plugins, data sources), a part that is not a
+	plain name, the device password, or an origin's kept answers. This is the one place that says what a backup holds, when it is made and again when it is opened.
+	"""
+	if not isinstance(name, str) or name in BACKUP_NEVER:
+		return None
+	parts = name.split("/")
+	area = parts[0]
+	if area not in BACKUP_AREAS or len(parts) != (2 if area in ("settings", "schedules") else 3):
+		return None
+	file_name = parts[-1]
+	if not file_name.endswith(".json") or file_name.startswith(BACKUP_CACHE_PREFIX):
+		return None
+	try:
+		stem = leaf_name(file_name[:-len(".json")])
+		owner = leaf_name(parts[1]) if len(parts) == 3 else None
+	except ValueError:
+		return None
+	return BackupFile(area, owner, stem)
 
 HASH_KEY = "_rev"
 ID_KEY = "_id"
@@ -779,6 +823,124 @@ class ConfigurationManager(ConfigurationObjectFactory):
 	def state_file(self, name: str) -> ConfigurationObject:
 		"""A JSON file of the device's own state (`refresh`), by name, with the same cache, revision and atomic save as the settings. The folder is made by the first save."""
 		return self.obtain(os.path.join(self.storage_state, f"{leaf_name(name)}.json"), FileConfiguration)[1]
+
+	# --- backup and restore (#368). The archive is made and opened by `utils/backup_archive.py`, which knows no storage; what a backup may hold is decided here, the only code that
+	# touches the storage root, and a restore writes by name through the objects the rest of the code reads through.
+
+	def backup_files(self) -> dict[str, bytes]:
+		"""
+		The files of a backup: `{ "settings/system-settings.json": bytes, ... }`, every JSON file of the settings, schedules, plugins and data sources except what `backup_file` leaves out
+		(the device password, an origin's kept answers). A file that is not a JSON object (damaged) or too large is left out and logged by name. The files are read while the device runs: each is
+		whole (they are written atomically), the set is not a snapshot.
+		"""
+		found: dict[str, bytes] = {}
+		for area in BACKUP_AREAS:
+			root = os.path.join(self.STORAGE_PATH, area)
+			for folder, dirs, names in os.walk(root, followlinks=False):
+				dirs.sort()
+				for file_name in sorted(names):
+					path = os.path.join(folder, file_name)
+					name = os.path.relpath(path, self.STORAGE_PATH).replace("\\", "/")
+					if backup_file(name) is None or os.path.islink(path):
+						continue
+					try:
+						if os.path.getsize(path) > BACKUP_MAX_FILE_BYTES:
+							raise ValueError("too large")
+						with open(path, "rb") as fx:
+							content = fx.read()
+						if not isinstance(json.loads(content), dict):
+							raise ValueError("not an object")
+					except (OSError, ValueError) as e:
+						logger.warning(f"The backup leaves out '{name}': {type(e).__name__}.")
+						continue
+					found[name] = content
+		return found
+
+	def backup_documents(self, files: Mapping[str, bytes]) -> tuple[dict[str, dict], list[str]]:
+		"""
+		The documents of an opened archive: `(documents, left out)`. A name a backup may not hold, a file that is not a JSON object, one that is not UTF-8 JSON: left out by name (the names are the
+		archive's, so they are listed only for the person who opened it, never logged with a value).
+		"""
+		documents: dict[str, dict] = {}
+		left_out: list[str] = []
+		for name, content in files.items():
+			try:
+				document = json.loads(content.decode("utf-8")) if backup_file(name) is not None and len(content) <= BACKUP_MAX_FILE_BYTES else None
+			except (UnicodeDecodeError, ValueError):
+				document = None
+			if isinstance(document, dict):
+				documents[name] = document
+			else:
+				left_out.append(name)
+		return documents, sorted(left_out)
+
+	def backup_target(self, name: str) -> ConfigurationObject|None:
+		"""
+		The configuration object a backup's file belongs to, or None when this device has no such place for it (a plugin or data source that is not installed). A plugin's or data source's folder
+		is the **declared** id of the descriptor, never the archive's text.
+		"""
+		parsed = backup_file(name)
+		if parsed is None:
+			return None
+		if parsed.area == "settings":
+			return self.obtain(self.settings_manager().settings_path(parsed.stem.removesuffix("-settings")), FileConfiguration)[1]
+		if parsed.area == "schedules":
+			return self.obtain(os.path.join(self.storage_schedules, f"{parsed.stem}.json"), FileConfiguration)[1]
+		declared = self._declared(self.enum_plugins() if parsed.area == "plugins" else self.enum_datasources(), parsed.owner)
+		if declared is None:
+			return None
+		os.makedirs(self.storage_plugins if parsed.area == "plugins" else self.storage_ds, exist_ok=True)
+		folder = (self.plugin_manager(declared) if parsed.area == "plugins" else self.datasource_manager(declared)).ROOT_PATH
+		return self.obtain(os.path.join(folder, f"{parsed.stem}.json"), FileConfiguration)[1]
+
+	@staticmethod
+	def _declared(items: list[CollectInfoDict], ident: str|None) -> str|None:
+		for item in items:
+			declared = item["info"].get("id")
+			if isinstance(declared, str) and declared == ident:
+				return declared
+		return None
+
+	def evict_all(self) -> None:
+		"""Forget every cached configuration object, so the next read comes from the files (after many files changed at once, where `watch` would evict one at a time)."""
+		with self._lock:
+			objects = list(self._objectMap.values())
+		for cob in objects:
+			cob.evict()
+
+	def write_backup(self, documents: Mapping[str, dict]) -> list[str]:
+		"""
+		Write the documents of a restore over the storage, by name, each atomically. Nothing is deleted. When one fails, the ones already written are put back from the copies taken before (a file
+		that did not exist is removed again), so the storage is never left half restored, and `RestoreFailed` says which one by name. The names were checked (`backup_file`) and the documents validated by
+		the caller. Returns the names written.
+		"""
+		done: list[tuple[ConfigurationObject, dict|None]] = []
+		written: list[str] = []
+		try:
+			for name, document in documents.items():
+				target = self.backup_target(name)
+				if target is None:
+					continue
+				with target:
+					previous = _internal_load(target.moniker) if os.path.isfile(target.moniker) else None
+					_internal_save(target.moniker, document)
+					done.append((target, previous))
+					target.evict()
+				written.append(name)
+		except Exception as e:
+			logger.error(f"A restore could not write '{name}' ({type(e).__name__}): the files written so far are put back.")
+			for target, previous in reversed(done):
+				try:
+					with target:
+						if previous is not None:
+							_internal_save(target.moniker, previous)
+						elif os.path.isfile(target.moniker):
+							os.remove(target.moniker)
+						target.evict()
+				except Exception:
+					logger.error("A file written by a restore could not be put back.", exc_info=True)
+			raise RestoreFailed(name) from None
+		return written
 
 	def static_manager(self) -> StaticConfigurationManager:
 		"""Create a StaticConfigurationManager bound to the root path."""

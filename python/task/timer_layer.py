@@ -386,7 +386,7 @@ class TimerLayer(DispatcherTask):
 			self.logger.warning(f"Layer task ended unexpectedly, restarting.")
 			self._schedule_restart(msg.timestamp)
 	def _configuration_changed(self, msg: ConfigurationChanged):
-		if msg.area == "schedules" and self.cm is not None and self.timebase is not None and not self.is_stopped():
+		if msg.area in ("schedules", "restore") and self.cm is not None and self.timebase is not None and not self.is_stopped():
 			self._reload.trigger()
 	def _request_reload(self):
 		"""On the coalescer's thread: hand the work to the task's own thread."""

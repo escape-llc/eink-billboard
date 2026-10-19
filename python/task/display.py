@@ -91,7 +91,7 @@ class Display(DispatcherTask):
 			self.logger.warning(f"Display telemetry could not be sent ({type(e).__name__}).")
 	def _configuration_changed(self, msg: ConfigurationChanged):
 		# the display settings are read when the display starts; reconfiguring it live is not supported yet
-		if msg.area in ("settings", "schemas"):
+		if msg.area in ("settings", "schemas", "restore"):
 			self.logger.info(f"'{self.name}' configuration changed ({msg.area}); display settings are applied at the next start.")
 	def quitMsg(self, msg: QuitMessage):
 		# every step runs even if an earlier one (or the configuration) failed: the pool and the display must always be shut down

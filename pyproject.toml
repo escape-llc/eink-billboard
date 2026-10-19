@@ -5,6 +5,7 @@ description = "e-Ink Billboard"
 readme = "readme.md"
 requires-python = ">=3.13"
 dependencies = [
+    "cryptography>=46.0.0",
     "feedparser==6.0.14",
     "fastapi>=0.115",
     "holidays==0.106",

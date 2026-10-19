@@ -138,6 +138,26 @@ class ConfigurationChanged(BasicMessage):
 	path: str
 
 @dataclass(frozen=True, slots=True)
+class RestoreBegin(BasicMessage):
+	"""
+	A restore of a backup is about to write many files (`Application.begin_restore`, from the web app's thread). The Application answers on `reply`: None when it may go ahead (it
+	then holds back every per-file notification until the restore is over), or our words for why not (the device is not claimed, a restore is already running).
+	"""
+	reply: Future
+
+@dataclass(frozen=True, slots=True)
+class RestoreEnd(BasicMessage):
+	"""The restore wrote its files (`ok`: all of them, or none: a failed one was put back); `count` is how many. The Application settles after the files' own change events have passed."""
+	ok: bool
+	count: int
+
+@dataclass(frozen=True, slots=True)
+class RestoreSettled(BasicMessage):
+	"""The Application's own: the quiet after a restore (`quiet`), its limit (`cap`) or the lease on a restore that never ended (`lease`) has passed. `generation` tells a late one from an old restore."""
+	generation: int
+	reason: str
+
+@dataclass(frozen=True, slots=True)
 class ReloadSchedules(BasicMessage):
 	"""A layer's own request (after it coalesced a burst of ConfigurationChanged) to re-read the schedules and re-plan."""
 	pass
