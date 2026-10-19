@@ -50,6 +50,7 @@ class MockDisplay(DisplayBase):
 		_, self.display_settings = display_cob.get()
 		if self.display_settings is None:
 			raise ValueError("display settings not found in configuration")
+		self.start_gate(self.display_settings)
 		self.output_folder = resolve_output_folder(self.display_settings.get("mock.outputFolder", None))
 		self.logger.info(f"mock output folder: {self.output_folder}")
 		resolution = cast(tuple[int, int], self.display_settings.get("mock.resolution", [800,480]))
@@ -66,6 +67,14 @@ class MockDisplay(DisplayBase):
 				item.unlink()
 
 	def render(self, img: Image.Image, id: int, title: str|None = None):
+		# the same rest as a real panel, so a developer sees what a device would do
+		self.gate.begin()
+		try:
+			self._write(img, id, title)
+		finally:
+			self.gate.finish()
+
+	def _write(self, img: Image.Image, id: int, title: str|None):
 		self.logger.info(f"'{self.name}' render id={id} title='{title}' img={img.width}x{img.height}")
 		if self.display_settings is None:
 			self.logger.error("No display_settings loaded")

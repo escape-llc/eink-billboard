@@ -60,6 +60,10 @@ class Application(DispatcherTask):
 		if self.router is None or self.cm is None:
 			return
 		area = self.cm.area_of(msg.path)
+		if area == "state":
+			# what the device itself keeps between runs (the panel's last refresh): written after every refresh, nobody's settings, nobody needs to hear of it
+			self.logger.debug(f"'{self.name}' the device's own state was saved ({msg.type})")
+			return
 		self.logger.info(f"'{self.name}' configuration changed: {area} ({msg.type})")
 		self.router.send("configuration", ConfigurationChanged(msg.timestamp, area, msg.type, msg.path))
 		# the area only: a path in the storage folder is the device's business

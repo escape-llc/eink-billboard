@@ -557,6 +557,8 @@ class MockDisplayTests(unittest.TestCase):
 		md = MockDisplay("mock")
 		md.display_settings = {"mock.outputFolder": folder, "mock.cleanOutputFolder": clean}
 		md.output_folder = folder
+		# these tests render again and again: no rest between refreshes (the rest is tested in test_refresh_gate)
+		md.start_gate({"refreshInterval": 0})
 		return md
 
 	def _initialized(self, **settings) -> MockDisplay:

@@ -305,11 +305,12 @@ The Commit Timer is currently 2 seconds.
 
 ## Blanking Period
 
-To avoid over-refreshing the display, which is not good for it, there is a Blanking Period timer of 60 seconds.
+To avoid over-refreshing the display, which is not good for it (and to give a picture time to settle before it is drawn over), the panel **rests** after each refresh. **No image is sent to the driver during the rest.**
 
-While this timer is active, display instructions are accummulated, and their net effect will be the next image rendered by the Compositor.
-
-This means a sequence of display instructions may appear "lost" and not visualized, e.g. two successive background layer updates in quick succession.
+* The rest is the **Rest After a Refresh** display setting (`refreshInterval`, seconds, default 60; 0 for none, which suits the mock display). It starts when a refresh **ends**, so a slow refresh does not eat into it, and it starts after a refresh that fails or times out too, since the panel may have been driven all the same. A panel model may need more than the setting says (`MIN_REST_SECONDS` of its display class); the longer one wins.
+* The rule is held **in the driver stage** (`python/display/refresh_gate.py`, beside the panel guard): every display class asks its gate before it sends an image and refuses (`TooSoon`) while the panel rests, so whatever else may one day call `render` is held to it too.
+* The Display Task waits out the rest **before** it takes the next image from the Compositor, so display instructions that arrive meanwhile are accumulated and their net effect is the next image. This means a sequence of display instructions may appear "lost" and not visualized, e.g. two successive background layer updates in quick succession. A `deferred` telemetry event says how long the wait is.
+* The end of the last refresh and a digest of what the panel shows are kept across restarts (the storage's `state/refresh.json`, written through the configuration manager), so a restart inside the rest waits out what is left of it and an unchanged page is not drawn again. A stored time can never hold the panel for more than one rest (a Pi without a clock set reads any date at boot), and a file that cannot be read is no state.
 
 # Tasks
 
@@ -554,7 +555,7 @@ An event is `{ seq, ts, source, kind, message?, values }`:
 |---|---|
 | `playlist_layer` | `track-started`, `track-ended`, `track-failed`, `faulted`, `stopped`, `transport` (`state` `halted` after a Stop, `playing` after a Play), `error` |
 | `timer_layer` | `task-started`, `task-ended`, `task-failed`, `waiting`, `error` |
-| `display` | `showing` ("On deck": the page is ready for the compositor, not yet on the panel), `shown` (title, digest, size, layers; each layer says which playlist track or timer task made it: `origin`), `skipped` (identical to what is shown: not drawn again), `error` |
+| `display` | `showing` ("On deck": the page is ready for the compositor, not yet on the panel), `shown` (title, digest, size, layers; each layer says which playlist track or timer task made it: `origin`), `skipped` (identical to what is shown: not drawn again), `deferred` (the panel is resting after its last refresh: `seconds` until the next page is drawn), `error` |
 | `application` | `config-changed` (the area only), `configure-failed` |
 | `Application`, `Display`, `PlaylistLayer`, `TimerLayer`, `router` | `error`: a failure the task swallowed to keep running (`report_failure`, below) |
 | `telemetry` | `hello` (the first message of the WebSocket, no `seq`: `run` names this start of the device), `gap` (a slow client missed some), `ping` |

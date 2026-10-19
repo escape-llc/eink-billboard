@@ -99,7 +99,8 @@ class TestGuard(unittest.TestCase):
 				release.wait(5)
 		self.addCleanup(release.set)
 		shown = InkyDisplay("inky", loader=lambda: Stuck(), refresh_seconds=0.1)
-		shown.initialize(settings_of())
+		# no rest between refreshes here: it is the guard that refuses the second one (the rest is tested in test_refresh_gate)
+		shown.initialize(settings_of({ "refreshInterval": 0 }))
 		with self.assertRaisesRegex(RuntimeError, "did not finish refreshing"):
 			shown.render(Image.new("RGB", (800, 480)), 1)
 		with self.assertRaisesRegex(RuntimeError, "has not finished the last refresh"):

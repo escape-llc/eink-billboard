@@ -60,6 +60,7 @@ class InkyDisplay(DisplayBase):
 		self.logger.info(f"'{self.name}' initialize")
 		_, stored = cm.settings_manager().open("display").get()
 		self.display_settings = dict(stored or {})
+		self.start_gate(self.display_settings)
 		try:
 			self.device = self._guard.run(self._loader, self._start_seconds)
 		except PermanentError:
@@ -97,10 +98,14 @@ class InkyDisplay(DisplayBase):
 				else:
 					device.set_image(picture)
 				device.show()
+			# the panel's rest after its last refresh: too soon is refused (TooSoon); the rest starts again when this send ends, however it ends
+			self.gate.begin()
 			try:
 				self._guard.run(refresh, self._refresh_seconds)
 			except TimeoutError:
 				raise RuntimeError(f"The panel did not finish refreshing in {self._refresh_seconds:g} seconds. Check the wiring and the busy line.") from None
+			finally:
+				self.gate.finish()
 
 	def shutdown(self) -> None:
 		# the driver holds the SPI and GPIO lines until it is collected; the panel keeps what it shows with no power

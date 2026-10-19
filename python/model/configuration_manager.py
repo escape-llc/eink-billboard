@@ -452,6 +452,8 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		self.storage_schedules = os.path.join(self.STORAGE_PATH, "schedules")
 		self.storage_settings = os.path.join(self.STORAGE_PATH, "settings")
 		self.storage_schemas = os.path.join(self.STORAGE_PATH, "schemas")
+		# what the device itself keeps between runs (when the panel was last refreshed): not settings, never edited by a person; made by the first write
+		self.storage_state = os.path.join(self.STORAGE_PATH, "state")
 		# Load environment variables from a .env file if present
 		# load_dotenv()
 	def __enter__(self):
@@ -721,7 +723,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			self._objectMap[moniker] = obj
 			return (True, obj)
 
-	AREAS = { "schedules": "schedules", "settings": "settings", "schemas": "schemas", "plugins": "plugins", "datasources": "datasources" }
+	AREAS = { "schedules": "schedules", "settings": "settings", "schemas": "schemas", "plugins": "plugins", "datasources": "datasources", "state": "state" }
 	def area_of(self, path: str|bytes) -> str:
 		"""Which part of the storage root a path is in (`schedules`, `settings`, ...), or `other` (including anything outside it)."""
 		rel = os.path.relpath(os.fsdecode(path), self.STORAGE_PATH)
@@ -773,6 +775,10 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		"""Create a SettingsConfigurationManager bound to settings storage folder."""
 		manager = SettingsConfigurationManager(self.storage_settings, self)
 		return manager
+
+	def state_file(self, name: str) -> ConfigurationObject:
+		"""A JSON file of the device's own state (`refresh`), by name, with the same cache, revision and atomic save as the settings. The folder is made by the first save."""
+		return self.obtain(os.path.join(self.storage_state, f"{leaf_name(name)}.json"), FileConfiguration)[1]
 
 	def static_manager(self) -> StaticConfigurationManager:
 		"""Create a StaticConfigurationManager bound to the root path."""
