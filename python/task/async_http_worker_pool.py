@@ -33,6 +33,9 @@ class AsyncHttpWorkerPool(IRequireShutdown):
 	# bounded waits: a pool that cannot start or stop must say so instead of hanging its caller
 	START_TIMEOUT_SECONDS = 10.0
 	SHUTDOWN_JOIN_TIMEOUT_SECONDS = 5.0
+	# what a download may wait: httpx's own default is 5 s for each of connecting, reading and writing, too short for a small board on a slow link or a site that answers slowly (a comic's address
+	# redirects to another host, which needs a second connection and handshake). `read` is the wait between two chunks, not the whole download.
+	REQUEST_TIMEOUT = httpx.Timeout(30.0, connect=15.0)
 	def __init__(self):
 		self.loop = asyncio.new_event_loop()
 		self._loop_ready = threading.Event()
@@ -45,7 +48,7 @@ class AsyncHttpWorkerPool(IRequireShutdown):
 	def _run_loop(self):
 		asyncio.set_event_loop(self.loop)
 		try:
-			self.client = httpx.AsyncClient(max_redirects=5, transport=type(self).default_transport, verify=tls_context())
+			self.client = httpx.AsyncClient(max_redirects=5, timeout=self.REQUEST_TIMEOUT, transport=type(self).default_transport, verify=tls_context())
 		except BaseException as e:
 			# start() is waiting on _loop_ready: tell it why the loop will never run
 			self._start_error = e
