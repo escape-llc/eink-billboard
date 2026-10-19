@@ -446,6 +446,7 @@ Everything connected to the Pi's own lines that is **not the panel** (push butto
 * **The panel's lines are off limits** (`python/device/pins.py`): a pin is refused, in words that name it, when the panel uses it (Waveshare: 17 reset, 25 data/command, 8 chip select, 24 busy, 18 power, 10 and 11 SPI; Inky: 27 reset, 17 busy, 22 data/command, 8 chip select, 10 and 11 SPI, plus 26 and 16 on the 13.3 inch one), when it is not on the 40-pin header (2 to 27), or when two buttons share it. I2C bus 1 and SPI chip select 1 (`/dev/spidev0.1`) are left for sensors.
 * A change to the Devices settings is applied within a few seconds, without a restart; a configuration that is refused or cannot be opened leaves the one that worked in place, and the failure is told (status, telemetry `error`).
 * More devices are added in `python/device/registry.py` as they are written (an `InputDevice`: its pins, `open`, `close`).
+* **Trying the buttons on a Pi:** `python -m scripts.gpio_check --next 5` (the app stopped) opens the same `Buttons` device and prints each press; `python -m scripts.gpio_press --pin 12` presses a button for the running app, by pulling a free driver pin low (the driver pin is wired to the button's pin; it is only driven low, then let go). Both refuse the panel's pins with `--panel`.
 
 # Storage Architecture
 
