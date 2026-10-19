@@ -2,12 +2,14 @@ import os
 import threading
 import time
 import uuid
+from concurrent.futures import Future, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Callable
 
-from .messages import ConfigurationChanged, ConfigurationWatcherEvent, InputEvent, PushedImage, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, Telemetry, TransportCommand
+from .messages import ConfigurationChanged, ConfigurationWatcherEvent, InputEvent, PushedImage, RestoreBegin, RestoreEnd, RestoreSettled, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, Telemetry, TransportCommand
 from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
+from .coalescer import Coalescer
 from .protocols import MessageSink, IProvideTimer
 from .device_io import DeviceIO
 from .display import Display
@@ -41,6 +43,15 @@ MAX_PUSHED_ACTIVE = 20
 PUSHED_SLACK = timedelta(minutes=5)
 # the commit timer's wait (Display) before a page is taken, and so the least a pushed message waits
 COMMIT_SECONDS = 2.0
+
+# a restore (#368): the Application holds back the per-file change notifications from `RestoreBegin` until the files' own change events have stopped coming
+# a route that dies before it says it is done must not leave the notifications held for ever: the lease ends the restore
+RESTORE_LEASE_SECONDS = 120.0
+# the watcher reports a file a debounce (1 s, or the poll interval) after it was written: settled when none has come for this long, and at the latest after the cap
+RESTORE_QUIET_SECONDS = 3.0
+RESTORE_CAP_SECONDS = 15.0
+# how long a route waits for the Application to say it may begin
+RESTORE_BEGIN_WAIT_SECONDS = 5.0
 
 class PushRefused(Exception):
 	"""A pushed message that cannot be taken, with the HTTP status the route answers with and our own words for the sender."""
@@ -80,6 +91,15 @@ class Application(DispatcherTask):
 		# an unclaimed device does not play: the layers' configuration waits here until the device is claimed (None: nothing is held)
 		self._held: tuple[ConfigureEvent, ConfigureEvent]|None = None
 		self._panel: tuple[int, int]|None = None
+		# a restore of a backup: `idle`, `restoring` (files are being written) or `draining` (written; waiting for the watcher's events to pass). Only this thread changes it.
+		self._restore_state = "idle"
+		self._restore_generation = 0
+		self._restore_absorbed = 0
+		self._restore_result: tuple[bool, int] = (True, 0)
+		self._restore_timers: list[Coalescer] = []
+		self.restore_lease_seconds = RESTORE_LEASE_SECONDS
+		self.restore_quiet_seconds = RESTORE_QUIET_SECONDS
+		self.restore_cap_seconds = RESTORE_CAP_SECONDS
 
 	def _start_event(self, msg: StartEvent):
 		try:
@@ -97,6 +117,12 @@ class Application(DispatcherTask):
 		if area == "state":
 			# what the device itself keeps between runs (the panel's last refresh): written after every refresh, nobody's settings, nobody needs to hear of it
 			self.logger.debug(f"'{self.name}' the device's own state was saved ({msg.type})")
+			return
+		if self._restore_state != "idle":
+			# a restore is writing many files: nobody hears of them one by one (the layers would reload against a half-written storage), the end says it all once
+			self._restore_absorbed += 1
+			if self._restore_state == "draining" and self._restore_timers:
+				self._restore_timers[1].trigger()
 			return
 		self.logger.info(f"'{self.name}' configuration changed: {area} ({msg.type})")
 		self.router.send("configuration", ConfigurationChanged(msg.timestamp, area, msg.type, msg.path))
@@ -291,6 +317,101 @@ class Application(DispatcherTask):
 			return
 		self.logger.info(f"'{self.name}' transport: {msg.command}")
 		self.router.send("playlist-layer", forwarded(msg.timestamp))
+	def claimed(self) -> bool:
+		"""Whether the device may be changed by its owner: not waiting for the setup code. Called from the web app's threads."""
+		return not self._unclaimed()
+	def begin_restore(self) -> str|None:
+		"""
+		Say that a restore of a backup is about to write files (called from the web app's thread; `end_restore` must follow, in a `finally`). None: go ahead; every change notification is held back
+		from now until the restore is over. Otherwise our words for why not: not claimed, one already running, the device busy or stopping.
+		"""
+		reply: Future = Future()
+		try:
+			self.accept(RestoreBegin(self._now(), reply))
+		except ValueError:
+			return "The device is shutting down."
+		try:
+			return reply.result(timeout=RESTORE_BEGIN_WAIT_SECONDS)
+		except FutureTimeoutError:
+			# a begin that was never answered must not start later, with nobody to end it
+			reply.cancel()
+			return "The device is busy: try again in a moment."
+	def end_restore(self, ok: bool, count: int) -> None:
+		"""The restore wrote its files (`ok`) or put them back (not `ok`); `count` is how many files. Not waited for: the Application settles when the files' change events have passed."""
+		try:
+			self.accept(RestoreEnd(self._now(), ok, count))
+		except ValueError:
+			self.logger.debug(f"'{self.name}' stopped before the restore ended.")
+	def _restore_timer(self, reason: str) -> Callable[[], None]:
+		generation = self._restore_generation
+		def fire() -> None:
+			try:
+				self.accept(RestoreSettled(self._now(), generation, reason))
+			except ValueError:
+				self.logger.debug(f"'{self.name}' stopped before the restore settled.")
+		return fire
+	def _restore_begin(self, msg: RestoreBegin):
+		if not msg.reply.set_running_or_notify_cancel():
+			return
+		if self._unclaimed():
+			msg.reply.set_result("This device has not been claimed yet: enter the setup code (on the panel and in the log) in the web app first.")
+			return
+		if self._restore_state != "idle":
+			msg.reply.set_result("A restore is already running.")
+			return
+		self._restore_state = "restoring"
+		self._restore_generation += 1
+		self._restore_absorbed = 0
+		# [lease, quiet, cap]: the lease runs now, the other two once the files are written
+		self._restore_timers = [Coalescer(self.restore_lease_seconds, self._restore_timer("lease")), Coalescer(self.restore_quiet_seconds, self._restore_timer("quiet")), Coalescer(self.restore_cap_seconds, self._restore_timer("cap"))]
+		self._restore_timers[0].trigger()
+		self.logger.info(f"'{self.name}' a restore begins: change notifications are held back.")
+		msg.reply.set_result(None)
+	def _restore_end(self, msg: RestoreEnd):
+		if self._restore_state != "restoring":
+			self.logger.warning(f"'{self.name}' a restore ended that was not running.")
+			return
+		self._restore_state = "draining"
+		self._restore_result = (msg.ok, msg.count)
+		self._restore_timers[0].cancel()
+		if self.cm is not None:
+			self.cm.evict_all()
+		# the watcher's events for the files just written arrive a debounce later: settled when none has come for the quiet time, or at the cap
+		self._restore_timers[1].trigger()
+		self._restore_timers[2].trigger()
+	def _restore_settled(self, msg: RestoreSettled):
+		if msg.generation != self._restore_generation or self._restore_state == "idle":
+			return
+		if self._restore_state == "restoring":
+			if msg.reason != "lease":
+				return
+			self.logger.warning(f"'{self.name}' a restore did not end in {self.restore_lease_seconds:g}s: the lease ended it.")
+			self._restore_result = (False, 0)
+		elif msg.reason == "lease":
+			return
+		self._finish_restore(msg.timestamp)
+	def _finish_restore(self, timestamp: datetime):
+		"""One notice for the whole restore: every task reads what it needs again, and the viewer hears of it once. An edit made meanwhile is covered by it, never lost."""
+		for timer in self._restore_timers:
+			timer.cancel()
+		self._restore_timers = []
+		self._restore_state = "idle"
+		ok, count = self._restore_result
+		absorbed, self._restore_absorbed = self._restore_absorbed, 0
+		if self.cm is not None:
+			self.cm.evict_all()
+		self.logger.info(f"'{self.name}' the restore is over ({count} files, {absorbed} change events held back).")
+		if self.router is None:
+			return
+		self.router.send("configuration", ConfigurationChanged(timestamp, "restore", "restore", ""))
+		self.router.send("telemetry", Telemetry(timestamp, "application", { "kind": "restore", "ok": ok, "files": count,
+			"message": f"A backup was restored: {count} files." if ok else "A backup could not be restored." }))
+	def _end_restore_state(self):
+		"""A quit clears a restore in progress: no timer outlives the task, and nothing stays held back."""
+		for timer in self._restore_timers:
+			timer.cancel()
+		self._restore_timers = []
+		self._restore_state = "idle"
 	def _setup_code_changed(self, msg: SetupCodeChanged):
 		"""The page on the panel must not show a code that no longer works: take it down and put the new one up."""
 		if self.router is None or self._held is None or self._panel is None:
@@ -402,6 +523,7 @@ class Application(DispatcherTask):
 		except Exception as e:
 			self.logger.error(f"Failed to join {name}: {e}", exc_info=True)
 	def _handleStop(self, timestamp: datetime):
+		self._end_restore_state()
 		# the devices first: nothing is listened to while the rest is taken down
 		if self.device_io is not None:
 			if self.device_io.is_alive():

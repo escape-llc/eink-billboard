@@ -620,7 +620,7 @@ class PlaylistLayer(DispatcherTask):
 			self.logger.debug(f"'{self.name}' stopped before the restart.")
 	def _configuration_changed(self, msg: ConfigurationChanged):
 		# a faulted layer is waiting for anything that might fix it: a plugin's or data source's settings, not only the schedules
-		if (msg.area == "schedules" or self.state == 'faulted') and self.cm is not None and self.timebase is not None and not self.is_stopped():
+		if (msg.area in ("schedules", "restore") or self.state == 'faulted') and self.cm is not None and self.timebase is not None and not self.is_stopped():
 			self._reload.trigger()
 	def _request_reload(self):
 		"""On the coalescer's thread: hand the work to the task's own thread."""

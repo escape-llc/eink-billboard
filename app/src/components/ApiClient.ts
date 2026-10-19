@@ -170,6 +170,16 @@ export function apiPost<T = any>(url: string, data: unknown): Promise<T> {
 	return apiSend<T>("POST", url, data)
 }
 
+/** POST JSON and take the answer as a file (a backup): the bytes and the name the server gave it; rejects with ApiError when the status is not 2xx. */
+export async function apiDownload(url: string, data: unknown): Promise<{ blob: Blob, filename: string }> {
+	const rx = await apiFetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) })
+	if(!rx.ok) {
+		throw await toApiError(rx)
+	}
+	const named = /filename="([^"]+)"/.exec(rx.headers.get("Content-Disposition") ?? "")
+	return { blob: await rx.blob(), filename: named?.[1] ?? "eink-billboard.einkbackup" }
+}
+
 export function apiPatch<T = any>(url: string, data: unknown): Promise<T> {
 	return apiSend<T>("PATCH", url, data)
 }
