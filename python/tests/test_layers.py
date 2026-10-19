@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from unittest import mock
 from PIL import Image
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import os
 from threading import Event
 from typing import Any, cast
@@ -400,6 +400,39 @@ class PlaylistLayerTests(unittest.TestCase):
 		# the end of a good slot is the layer's `playing` state, which the hub names `track-ended`: no `kind` of its own
 		seen = self._slot_events()
 		self.assertEqual([kind for kind, _ in seen], ["track-started"])
+	def _completed(self, outcome) -> tuple[list, list, datetime]:
+		"""The layer is told that its pass has ended (`outcome`: None, or an exception); returns what it sent to the telemetry, what it asked of itself, and the stamp the pass began with."""
+		from concurrent.futures import Future
+		from ..task.messages import AsyncTaskCompleted
+		layer = self.layer
+		layer.state = 'playing'
+		sent: list = []
+		layer.router.send = lambda route, msg: sent.append((route, msg))  # type: ignore
+		accepted: list = []
+		layer.accept = accepted.append  # type: ignore
+		began = datetime(2020, 1, 1, tzinfo=timezone.utc)
+		future: Future = Future()
+		if isinstance(outcome, BaseException):
+			future.set_exception(outcome)
+		else:
+			future.set_result(outcome)
+		layer._async_task_completed(AsyncTaskCompleted(began, "layer_task", future, Event()))
+		layer._cancel_restart()
+		return sent, accepted, began
+
+	def test_the_end_of_a_pass_is_not_announced_as_a_stop_and_the_next_pass_is_stamped_now(self):
+		sent, accepted, began = self._completed(None)
+		self.assertEqual([m for route, m in sent if route == "telemetry"], [], "an ordinary end of a pass tells nobody anything: the next track's start does")
+		[start] = [m for m in accepted if isinstance(m, StartPlayback)]
+		# the stamp the pass began with is not passed on: every pass was stamped with the first one's, for good
+		self.assertGreater(start.timestamp, began + timedelta(days=365))
+
+	def test_a_pass_that_failed_is_told_with_the_time_it_failed(self):
+		sent, accepted, began = self._completed(RuntimeError("boom"))
+		[event] = [m for route, m in sent if route == "telemetry"]
+		self.assertEqual(event.values["kind"], "error")
+		self.assertIn("The playlist stopped on an error", event.values["message"])
+		self.assertGreater(event.timestamp, began + timedelta(days=365))
 
 	def test_a_success_resets_the_strikes(self):
 		outcomes = [ConnectionError("x"), ConnectionError("x"), None, ConnectionError("x"), ConnectionError("x"), None]

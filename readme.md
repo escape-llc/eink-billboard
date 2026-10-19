@@ -569,7 +569,7 @@ An event is `{ seq, ts, source, kind, message?, values }`:
 
 | source | kinds |
 |---|---|
-| `playlist_layer` | `track-started`, `track-ended` (a track whose slot shows an error page is started and ended like any other, with `track-failed` between: the page is what it showed), `track-failed`, `faulted`, `stopped`, `transport` (`state` `halted` after a Stop, `playing` after a Play), `error` |
+| `playlist_layer` | `track-started`, `track-ended` (a track whose slot shows an error page is started and ended like any other, with `track-failed` between: the page is what it showed), `track-failed`, `faulted`, `transport` (`state` `halted` after a Stop, `playing` after a Play), `error` |
 | `timer_layer` | `task-started`, `task-ended`, `task-failed`, `waiting`, `error` |
 | `display` | `showing` ("On deck": the page is ready for the compositor, not yet on the panel), `shown` (title, digest, size, layers; each layer says which playlist track or timer task made it: `origin`), `skipped` (identical to what is shown: not drawn again), `deferred` (the panel is resting after its last refresh: `seconds` until the next page is drawn), `error` |
 | `application` | `config-changed` (the area only), `configure-failed`, `input` (a button or other input and the action it was bound to: `source`, `input`, `gesture`, `action`), `pushed` (a message or picture pushed through the API: its title and minutes) |
