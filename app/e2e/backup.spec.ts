@@ -53,6 +53,7 @@ test("a backup is downloaded, and restoring it puts a changed setting back", asy
 	await expect(summary).toContainText("Settings: system")
 	await expect(summary).toContainText("(changed)")
 	await expect(summary).toContainText("Nothing is deleted")
+	await expect(page.getByTestId("backup-made")).toContainText("This backup was made")
 	expect((await systemSettings(page)).timeFormat).toBe(other)
 
 	await page.getByTestId("backup-apply").click()

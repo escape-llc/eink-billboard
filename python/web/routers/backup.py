@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Request, Response
 
 from ...model.configuration_manager import RestoreFailed
 from ...utils.backup_archive import MAX_ARCHIVE_BYTES, NOT_OPENED, BackupError, passphrase_problem, seal, unseal
-from ..backup import check_documents, summarize
+from ..backup import MANIFEST, MANIFEST_FORMAT, check_documents, make_manifest, summarize, take_manifest
 from ..deps import CM
 from ..errors import ApiError
 from .session import client_of, too_many_tries, wrong_try
@@ -67,7 +67,9 @@ def make_backup(request: Request, cm: CM, body: dict = Depends(_json_body)):
 	if not isinstance(passphrase, str) or body.get("confirm") != passphrase:
 		raise ApiError(422, "The two passphrases are not the same.", "backup", errors=[{ "path": ["confirm"], "message": "Not the same" }])
 	try:
-		blob = seal(cm.backup_files(), passphrase)
+		files = cm.backup_files()
+		files[MANIFEST] = make_manifest(files)
+		blob = seal(files, passphrase)
 	except BackupError as e:
 		raise ApiError(422, e.message, "backup") from None
 	logger.info("A backup was made.")
@@ -98,12 +100,16 @@ def restore_backup(request: Request, cm: CM, body: dict = Depends(_json_body)):
 			raise ApiError(403, e.message, "backup", errors=[{ "path": ["passphrase"], "message": "Not right" }]) from None
 		raise ApiError(422, e.message, "backup") from None
 	request.app.state.throttle.succeeded(client_of(request))
+	manifest = take_manifest(files)
+	if manifest is not None and manifest.format > MANIFEST_FORMAT:
+		raise ApiError(422, "That backup was made by a newer version of the app than this one: update the app, then restore it.", "backup")
 	documents, unreadable = cm.backup_documents(files)
-	accepted, left_out, problems = check_documents(cm, documents)
+	accepted, left_out, problems, upgraded = check_documents(cm, documents)
 	if problems:
 		raise ApiError(422, "The backup holds documents this version cannot take. Nothing was changed.", "backup", errors=problems)
-	summary = summarize(cm, accepted)
+	summary = summarize(cm, accepted, upgraded)
 	summary["leftOut"] = len(left_out) + len(unreadable)
+	summary["madeAt"] = manifest.created if manifest is not None else None
 	if body.get("apply") is not True:
 		return { "success": True, "applied": False, **summary }
 	refused = application.begin_restore()

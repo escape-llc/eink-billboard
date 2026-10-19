@@ -47,6 +47,8 @@
 					<li v-for="f in summary.files" :key="f.name"><strong>{{ f.label }}</strong> ({{ f.status }})</li>
 				</ul>
 			</template>
+			<p v-if="summary.madeAt" data-testid="backup-made">This backup was made {{ new Date(summary.madeAt).toLocaleString() }}.</p>
+			<p v-if="summary.upgraded.length > 0" data-testid="backup-upgraded">{{ summary.upgraded.length }} {{ summary.upgraded.length === 1 ? "file comes" : "files come" }} from an older version and {{ summary.upgraded.length === 1 ? "is" : "are" }} brought up to date as {{ summary.upgraded.length === 1 ? "it is" : "they are" }} restored.</p>
 			<p v-if="summary.leftOut > 0">{{ summary.leftOut }} {{ summary.leftOut === 1 ? "file" : "files" }} in the backup cannot be restored on this device and will be left out.</p>
 			<p v-if="summary.restartNeeded">The display settings change only when the device starts again.</p>
 			<p>Nothing is deleted: files this device has that the backup does not stay as they are.</p>
@@ -75,6 +77,8 @@ const RESTORE = joinUrl(base, "api/restore")
 interface Summary {
 	files: { name: string, label: string, status: string }[]
 	unchanged: number
+	upgraded: { name: string, label: string, from: number, to: number }[]
+	madeAt: string | null
 	leftOut: number
 	restartNeeded: boolean
 }
