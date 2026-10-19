@@ -20,7 +20,7 @@ from ..task.timer import IProvideTimer
 from ..task.messages import BasicMessage, QuitMessage, Telemetry
 from ..task.protocols import MessageSink
 from ..task.configure_event import ConfigureEvent, ConfigureOptions
-from ..task.playlist_layer import LayerFaulted, PlaylistLayer, StartPlayback
+from ..task.playlist_layer import LayerFaulted, PlaylistLayer, RetryStruckOut, StartPlayback
 from ..task.message_router import MessageRouter, Route
 from ..task.timer_layer import TimerLayer
 from ..task.protocols import IProvideTimer, IRequireShutdown, MessageSink
@@ -319,6 +319,95 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.assertIsInstance(self._run_pass(layer, playlists, root), LayerFaulted)
 		self.assertEqual(len(calls), 3)
 
+	def test_a_struck_out_track_is_tried_again_after_its_wait_and_a_success_clears_it(self):
+		class Recovers:
+			def __init__(self, id, name):
+				self.id, self.name = id, name
+			async def task_async(self, ctx, track, donev):
+				self.calls.append(track.id)
+				if not self.up[0]:
+					raise ConnectionError("network down")
+		up = [False]
+		layer, playlists, root, calls = self._strike_setup(Recovers, track_count=2)
+		now = [1000.0]
+		layer._clock = lambda: now[0]
+		original = layer._evaluate_plugin
+		def with_up(t):
+			found = original(t)
+			found["plugin"].up = up
+			return found
+		layer._evaluate_plugin = with_up  # type: ignore
+		for _ in range(3):
+			self._run_pass(layer, playlists, root)
+		self.assertEqual(calls.count("t0"), 3)
+		# still waiting: the track is not run, its error page is shown
+		self._run_pass(layer, playlists, root)
+		self.assertEqual(calls.count("t0"), 3)
+		# the wait is over and the network is still down: one attempt, struck out again, and the wait is longer
+		now[0] += layer.STRIKE_RETRY_SECONDS + 1
+		self._run_pass(layer, playlists, root)
+		self.assertEqual(calls.count("t0"), 4)
+		self.assertEqual(layer._retry_seconds(layer._strikes[(0, 0)]), layer.STRIKE_RETRY_SECONDS * 2)
+		now[0] += layer.STRIKE_RETRY_SECONDS + 1
+		self._run_pass(layer, playlists, root)
+		self.assertEqual(calls.count("t0"), 4)
+		# the network is back: the next try after the longer wait works, and the track is no longer struck out
+		up[0] = True
+		now[0] += layer.STRIKE_RETRY_SECONDS * 2
+		self._run_pass(layer, playlists, root)
+		self.assertEqual(calls.count("t0"), 5)
+		self.assertFalse(layer._struck_out((0, 0)))
+		self.assertNotIn((0, 0), layer._strikes)
+		self._run_pass(layer, playlists, root)
+		self.assertEqual(calls.count("t0"), 6)
+
+	def test_the_system_settings_decide_the_strikes_and_the_waits(self):
+		from types import SimpleNamespace
+		layer = self.layer
+		def settings(document):
+			return SimpleNamespace(settings_manager=lambda: SimpleNamespace(open=lambda name: SimpleNamespace(get=lambda: ("rev", document))))
+		layer.cm = settings({ "maxStrikes": 2, "strikeRetrySeconds": 30, "strikeRetryMaxSeconds": 40 })  # type: ignore
+		self.assertEqual(tuple(layer._policy()), (2, 30.0, 40.0))
+		self.assertEqual([layer._retry_seconds(count) for count in (2, 3, 4)], [30.0, 40.0, 40.0])
+		# a value that is missing, out of range or not a number is the built-in one
+		layer.cm = settings({ "maxStrikes": 0, "strikeRetrySeconds": "soon" })  # type: ignore
+		self.assertEqual(tuple(layer._policy()), (layer.MAX_STRIKES, layer.STRIKE_RETRY_SECONDS, layer.STRIKE_RETRY_MAX_SECONDS))
+		layer.cm = settings(None)  # type: ignore
+		self.assertEqual(layer._policy().strikes, layer.MAX_STRIKES)
+
+	def test_the_wait_before_another_try_is_capped(self):
+		layer = self.layer
+		self.assertEqual(layer._retry_seconds(layer.MAX_STRIKES), layer.STRIKE_RETRY_SECONDS)
+		self.assertEqual(layer._retry_seconds(layer.MAX_STRIKES + 40), layer.STRIKE_RETRY_MAX_SECONDS)
+
+	def test_a_faulted_layer_tries_its_tracks_again_when_one_is_due(self):
+		class Flaky:
+			def __init__(self, id, name):
+				self.id, self.name = id, name
+			async def task_async(self, ctx, track, donev):
+				self.calls.append(track.id)
+				raise ConnectionError("network down")
+		layer, playlists, root, calls = self._strike_setup(Flaky)
+		now = [1000.0]
+		layer._clock = lambda: now[0]
+		for _ in range(3):
+			self._run_pass(layer, playlists, root)
+		layer._layer_faulted(LayerFaulted(datetime.now()))
+		self.addCleanup(layer._cancel_restart)
+		self.assertEqual(layer.state, "faulted")
+		# a timer is waiting for the first track's wait to end
+		self.assertIsNotNone(layer._restart_timer)
+		accepted: list = []
+		layer.accept = accepted.append  # type: ignore
+		layer._retry_struck_out(RetryStruckOut(datetime.now()))
+		self.assertEqual(layer.state, "loaded")
+		self.assertEqual([type(m) for m in accepted], [StartPlayback])
+		# a stopped layer stays stopped
+		layer.state = "faulted"
+		layer._halted = True
+		layer._retry_struck_out(RetryStruckOut(datetime.now()))
+		self.assertEqual(layer.state, "faulted")
+
 	def test_a_permanent_failure_strikes_out_at_once(self):
 		for error in (PermanentError("gone for good"), TypeError("bad setting"), ImportError("no module")):
 			with self.subTest(type(error).__name__):
@@ -514,6 +603,7 @@ class PlaylistLayerTests(unittest.TestCase):
 		layer = self.layer
 		layer.cm = object()  # type: ignore
 		layer._layer_faulted(LayerFaulted(datetime.now()))
+		self.addCleanup(layer._cancel_restart)
 		self.assertEqual(layer.state, "faulted")
 		fired = []
 		layer._reload.trigger = lambda: fired.append(1)  # type: ignore

@@ -42,6 +42,33 @@
 				"type": "location",
 				"title": "Location",
 				"required": false
+			},
+			{
+				"name":"maxStrikes",
+				"type": "integer",
+				"title": "Failures Before a Track Stops Running",
+				"description": "How many times in a row a playlist track may fail before it is struck out: it is not run again for a while and its slot shows its error page instead (a permanent problem, such as a missing setting, strikes it out at once).",
+				"minimum": 1,
+				"maximum": 10,
+				"required": true
+			},
+			{
+				"name":"strikeRetrySeconds",
+				"type": "integer",
+				"title": "First Retry of a Struck-Out Track",
+				"description": "Seconds before a struck-out track is tried again (one attempt: it is struck out again if it fails, and a success puts it back in play). The wait doubles with each failed attempt, up to the longest wait below; changing the playlist tries it at once.",
+				"minimum": 10,
+				"maximum": 3600,
+				"required": true
+			},
+			{
+				"name":"strikeRetryMaxSeconds",
+				"type": "integer",
+				"title": "Longest Wait Between Retries",
+				"description": "The most seconds a struck-out track waits between attempts.",
+				"minimum": 10,
+				"maximum": 86400,
+				"required": true
 			}
 		]
 	},
@@ -49,6 +76,9 @@
 		"timezoneName": "America/New_York",
 		"locale": "en-US",
 		"timeFormat": "24h",
-		"location": null
+		"location": null,
+		"maxStrikes": 3,
+		"strikeRetrySeconds": 60,
+		"strikeRetryMaxSeconds": 900
 	}
 }

@@ -6,7 +6,8 @@ from datetime import datetime, timedelta
 import json
 import logging
 import threading
-from typing import Any, Mapping, NotRequired, ReadOnly, TypedDict, cast
+import time
+from typing import Any, Mapping, NamedTuple, NotRequired, ReadOnly, TypedDict, cast
 
 from PIL import Image
 from .display_messages import DisplayImage, DisplaySettings
@@ -69,7 +70,11 @@ class ResumePlayback(LayerControlMessage):
 	pass
 @dataclass(frozen=True, slots=True)
 class LayerFaulted(LayerControlMessage):
-	"""Every track has struck out: nothing plays until the configuration changes or the application restarts."""
+	"""Every track has struck out: nothing plays until one is due for another try (`STRIKE_RETRY_SECONDS`), the configuration changes or the application restarts."""
+	pass
+@dataclass(frozen=True, slots=True)
+class RetryStruckOut(LayerControlMessage):
+	"""A faulted layer's own timer: the first struck-out track is due for another try."""
 	pass
 
 class TelemetryDict(TypedDict):
@@ -90,14 +95,24 @@ class EvaluatePluginDict(TypedDict):
 	track: ReadOnly[PlaylistSchedule]
 	error: NotRequired[str]
 
+class StrikePolicy(NamedTuple):
+	"""What the system settings say about a track that keeps failing: failures that strike it out, seconds before its first new try, and the longest wait between tries."""
+	strikes: int
+	retry: float
+	retry_max: float
+
 class PlaylistLayer(DispatcherTask):
 	# a pass in which no track succeeded waits before the next pass: doubling from the first value up to the second
 	BACKOFF_INITIAL_SECONDS = 1.0
 	BACKOFF_MAX_SECONDS = 60.0
 	# a burst of schedule file changes (an editor saving several tracks) is one reload, this long after the last change
 	RELOAD_DELAY_SECONDS = 2.0
-	# a track whose plugin fails this many times in a row (a transient failure each) is skipped from then on; a permanent failure is skipped at once
+	# a track whose plugin fails this many times in a row (a transient failure each) strikes out: it is no longer run, its slot shows its error page; a permanent failure strikes out at once
 	MAX_STRIKES = 3
+	# a track that struck out is tried again after this long (one attempt, a probe: it is struck out again if it fails, and the wait doubles with each failed probe, up to the second value), and a
+	# success clears it. Without it a network that was down for a minute (or a site that was slow) skipped a track until someone edited the schedule or restarted the device.
+	STRIKE_RETRY_SECONDS = 60.0
+	STRIKE_RETRY_MAX_SECONDS = 900.0
 	# a failed slot shows its error page for as long as the track would have shown its slides (its `slideMinutes`, or this)
 	ERROR_SLOT_MINUTES = 15
 	# these cannot be fixed by trying again (the plugin or its setup is wrong): one strike is out
@@ -121,6 +136,9 @@ class PlaylistLayer(DispatcherTask):
 		self._backoff = 0.0
 		# consecutive failures per track, keyed by (playlist index, track index); a track at MAX_STRIKES is struck out
 		self._strikes: dict[tuple[int, int], int] = {}
+		# when each struck-out track last failed (`_clock`), which is when its wait for the next try began
+		self._struck_at: dict[tuple[int, int], float] = {}
+		self._clock = time.monotonic
 		# why each failed track failed, for its error page (our own words or an exception's type name, never the exception's text)
 		self._reasons: dict[tuple[int, int], str] = {}
 		self._restart_timer: threading.Timer|None = None
@@ -173,13 +191,16 @@ class PlaylistLayer(DispatcherTask):
 		return f"{name}: {first['message']}"
 	def _strike(self, key: tuple[int, int], track: PlaylistSchedule, e: BaseException, ts: datetime, permanent: bool) -> bool:
 		"""Count a failure against the track (all strikes at once when permanent); True when it is now struck out."""
-		count = self.MAX_STRIKES if permanent else self._strikes.get(key, 0) + 1
+		previous = self._strikes.get(key, 0)
+		strikes = self._policy().strikes
+		count = max(strikes, previous + 1) if permanent else previous + 1
 		self._strikes[key] = count
 		self._reasons[key] = safe_reason(e)
-		if count >= self.MAX_STRIKES:
-			self._error_with_telemetry(f"Track '{track.title}' struck out and is skipped until the configuration changes", ts, e)
+		if count >= strikes:
+			self._struck_at[key] = self._clock()
+			self._error_with_telemetry(f"Track '{track.title}' struck out: it is not run, its error page is shown instead, and it is tried again in {self._words(self._retry_seconds(count))} (or when the configuration changes)", ts, e)
 			return True
-		self._error_with_telemetry(f"Track '{track.title}' failed (strike {count} of {self.MAX_STRIKES})", ts, e)
+		self._error_with_telemetry(f"Track '{track.title}' failed (strike {count} of {strikes})", ts, e)
 		return False
 	def _slot_minutes(self, track: PlaylistSchedule) -> float:
 		data = track.content.data if track.content is not None else {}
@@ -235,8 +256,37 @@ class PlaylistLayer(DispatcherTask):
 		marked = ServiceContainer(isp)
 		marked.add_service(MessageRouter, SourceRouter(self.router, source))
 		return marked
+	def _retry_seconds(self, count: int) -> float:
+		"""How long a track with `count` strikes (the first struck-out count is the strikes allowed) shows its error page instead of running, before it is tried again."""
+		policy = self._policy()
+		return min(policy.retry * 2 ** max(0, count - policy.strikes), max(policy.retry, policy.retry_max))
+	def _policy(self) -> StrikePolicy:
+		"""
+		How many failures strike a track out, how long it waits for the first new try and for the longest, from the system settings (`maxStrikes`, `strikeRetrySeconds`, `strikeRetryMaxSeconds`), read at each use so a change
+		applies at once. The class constants when there are no settings or a value is not usable.
+		"""
+		stored: dict = {}
+		try:
+			if self.cm is not None:
+				stored = self.cm.settings_manager().open("system").get()[1] or {}
+		except Exception:
+			stored = {}
+		def number(name: str, low: float, high: float, default: float) -> float:
+			value = stored.get(name)
+			return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) and low <= value <= high else default
+		return StrikePolicy(int(number("maxStrikes", 1, 10, self.MAX_STRIKES)), number("strikeRetrySeconds", 10, 3600, self.STRIKE_RETRY_SECONDS), number("strikeRetryMaxSeconds", 10, 86400, self.STRIKE_RETRY_MAX_SECONDS))
+	@staticmethod
+	def _words(seconds: float) -> str:
+		return f"{round(seconds)} seconds" if seconds < 90 else f"{round(seconds / 60)} minutes"
+	def _retry_in(self, key: tuple[int, int]) -> float:
+		"""Seconds until a struck-out track is tried again; 0 for one that is not struck out or whose wait is over."""
+		count = self._strikes.get(key, 0)
+		if count < self._policy().strikes:
+			return 0.0
+		return max(0.0, self._retry_seconds(count) - (self._clock() - self._struck_at.get(key, self._clock())))
 	def _struck_out(self, key: tuple[int, int]) -> bool:
-		return self._strikes.get(key, 0) >= self.MAX_STRIKES
+		"""Skipped now: it struck out and its wait for the next try is not over."""
+		return self._strikes.get(key, 0) >= self._policy().strikes and self._retry_in(key) > 0
 	def _create_container(self) -> ServiceContainer:
 		if self.cm is None or self.datasources is None or self.router is None or self.timer is None or self.timebase is None:
 			raise ValueError("Cannot create context, one or more required components are not set.")
@@ -404,6 +454,7 @@ class PlaylistLayer(DispatcherTask):
 						self.logger.info(f"Plugin '{plugin.name}' for track '{track.title}' completed with message: {msg}")
 						succeeded += 1
 						self._strikes.pop(key, None)
+						self._struck_at.pop(key, None)
 						self._reasons.pop(key, None)
 						self._backoff = 0.0
 						self.state = 'playing'
@@ -440,17 +491,38 @@ class PlaylistLayer(DispatcherTask):
 			donev.set()
 			self.logger.info(f"'{self.name}' Layer task ended.")
 	def _layer_faulted(self, msg: LayerFaulted):
-		"""Every track has struck out: say so once and wait for a configuration change (or a restart)."""
+		"""Every track has struck out: say so once, and try again when the first of them is due (or when the configuration changes)."""
 		self.state = 'faulted'
-		self.logger.error(f"'{self.name}' faulted: every track struck out. Waiting for a configuration change.")
+		delay = max(1.0, min((self._retry_in(key) for key in self._struck_at), default=self._policy().retry))
+		self.logger.error(f"'{self.name}' faulted: every track struck out. Trying again in {self._words(delay)}, or when the configuration changes.")
+		self._cancel_restart()
+		timer = threading.Timer(delay, self._probe_faulted)
+		timer.daemon = True
+		self._restart_timer = timer
+		timer.start()
 		self.router.send("telemetry", Telemetry(msg.timestamp, "playlist_layer", {
 			"state": "faulted",
-			"message": "Every track failed; playback is stopped until the configuration changes.",
+			"message": f"Every track failed; playback is stopped. They are tried again in {self._words(delay)}, or when the configuration changes.",
 			'current_playlist_index': -1,
 			'current_playlist': None,
 			'current_track_index': -1,
 			'current_track': None,
 		}))
+	def _probe_faulted(self) -> None:
+		"""On the timer's thread: the first struck-out track is due, hand the work to the task's own thread."""
+		if self.is_stopped():
+			return
+		try:
+			self.accept(RetryStruckOut(self._now(datetime.now().astimezone())))
+		except ValueError:
+			self.logger.debug(f"'{self.name}' stopped before the retry.")
+	def _retry_struck_out(self, msg: RetryStruckOut):
+		"""A faulted layer plays again: the tracks whose wait is over are tried (the strikes stay, so a track that fails again is struck out again at once), the others show their error pages as before."""
+		if self._halted or self.state != 'faulted':
+			return
+		self.logger.info(f"'{self.name}' trying the struck-out tracks again.")
+		self.state = 'loaded'
+		self.accept(StartPlayback(self._now(msg.timestamp)))
 	def _next_backoff(self) -> float:
 		"""Doubles the wait before the next pass, from BACKOFF_INITIAL_SECONDS up to BACKOFF_MAX_SECONDS."""
 		self._backoff = self.BACKOFF_INITIAL_SECONDS if self._backoff <= 0 else min(self._backoff * 2, self.BACKOFF_MAX_SECONDS)
@@ -589,6 +661,7 @@ class PlaylistLayer(DispatcherTask):
 		self._snapshots = new_snapshots
 		self._backoff = 0.0
 		self._strikes.clear()
+		self._struck_at.clear()
 		self._current = located
 		if self._halted:
 			self.logger.info(f"'{self.name}' playlists changed while stopped, they wait for Play.")
@@ -625,6 +698,7 @@ class PlaylistLayer(DispatcherTask):
 	def _configure_event(self, msg: ConfigureEvent):
 		self.cm = msg.content.cm
 		self._strikes.clear()
+		self._struck_at.clear()
 		try:
 			# validate the schedule before allocating resources
 			sm = self.cm.schedule_manager()
