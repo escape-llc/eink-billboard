@@ -1,13 +1,18 @@
 import os
 import threading
+import time
+import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Callable
 
-from .messages import ConfigurationChanged, ConfigurationWatcherEvent, InputEvent, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, Telemetry, TransportCommand
+from .messages import ConfigurationChanged, ConfigurationWatcherEvent, InputEvent, PushedImage, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, Telemetry, TransportCommand
 from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
 from .protocols import MessageSink, IProvideTimer
 from .device_io import DeviceIO
 from .display import Display
+from PIL import Image
+
 from ..device.bindings import action_for
 from ..device.buttons import LABELS
 from ..device.pins import Panel
@@ -31,6 +36,26 @@ SETUP_HOLD = timedelta(days=3650)
 # what a viewer may ask of the playlist layer (TransportCommand.command), and the message each becomes
 TRANSPORT_COMMANDS = ("play", "stop", "next")
 
+# pushed messages (the API): how many may wait or show at once, and how long after its time a message still counts as one of them (it may have waited behind others)
+MAX_PUSHED_ACTIVE = 20
+PUSHED_SLACK = timedelta(minutes=5)
+# the commit timer's wait (Display) before a page is taken, and so the least a pushed message waits
+COMMIT_SECONDS = 2.0
+
+class PushRefused(Exception):
+	"""A pushed message that cannot be taken, with the HTTP status the route answers with and our own words for the sender."""
+	def __init__(self, status: int, message: str):
+		super().__init__(message)
+		self.status = status
+		self.message = message
+
+@dataclass(frozen=True)
+class Pushed:
+	"""What a push got: the id that takes it down again, the title it goes by on the panel and the telemetry (made unique among the messages that are about), and roughly how soon it can show."""
+	id: str
+	title: str
+	starts_in_seconds: int
+
 class Application(DispatcherTask):
 	def __init__(self, name = None, sink: MessageSink|None = None):
 		super().__init__(name)
@@ -42,6 +67,9 @@ class Application(DispatcherTask):
 		self.cm:ConfigurationManager|None = None
 		self.router:MessageRouter|None = None
 		self.display:Display|None = None
+		# messages pushed through the API that are still about: id -> (title, the monotonic time after which it is surely over); the web app's threads and this one use it
+		self._pushed: dict[str, tuple[str, float]] = {}
+		self._pushed_lock = threading.Lock()
 		# the task that owns the GPIO, I2C and SPI lines that are not the panel's (python/task/device_io.py)
 		self.device_io:DeviceIO|None = None
 		self.playlist_layer:PlaylistLayer|None = None
@@ -194,6 +222,58 @@ class Application(DispatcherTask):
 		except ValueError:
 			self.logger.debug(f"'{self.name}' stopped before the transport command '{command}'.")
 			return False
+	def content_size(self) -> tuple[int, int]:
+		"""The (width, height) an image must have to be shown as it is: the panel's size, swapped for a portrait display (the Display task turns every image, see `target_dimensions`). Raises `PushRefused` while the device is starting."""
+		if self._panel is None or self.cm is None:
+			raise PushRefused(503, "The device is still starting.")
+		width, height = self._panel
+		_, settings = self.cm.settings_manager().open("display").get()
+		return (height, width) if (settings or {}).get("orientation") == "portrait" else (width, height)
+	def push_image(self, title: str, image: Image.Image, minutes: int) -> Pushed:
+		"""
+		Show `image` over everything for `minutes` (the web API's push; called from its threads, the Application's own thread does the sending). The title is made unique among the messages
+		that are about, since a title is what takes a priority image down. Raises `PushRefused`: not claimed yet (storage and panel are the owner's), too many waiting, or stopping.
+		"""
+		if self.router is None or self._panel is None:
+			raise PushRefused(503, "The device is still starting.")
+		if self._unclaimed():
+			raise PushRefused(403, "This device has not been claimed yet: enter the setup code (on the panel and in the log) in the web app first.")
+		now = time.monotonic()
+		with self._pushed_lock:
+			self._pushed = { key: entry for key, entry in self._pushed.items() if entry[1] > now }
+			if len(self._pushed) >= MAX_PUSHED_ACTIVE:
+				raise PushRefused(429, f"{MAX_PUSHED_ACTIVE} messages are already waiting or showing: wait for some to finish, or delete them.")
+			taken = { entry[0] for entry in self._pushed.values() }
+			unique, number = title, 1
+			while unique in taken:
+				number += 1
+				unique = f"{title} ({number})"
+			message_id = uuid.uuid4().hex
+			self._pushed[message_id] = (unique, now + minutes * 60 + PUSHED_SLACK.total_seconds())
+		try:
+			self.accept(PushedImage(self._now(), unique, image, timedelta(minutes=minutes)))
+		except ValueError:
+			with self._pushed_lock:
+				self._pushed.pop(message_id, None)
+			raise PushRefused(503, "The device is shutting down.") from None
+		shown_on = self.display.display if self.display is not None else None
+		rest = shown_on.ready_in() if shown_on is not None else 0.0
+		return Pushed(message_id, unique, round(rest + COMMIT_SECONDS))
+	def revoke_pushed(self, message_id: str) -> bool:
+		"""Take a pushed message down (showing, or still waiting). False when there is no such message (never made, or it is over)."""
+		with self._pushed_lock:
+			entry = self._pushed.pop(message_id, None)
+		if entry is None or self.router is None:
+			return False
+		self.router.send("display", PriorityRevoke(self._now(), entry[0]))
+		return True
+	def _pushed_image(self, msg: PushedImage):
+		"""A pushed image on the application's own thread: on to the display as a priority image, marked as the API's."""
+		if self.router is None:
+			return
+		self.logger.info(f"'{self.name}' pushed: '{msg.title}' for {msg.duration}")
+		self.router.send("telemetry", Telemetry(msg.timestamp, "application", { "kind": "pushed", "title": msg.title, "minutes": round(msg.duration.total_seconds() / 60), "message": f"A message was pushed: '{msg.title}'." }))
+		self.router.send("display", PriorityImage(msg.timestamp, msg.title, msg.img, msg.duration, origin={ "kind": "api", "title": msg.title, "plugin": "Push API" }))
 	@property
 	def playback_stopped(self) -> bool:
 		"""Whether the playlist layer is stopped by a transport command (what the play/stop button shows)."""
