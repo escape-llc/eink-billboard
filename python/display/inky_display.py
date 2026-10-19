@@ -77,7 +77,7 @@ class InkyDisplay(DisplayBase):
 		return self.resolution
 
 	def saturation(self) -> float:
-		value = self.display_settings.get("inky-saturation", DEFAULT_SATURATION)
+		value = self.display_settings.get("saturation", DEFAULT_SATURATION)
 		return min(max(float(value), 0.0), 1.0) if isinstance(value, (int, float)) and not isinstance(value, bool) else DEFAULT_SATURATION
 
 	def render(self, img: Image.Image, id: int, title: str|None = None) -> None:

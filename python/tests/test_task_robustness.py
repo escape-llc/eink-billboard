@@ -161,6 +161,9 @@ def fake_cm(display_type: str = "mock", **settings) -> MagicMock:
 	cob = MagicMock()
 	cob.get.return_value = ("rev", {"display_type": display_type, **settings})
 	cm.settings_manager.return_value.open.return_value = cob
+	# the display device is the installed one whose id the setting names (`create_display` is a test's to answer: it patches the class it wants)
+	cm.enum_displays.return_value = [{ "info": { "id": display_type }, "path": "unused" }]
+	cm.create_display.side_effect = lambda info: MockDisplay(info["info"]["id"])
 	return cm
 
 class DisplayShutdownTests(unittest.TestCase):
@@ -173,13 +176,14 @@ class DisplayShutdownTests(unittest.TestCase):
 		notified: list[Any] = []
 		sink = MagicMock()
 		sink.accept.side_effect = lambda m: notified.append(m)
-		with patch("python.task.display.MockDisplay", Fake):
-			d.start()
-			isp = MagicMock()
-			isp.get_service.return_value = None
-			d.accept(ConfigureEvent(now(), ConfigureOptions(fake_cm(), isp), "display", sink))
-			d.accept(QuitMessage(now()))
-			d.join(timeout=5)
+		cm = fake_cm()
+		cm.create_display.side_effect = lambda info: Fake("mock")
+		d.start()
+		isp = MagicMock()
+		isp.get_service.return_value = None
+		d.accept(ConfigureEvent(now(), ConfigureOptions(cm, isp), "display", sink))
+		d.accept(QuitMessage(now()))
+		d.join(timeout=5)
 		self.assertFalse(d.is_alive())
 		self.assertTrue(shut.is_set(), "display.shutdown() was not called")
 		self.assertEqual(len(notified), 1)
@@ -555,7 +559,7 @@ class RouterTests(unittest.TestCase):
 class MockDisplayTests(unittest.TestCase):
 	def _display(self, folder, clean: bool = False) -> MockDisplay:
 		md = MockDisplay("mock")
-		md.display_settings = {"mock.outputFolder": folder, "mock.cleanOutputFolder": clean}
+		md.display_settings = {"outputFolder": folder, "cleanOutputFolder": clean}
 		md.output_folder = folder
 		# these tests render again and again: no rest between refreshes (the rest is tested in test_refresh_gate)
 		md.start_gate({"refreshInterval": 0})
@@ -563,24 +567,24 @@ class MockDisplayTests(unittest.TestCase):
 
 	def _initialized(self, **settings) -> MockDisplay:
 		md = MockDisplay("mock")
-		md.initialize(fake_cm(**{"mock.resolution": [8, 8], **settings}))
+		md.initialize(fake_cm(**{"width": 8, "height": 8, **settings}))
 		return md
 
 	def test_empty_output_folder_is_inside_the_system_temp_directory(self):
 		expected = os.path.join(tempfile.gettempdir(), "eink-billboard-mock")
 		self.assertEqual(self._initialized().output_folder, expected)
-		self.assertEqual(self._initialized(**{"mock.outputFolder": "  "}).output_folder, expected)
+		self.assertEqual(self._initialized(**{"outputFolder": "  "}).output_folder, expected)
 
 	def test_relative_output_folder_is_inside_the_system_temp_directory(self):
-		self.assertEqual(self._initialized(**{"mock.outputFolder": "frames"}).output_folder, os.path.join(tempfile.gettempdir(), "frames"))
+		self.assertEqual(self._initialized(**{"outputFolder": "frames"}).output_folder, os.path.join(tempfile.gettempdir(), "frames"))
 
 	def test_absolute_output_folder_is_used_as_is(self):
 		with tempfile.TemporaryDirectory() as other:
-			self.assertEqual(self._initialized(**{"mock.outputFolder": other}).output_folder, os.path.normpath(other))
+			self.assertEqual(self._initialized(**{"outputFolder": other}).output_folder, os.path.normpath(other))
 
 	@unittest.skipIf(os.name == "nt", "a Windows drive path is a real path on Windows")
 	def test_windows_drive_path_is_not_a_literal_folder_name_elsewhere(self):
-		md = self._initialized(**{"mock.outputFolder": "c:\\Temp\\mock"})
+		md = self._initialized(**{"outputFolder": "c:\\Temp\\mock"})
 		self.assertEqual(md.output_folder, os.path.join(tempfile.gettempdir(), "eink-billboard-mock"))
 
 	def test_render_writes_only_inside_the_resolved_folder(self):
@@ -589,7 +593,7 @@ class MockDisplayTests(unittest.TestCase):
 			before = os.getcwd()
 			os.chdir(cwd)
 			try:
-				md = self._initialized(**{"mock.outputFolder": os.path.join(out, "frames")})
+				md = self._initialized(**{"outputFolder": os.path.join(out, "frames")})
 				md.render(Image.new("RGB", (8, 8)), 1, "t")
 			finally:
 				os.chdir(before)
@@ -598,9 +602,9 @@ class MockDisplayTests(unittest.TestCase):
 
 	def test_factory_default_is_platform_neutral(self):
 		import json
-		path = os.path.join(os.path.dirname(__file__), "..", "storage", "schemas", "display.json")
+		path = os.path.join(os.path.dirname(__file__), "..", "displays", "mock", "display-info.json")
 		with open(path, encoding="utf-8") as f:
-			folder = json.load(f)["default"]["mock.outputFolder"]
+			folder = next(p for p in json.load(f)["instanceSettings"]["schema"]["properties"] if p["name"] == "outputFolder")["default"]
 		self.assertEqual(folder, "eink-billboard-mock")
 
 	def test_clean_only_removes_files_the_display_created(self):
@@ -638,7 +642,7 @@ class TkinterWindowTests(unittest.TestCase):
 		w2 = TkinterWindow("tk")
 		with patch("python.display.tkinter_window.tk.Tk", side_effect=RuntimeError("no display")):
 			with self.assertRaises(Exception):
-				run_bounded(lambda: w2.initialize(fake_cm(**{"mock.resolution": [8, 8]})), 3)
+				run_bounded(lambda: w2.initialize(fake_cm(**{"width": 8, "height": 8})), 3)
 		run_bounded(lambda: w2.shutdown(), 3)
 
 	def test_render_is_marshalled_onto_the_tk_thread(self):

@@ -1,0 +1,39 @@
+{
+	"id": "tk",
+	"name": "Tk window",
+	"version": "0.0.1",
+	"class": "TkinterWindow",
+	"file": "../../display/tkinter_window.py",
+	"module": "python.display.tkinter_window",
+	"description": "A window on this computer that shows the page, for interactive debugging. Needs tkinter, which not every system has (a headless device does not).",
+	"describe": "Tk window {width} x {height}",
+	"disabled": false,
+	"features": ["display-device", "preview"],
+	"instanceSettings": {
+		"schema": {
+			"lookups": {},
+			"properties": [
+				{
+					"name": "width",
+					"type": "integer",
+					"title": "Width",
+					"description": "The width of the window's picture, in pixels (what a panel's width would be).",
+					"minimum": 100,
+					"maximum": 4096,
+					"required": false,
+					"default": 800
+				},
+				{
+					"name": "height",
+					"type": "integer",
+					"title": "Height",
+					"description": "The height of the window's picture, in pixels (what a panel's height would be).",
+					"minimum": 100,
+					"maximum": 4096,
+					"required": false,
+					"default": 480
+				}
+			]
+		}
+	}
+}

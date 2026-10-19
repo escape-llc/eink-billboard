@@ -5,6 +5,16 @@ from PIL import Image
 from .refresh_gate import DEFAULT_REST_SECONDS, RefreshGate
 from ..model.configuration_manager import ConfigurationManager
 
+# the size of the mock display's and the Tk window's picture when the settings do not say (the defaults of their descriptors, `python/displays/*/display-info.json`)
+DEFAULT_SIZE = (800, 480)
+
+def picture_size(settings: Mapping[str, Any]|None) -> tuple[int, int]:
+	"""The `width` and `height` a display with no panel is set to (the mock, the Tk window), in pixels; the default for a missing or unusable one."""
+	def whole(name: str, default: int) -> int:
+		value = (settings or {}).get(name)
+		return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else default
+	return (whole("width", DEFAULT_SIZE[0]), whole("height", DEFAULT_SIZE[1]))
+
 class DisplayBase(ABC):
 	# the least rest this model accepts between refreshes, whatever the setting says; 0 unless a datasheet requires one
 	MIN_REST_SECONDS = 0.0

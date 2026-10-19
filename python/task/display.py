@@ -7,7 +7,6 @@ from typing import Any, Callable, Mapping, cast
 
 from .display_messages import BlendImage, ComputedImage, DisplayImage, DisplaySettings, OverlayImage, OverlayRevoke, PriorityImage, PriorityRevoke
 from .overlay_zones import ZONE_NAMES, Zone, zones_for
-from ..display.mock_display import MockDisplay
 from ..display.refresh_gate import RefreshState
 from ..display.display_base import DisplayBase
 from ..model.configuration_manager import ConfigurationManager
@@ -136,25 +135,14 @@ class Display(DispatcherTask):
 			if display_settings is None:
 				raise ValueError("display settings not found in configuration")
 			display_type = cast(str, display_settings.get("display_type", None))
-			if display_type == "mock":
-				self.display = MockDisplay("mock")
-			elif display_type == "tk":
-				# the Tk display is for interactive debugging; tkinter is not installed on every system (headless devices)
-				try:
-					from ..display.tkinter_window import TkinterWindow
-				except ImportError as ie:
-					raise ValueError(f"The 'tk' display requires tkinter, which is not available: {ie}") from ie
-				self.display = TkinterWindow("tk")
-			elif display_type == "inky":
-				# the driver is imported when the display is initialized (below), on the device only; this module does not need it
-				from ..display.inky_display import InkyDisplay
-				self.display = InkyDisplay("inky")
-			elif display_type == "waveshare":
-				# the model's driver is imported when the display is initialized (below), on the device only; this module does not need it
-				from ..display.waveshare_display import WaveshareDisplay
-				self.display = WaveshareDisplay("waveshare")
-			else:
+			# the display device is the installed one whose declared id the setting names (`displays/*/display-info.json`): the descriptor's id builds nothing, the setting's text only selects
+			chosen = next((d for d in self.cm.enum_displays() if d["info"].get("id") == display_type), None) if isinstance(display_type, str) else None
+			if chosen is None:
 				raise ValueError(f"Unrecognized display type: '{display_type}'")
+			# a device's own driver is imported when it is initialized (below), on the device only; the module of the class needs none (tkinter is needed by the Tk window's module: not on every system)
+			self.display = self.cm.create_display(chosen)
+			if self.display is None:
+				raise ValueError(f"The '{display_type}' display is disabled or could not be loaded (the log says why: the 'tk' display needs tkinter, which not every system has).")
 			ts = msg.content.isp.get_service(IProvideTimer)
 			self.timer = ts if ts is not None else TimerThreadService(self.timebase)
 			self.resolution = self.display.initialize(self.cm)

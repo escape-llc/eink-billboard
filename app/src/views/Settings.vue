@@ -270,6 +270,8 @@ onMounted(refreshPalette)
 
 const plugins = ref([])
 const dataSources = ref([])
+// the display devices that are installed: what the Display tab's display type (a `schema` field) chooses among
+const displays = ref([])
 const selectedPlugin = ref<any>(undefined)
 const schemaPlugin = ref<any>(undefined)
 const settingsPlugin = ref<any>(undefined)
@@ -286,9 +288,11 @@ const settingsDatasourceUrl = computed(() => {
 
 provide("settingsPluginsList", plugins)
 provide("settingsDataSourcesList", dataSources)
+provide("settingsDisplaysList", displays)
 
 const listPluginsUrl = `${API_URL}api/plugins/list`
 const listDatasourcesUrl = `${API_URL}api/datasources/list`
+const listDisplaysUrl = `${API_URL}api/displays/list`
 
 function downloadToRef(url:string, vref: Ref<any>, errv: any = undefined) {
 	apiJson(url).then(data => {
@@ -319,6 +323,7 @@ function fetchSettings(url:string, vref: Ref<any>, schema:any) {
 onMounted(() => {
 	const px0 = apiJson(listPluginsUrl)
 	const px1 = apiJson(listDatasourcesUrl)
+	const px2 = apiJson(listDisplaysUrl)
 	const px3 = px0.then(json => {
 		plugins.value = json
 	})
@@ -333,7 +338,14 @@ onMounted(() => {
 		console.error("fetch.ds.unhandled", ex)
 		toast.add({severity:'error', summary: 'Error', detail: `Failed to load data sources list: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
-	Promise.all([px3, px4]).then(_ => {
+	const px5 = px2.then(json3 => {
+		displays.value = json3
+	})
+	.catch(ex => {
+		console.error("fetch.dp.unhandled", ex)
+		toast.add({severity:'error', summary: 'Error', detail: `Failed to load displays list: ${ex.message || 'Unknown error'}`, life: 5000});
+	})
+	Promise.all([px3, px4, px5]).then(_ => {
 		downloadToRef(schemaThemeUrl, schemaTheme)
 		downloadToRef(schemaDisplayUrl, schemaDisplay)
 		downloadToRef(schemaSystemUrl, schemaSystem)

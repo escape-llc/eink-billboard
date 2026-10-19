@@ -401,7 +401,7 @@ from python.model.configuration_manager import ConfigurationManager
 _, doc = ConfigurationManager(storage_path="/data").settings_manager().open("display").get()
 doc = doc or {}
 kind = doc.get("display_type")
-print("display chosen:", kind, ("model " + str(doc.get("waveshare-model"))) if kind == "waveshare" else "")
+print("display chosen:", kind, ("model " + str(doc.get("model"))) if kind == "waveshare" else "")
 EOF
 )
 	while IFS= read -r line; do
@@ -478,7 +478,7 @@ rev, doc = cob.get()
 doc = dict(doc or {})
 doc["display_type"] = kind
 if model:
-	doc["waveshare-model"] = model
+	doc["model"] = model
 saved, _ = cob.save(rev, doc)
 if not saved:
 	sys.exit("The display settings were being changed at the same moment: run it again.")

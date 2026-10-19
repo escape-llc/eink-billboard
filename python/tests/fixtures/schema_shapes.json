@@ -192,7 +192,7 @@
 		"version": 1,
 		"properties": {
 			"display_type": {
-				"type": "string"
+				"type": "schema"
 			},
 			"orientation": {
 				"type": "string"
@@ -202,12 +202,6 @@
 			},
 			"refreshInterval": {
 				"type": "integer"
-			},
-			"waveshare-model": {
-				"type": "string"
-			},
-			"inky-saturation": {
-				"type": "number"
 			},
 			"imageSettings-saturation": {
 				"type": "number"
@@ -220,6 +214,24 @@
 			},
 			"imageSettings-sharpness": {
 				"type": "number"
+			},
+			"saturation": {
+				"type": "number"
+			},
+			"width": {
+				"type": "integer"
+			},
+			"height": {
+				"type": "integer"
+			},
+			"outputFolder": {
+				"type": "string"
+			},
+			"cleanOutputFolder": {
+				"type": "boolean"
+			},
+			"model": {
+				"type": "string"
 			}
 		}
 	},

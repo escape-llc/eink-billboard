@@ -1,6 +1,6 @@
 """
 A Waveshare e-Paper panel: one of the 65 models whose official drivers are vendored in `python/display/waveshare_epd/` (VENDORED.md). Unlike an Inky there is no auto-detect: the Display
-settings name the model (`waveshare-model`, Waveshare's own module name: `epd7in3e`, `epd4in2_V2`, ...).
+settings name the model (`model`, Waveshare's own module name: `epd7in3e`, `epd4in2_V2`, ...).
 
 The drivers import `RPi.GPIO`, `gpiozero` and `spidev`, which only a Raspberry Pi has (the `device` dependency group, Linux): the model's module is imported **here, when the display is made**,
 never at the top of a module, so Windows, the container and a Pi without them all start (`test_pyproject`). The module's name comes from our own list of the vendored files (`MODELS`), never from
@@ -81,7 +81,7 @@ class WaveshareDisplay(DisplayBase):
 	def initialize(self, cm: ConfigurationManager) -> tuple[int, int]:
 		self.logger.info(f"'{self.name}' initialize")
 		_, settings = cm.settings_manager().open("display").get()
-		model = (settings or {}).get("waveshare-model")
+		model = (settings or {}).get("model")
 		self.start_gate(settings)
 		self.module = self._loader(model)
 		try:

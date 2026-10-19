@@ -55,11 +55,14 @@ class Descriptors:
 		cm = ConfigurationManager()
 		self.plugins = { p["info"]["id"]: p["info"] for p in cm.enum_plugins() }
 		self.sources = { d["info"]["id"]: d["info"] for d in cm.enum_datasources() }
+		self.displays = { d["info"]["id"]: d["info"] for d in cm.enum_displays() }
 	def all(self):
 		for id_, info in self.plugins.items():
 			yield "plugin", id_, info
 		for id_, info in self.sources.items():
 			yield "source", id_, info
+		for id_, info in self.displays.items():
+			yield "display", id_, info
 
 DESCRIPTORS = Descriptors()
 
@@ -91,6 +94,22 @@ class TestDescriptors(unittest.TestCase):
 		differing = { name for name, s in shapes.items() if len(s) > 1 }
 		self.assertEqual(differing - set(SAME_NAME_DIFFERENT), set(), "two properties of one name differ: rename one, or list it in SAME_NAME_DIFFERENT with the reason")
 		self.assertEqual(set(SAME_NAME_DIFFERENT) - differing, set(), "no longer different: remove it from SAME_NAME_DIFFERENT")
+
+	def test_a_display_device_and_the_display_settings_share_no_property_name(self):
+		"""A device's fields are stored in the display document beside its common ones (the device is chosen with `display_type`): a shared name would be one value for two things."""
+		with open(os.path.join(os.path.dirname(__file__), "..", "storage", "schemas", "display.json"), encoding="utf-8") as f:
+			common = { p["name"] for p in json.load(f)["schema"]["properties"] }
+		for did, device in DESCRIPTORS.displays.items():
+			self.assertEqual(common & { p["name"] for p in properties(device) }, set(), f"display {did} names a property the display settings have")
+
+	def test_every_display_says_how_it_is_chosen_and_where_its_class_is(self):
+		for did, device in DESCRIPTORS.displays.items():
+			with self.subTest(did):
+				self.assertIn("display-device", device.get("features") or [])
+				self.assertTrue(device.get("describe") and device.get("description") and device.get("name"))
+				self.assertTrue(os.path.isfile(os.path.join(os.path.dirname(__file__), "..", "displays", did, device["file"])))
+				for placeholder in re.findall(r"\{(\w+)\}", device["describe"]):
+					self.assertIn(placeholder, { p["name"] for p in properties(device) })
 
 	def test_a_plugin_and_its_data_sources_share_no_property_name(self):
 		for pid, plugin in DESCRIPTORS.plugins.items():

@@ -1,0 +1,55 @@
+{
+	"id": "mock",
+	"name": "Mock (saves pictures)",
+	"version": "0.0.1",
+	"class": "MockDisplay",
+	"file": "../../display/mock_display.py",
+	"module": "python.display.mock_display",
+	"description": "A display that shows nothing: every page is saved as a picture in a folder, with the same rest after a refresh as a real panel. For developing and trying the app without a panel.",
+	"describe": "Mock display {width} x {height}",
+	"disabled": false,
+	"features": ["display-device", "preview"],
+	"instanceSettings": {
+		"schema": {
+			"lookups": {},
+			"properties": [
+				{
+					"name": "width",
+					"type": "integer",
+					"title": "Width",
+					"description": "The width of the pictures the mock display makes, in pixels (what a panel's width would be).",
+					"minimum": 100,
+					"maximum": 4096,
+					"required": false,
+					"default": 800
+				},
+				{
+					"name": "height",
+					"type": "integer",
+					"title": "Height",
+					"description": "The height of the pictures the mock display makes, in pixels (what a panel's height would be).",
+					"minimum": 100,
+					"maximum": 4096,
+					"required": false,
+					"default": 480
+				},
+				{
+					"name": "outputFolder",
+					"type": "string",
+					"title": "Output Folder",
+					"description": "The folder the pictures are saved in: a name (a folder of that name in the system's temporary folder) or an absolute path. Restart after changing it.",
+					"required": false,
+					"default": "eink-billboard-mock"
+				},
+				{
+					"name": "cleanOutputFolder",
+					"type": "boolean",
+					"title": "Clean the Folder at Start",
+					"description": "Delete the pictures this display made earlier when it starts, so the folder holds only this run's (nothing else in the folder is touched).",
+					"required": false,
+					"default": false
+				}
+			]
+		}
+	}
+}

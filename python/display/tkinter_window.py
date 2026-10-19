@@ -4,7 +4,7 @@ import threading
 import tkinter as tk
 from typing import Any, Callable
 from PIL import Image, ImageTk
-from .display_base import DisplayBase
+from .display_base import DisplayBase, picture_size
 from ..model.configuration_manager import ConfigurationManager
 
 class TkinterWindow(DisplayBase):
@@ -37,7 +37,7 @@ class TkinterWindow(DisplayBase):
 		_, self.display_settings = display_cob.get()
 		if self.display_settings is None:
 			raise ValueError("display settings not found in configuration")
-		resolution = self.display_settings.get("mock.resolution", [800,480])
+		resolution = picture_size(self.display_settings)
 		self._ready.clear()
 		self._init_error = None
 		self._closing = False

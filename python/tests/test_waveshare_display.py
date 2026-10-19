@@ -47,7 +47,7 @@ def module_of(panel: Any) -> Any:
 
 def display_with(panel: Any, refresh_seconds: float = 5.0, settings: dict|None = None) -> WaveshareDisplay:
 	shown = WaveshareDisplay("waveshare", loader=lambda model: module_of(panel), refresh_seconds=refresh_seconds)
-	shown.initialize(settings_of({ "waveshare-model": "epd7in3e", **(settings or {}) }))
+	shown.initialize(settings_of({ "model": "epd7in3e", **(settings or {}) }))
 	return shown
 
 class TestModels(unittest.TestCase):
@@ -56,12 +56,13 @@ class TestModels(unittest.TestCase):
 		self.assertIn("epd7in3e", MODELS)
 		self.assertNotIn("epdconfig", MODELS)
 		self.assertEqual(MODELS, model_names())
-		with open(os.path.join(os.path.dirname(waveshare_display.__file__), "..", "storage", "schemas", "display.json"), encoding="utf-8") as f:
-			schema = json.load(f)
-		offered = [item["value"] for item in schema["schema"]["lookups"]["waveshareModel"]["items"]]
-		self.assertEqual(offered, list(MODELS), "the Display settings' list is the vendored drivers: update the schema (and VENDORED.md) with them")
-		model = next(p for p in schema["schema"]["properties"] if p["name"] == "waveshare-model")
-		self.assertEqual((model["lookup"], model["visibleIf"]), ("waveshareModel", { "field": "display_type", "const": "waveshare" }))
+		with open(os.path.join(os.path.dirname(waveshare_display.__file__), "..", "displays", "waveshare", "display-info.json"), encoding="utf-8") as f:
+			descriptor = json.load(f)
+		schema = descriptor["instanceSettings"]["schema"]
+		offered = [item["value"] for item in schema["lookups"]["waveshareModel"]["items"]]
+		self.assertEqual(offered, list(MODELS), "the Waveshare display's list is the vendored drivers: update its descriptor (and VENDORED.md) with them")
+		model = next(p for p in schema["properties"] if p["name"] == "model")
+		self.assertEqual(model["lookup"], "waveshareModel")
 
 	def test_every_driver_has_what_the_display_calls(self):
 		"""Read, not imported (they need a Raspberry Pi): a class EPD with a start and a display of one or two buffers."""
@@ -161,7 +162,7 @@ class TestDriver(unittest.TestCase):
 		self.addCleanup(release.set)
 		shown = WaveshareDisplay("waveshare", loader=lambda model: module_of(Silent()), refresh_seconds=0.1, start_seconds=0.1)
 		with self.assertRaisesRegex(PermanentError, "did not answer when it was started.*busy line"):
-			shown.initialize(settings_of({ "waveshare-model": "epd7in3e" }))
+			shown.initialize(settings_of({ "model": "epd7in3e" }))
 		release.set()
 
 	def test_before_and_after_the_display_exists_is_an_error_and_shutdown_releases_the_bus(self):

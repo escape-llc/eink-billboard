@@ -59,7 +59,7 @@ let currentResolver: ((values: Record<string, any>) => z.ZodTypeAny)|undefined =
 type AddToSchemaType = (resv: Record<string, z.ZodTypeAny>) => void
 type AddInitialValuesType = () => Record<string, any>
 
-export type Owner = { kind: "plugin" | "datasource", id: string }
+export type Owner = { kind: "plugin" | "datasource" | "display", id: string }
 export interface PropsType {
 	form?: FormDef
 	initialValues?: any
@@ -92,8 +92,10 @@ const localValues = ref<any>({})
 const MAX_CHOICE_DEPTH = 3
 const injplugins = inject("settingsPluginsList", ref([]))
 const injdataSources = inject("settingsDataSourcesList", ref([]))
+const injdisplays = inject("settingsDisplaysList", ref([]))
 const plugins = computed<any[]>(() => injplugins.value)
 const dataSources = computed<any[]>(() => injdataSources.value)
+const displays = computed<any[]>(() => injdisplays.value)
 watch(() => props.form, (nv) => {
 	if(nv) {
 		// a plugin just chosen brings fields the values do not have: they start at the descriptor's default, as they do for a new item
@@ -245,6 +247,9 @@ function lookupSchema(schema: SchemaType, lookup:string): LookupValue[] {
 				}
 				else if(lku.schema === "data-sources") {
 					return dataSources.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings), uses: px.uses, features: px.features, keepsList: px.keepsList === true, owner: { kind: "datasource", id: px.id } }))
+				}
+				else if(lku.schema === "displays") {
+					return displays.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings), features: px.features, owner: { kind: "display", id: px.id } }))
 				}
 				else {
 					console.warn("Unknown lookup schema", lku.schema)
