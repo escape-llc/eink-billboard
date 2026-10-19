@@ -12,6 +12,8 @@ import logging
 import hashlib
 import tempfile
 import subprocess
+import threading
+import psutil
 from dotenv import load_dotenv
 from httpx import AsyncClient
 from ..task.async_http_worker_pool import client_var
@@ -23,6 +25,11 @@ logger = logging.getLogger(__name__)
 DEFAULT_MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024
 # a Chromium render that takes longer than this is killed
 CHROME_TIMEOUT_SECONDS = 60.0
+# how many Chromium renders may run at once in this process (the layers each render on their own thread). One Chromium costs about 75 to 110 MB, so a small board does one at a time;
+# `EINK_RENDER_SLOTS` says otherwise. A render that has waited this long for a slot gives up, as a render that takes too long does.
+RENDER_SLOTS_ENV = "EINK_RENDER_SLOTS"
+SMALL_MEMORY_BYTES = 800 * 1024 * 1024
+RENDER_SLOT_WAIT_SECONDS = 180.0
 
 async def stream_to_buffer(client: AsyncClient, url: str, headers: Mapping[str, str]|None = None, ctok: Callable[[str], bool]|None = None, max_bytes: int|None = DEFAULT_MAX_DOWNLOAD_BYTES, guarded: bool = True) -> BytesIO:
 	"""
@@ -250,7 +257,41 @@ def _kill_process_tree(proc: subprocess.Popen) -> None:
 	except Exception:
 		pass
 
+_slots: threading.BoundedSemaphore|None = None
+_slots_lock = threading.Lock()
+
+def render_slot_count() -> int:
+	"""How many renders may run at once: `EINK_RENDER_SLOTS` when it is a whole number of 1 or more, else 1 on a board with less than about 1 GB (a Pi Zero 2 W or 3 A+: 512 MB) and 2 elsewhere."""
+	configured = (os.environ.get(RENDER_SLOTS_ENV) or "").strip()
+	if configured.isdigit() and int(configured) >= 1:
+		return int(configured)
+	try:
+		total = psutil.virtual_memory().total
+	except Exception:
+		return 2
+	return 1 if total < SMALL_MEMORY_BYTES else 2
+
+def _render_slots() -> threading.BoundedSemaphore:
+	global _slots
+	with _slots_lock:
+		if _slots is None:
+			count = render_slot_count()
+			logger.info(f"Chromium renders at once: {count}")
+			_slots = threading.BoundedSemaphore(count)
+		return _slots
+
 def render_chrome_headless_arglist(source_html_path: str, arglist: list[str], timeout: float|None = None):
+	"""Render the page with headless Chromium, when one of the render slots is free (see `render_slot_count`). None when it failed, timed out, or no slot came free."""
+	slots = _render_slots()
+	if not slots.acquire(timeout=RENDER_SLOT_WAIT_SECONDS):
+		logger.error(f"Render gave up after waiting {RENDER_SLOT_WAIT_SECONDS:g} seconds for a free Chromium slot.")
+		return None
+	try:
+		return _render_chrome_headless(source_html_path, arglist, timeout)
+	finally:
+		slots.release()
+
+def _render_chrome_headless(source_html_path: str, arglist: list[str], timeout: float|None = None):
 	image = None
 	img_file_path = None
 	profile_dir = None
