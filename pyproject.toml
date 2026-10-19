@@ -32,7 +32,6 @@ dev = [
     "ruff>=0.16.10",
 ]
 device = [
-    "cysystemd==2.0.5 ; sys_platform == 'linux'",
     "inky==2.5.0 ; sys_platform == 'linux'",
     # what the vendored Waveshare drivers import (python/display/waveshare_epd): gpiozero for the pins (its pure Python "native" pin factory on a Pi up to the 4; a Pi 5 needs the
     # `lgpio` backend, which has no wheel for Python 3.13: it is built from its source package (the device image builds the C library it needs, `lg`, and has `swig` and a compiler)), spidev for the bus (inky brings it too)

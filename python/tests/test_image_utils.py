@@ -3,8 +3,10 @@ import os
 import stat
 import sys
 import tempfile
+import threading
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import httpx
@@ -211,3 +213,70 @@ class TestChromeCommand(unittest.TestCase):
 		env = { k: v for k, v in os.environ.items() if k != "EINK_CHROME" }
 		with _patch.dict(os.environ, env, clear=True):
 			self.assertIn(image_utils.chrome_command(), (image_utils.WIN_CHROME_HEADLESS, image_utils.LINUX_CHROME_HEADLESS))
+
+class TestRenderSlots(unittest.TestCase):
+	"""How many Chromium renders run at once: one on a small board (a Chromium costs about 75 to 110 MB), two elsewhere, or what `EINK_RENDER_SLOTS` says."""
+	@staticmethod
+	def memory(megabytes: int):
+		return patch.object(image_utils.psutil, "virtual_memory", return_value=SimpleNamespace(total=megabytes * 1024 * 1024))
+
+	def test_a_small_board_renders_one_at_a_time_and_a_larger_one_two(self):
+		env = { k: v for k, v in os.environ.items() if k != image_utils.RENDER_SLOTS_ENV }
+		with patch.dict(os.environ, env, clear=True):
+			for megabytes, slots in ((416, 1), (512, 1), (700, 1), (926, 2), (1900, 2), (8000, 2)):
+				with self.subTest(megabytes), self.memory(megabytes):
+					self.assertEqual(image_utils.render_slot_count(), slots)
+
+	def test_the_environment_decides_when_it_says_a_number(self):
+		with self.memory(512):
+			for value, slots in (("3", 3), (" 2 ", 2), ("1", 1), ("0", 1), ("many", 1), ("-1", 1), ("", 1)):
+				with self.subTest(value), patch.dict(os.environ, { image_utils.RENDER_SLOTS_ENV: value }):
+					self.assertEqual(image_utils.render_slot_count(), slots)
+
+	def test_a_machine_that_cannot_say_how_much_memory_it_has_gets_two(self):
+		env = { k: v for k, v in os.environ.items() if k != image_utils.RENDER_SLOTS_ENV }
+		with patch.dict(os.environ, env, clear=True), patch.object(image_utils.psutil, "virtual_memory", side_effect=OSError("no /proc")):
+			self.assertEqual(image_utils.render_slot_count(), 2)
+
+	def run_renders(self, slots: int, renders: int) -> int:
+		"""The most renders that were running at once, with `slots` slots and `renders` threads asking."""
+		running = [0]
+		most = [0]
+		lock = threading.Lock()
+		def fake(source: str, arglist: list[str], timeout: float|None = None):
+			with lock:
+				running[0] += 1
+				most[0] = max(most[0], running[0])
+			time.sleep(0.15)
+			with lock:
+				running[0] -= 1
+			return Image.new("RGB", (2, 2))
+		with patch.object(image_utils, "_slots", threading.BoundedSemaphore(slots)), patch.object(image_utils, "_render_chrome_headless", fake):
+			threads = [threading.Thread(target=image_utils.render_chrome_headless_arglist, args=("x.html", [])) for _ in range(renders)]
+			for thread in threads:
+				thread.start()
+			for thread in threads:
+				thread.join()
+		return most[0]
+
+	def test_renders_wait_for_a_free_slot(self):
+		self.assertEqual(self.run_renders(slots=1, renders=3), 1)
+		self.assertEqual(self.run_renders(slots=2, renders=4), 2)
+
+	def test_a_render_that_waited_too_long_gives_up(self):
+		held = threading.BoundedSemaphore(1)
+		held.acquire()
+		with patch.object(image_utils, "_slots", held), patch.object(image_utils, "RENDER_SLOT_WAIT_SECONDS", 0.2):
+			with self.assertLogs(image_utils.logger, level="ERROR") as logged:
+				self.assertIsNone(image_utils.render_chrome_headless_arglist("x.html", []))
+		self.assertTrue(any("free Chromium slot" in line for line in logged.output))
+
+	def test_the_slot_comes_back_when_a_render_fails(self):
+		slots = threading.BoundedSemaphore(1)
+		def broken(source: str, arglist: list[str], timeout: float|None = None):
+			raise RuntimeError("chromium")
+		with patch.object(image_utils, "_slots", slots), patch.object(image_utils, "_render_chrome_headless", broken):
+			with self.assertRaises(RuntimeError):
+				image_utils.render_chrome_headless_arglist("x.html", [])
+			self.assertTrue(slots.acquire(blocking=False), "the slot was not given back")
+

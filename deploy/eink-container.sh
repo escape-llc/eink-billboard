@@ -322,6 +322,21 @@ cmd_check() {
 	[ -f "$cfg" ] || cfg=/boot/config.txt
 	if grep -qE "^[[:space:]]*dtparam=spi=on" "$cfg" 2>/dev/null; then note "SPI is on"; else problem "SPI is off:  sudo raspi-config  (Interface Options, SPI), then reboot"; fi
 	if grep -qE "^[[:space:]]*dtparam=i2c_arm=on" "$cfg" 2>/dev/null; then note "I2C is on"; else problem "I2C is off (an Inky panel needs it):  sudo raspi-config  (Interface Options, I2C), then reboot"; fi
+	# memory: a Chromium render costs about 75 to 110 MB and the app about 135 MB, so a board with less than 1 GB (a Pi Zero 2 W: 512 MB) runs with swap or not at all well
+	local mem_kb swap_kb
+	mem_kb=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null)
+	swap_kb=$(awk '/^SwapTotal:/ {print $2}' /proc/meminfo 2>/dev/null)
+	if [ -n "$mem_kb" ]; then
+		swap_kb=${swap_kb:-0}
+		if [ "$mem_kb" -ge 800000 ]; then
+			note "memory $((mem_kb / 1024)) MB, swap $((swap_kb / 1024)) MB"
+		elif [ "$swap_kb" -ge 256000 ]; then
+			note "memory $((mem_kb / 1024)) MB, swap $((swap_kb / 1024)) MB"
+			info "less than 1 GB of memory: the app draws one page at a time here (small boards are experimental)"
+		else
+			problem "only $((mem_kb / 1024)) MB of memory and $((swap_kb / 1024)) MB of swap: add swap (sudo apt install zram-tools, or raise CONF_SWAPSIZE in /etc/dphys-swapfile to 512) or the app can be stopped for lack of memory"
+		fi
+	fi
 
 	section "the devices"
 	for d in "${DEVICES[@]}"; do
