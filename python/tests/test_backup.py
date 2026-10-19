@@ -428,6 +428,91 @@ class TestRestoreRoutes(BackupApiBase):
 		body = self.restore(blob).json()
 		self.assertTrue(body["restartNeeded"])
 
+SYSTEM = "urn:inky:storage:schema:system"
+
+class TestRestoreMigrates(BackupApiBase):
+	"""A restore brings the archive's documents up to this version (#391), refuses one from a newer version, and reads the manifest."""
+	def raise_system_to(self, number: int) -> None:
+		path = os.path.join(self.storage, "schemas", "system.json")
+		with open(path, encoding="utf-8") as f:
+			schema = json.load(f)
+		schema["_schema"] = f"{SYSTEM}:{number}"
+		with open(path, "w", encoding="utf-8") as f:
+			json.dump(schema, f)
+		self.cm.evict_all()
+
+	def old_backup(self, **extra: Any) -> bytes:
+		document = { "_schema": f"{SYSTEM}:1", "timezoneName": "America/New_York", "locale": "en-US", "timeFormat": "12h", **extra }
+		return seal({ "settings/system-settings.json": json.dumps(document).encode() }, PASSPHRASE)
+
+	def test_an_old_backup_is_brought_up_and_the_preview_says_so(self):
+		self.raise_system_to(2)
+		step = lambda doc: { **doc, "clockStyle": doc["timeFormat"] }
+		with patch.dict(cast(dict, __import__("python.model.migrations", fromlist=["MIGRATIONS"]).MIGRATIONS), { SYSTEM: { 1: step } }):
+			preview = self.restore(self.old_backup()).json()
+			self.assertEqual(preview["upgraded"], [{ "name": "settings/system-settings.json", "label": "Settings: system", "from": 1, "to": 2 }])
+			self.assertEqual(self.application.calls, [])
+			done = self.restore(self.old_backup(), apply=True)
+			self.assertEqual(done.status_code, 200, done.text)
+		self.cm.evict_all()
+		stored = self.cm.settings_manager().open("system").get()[1]
+		assert stored is not None
+		self.assertEqual((stored["_schema"], stored["clockStyle"], stored["timeFormat"]), (f"{SYSTEM}:2", "12h", "12h"))
+
+	def test_a_backup_from_before_versions_is_the_first_version_and_gets_stamped(self):
+		blob = seal({ "settings/system-settings.json": json.dumps({ "timezoneName": "America/New_York", "locale": "en-US", "timeFormat": "12h" }).encode() }, PASSPHRASE)
+		self.assertEqual(self.restore(blob, apply=True).status_code, 200)
+		self.cm.evict_all()
+		self.assertEqual(self.cm.settings_manager().open("system").get()[1]["_schema"], f"{SYSTEM}:1")  # type: ignore[index]
+
+	def test_a_document_from_a_newer_version_refuses_the_whole_restore_and_names_no_value(self):
+		blob = seal({ "settings/system-settings.json": json.dumps({ "_schema": f"{SYSTEM}:9", "timeFormat": KEY }).encode(),
+			"settings/theme-settings.json": b'{"scheme": "monochrome"}' }, PASSPHRASE)
+		resp = self.restore(blob, apply=True)
+		self.assertEqual(resp.status_code, 422)
+		self.assertNotIn(KEY, resp.text)
+		self.assertEqual([e["path"] for e in resp.json()["errors"]], [["settings/system-settings.json"]])
+		self.assertIn("newer version", resp.json()["errors"][0]["message"])
+		self.assertEqual(self.application.calls, [])
+
+	def test_a_source_raised_without_its_migration_is_refused_too(self):
+		self.raise_system_to(2)
+		resp = self.restore(self.old_backup(), apply=True)
+		self.assertEqual(resp.status_code, 422)
+		self.assertIn("Cannot be brought up", resp.json()["errors"][0]["message"])
+
+	def test_a_kept_list_or_sign_ins_from_a_newer_version_are_refused(self):
+		for name in ("plugins/slide-show/list-aaaa.json", "datasources/calendar/tokens.json"):
+			with self.subTest(name):
+				resp = self.restore(seal({ name: json.dumps({ "_version": 99, "items": [] }).encode() }, PASSPHRASE))
+				self.assertEqual(resp.status_code, 422)
+				self.assertEqual(resp.json()["errors"][0]["path"][0], name)
+
+	def test_a_backup_carries_a_manifest_that_the_preview_reads_and_is_not_a_file_left_out(self):
+		# (the device stamps every stored document at start; the helper that wrote this one did not)
+		put(self.cm.datasource_manager("openweathermap").open(), { "_schema": "urn:inky:storage:schema:datasource:openweathermap:1", "apiKey": KEY, "units": "metric" })
+		blob = self.make()
+		files = unseal(blob, PASSPHRASE)
+		manifest = json.loads(files["MANIFEST.json"])
+		self.assertEqual((manifest["format"], manifest["files"]["settings/system-settings.json"]), (1, f"{SYSTEM}:1"))
+		self.assertEqual(manifest["files"]["datasources/openweathermap/settings.json"], "urn:inky:storage:schema:datasource:openweathermap:1")
+		body = self.restore(blob).json()
+		self.assertEqual(body["madeAt"], manifest["created"])
+		self.assertEqual(body["leftOut"], 0)
+
+	def test_a_backup_without_a_manifest_still_restores_and_a_newer_format_does_not(self):
+		self.assertIsNone(self.restore(seal({ "settings/theme-settings.json": b'{"scheme": "monochrome"}' }, PASSPHRASE)).json()["madeAt"])
+		newer = seal({ "MANIFEST.json": json.dumps({ "format": 2, "created": "2030-01-01T00:00:00+00:00", "files": {} }).encode(), "settings/theme-settings.json": b"{}" }, PASSPHRASE)
+		resp = self.restore(newer)
+		self.assertEqual(resp.status_code, 422)
+		self.assertIn("newer version", resp.json()["message"])
+		# a manifest that cannot be read only informs: the documents are what is checked
+		odd = seal({ "MANIFEST.json": b"not json", "settings/theme-settings.json": b'{"scheme": "monochrome"}' }, PASSPHRASE)
+		self.assertEqual(self.restore(odd).status_code, 200)
+
+	def make(self) -> bytes:
+		return self.backup().content
+
 class Recorder:
 	def __init__(self) -> None:
 		self.sent: list[tuple[str, Any]] = []
