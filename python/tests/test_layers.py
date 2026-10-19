@@ -4,7 +4,7 @@ from PIL import Image
 from datetime import datetime
 import os
 from threading import Event
-from typing import cast
+from typing import Any, cast
 import unittest
 
 from python.model.schedule_loader import ScheduleLoaderDict
@@ -332,6 +332,74 @@ class PlaylistLayerTests(unittest.TestCase):
 				layer, playlists, root, calls = self._strike_setup(Hard)
 				self.assertIsInstance(self._run_pass(layer, playlists, root), LayerFaulted)
 				self.assertEqual(calls, ["t0"])
+
+	def _slot_events(self) -> list:
+		"""The start, failure and end of each track the layer reported (in order), as `[(kind, track)]`, from what `_strike_setup` recorded."""
+		seen: list = []
+		for route, msg in self.sent:
+			kind = getattr(msg, "values", {}).get("kind") if route == "telemetry" else None
+			if kind in ("track-started", "track-failed", "track-ended"):
+				seen.append((kind, msg.values.get("current_track") if kind != "track-failed" else None))
+		return seen
+
+	def test_a_track_that_fails_is_started_and_ended_around_its_error_page(self):
+		class Flaky:
+			def __init__(self, id, name):
+				self.id, self.name = id, name
+			async def task_async(self, ctx, track, donev):
+				raise ConnectionError("network down")
+		layer, playlists, root, calls = self._strike_setup(Flaky)
+		self.assertIsNone(self._run_pass(layer, playlists, root))
+		# the plugin announced the start, the failure was told, and the slot's end is said when the error page's time is over
+		seen = self._slot_events()
+		self.assertEqual([kind for kind, _ in seen], ["track-started", "track-failed", "track-ended"])
+		self.assertEqual([track.title for kind, track in seen if track is not None], ["Track 0", "Track 0"])
+
+	def test_a_track_that_struck_out_still_has_a_start_and_an_end_for_its_page(self):
+		class Hard:
+			def __init__(self, id, name):
+				self.id, self.name = id, name
+			async def task_async(self, ctx, track, donev):
+				raise PermanentError("gone for good")
+		layer, playlists, root, calls = self._strike_setup(Hard, track_count=2)
+		self._run_pass(layer, playlists, root)
+		seen = self._slot_events()
+		self.assertEqual([kind for kind, _ in seen], ["track-started", "track-failed", "track-ended", "track-started", "track-failed", "track-ended"])
+		self.sent.clear()
+		# a later pass does not run them again, but their slots still show the page, and say so
+		self._run_pass(layer, playlists, root)
+		seen = self._slot_events()
+		self.assertEqual([kind for kind, _ in seen], ["track-started", "track-ended", "track-started", "track-ended"])
+
+	def test_a_plugin_that_is_not_there_and_settings_that_are_wrong_are_slots_too(self):
+		class Fine:
+			def __init__(self, id, name):
+				self.id, self.name = id, name
+			async def task_async(self, ctx, track, donev):
+				return None
+		layer, playlists, root, _ = self._strike_setup(Fine)
+		layer._evaluate_plugin = lambda t: {"plugin": None, "track": t}  # type: ignore
+		self._run_pass(layer, playlists, root)
+		seen = self._slot_events()
+		self.assertEqual([kind for kind, _ in seen], ["track-started", "track-failed", "track-ended"], "no plugin")
+		self.setUp()
+		layer, playlists, root, _ = self._strike_setup(Fine)
+		layer._settings_problem = lambda track, plugins, datasources: "folder: Required"  # type: ignore
+		self._run_pass(layer, playlists, root)
+		seen = self._slot_events()
+		self.assertEqual([kind for kind, _ in seen], ["track-started", "track-failed", "track-ended"], "settings problem")
+
+	def test_a_track_that_works_is_unchanged(self):
+		class Fine:
+			def __init__(self, id, name):
+				self.id, self.name = id, name
+			async def task_async(self, ctx, track, donev):
+				return None
+		layer, playlists, root, _ = self._strike_setup(Fine)
+		self._run_pass(layer, playlists, root)
+		# the end of a good slot is the layer's `playing` state, which the hub names `track-ended`: no `kind` of its own
+		seen = self._slot_events()
+		self.assertEqual([kind for kind, _ in seen], ["track-started"])
 
 	def test_a_success_resets_the_strikes(self):
 		outcomes = [ConnectionError("x"), ConnectionError("x"), None, ConnectionError("x"), ConnectionError("x"), None]

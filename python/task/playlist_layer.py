@@ -197,6 +197,20 @@ class PlaylistLayer(DispatcherTask):
 	def _theme(self) -> ThemeInputs:
 		"""The device theme now, for the error page (the factory theme when there is no configuration)."""
 		return current_inputs(self.cm.settings_manager() if self.cm is not None else None)
+	def _track_event(self, kind: str, ts: datetime, plindex: int, playlist: Any, tkindex: int, track: PlaylistSchedule) -> None:
+		"""A track began (`track-started`) or its slot ended (`track-ended`): what a person following the device in the web app sees, whatever the slot showed."""
+		self.router.send("telemetry", Telemetry(ts, "playlist_layer", {
+			"kind": kind, "state": self.state, "current_playlist_index": plindex, "current_playlist": playlist,
+			"current_track_index": tkindex, "current_track": track }))
+	async def _error_slot(self, track: PlaylistSchedule, key: tuple[int, int], playlist: Any, plindex: int, tkindex: int, tod: TimeOfDay, started: bool) -> None:
+		"""
+		The slot of a track that failed: its error page for the time the track would have taken, **between a `track-started` and a `track-ended` like any other slot** (the page is what the
+		track showed). `started`: the plugin had already announced the start before it failed, so only the end is left to say. Not said when the slot is cut short (a stop, a next, a reload).
+		"""
+		if not started:
+			self._track_event("track-started", tod.current_time(), plindex, playlist, tkindex, track)
+		await self._show_error(track, key, tod.current_time())
+		self._track_event("track-ended", tod.current_time(), plindex, playlist, tkindex, track)
 	async def _show_error(self, track: PlaylistSchedule, key: tuple[int, int], ts: datetime) -> None:
 		"""The slot of a track that failed shows an error page (a foreground one: the overlays are not drawn on it, they would compete with its text), for the time the track would have taken. The display skips it when the panel already shows it."""
 		stm = self.cm.static_manager() if self.cm is not None else None
@@ -364,24 +378,26 @@ class PlaylistLayer(DispatcherTask):
 					if self._struck_out(key):
 						# not run again, but its slot still says why
 						held += 1
-						await self._show_error(track, key, tod.current_time())
+						await self._error_slot(track, key, playlist, plindex, tkindex, tod, started=False)
 						continue
 					self.logger.info(f"Track '{track.title}' with plugin '{track.plugin_name}' and content {track.content}")
 					plugin_eval = self._evaluate_plugin(track)
 					plugin:PluginAsync = cast(PluginAsync, plugin_eval.get("plugin", None))
 					if plugin is None:
+						self._track_event("track-started", tod.current_time(), plindex, playlist, tkindex, track)
 						self._strike(key, track, PermanentError(f"Plugin '{track.plugin_name}' is not available"), tod.current_time(), True)
 						held += 1
-						await self._show_error(track, key, tod.current_time())
+						await self._error_slot(track, key, playlist, plindex, tkindex, tod, started=True)
 						continue
 					# a property the track lacks runs at the descriptor's default, as the form shows it (the stored track is not changed)
 					if track.content is not None:
 						track.content.data = content_with_defaults(plugins, datasources, track.plugin_name, track.content.data)
 					problem = self._settings_problem(track, plugins, datasources)
 					if problem is not None:
+						self._track_event("track-started", tod.current_time(), plindex, playlist, tkindex, track)
 						self._strike(key, track, PermanentError(f"Settings: {problem}"), tod.current_time(), True)
 						held += 1
-						await self._show_error(track, key, tod.current_time())
+						await self._error_slot(track, key, playlist, plindex, tkindex, tod, started=True)
 						continue
 					try:
 						# the per-track event is its own: `donev` is the layer task's, set in the finally below, and waited on by _task_stop
@@ -390,9 +406,7 @@ class PlaylistLayer(DispatcherTask):
 						pname = (plugins.get(track.plugin_name) or {}).get("info", {}).get("name") or track.plugin_name
 						ctx = PluginExecutionContext(self._marked(isp, image_source("playlist", track.title, pname, playlist.name)), self.dimensions, tod.current_time(), slot=f"{playlist.id}/{track.id}", resumed=resumed)
 						# the start of the slot is what a person following the device wants to see; the end follows when the plugin returns
-						self.router.send("telemetry", Telemetry(tod.current_time(), "playlist_layer", {
-							"kind": "track-started", "state": self.state, "current_playlist_index": plindex, "current_playlist": playlist,
-							"current_track_index": tkindex, "current_track": track }))
+						self._track_event("track-started", tod.current_time(), plindex, playlist, tkindex, track)
 						msg = await plugin.task_async(ctx, track, track_done)
 						self.logger.info(f"Plugin '{plugin.name}' for track '{track.title}' completed with message: {msg}")
 						succeeded += 1
@@ -415,7 +429,7 @@ class PlaylistLayer(DispatcherTask):
 						if self._strike(key, track, e, tod.current_time(), isinstance(e, self.PERMANENT_ERRORS)):
 							self.logger.error(f"Track '{track.title}' ({plugin.name}) struck out.")
 						held += 1
-						await self._show_error(track, key, tod.current_time())
+						await self._error_slot(track, key, playlist, plindex, tkindex, tod, started=True)
 			if tracks > 0 and all(self._struck_out((pi, ti)) for pi, pl in enumerate(playlists) for ti, _ in enumerate(cast(Playlist, pl.get("info")).items)):
 				await self._show_faulted(playlists, tod.current_time())
 				return LayerFaulted(tod.current_time())
