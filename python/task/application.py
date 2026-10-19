@@ -3,10 +3,14 @@ import threading
 from datetime import datetime, timedelta
 from typing import Callable
 
-from .messages import ConfigurationChanged, ConfigurationWatcherEvent, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, Telemetry, TransportCommand
+from .messages import ConfigurationChanged, ConfigurationWatcherEvent, InputEvent, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, Telemetry, TransportCommand
 from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
 from .protocols import MessageSink, IProvideTimer
+from .device_io import DeviceIO
 from .display import Display
+from ..device.bindings import action_for
+from ..device.buttons import LABELS
+from ..device.pins import Panel
 from ..display.mock_display import MockDisplay
 from .basic_task import DispatcherTask, QuitMessage
 from .message_router import MessageRouter, Route
@@ -38,6 +42,8 @@ class Application(DispatcherTask):
 		self.cm:ConfigurationManager|None = None
 		self.router:MessageRouter|None = None
 		self.display:Display|None = None
+		# the task that owns the GPIO, I2C and SPI lines that are not the panel's (python/task/device_io.py)
+		self.device_io:DeviceIO|None = None
 		self.playlist_layer:PlaylistLayer|None = None
 		self.timer_layer:TimerLayer|None = None
 		self.root_container: IServiceProvider|None = None
@@ -99,6 +105,8 @@ class Application(DispatcherTask):
 		configs = ConfigureEvent(msg.timestamp, ConfigureOptions(cm=self.cm, isp=plcontainer), "playlist-layer", self)
 		configt = ConfigureEvent(msg.timestamp, ConfigureOptions(cm=self.cm, isp=tlcontainer), "timer-layer", self)
 		self._panel = (msg.width, msg.height)
+		# the devices start now, claimed or not: a press while the device is unclaimed is dropped by `_transport_command`
+		self._start_devices(msg.timestamp, msg.name, msg.width, msg.height)
 		if self._unclaimed():
 			# the tracks do not go into play mode until the owner has claimed the device: the panel holds the setup page, and the layers start when it is claimed
 			self._held = (configs, configt)
@@ -106,6 +114,29 @@ class Application(DispatcherTask):
 			self._show_setup_notice(msg.width, msg.height, msg.timestamp)
 			return
 		self._start_layers(configs, configt)
+	def _start_devices(self, timestamp: datetime, display_type: str, width: int, height: int):
+		"""Configure the DeviceIO task, which opens what the `devices` settings name; it is given the panel's kind and size, so it keeps off the panel's lines. (Plain parameters: a helper whose only parameter is a message type becomes that message's handler.)"""
+		if self.cm is None or self.device_io is None:
+			# not started the usual way (a test builds the Application piece by piece): nothing to configure
+			return
+		container = ServiceContainer()
+		container.add_service(Panel, Panel(display_type, width, height))
+		tod = self.root_container.get_service(TimeOfDay) if self.root_container is not None else None
+		if tod:
+			container.add_service(TimeOfDay, tod)
+		self.device_io.accept(ConfigureEvent(timestamp, ConfigureOptions(cm=self.cm, isp=container), "device-io", self))
+	def _input_event(self, msg: InputEvent):
+		"""Something happened at a device (a button pressed): what it means is decided here, by the bindings."""
+		action = action_for(msg.source, msg.name, msg.gesture)
+		if action is None or self.router is None:
+			return
+		if action == "toggle":
+			action = "play" if self.playback_stopped else "stop"
+		label = LABELS.get(msg.name, msg.name)
+		self.logger.info(f"'{self.name}' input: {label} {msg.gesture}: {action}")
+		self.router.send("telemetry", Telemetry(msg.timestamp, "application", { "kind": "input", "source": msg.source, "input": msg.name, "gesture": msg.gesture, "action": action,
+			"message": f"The {label} was pressed: {action}." if msg.gesture == "press" else f"The {label}: {msg.gesture}: {action}." }))
+		self._transport_command(TransportCommand(msg.timestamp, action))
 	def _unclaimed(self) -> bool:
 		try:
 			return bool(self.setup_notice()) if self.setup_notice is not None else False
@@ -244,17 +275,20 @@ class Application(DispatcherTask):
 		self.display = Display("Display", self.router)
 		self.playlist_layer = PlaylistLayer("PlaylistLayer", self.router)
 		self.timer_layer = TimerLayer("TimerLayer", self.router)
+		self.device_io = DeviceIO("DeviceIO", self.router)
 		self.router.addRoute(Route("display", [self.display]))
 		self.router.addRoute(Route("playlist-layer", [self.playlist_layer]))
 		self.router.addRoute(Route("timer-layer", [self.timer_layer]))
 		self.router.addRoute(Route("display-settings", [self, self.playlist_layer, self.timer_layer]))
+		# what the devices report (a button pressed): the Application gives it a meaning
+		self.router.addRoute(Route("device-input", [self]))
 		# every task hears about changes to the configuration files
-		self.router.addRoute(Route("configuration", [self.display, self.playlist_layer, self.timer_layer]))
+		self.router.addRoute(Route("configuration", [self.display, self.playlist_layer, self.timer_layer, self.device_io]))
 		if self.sink is not None:
 			self.router.addRoute(Route('telemetry', [self.sink]))
 			# the tasks report what they swallow to keep running (the router itself straight to the hub: it sends under its own lock)
 			self.router.failure_sink = self.sink.accept
-		for task in (self, self.display, self.playlist_layer, self.timer_layer):
+		for task in (self, self.display, self.playlist_layer, self.timer_layer, self.device_io):
 			task.failure_sink = lambda telemetry: self.router.send("telemetry", telemetry)  # type: ignore[union-attr]
 		# STEP 1 configure the Display task
 		dpcontainer = ServiceContainer()
@@ -270,6 +304,7 @@ class Application(DispatcherTask):
 		self.display.start()
 		self.playlist_layer.start()
 		self.timer_layer.start()
+		self.device_io.start()
 	JOIN_TIMEOUT_SECONDS = 15.0
 	def _join_task(self, name: str, task: threading.Thread|None):
 		"""Joins a task thread; a thread that never started (or fails to join) must not stop the cleanup of the others."""
@@ -287,6 +322,14 @@ class Application(DispatcherTask):
 		except Exception as e:
 			self.logger.error(f"Failed to join {name}: {e}", exc_info=True)
 	def _handleStop(self, timestamp: datetime):
+		# the devices first: nothing is listened to while the rest is taken down
+		if self.device_io is not None:
+			if self.device_io.is_alive():
+				try:
+					self.device_io.accept(QuitMessage(timestamp))
+				except Exception as e:
+					self.logger.error(f"Failed to send Quit to '{self.device_io.name}': {e}")
+			self._join_task("DeviceIO", self.device_io)
 		for task in (self.timer_layer, self.playlist_layer):
 			if task is not None and task.is_alive():
 				try:

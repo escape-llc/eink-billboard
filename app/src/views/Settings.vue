@@ -5,6 +5,7 @@
 			<Tab value="1">Display</Tab>
 			<Tab value="2">Theme</Tab>
 			<Tab value="5">Master Prompts</Tab>
+			<Tab value="6">Devices</Tab>
 			<Tab value="3">Plugins</Tab>
 			<Tab value="4">Data Sources</Tab>
 		</TabList>
@@ -113,6 +114,17 @@
 					@submit="submitForm"
 					/>
 			</TabPanel>
+			<TabPanel value="6">
+				<SettingsForm
+					:title="`Devices`"
+					:baseUrl="API_URL"
+					:settingsUrl="settingsDevicesUrl"
+					:settings="settingsDevices"
+					:schema="schemaDevices"
+					class="form"
+					@submit="submitForm"
+					/>
+			</TabPanel>
 			<TabPanel value="3">
 				<SettingsForm
 					:title="`Plugin Settings`"
@@ -207,6 +219,10 @@ const schemaPromptsUrl = `${API_URL}api/schemas/master-prompts`
 const defaultsPromptsUrl = `${API_URL}api/settings/master-prompts/defaults`
 const schemaPrompts = ref<any>(undefined)
 const settingsPrompts = ref<any>(undefined)
+const settingsDevicesUrl = `${API_URL}api/settings/devices`
+const schemaDevicesUrl = `${API_URL}api/schemas/devices`
+const schemaDevices = ref<any>(undefined)
+const settingsDevices = ref<any>(undefined)
 const settingsDisplayUrl = `${API_URL}api/settings/display`
 const schemaDisplayUrl = `${API_URL}api/schemas/display`
 const schemaDisplay = ref<any>(undefined)
@@ -320,6 +336,7 @@ onMounted(() => {
 		downloadToRef(schemaDisplayUrl, schemaDisplay)
 		downloadToRef(schemaSystemUrl, schemaSystem)
 		downloadToRef(schemaPromptsUrl, schemaPrompts)
+		loadDevices()
 		// a settings file that was never saved is a 404; fetchSettings then starts from the schema's `default`
 		downloadToRef(settingsSystemUrl, settingsSystem)
 		downloadToRef(settingsDisplayUrl, settingsDisplay)
@@ -327,6 +344,25 @@ onMounted(() => {
 		downloadToRef(settingsPromptsUrl, settingsPrompts)
 	})
 })
+
+// the devices' settings: a storage that is older than them has none stored, which is not an error: the form starts from the schema's default (saving it creates the document)
+function loadDevices() {
+	apiJson(schemaDevicesUrl).then(schema => {
+		schemaDevices.value = schema
+		return apiJson(settingsDevicesUrl)
+			.then(data => { settingsDevices.value = data })
+			.catch(ex => {
+				if (ex instanceof ApiError && ex.status === 404) {
+					settingsDevices.value = structuredClone(schema.default)
+					return
+				}
+				throw ex
+			})
+	}).catch(ex => {
+		console.error("loadDevices.unhandled", ex)
+		toast.add({severity:'error', summary: 'Error', detail: `Failed to load: ${ex.message || 'Unknown error'}`, life: 5000});
+	})
+}
 
 // a plugin or data source with no settings block, or an empty one, has nothing to edit
 const hasSettings = (item: any): boolean => (item?.settings?.schema?.properties?.length ?? 0) > 0

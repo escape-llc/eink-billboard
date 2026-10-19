@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # the device-wide settings; anything else is a 404, never a path into the file system
-DEVICE_SETTINGS = ("system", "display", "theme", "master-prompts")
+DEVICE_SETTINGS = ("system", "display", "theme", "master-prompts", "devices")
 
 def _device_name(name: str) -> str:
 	"""

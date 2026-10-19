@@ -1,0 +1,45 @@
+{
+	"_schema": "urn:inky:storage:schema:devices:1",
+	"schema": {
+		"lookups": {},
+		"properties": [
+			{
+				"name": "buttonsHeader",
+				"type": "header",
+				"title": "Buttons"
+			},
+			{
+				"name": "buttonPlayStop",
+				"type": "integer",
+				"title": "Play / Stop Button",
+				"description": "The GPIO number (BCM) of a push button wired between that pin and ground. Pressing it stops playback, and pressing it again resumes. Leave it empty if there is no such button. Not a pin the panel uses (the app says which, if you choose one). Changes apply within a few seconds.",
+				"minimum": 2,
+				"maximum": 27,
+				"required": false
+			},
+			{
+				"name": "buttonNext",
+				"type": "integer",
+				"title": "Next Button",
+				"description": "The GPIO number (BCM) of a push button wired between that pin and ground. Pressing it shows the next page of the playlist. Leave it empty if there is no such button.",
+				"minimum": 2,
+				"maximum": 27,
+				"required": false
+			},
+			{
+				"name": "buttonStop",
+				"type": "integer",
+				"title": "Stop Button",
+				"description": "The GPIO number (BCM) of a push button wired between that pin and ground, for a button that only stops playback (resume it with the play/stop button or in the web app). Leave it empty if there is no such button.",
+				"minimum": 2,
+				"maximum": 27,
+				"required": false
+			}
+		]
+	},
+	"default": {
+		"buttonPlayStop": null,
+		"buttonNext": null,
+		"buttonStop": null
+	}
+}
