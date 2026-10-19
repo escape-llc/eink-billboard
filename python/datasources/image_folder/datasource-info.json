@@ -11,6 +11,7 @@
 	"disabled": false,
 	"features": ["filesystem", "layer-background", "media-list"],
 	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:image-folder:1",
 		"schema": {
 			"properties": [
 				{

@@ -125,7 +125,7 @@ class TestConfigurationManager(unittest.TestCase):
 			self.assertEqual((doc["fontBody"], doc["fontScale"]), ("Jost", 1))
 			self.assertIn("fontHeading", doc)
 			with open(rss) as f:
-				self.assertEqual(json.load(f), { "feeds": [] })
+				self.assertEqual(json.load(f), { "_schema": "urn:inky:storage:schema:datasource:rss:1", "feeds": [] })
 			# nothing more to add, and the cached documents read the new ones
 			self.assertEqual(cm.upgrade_settings(), [])
 			_, read = cm.settings_manager().open("theme").get()
@@ -150,7 +150,7 @@ class TestConfigurationManager(unittest.TestCase):
 				{ "apiKey": "owm-secret", "units": "imperial", "currentCacheHours": 1, "forecastCacheHours": 3, "staleDays": 9 })
 			# out of the old document (its schema no longer masks the key), what was not moved stays
 			with open(weather) as f:
-				self.assertEqual(json.load(f), { "other": True })
+				self.assertEqual(json.load(f), { "_schema": "urn:inky:storage:schema:datasource:weather:1", "other": True })
 			# once: the old document holds nothing to move any more
 			self.assertEqual(cm.upgrade_settings(), [])
 

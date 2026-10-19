@@ -10,6 +10,7 @@
 	"disabled": false,
 	"features": ["layer-overlay", "media-image"],
 	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:today:1",
 		"schema": {
 			"properties": [
 			]

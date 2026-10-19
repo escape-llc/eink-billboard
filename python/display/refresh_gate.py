@@ -13,6 +13,8 @@ import time
 from typing import Any, Callable
 
 from ..model.configuration_manager import ConfigurationManager
+from ..model.migrations import migrate_file
+from ..model.schema_versions import stamped
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +65,9 @@ class RefreshGate:
 		self.last_end_wall = self._wall()
 		return self.last_end_wall
 
+# the version of the file (it has no source schema to take one from: python/model/schema_versions.py); raised, with a step in `migrate_file`, if its content changes shape
+REFRESH_VERSION = 1
+
 class RefreshState:
 	"""
 	What survives a restart: when the last refresh ended and a digest of the image the panel shows. A file of its own in the storage's `state` folder (through the configuration manager,
@@ -79,7 +84,10 @@ class RefreshState:
 			if self._cm is None:
 				return
 			_, content = self._cm.state_file(self.NAME).get()
-			if not isinstance(content, dict):
+			content, found = migrate_file(content, REFRESH_VERSION)
+			if content is None:
+				if found == "newer":
+					logger.warning("The refresh state was written by a newer version: starting without it.")
 				return
 			end, digest = content.get("lastEnd"), content.get("digest")
 			if isinstance(end, (int, float)) and not isinstance(end, bool):
@@ -97,7 +105,7 @@ class RefreshState:
 				return
 			cob = self._cm.state_file(self.NAME)
 			rev, _ = cob.get()
-			document: dict[str, Any] = { "lastEnd": last_end, "digest": digest }
+			document: dict[str, Any] = stamped({ "lastEnd": last_end, "digest": digest }, REFRESH_VERSION)
 			cob.save(rev, document)
 		except Exception:
 			logger.warning("The refresh state could not be saved: a restart will not know when the panel was last refreshed.", exc_info=True)

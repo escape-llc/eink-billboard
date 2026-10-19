@@ -16,6 +16,7 @@
 		"module": "python.datasources.image_url.api"
 	},
 	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:image-url:1",
 		"schema": {
 			"properties": [
 			]

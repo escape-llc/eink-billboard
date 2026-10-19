@@ -24,6 +24,7 @@
 		{"name": "season", "description": "winter, spring, summer or autumn where the device is (the other way round south of the equator)."}
 	],
 	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:openweathermap:1",
 		"schema": {
 			"properties": [
 				{

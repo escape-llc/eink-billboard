@@ -10,6 +10,7 @@
 	"disabled": false,
 	"features": ["layer-foreground", "layer-priority", "media-image"],
 	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:clock:1",
 		"schema": {
 			"properties": [
 			]

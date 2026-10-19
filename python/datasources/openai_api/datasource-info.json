@@ -15,6 +15,7 @@
 		"module": "python.datasources.openai_api.api"
 	},
 	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:openai:1",
 		"schema": {
 			"properties": [
 				{

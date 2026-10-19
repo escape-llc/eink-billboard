@@ -20,12 +20,15 @@ from typing import Any, Awaitable, Callable
 
 from ..datasources.keeping import CLOCK_SLACK, DEFAULT_STALE_DAYS, aware, number, parse_moment, prune_stale_sometimes
 from ..model.configuration_manager import ConfigurationObject, PluginConfigurationManager
+from ..model.migrations import migrate_file
 
 logger = logging.getLogger(__name__)
 
 LIST_PREFIX = "list-"
 # a kept list is rewritten whole at every slide: a list too big for that is used for the visit only
 MAX_LIST_BYTES = 4_000_000
+# the version of a kept list's file (it has no source schema: python/model/schema_versions.py); raised, with a step in `migrate_file`, if its content changes shape
+KEPT_LIST_VERSION = 1
 
 class NoItem:
 	"""`KeptList.head` has nothing left."""
@@ -46,7 +49,9 @@ def _read(cob: ConfigurationObject) -> tuple[str|None, dict]:
 		return None, {}
 	if not isinstance(doc, dict) or not isinstance(doc.get("items"), list):
 		return rev, {}
-	return rev, doc
+	# no source schema: an integer `_version`. One from a newer version is not ours to read (it is replaced by the next list, as a damaged one is)
+	doc, _ = migrate_file(doc, KEPT_LIST_VERSION)
+	return rev, doc if doc is not None else {}
 
 class KeptList:
 	"""The items of a slot's visit: `head()` is the next one and `drop()` takes it off and saves the rest. Never raises for the disk's sake."""
@@ -124,7 +129,7 @@ async def open_list(pcm: PluginConfigurationManager|None, slot: str, fingerprint
 		return KeptList(items)
 	if not items:
 		return KeptList([])
-	fresh = { "fingerprint": fingerprint, "items": items, "fetched_at": now.isoformat(), "last_used": now.isoformat() }
+	fresh = { "_version": KEPT_LIST_VERSION, "fingerprint": fingerprint, "items": items, "fetched_at": now.isoformat(), "last_used": now.isoformat() }
 	try:
 		ok, saved_rev = cob.save(rev, fresh)
 		if not ok:
