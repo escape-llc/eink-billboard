@@ -12,7 +12,7 @@ from ..model.schedule import TimerTaskItem, Playlist, generate_schedule, instant
 from ..model.schedule_loader import ScheduleLoaderDict
 from ..model.service_container import IServiceProvider, ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
-from ..plugins.plugin_base import PluginAsync, PluginExecutionContext
+from ..plugins.plugin_base import PermanentError, PluginAsync, PluginExecutionContext
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool
 from ..task.basic_task import DispatcherTask
 from ..task.display_messages import DisplaySettings, OverlayDefinition, OverlayImage, OverlayRevoke, OverlayZones, PriorityImage
@@ -224,18 +224,27 @@ class TimerLayer(DispatcherTask):
 			self.router.send("display", PriorityImage(ts, f"Error: {item.title}", image, duration, origin=image_source("timer", item.title, item.task.plugin_name)))
 		except Exception as e:
 			self.logger.error(f"Could not show the error page for task '{item.title}': {type(e).__name__}")
+	def _task_event(self, kind: str, tod: TimeOfDay, item: TimerTaskItem, index: int, playlist: Playlist|None, sched_ts: datetime|None) -> None:
+		"""`task-started` or `task-ended` for a slot that failed (a slot that works says them in `_run_task_item` itself, `task-ended` by the hub's inference): a failure is started, failed and ended like any other slot."""
+		self.router.send("telemetry", Telemetry(tod.current_time(), "timer_layer", {
+			"kind": kind, "state": self.state, "current_playlist": playlist, "current_track": item, "current_track_index": index, "schedule_ts": sched_ts }))
 	async def _run_task_item(self, isp: IServiceProvider, tod: TimeOfDay, item: TimerTaskItem, kind: str, index: int, playlist: Playlist|None, sched_ts: datetime|None):
 		"""Run one task item's plugin and report telemetry. Failures are reported, never raised (the layer keeps going)."""
 		plugin_eval = self._evaluate_plugin(item)
 		plugin = cast(PluginAsync|None, plugin_eval.get("plugin", None))
 		if plugin is None:
 			self.logger.error(f"Cannot start {kind} task, plugin '{item.task.plugin_name}' for task '{item.title}' is not available.")
+			self.state = 'error'
+			self._task_event("task-started", tod, item, index, playlist, sched_ts)
+			self._error_with_telemetry(f"The {kind} task '{item.title}' failed", tod.current_time(), PermanentError(f"Plugin '{item.task.plugin_name}' is not available"), log=False)
 			await self._show_error(item, f"Plugin '{item.task.plugin_name}' is not available", tod.current_time())
+			self._task_event("task-ended", tod, item, index, playlist, sched_ts)
 			return
 		# a property the task lacks runs at the descriptor's default, as the form shows it (the stored task is not changed)
 		if isinstance(item.task.content, dict):
 			item.task.content = content_with_defaults({ p["info"].get("id"): p for p in (self.plugin_info or []) },
 				{ d["info"].get("id"): d for d in (self.cm.enum_datasources() if self.cm is not None else []) }, item.task.plugin_name, item.task.content)
+		started = False
 		try:
 			self.logger.info(f"Starting {kind} task '{item.title}' using plugin '{item.task.plugin_name}'.")
 			# this task's own event: the one passed to the layer task is the layer's, and is set when the layer ends
@@ -245,8 +254,8 @@ class TimerLayer(DispatcherTask):
 			marked = ServiceContainer(isp)
 			marked.add_service(MessageRouter, SourceRouter(self.router, image_source("timer", item.title, str((pinfo.get("name") if pinfo else None) or item.task.plugin_name))))
 			context = PluginExecutionContext(marked, self.dimensions, tod.current_time())
-			self.router.send("telemetry", Telemetry(tod.current_time(), "timer_layer", {
-				"kind": "task-started", "state": self.state, "current_playlist": playlist, "current_track": item, "current_track_index": index, "schedule_ts": sched_ts }))
+			self._task_event("task-started", tod, item, index, playlist, sched_ts)
+			started = True
 			plugin_result = await plugin.task_async(context, item, task_done)
 			self.state = 'playing'
 			self.logger.info(f"{kind.capitalize()} task '{item.title}' completed with result: {plugin_result}")
@@ -260,8 +269,13 @@ class TimerLayer(DispatcherTask):
 			self.router.send("telemetry", Telemetry(tod.current_time(), "timer_layer", cast(Mapping[str,Any], telemetry)))
 		except Exception as e:
 			self.state = 'error'
+			if not started:
+				# it failed before it could say it began: the slot still has a start, a failure and an end
+				self._task_event("task-started", tod, item, index, playlist, sched_ts)
 			self._error_with_telemetry(f"The {kind} task '{item.title}' failed", tod.current_time(), e)
 			await self._show_error(item, safe_reason(e), tod.current_time())
+			# the failure was announced after `task-started`: its slot ends like any other (the error page is what the task showed)
+			self._task_event("task-ended", tod, item, index, playlist, sched_ts)
 	async def _layer_task(self, isp: IServiceProvider, tasks: list[ScheduleLoaderDict], donev: threading.Event) -> BasicMessage|None:
 		"""
 		Runs until it is cancelled: the startup tasks once, then each local day's schedule in turn.

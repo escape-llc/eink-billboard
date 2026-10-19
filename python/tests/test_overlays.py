@@ -15,6 +15,7 @@ from ..plugins.plugin_base import PermanentError, PluginExecutionContext
 from ..task.async_worker_pool import AsyncWorkerPool
 from ..task.display import Display
 from ..task.display_messages import OverlayImage, OverlayRevoke, OverlayZones, PriorityImage
+from ..task.messages import Telemetry
 from ..task.message_router import MessageRouter
 from ..task.overlay_zones import ZONE_NAMES, zones_for
 from ..utils.image_compositor import ImageCompositor
@@ -183,6 +184,23 @@ class TestTimerLayerOverlays(unittest.TestCase):
 		displays, render = self._fail(overlay_item("top-right", plugin="interstitial"))
 		self.assertEqual([type(m) for m in displays], [PriorityImage])
 		self.assertEqual(render.call_args.args[1], (800, 480))
+
+	def _kinds(self, plugin_present: bool) -> list[str]:
+		"""The telemetry kinds a task that fails says, in order."""
+		layer, sent = self._layer()
+		class Boom:
+			async def task_async(self, context, track, donev):
+				raise RuntimeError("boom")
+		layer._evaluate_plugin = (lambda t: { "plugin": Boom(), "track": t }) if plugin_present else (lambda t: { "plugin": None, "track": t })  # type: ignore
+		with mock.patch("python.task.timer_layer.render_error_image", side_effect=lambda stm, dims, title, lines, theme=None, compact=False, **kw: Image.new("RGB", dims)):
+			asyncio.run(layer._run_task_item(ServiceContainer(), FakeClock(NOW), overlay_item("top-right"), "scheduled", 0, None, None))
+		return [m.values["kind"] for route, m in sent if route == "telemetry" and isinstance(m, Telemetry) and "kind" in m.values]
+
+	def test_a_task_that_fails_is_started_failed_and_ended_like_any_other(self):
+		self.assertEqual(self._kinds(plugin_present=True), ["task-started", "task-failed", "task-ended"])
+
+	def test_a_task_whose_plugin_is_missing_is_started_failed_and_ended_too(self):
+		self.assertEqual(self._kinds(plugin_present=False), ["task-started", "task-failed", "task-ended"])
 
 	def test_a_reload_revokes_the_overlays_of_tasks_that_are_gone_or_disabled(self):
 		layer, sent = self._layer()
