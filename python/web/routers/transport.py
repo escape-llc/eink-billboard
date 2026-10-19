@@ -13,7 +13,7 @@ router = APIRouter(prefix="/transport")
 class TransportRequest(BaseModel):
 	command: Literal["play", "stop", "next"]
 
-def _application(request: Request) -> Application:
+def application_of(request: Request) -> Application:
 	isp = get_container(request)
 	application = isp.get_service(Application) if isp is not None else None
 	# the layers exist only once the application has started
@@ -24,7 +24,7 @@ def _application(request: Request) -> Application:
 @router.get("")
 def get_transport(request: Request):
 	"""Whether playback is stopped, for the play/stop button."""
-	return { "stopped": _application(request).playback_stopped }
+	return { "stopped": application_of(request).playback_stopped }
 
 @router.post("")
 def send_transport(body: TransportRequest, request: Request):
@@ -32,6 +32,6 @@ def send_transport(body: TransportRequest, request: Request):
 	Forward a command: `play` (resume where it stopped), `stop`, or `next` (the next track; a stopped layer plays from there).
 	It is accepted, not done: the layer does it on its own thread, and its telemetry says what happened.
 	"""
-	if not _application(request).transport(body.command):
+	if not application_of(request).transport(body.command):
 		raise ApiError(503, "The device is shutting down.")
 	return { "success": True }

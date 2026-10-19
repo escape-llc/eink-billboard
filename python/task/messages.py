@@ -2,7 +2,9 @@ from concurrent.futures import Future
 import threading
 from typing import Any, Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
+
+from PIL import Image
 
 from ..model.service_container import IServiceProvider
 
@@ -106,6 +108,16 @@ class InputEvent(BasicMessage):
 	source: str
 	name: str
 	gesture: str
+
+@dataclass(frozen=True, slots=True)
+class PushedImage(BasicMessage):
+	"""
+	An image someone pushed through the API (`POST /api/display/message` or `/image`), already made and fitted to the panel, for the Application to put on the display as a priority image
+	for `duration`. `title` is what the panel's telemetry calls it, and what takes it down again (`PriorityRevoke`).
+	"""
+	title: str
+	img: Image.Image
+	duration: timedelta
 
 @dataclass(frozen=True, slots=True)
 class ReloadDevices(BasicMessage):

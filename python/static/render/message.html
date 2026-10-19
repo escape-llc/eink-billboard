@@ -1,0 +1,44 @@
+{% extends "plugin.html" %}
+
+{% block style %}
+	<style>
+		/* a message someone sent to the panel: an optional title and the text, left as the sender wrote it (line breaks kept) */
+		html { font-size: {{ text_px }}px; }
+		.message-container {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			height: 100%;
+			width: 100%;
+		}
+		.message-wrapper {
+			width: 90%;
+			max-height: 92%;
+			text-align: center;
+			overflow: hidden;
+		}
+		.message-title {
+			font-family: var(--font-heading);
+			font-size: calc(1.5 * var(--font-scale) * 1rem);
+			font-weight: bold;
+			line-height: 1.1;
+			margin-bottom: 0.6rem;
+			overflow-wrap: anywhere;
+		}
+		.message-text {
+			font-size: calc(var(--font-scale) * 1rem);
+			line-height: 1.3;
+			white-space: pre-line;
+			overflow-wrap: anywhere;
+		}
+	</style>
+{% endblock %}
+
+{% block content %}
+<div class="message-container">
+	<div class="message-wrapper">
+		{% if title %}<div class="message-title text-secondary-1">{{ title }}</div>{% endif %}
+		<div class="message-text text-primary">{{ text }}</div>
+	</div>
+</div>
+{% endblock %}
