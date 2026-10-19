@@ -16,9 +16,14 @@ from PIL import ImageFont
 
 from ..datasources.data_source import DataSource
 from ..utils.file_utils import path_to_file_url
+from .migrations import MigrationGap, TooNew, migrate
+from .schedule import SCHEMA_PLAYLIST, SCHEMA_TASKS
 from .schedule_manager import ScheduleManager
+from .schema_versions import SCHEMA_KEY, SchemaId, schema_id_of
 
 class ItemSettingsDict(TypedDict):
+	# the `_schema` the stored settings document carries (python/model/schema_versions.py); its number is raised, with a migration, when the settings change shape
+	_schema: ReadOnly[str]
 	schema: ReadOnly[dict]
 	default: ReadOnly[dict]
 
@@ -452,6 +457,8 @@ class ConfigurationManager(ConfigurationObjectFactory):
 	def __init__(self, source_path:str|None = None, storage_path:str|None = None, nve_path:str|None = None):
 		self._lock = threading.RLock()
 		self._objectMap: dict[str, ConfigurationObject] = {}
+		# the documents the last `upgrade_settings` left as they were (written by a newer version, or not upgradable), by name
+		self.upgrade_problems: list[str] = []
 		# Source path is the python directory
 		# Storage path is where working storage is hosted (SHOULD be OUTSIDE the source tree)
 		# NVE path (Non-Volatile Environment) is the source used to initialize Storage
@@ -565,6 +572,9 @@ class ConfigurationManager(ConfigurationObjectFactory):
 					defx = schema.get("default", None)
 					if defx is not None:
 						settings = defx
+					# the document carries the `_schema` of the schema it came from
+					if isinstance(settings, dict) and isinstance(schema.get(SCHEMA_KEY), str):
+						settings = { SCHEMA_KEY: schema[SCHEMA_KEY], **settings }
 				with open(settings_path, 'w') as fx:
 					json.dump(settings, fx, indent=2)
 
@@ -572,6 +582,12 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		except OSError as e:
 				logger.error(f"ResetStorage: {self.STORAGE_PATH} : {e.strerror}")
 		pass
+
+	@staticmethod
+	def _with_schema(source: Mapping[str, Any], settings: dict) -> dict:
+		"""A descriptor's default settings with the `_schema` of the descriptor's settings (what the stored document is of)."""
+		urn = source.get(SCHEMA_KEY)
+		return { SCHEMA_KEY: urn, **settings } if isinstance(urn, str) and isinstance(settings, dict) else settings
 
 	def _reset_plugins(self):
 		plugins = self.enum_plugins()
@@ -585,7 +601,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			settings = psettings.get("default", None)
 			if settings == None:
 				continue
-			self._save_settings(pcm.settings_path(), settings)
+			self._save_settings(pcm.settings_path(), self._with_schema(psettings, settings))
 
 	def _reset_datasources(self):
 		dss = self.enum_datasources()
@@ -599,7 +615,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			settings = psettings.get("default", None)
 			if settings == None:
 				continue
-			self._save_settings(dsm.settings_path(), settings)
+			self._save_settings(dsm.settings_path(), self._with_schema(psettings, settings))
 
 	def refresh_schemas(self) -> list[str]:
 		"""
@@ -645,12 +661,14 @@ class ConfigurationManager(ConfigurationObjectFactory):
 
 	def upgrade_settings(self) -> list[str]:
 		"""
-		Add the settings a stored document lacks, from the defaults of its schema (the device's system, display and theme) or of its descriptor (a plugin's or a
-		data source's settings): a setting added after the storage was seeded would otherwise be in no document, and the form would not show it. Only keys that are
-		missing are added (with the default's value, `null` included, so the field is there to fill); a value the user set is never changed, and a document
-		that is not there or does not load is left alone. Returns the documents that changed, by their file name.
+		Bring every stored document up to the version of its source (#391): the device's system, display and theme (their schema file), a plugin's or a data source's settings (their descriptor) and
+		the schedules (their kind). A document carries the `_schema` of its source, and the number at its end is its version (none: the first); the registered migrations run in order up to the
+		source's number (`python/model/migrations.py`), then the keys the source added since are filled in from its defaults: a setting added after the storage was seeded would otherwise be in no
+		document, and the form would not show it. A value the user set is never changed unless a migration says so. A document that is not there or does not load is left alone, and so is one written
+		by a **newer** version (it is not trusted and not changed: its name is in `upgrade_problems`, and the log). Returns the documents that changed, by their file name.
 		"""
 		changed: list[str] = []
+		self.upgrade_problems = []
 		def move(source: str, target: str, keys: tuple[str, ...]) -> None:
 			"""
 			The `keys` of one data source's settings, moved to another's: they are what the user set (the new document holds only its seeded defaults
@@ -674,16 +692,27 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			logger.info(f"Settings moved from datasources/{source} to datasources/{target}: {', '.join(present)}")
 			changed.append(f"datasources/{source}")
 			changed.append(f"datasources/{target}")
-		def upgrade(path: str, defaults: object, label: str) -> None:
-			if not isinstance(defaults, dict) or not os.path.isfile(path):
+		def upgrade(path: str, source: object, defaults: object, label: str) -> None:
+			if not isinstance(source, str) or not os.path.isfile(path):
 				return
 			stored = _internal_load(path)
 			if not isinstance(stored, dict):
 				return
-			missing = {k: v for k, v in defaults.items() if k not in stored and not k.startswith("_")}
-			if not missing:
+			try:
+				upgraded, steps = migrate(source, stored, defaults if isinstance(defaults, dict) else None)
+			except TooNew:
+				logger.warning(f"The stored '{label}' was written by a newer version: it is left as it is.")
+				self.upgrade_problems.append(label)
 				return
-			_internal_save(path, { **stored, **copy.deepcopy(missing) })
+			except (MigrationGap, ValueError) as e:
+				logger.error(f"The stored '{label}' could not be upgraded ({type(e).__name__}): it is left as it is.")
+				self.upgrade_problems.append(label)
+				return
+			if upgraded == stored:
+				return
+			_internal_save(path, upgraded)
+			if steps:
+				logger.info(f"'{label}' migrated: {', '.join(steps)}.")
 			changed.append(label)
 		with self._lock:
 			# first, so the defaults below are added to the moved document
@@ -694,15 +723,27 @@ class ConfigurationManager(ConfigurationObjectFactory):
 					if name.endswith(".json"):
 						schema = _internal_load(os.path.join(self.storage_schemas, name)) or {}
 						stem = Path(name).stem
-						upgrade(os.path.join(self.storage_settings, f"{stem}-settings.json"), schema.get("default"), f"{stem}-settings.json")
+						upgrade(os.path.join(self.storage_settings, f"{stem}-settings.json"), schema.get(SCHEMA_KEY), schema.get("default"), f"{stem}-settings.json")
 			for pinfo in self.enum_plugins():
 				declared = pinfo["info"].get("id")
 				if declared:
-					upgrade(self.plugin_manager(declared).settings_path(), (pinfo["info"].get("settings") or {}).get("default"), f"plugins/{declared}")
+					settings = pinfo["info"].get("settings") or {}
+					upgrade(self.plugin_manager(declared).settings_path(), settings.get(SCHEMA_KEY), settings.get("default"), f"plugins/{declared}")
 			for dinfo in self.enum_datasources():
 				declared = dinfo["info"].get("id")
 				if declared:
-					upgrade(self.datasource_manager(declared).settings_path(), (dinfo["info"].get("settings") or {}).get("default"), f"datasources/{declared}")
+					settings = dinfo["info"].get("settings") or {}
+					upgrade(self.datasource_manager(declared).settings_path(), settings.get(SCHEMA_KEY), settings.get("default"), f"datasources/{declared}")
+			# the schedules, by the kind each carries (a file with none is the loader's to refuse, as ever)
+			kinds = { SchemaId.parse(urn).family: urn for urn in (SCHEMA_PLAYLIST, SCHEMA_TASKS) if SchemaId.parse(urn) is not None }  # type: ignore[union-attr]
+			if os.path.isdir(self.storage_schedules):
+				for name in sorted(os.listdir(self.storage_schedules)):
+					if name.startswith(".") or not name.endswith(".json"):
+						continue
+					path = os.path.join(self.storage_schedules, name)
+					found = schema_id_of(_internal_load(path)) if os.path.isfile(path) else None
+					if found is not None and found.family in kinds:
+						upgrade(path, kinds[found.family], None, f"schedules/{name}")
 		if changed:
 			logger.info(f"Settings upgraded with new fields: {', '.join(changed)}")
 			# a cached document is the old one

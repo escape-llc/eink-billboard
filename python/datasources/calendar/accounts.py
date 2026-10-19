@@ -29,6 +29,7 @@ from urllib.parse import parse_qs, quote, urlencode, urlsplit
 
 import httpx
 
+from ...model.schema_versions import VERSION_KEY, file_version, stamped
 from ...plugins.plugin_base import PermanentError
 from .sources import Event, _text, safe_color
 
@@ -56,6 +57,9 @@ class AccountError(RuntimeError):
 
 # ---- the token file -------------------------------------------------------------------------------------------------------------
 
+# the version of the sign-ins file (no source schema: python/model/schema_versions.py)
+TOKENS_VERSION = 1
+
 class TokenStore:
 	"""The tokens of the connected accounts, by account name, in one JSON file (`tokens`) that the data source's configuration manager keeps beside its settings.
 	One lock for the process: the web app and the layers share it."""
@@ -65,11 +69,17 @@ class TokenStore:
 		self._file = dsm.file("tokens")
 
 	def _load(self) -> tuple[str|None, dict]:
+		"""The revision and the accounts (the file's own `_version` is not an account)."""
 		rev, data = self._file.get()
-		return rev, data if isinstance(data, dict) else {}
+		if not isinstance(data, dict):
+			return rev, {}
+		return rev, { k: v for k, v in data.items() if k != VERSION_KEY }
 
 	def _store(self, rev: str|None, data: dict) -> None:
-		committed, _ = self._file.save(rev, data)
+		# a file saved by a newer version holds what this one cannot read: it is not overwritten (a sign-in lost to a downgrade is a sign-in to do again, and not silently)
+		if file_version(self._file.get()[1]) > TOKENS_VERSION:
+			raise AccountError("The saved sign-ins were made by a newer version of the app. Update the app, or sign in again after removing them.")
+		committed, _ = self._file.save(rev, stamped(data, TOKENS_VERSION))
 		if not committed:
 			raise AccountError("The saved sign-ins changed while they were being updated. Try again.")
 

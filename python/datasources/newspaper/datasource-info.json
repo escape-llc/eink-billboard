@@ -16,6 +16,7 @@
 		"module": "python.datasources.newspaper.api"
 	},
 	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:newspaper:1",
 		"schema": {
 			"properties": [
 			]

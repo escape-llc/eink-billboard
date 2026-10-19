@@ -12,6 +12,7 @@
 	"uses": ["comicvine"],
 	"features": ["api-client", "layer-foreground", "media-list"],
 	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:comic-vine:1",
 		"schema": {
 			"properties": [
 			]

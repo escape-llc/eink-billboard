@@ -11,6 +11,7 @@
 	"uses": ["calendar"],
 	"features": ["layer-overlay", "media-image"],
 	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:reminder-overlay:1",
 		"schema": {
 			"properties": [
 			]

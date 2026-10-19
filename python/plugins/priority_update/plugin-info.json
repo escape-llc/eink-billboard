@@ -10,6 +10,7 @@
 	"disabled": false,
 	"features": ["layer-priority", "media-image"],
 	"settings": {
+		"_schema": "urn:inky:storage:schema:plugin:interstitial:1",
 		"schema": {
 			"properties": [
 			]

@@ -42,6 +42,11 @@ def _settings_properties(item: CollectInfoDict) -> list[dict]:
 	settings = item["info"].get("settings") or {}
 	return (settings.get("schema") or {}).get("properties") or []
 
+def _settings_schema_id(item: CollectInfoDict) -> str|None:
+	"""The `_schema` of the settings a descriptor declares (their source: the stored document carries it)."""
+	urn = (item["info"].get("settings") or {}).get("_schema")
+	return urn if isinstance(urn, str) else None
+
 def _names(properties: list[dict]) -> list[str]:
 	"""The keys the settings schema declares: any other stored value is masked when served (see `get_document`)."""
 	return [p["name"] for p in properties if isinstance(p, dict) and isinstance(p.get("name"), str)]
@@ -75,7 +80,7 @@ def put_device_settings(name: str, cm: CM, body: dict[str, Any] = Body(...)):
 	name = _device_name(name)
 	cob = cm.settings_manager().open(name)
 	schema = cm.read_schema(name)
-	return put_document(f"{name}-settings", body, cob, load_schema_properties(schema), lookups=load_schema_lookups(schema))
+	return put_document(f"{name}-settings", body, cob, load_schema_properties(schema), lookups=load_schema_lookups(schema), schema_id=(schema or {}).get("_schema"))
 
 @router.get('/settings/{name}/defaults')
 def get_device_defaults(name: str, cm: CM):
@@ -114,7 +119,7 @@ def put_plugin_settings(plugin_id: str, cm: CM, body: dict[str, Any] = Body(...)
 	declared, item = _find_item(cm.enum_plugins(), plugin_id, "plugin")
 	cob = cm.plugin_manager(declared).open()
 	properties = _settings_properties(item)
-	return put_document(f"plugin-{declared}-settings", body, cob, properties, secret_fields(properties), _settings_lookups(item))
+	return put_document(f"plugin-{declared}-settings", body, cob, properties, secret_fields(properties), _settings_lookups(item), schema_id=_settings_schema_id(item))
 
 @router.get('/datasources/{datasource_id}/settings')
 def get_datasource_settings(datasource_id: str, cm: CM):
@@ -128,7 +133,7 @@ def put_datasource_settings(datasource_id: str, cm: CM, body: dict[str, Any] = B
 	declared, item = _find_item(cm.enum_datasources(), datasource_id, "datasource")
 	cob = cm.datasource_manager(declared).open()
 	properties = _settings_properties(item)
-	return put_document(f"datasource-{declared}-settings", body, cob, properties, secret_fields(properties), _settings_lookups(item))
+	return put_document(f"datasource-{declared}-settings", body, cob, properties, secret_fields(properties), _settings_lookups(item), schema_id=_settings_schema_id(item))
 
 @router.get('/plugins/{plugin_id}/lookups/{lookup}')
 def get_plugin_lookup(plugin_id: str, lookup: str, cm: CM):

@@ -13,6 +13,7 @@ from datetime import date
 from typing import Any, Callable, Iterable
 
 from ..model.configuration_manager import ConfigurationObject, HASH_KEY, ID_KEY
+from ..model.schema_versions import SCHEMA_KEY
 from ..utils.prompt_tokens import unknown_token
 from .errors import ApiError
 from .visibility import derive, hidden_names, null_hidden
@@ -303,11 +304,13 @@ def get_document(id: str, cob: ConfigurationObject, secrets: Secrets|None = None
 	document[ID_KEY] = id
 	return document
 
-def put_document(id: str, body: dict[str, Any], cob: ConfigurationObject, properties: Iterable[dict]|None = None, secrets: Secrets|None = None, lookups: dict|None = None) -> dict:
+def put_document(id: str, body: dict[str, Any], cob: ConfigurationObject, properties: Iterable[dict]|None = None, secrets: Secrets|None = None, lookups: dict|None = None, schema_id: str|None = None) -> dict:
 	"""
 	Validate and store the incoming document.
 	`_id` is optional, but when present it must match. `_rev` must match the stored revision (absent when nothing is stored yet).
 	A `settings` lookup among `lookups` chooses from a list of this same document: the one being saved.
+	`schema_id` is the `_schema` of the document's source (#391): the saved document carries it, whatever `_schema` the body had (the version of a document is the source's to say, not the client's), so
+	a document saved now is of the current version. None: no `_schema` is kept.
 	"""
 	secrets = secrets or Secrets()
 	xid = body.get(ID_KEY, None)
@@ -316,7 +319,9 @@ def put_document(id: str, body: dict[str, Any], cob: ConfigurationObject, proper
 		raise ApiError(400, "ID mismatch", id, rev=rev)
 	if rev is not None and not isinstance(rev, str):
 		raise ApiError(400, f"{HASH_KEY} must be a string", id, rev=None)
-	document = { k: v for k, v in body.items() if k not in (HASH_KEY, ID_KEY) }
+	document = { k: v for k, v in body.items() if k not in (HASH_KEY, ID_KEY, SCHEMA_KEY) }
+	if schema_id is not None:
+		document = { SCHEMA_KEY: schema_id, **document }
 	_, stored = cob.get()
 	document = restore_secrets(document, stored, secrets)
 	document = null_hidden(document, properties or [])

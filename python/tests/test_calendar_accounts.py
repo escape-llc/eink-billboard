@@ -104,7 +104,8 @@ class TestTokenStore(TokenStoreCase):
 		self.connect("Home", "google", "g-client")
 		self.connect("Old", "google", "g-client")
 		self.store.put("Work", { "client_id": "m", "refresh_token": "r" }, keep={ "Home", "Work" })
-		self.assertEqual(sorted(self.dsm.file("tokens").get()[1] or {}), ["Home", "Work"])
+		# the file's own `_version` is not an account
+		self.assertEqual(sorted(k for k in (self.dsm.file("tokens").get()[1] or {}) if k != "_version"), ["Home", "Work"])
 
 class TestMicrosoftSignIn(TokenStoreCase):
 	async def test_the_device_code_flow_waits_then_keeps_the_tokens(self):

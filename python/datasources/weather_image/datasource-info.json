@@ -11,6 +11,7 @@
 	"uses": ["openweathermap"],
 	"features": ["paid-service", "api-client", "layer-background", "media-image"],
 	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:weather-image:1",
 		"schema": {
 			"properties": [
 			]

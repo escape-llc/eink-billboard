@@ -63,7 +63,10 @@ class TestTheShippedPrompts(unittest.TestCase):
 	def test_a_new_storage_is_seeded_with_them(self):
 		cm = storage(None)
 		_, seeded = cm.settings_manager().open(SETTINGS).get()
-		self.assertEqual(seeded, shipped()["default"])
+		assert seeded is not None
+		# the document carries the `_schema` of the schema it came from, and the rest is the default
+		self.assertEqual({ k: v for k, v in seeded.items() if k != "_schema" }, shipped()["default"])
+		self.assertEqual(seeded["_schema"], shipped()["_schema"])
 		self.assertEqual(cm.shipped_settings(SETTINGS), shipped()["default"])
 		self.assertEqual(cm.shipped_settings("no-such-document"), {})
 

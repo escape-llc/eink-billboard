@@ -10,6 +10,7 @@
 	"disabled": false,
 	"features": ["internet", "layer-background", "media-image"],
 	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:wpotd:1",
 		"schema": {
 			"properties": [
 			]

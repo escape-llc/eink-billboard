@@ -1,0 +1,325 @@
+{
+	"urn:inky:storage:schema:datasource:apod": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:datasource:calendar": {
+		"version": 1,
+		"properties": {
+			"weekStart": {
+				"type": "string",
+				"enum": [
+					"monday",
+					"sunday"
+				]
+			},
+			"weekNumbers": {
+				"type": "boolean"
+			},
+			"cacheHours": {
+				"type": "number"
+			},
+			"staleDays": {
+				"type": "integer"
+			},
+			"calendars": {
+				"type": "array"
+			},
+			"accounts": {
+				"type": "array"
+			},
+			"holidays": {
+				"type": "array"
+			}
+		}
+	},
+	"urn:inky:storage:schema:datasource:clock": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:datasource:comic": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:datasource:comic-vine": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:datasource:comicvine": {
+		"version": 1,
+		"properties": {
+			"apiKey": {
+				"type": "string"
+			},
+			"volumeCacheHours": {
+				"type": "number"
+			},
+			"issuesCacheHours": {
+				"type": "number"
+			},
+			"staleDays": {
+				"type": "integer"
+			}
+		}
+	},
+	"urn:inky:storage:schema:datasource:countdown": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:datasource:google-ai": {
+		"version": 1,
+		"properties": {
+			"apiKey": {
+				"type": "string"
+			},
+			"modelsCacheHours": {
+				"type": "number"
+			},
+			"discoveryCacheHours": {
+				"type": "number"
+			},
+			"staleDays": {
+				"type": "integer"
+			}
+		}
+	},
+	"urn:inky:storage:schema:datasource:image-folder": {
+		"version": 1,
+		"properties": {
+			"folders": {
+				"type": "array"
+			}
+		}
+	},
+	"urn:inky:storage:schema:datasource:image-url": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:datasource:newspaper": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:datasource:openai": {
+		"version": 1,
+		"properties": {
+			"apiKey": {
+				"type": "string"
+			},
+			"modelsCacheHours": {
+				"type": "number"
+			},
+			"staleDays": {
+				"type": "integer"
+			}
+		}
+	},
+	"urn:inky:storage:schema:datasource:openweathermap": {
+		"version": 1,
+		"properties": {
+			"apiKey": {
+				"type": "string"
+			},
+			"units": {
+				"type": "string",
+				"enum": [
+					"auto",
+					"metric",
+					"imperial"
+				]
+			},
+			"currentCacheHours": {
+				"type": "number"
+			},
+			"forecastCacheHours": {
+				"type": "number"
+			},
+			"staleDays": {
+				"type": "integer"
+			}
+		}
+	},
+	"urn:inky:storage:schema:datasource:reminder-overlay": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:datasource:rss": {
+		"version": 1,
+		"properties": {
+			"feeds": {
+				"type": "array"
+			}
+		}
+	},
+	"urn:inky:storage:schema:datasource:today": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:datasource:weather": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:datasource:weather-image": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:datasource:weather-overlay": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:datasource:wpotd": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:datasource:year_progress": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:devices": {
+		"version": 1,
+		"properties": {
+			"buttonPlayStop": {
+				"type": "integer"
+			},
+			"buttonNext": {
+				"type": "integer"
+			},
+			"buttonStop": {
+				"type": "integer"
+			}
+		}
+	},
+	"urn:inky:storage:schema:display": {
+		"version": 1,
+		"properties": {
+			"display_type": {
+				"type": "string"
+			},
+			"orientation": {
+				"type": "string"
+			},
+			"rotate180": {
+				"type": "boolean"
+			},
+			"refreshInterval": {
+				"type": "integer"
+			},
+			"waveshare-model": {
+				"type": "string"
+			},
+			"inky-saturation": {
+				"type": "number"
+			},
+			"imageSettings-saturation": {
+				"type": "number"
+			},
+			"imageSettings-contrast": {
+				"type": "number"
+			},
+			"imageSettings-brightness": {
+				"type": "number"
+			},
+			"imageSettings-sharpness": {
+				"type": "number"
+			}
+		}
+	},
+	"urn:inky:storage:schema:master-prompts": {
+		"version": 1,
+		"properties": {
+			"inventInstructions": {
+				"type": "string",
+				"format": "multiline"
+			},
+			"inventRequest": {
+				"type": "string",
+				"format": "multiline"
+			},
+			"rewriteInstructions": {
+				"type": "string",
+				"format": "multiline"
+			},
+			"rewriteRequest": {
+				"type": "string",
+				"format": "multiline"
+			},
+			"canvas": {
+				"type": "string",
+				"format": "multiline"
+			}
+		}
+	},
+	"urn:inky:storage:schema:plugin:interstitial": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:plugin:overlay": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:plugin:slide-show": {
+		"version": 1,
+		"properties": {
+			"staleDays": {
+				"type": "integer"
+			}
+		}
+	},
+	"urn:inky:storage:schema:system": {
+		"version": 1,
+		"properties": {
+			"timezoneName": {
+				"type": "string"
+			},
+			"locale": {
+				"type": "string"
+			},
+			"timeFormat": {
+				"type": "string"
+			},
+			"location": {
+				"type": "location"
+			},
+			"maxStrikes": {
+				"type": "integer"
+			},
+			"strikeRetrySeconds": {
+				"type": "integer"
+			},
+			"strikeRetryMaxSeconds": {
+				"type": "integer"
+			}
+		}
+	},
+	"urn:inky:storage:schema:theme": {
+		"version": 1,
+		"properties": {
+			"theme": {
+				"type": "string"
+			},
+			"hue": {
+				"type": "number"
+			},
+			"saturation": {
+				"type": "number"
+			},
+			"lightness": {
+				"type": "number"
+			},
+			"background": {
+				"type": "string"
+			},
+			"fontBody": {
+				"type": "string"
+			},
+			"fontHeading": {
+				"type": "string"
+			},
+			"fontOverlay": {
+				"type": "string"
+			},
+			"fontScale": {
+				"type": "number"
+			}
+		}
+	}
+}

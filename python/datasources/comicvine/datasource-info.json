@@ -15,6 +15,7 @@
 		"module": "python.datasources.comicvine.api"
 	},
 	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:comicvine:1",
 		"schema": {
 			"properties": [
 				{

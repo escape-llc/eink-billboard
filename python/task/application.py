@@ -491,6 +491,9 @@ class Application(DispatcherTask):
 			self.router.failure_sink = self.sink.accept
 		for task in (self, self.display, self.playlist_layer, self.timer_layer, self.device_io):
 			task.failure_sink = lambda telemetry: self.router.send("telemetry", telemetry)  # type: ignore[union-attr]
+		if self.cm.upgrade_problems:
+			# written by a newer version of the app (a downgrade) or not upgradable: left as they are, and said once (the names only)
+			self.report_failure(f"These stored settings could not be brought up to this version and are left as they are: {', '.join(self.cm.upgrade_problems)}")
 		# STEP 1 configure the Display task
 		dpcontainer = ServiceContainer()
 		tod = self.root_container.get_service(TimeOfDay)

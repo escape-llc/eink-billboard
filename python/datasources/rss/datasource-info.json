@@ -17,6 +17,7 @@
 		"module": "python.datasources.rss.api"
 	},
 	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:rss:1",
 		"schema": {
 			"properties": [
 				{

@@ -10,6 +10,7 @@
 	"disabled": false,
 	"features": ["internet", "layer-background", "media-image"],
 	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:apod:1",
 		"schema": {
 			"properties": [
 			]

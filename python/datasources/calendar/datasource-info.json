@@ -16,6 +16,7 @@
 		"module": "python.datasources.calendar.api"
 	},
 	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:calendar:1",
 		"schema": {
 			"lookups": {
 				"country": { "url": "/api/datasource/calendar/lookups/countries" },

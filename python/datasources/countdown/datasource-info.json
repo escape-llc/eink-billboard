@@ -10,6 +10,7 @@
 	"features": ["layer-foreground", "layer-priority", "media-image"],
 	"disabled": false,
 	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:countdown:1",
 		"schema": {
 			"properties": [
 			]

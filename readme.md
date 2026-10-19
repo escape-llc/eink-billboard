@@ -477,6 +477,16 @@ The application uses a specific "storage root" folder it keeps everything in.
 	* There is a default version in the source code
 	* You may stage any number of NVE to use for "factory reset"
 
+## Versions of stored documents
+
+A stored document says which version of its **source** it is (#391), so a setting can be renamed, removed or reinterpreted and an older document still comes along.
+
+* A settings document carries the `_schema` of its source: the schema file (`schemas/system.json`) for the device's own, the `settings` block of a plugin's or data source's descriptor, the constants in `python/model/schedule.py` for a schedule. The number at the end is the version (`urn:inky:storage:schema:system:1`); a document with no `_schema` is version 1. A document that has no source (a kept list, the panel's refresh state, the Calendar's sign-ins) carries an integer `_version`, which the code that writes it owns.
+* **A migration** is a pure function from version `n` to `n + 1`, registered in `python/model/migrations.py`: it is hard-coded on purpose, because what a rename means is for a person to say. At every start `upgrade_settings()` migrates each stored document in order up to its source's number, then fills in the keys the source added since (a default), and stamps it. A value the person set is never changed unless a migration says so.
+* A document from a **newer** version (a downgrade) is not changed and not trusted: it is left as it is and named once in the Activity gutter and the log. A source whose number was raised with no migration leaves its documents as they are, and says so.
+* A saved document carries its source's `_schema` whatever the request said: a version is the source's to give.
+* **Changing a setting's shape** (renaming, removing, retyping, reinterpreting; adding a property with a default needs none of this): raise the source's number, register the migration, run `uv run python -m python.tests.test_schema_versions --record`, and add a fixture of the old shape. `test_schema_versions` fails until they agree (`fixtures/schema_shapes.json` records each source's properties at its current number).
+
 A Storage Root is required for the following:
 
 * Main Application
