@@ -48,6 +48,13 @@ class TestSchemaId(unittest.TestCase):
 		self.assertEqual((found.family, found.version), ("urn:inky:storage:schema:datasource:year_progress", 12))
 		self.assertEqual(str(found.with_version(13)), "urn:inky:storage:schema:datasource:year_progress:13")
 
+	def test_the_urn_an_earlier_release_wrote_is_the_same_family(self):
+		found = SchemaId.parse("urn:inky:storage:settings:system:1")
+		assert found is not None
+		self.assertEqual((found.family, found.version), (SYSTEM, 1))
+		upgraded, _ = migrate(f"{SYSTEM}:1", { "_schema": "urn:inky:storage:settings:system:1", "a": 1 })
+		self.assertEqual(upgraded, { "_schema": f"{SYSTEM}:1", "a": 1 })
+
 	def test_what_is_not_ours_is_none(self):
 		for bad in (None, 5, "", "system", "urn:inky:storage:schema:system", "urn:inky:storage:schema:system:0", "urn:inky:storage:schema:system:x", "urn:other:schema:system:1", "urn:inky:storage:schema:system:-1"):
 			with self.subTest(bad):

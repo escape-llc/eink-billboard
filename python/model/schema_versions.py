@@ -14,6 +14,9 @@ SCHEMA_KEY = "_schema"
 VERSION_KEY = "_version"
 FIRST_VERSION = 1
 
+# an earlier release stamped some documents `urn:inky:storage:settings:<name>:<n>` (the schema files say `schema`): the same family, read as such
+_LEGACY_PREFIX = "urn:inky:storage:settings:"
+_PREFIX = "urn:inky:storage:schema:"
 _URN = re.compile(r"^(?P<family>urn:inky:storage:[a-z]+(?::[A-Za-z0-9_-]+)+):(?P<version>[1-9][0-9]{0,5})$")
 
 class SchemaId(BaseModel):
@@ -25,6 +28,8 @@ class SchemaId(BaseModel):
 	@classmethod
 	def parse(cls, urn: Any) -> "SchemaId|None":
 		"""The parts of a URN, or None when it is not one of ours (not text, no number, a number that is not positive)."""
+		if isinstance(urn, str) and urn.startswith(_LEGACY_PREFIX):
+			urn = _PREFIX + urn[len(_LEGACY_PREFIX):]
 		match = _URN.match(urn) if isinstance(urn, str) else None
 		return cls(family=match["family"], version=int(match["version"])) if match else None
 
