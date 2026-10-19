@@ -9,6 +9,7 @@ here is what the web app's status says (the messages are ours: they reach the st
 import importlib
 import inspect
 import logging
+import sys
 import threading
 from typing import Any, Callable
 
@@ -21,6 +22,8 @@ from ..plugins.plugin_base import PermanentError
 from ..utils.image_utils import to_rgb
 
 DEFAULT_SATURATION = 0.5
+# the border colours the settings offer (python/displays/inky/display-info.json); which of them a board has is the driver's to say
+BORDER_COLORS = ("white", "black", "red", "yellow", "green", "blue", "orange")
 # the longest a refresh may take (the 7-color Impression takes about 35 seconds); some models wait on the busy line for good (panel_guard.py)
 REFRESH_SECONDS = 180.0
 START_SECONDS = 60.0
@@ -41,6 +44,18 @@ def load_driver() -> Any:
 		# no board answered (nothing attached, or I2C is off)
 		raise PermanentError("No Inky display was found. Check that it is attached and that SPI and I2C are enabled (raspi-config), then restart. The log has the detail.") from e
 
+def border_constant(device: Any, name: str) -> int|None:
+	"""
+	The number the driver's `set_border` takes for a color name: the constant of that name in the **module of the board's own class** (or the one it inherits from). Not the class attribute of the same name and not
+	`inky.BLACK`: each model numbers its colors differently (a pHAT has white 0 and black 1, an Impression black 0 and white 1, and the Spectra boards' class attributes disagree with their module's, which is what
+	`set_border` checks), so the name is looked up in the board's own module. None when the model has no such color.
+	"""
+	for cls in type(device).__mro__:
+		value = getattr(sys.modules.get(cls.__module__), name.upper(), None)
+		if isinstance(value, int) and not isinstance(value, bool):
+			return value
+	return None
+
 class InkyDisplay(DisplayBase):
 	"""`loader` makes the driver's board (a test gives a fake one); by default it is `load_driver`."""
 	def __init__(self, name: str, loader: Callable[[], Any]|None = None, refresh_seconds: float = REFRESH_SECONDS, start_seconds: float = START_SECONDS):
@@ -50,6 +65,8 @@ class InkyDisplay(DisplayBase):
 		self._start_seconds = start_seconds
 		self._guard = PanelGuard("inky")
 		self.device: Any = None
+		# the border colors already said to be unavailable on this board (said once, not at every refresh)
+		self._border_noted: set[str] = set()
 		self.display_settings: dict[str, Any] = {}
 		self.resolution: tuple[int, int] = (0, 0)
 		# one refresh at a time: the SPI bus and the busy pin are one panel's
@@ -80,6 +97,23 @@ class InkyDisplay(DisplayBase):
 		value = self.display_settings.get("saturation", DEFAULT_SATURATION)
 		return min(max(float(value), 0.0), 1.0) if isinstance(value, (int, float)) and not isinstance(value, bool) else DEFAULT_SATURATION
 
+	def border_color(self) -> str|None:
+		"""The border color the settings choose, or None when it is not set (or not one we know): the driver's own is then left as it is."""
+		value = self.display_settings.get("borderColor")
+		return value if isinstance(value, str) and value in BORDER_COLORS else None
+
+	def _set_border(self, device: Any) -> None:
+		"""Give the board its border color before the refresh. A board that has no such color (or no border at all) keeps the driver's own, and the log says so once: never a failed refresh."""
+		name = self.border_color()
+		if name is None or not callable(getattr(device, "set_border", None)):
+			return
+		value = border_constant(device, name)
+		if value is not None:
+			device.set_border(value)
+		if (value is None or getattr(device, "border_colour", value) != value) and name not in self._border_noted:
+			self._border_noted.add(name)
+			self.logger.warning(f"'{self.name}' this board has no {name} border: its own is kept.")
+
 	def render(self, img: Image.Image, id: int, title: str|None = None) -> None:
 		if self.device is None:
 			raise RuntimeError("The Inky display was not initialized")
@@ -93,6 +127,7 @@ class InkyDisplay(DisplayBase):
 			# only the 7-colour boards take a saturation (their palette is blended with it); the others quantize to their own colors
 			device = self.device
 			def refresh() -> None:
+				self._set_border(device)
 				if "saturation" in inspect.signature(device.set_image).parameters:
 					device.set_image(picture, saturation=self.saturation())
 				else:

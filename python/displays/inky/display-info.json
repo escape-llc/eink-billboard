@@ -11,7 +11,19 @@
 	"features": ["display-device", "panel", "needs-device-libraries"],
 	"instanceSettings": {
 		"schema": {
-			"lookups": {},
+			"lookups": {
+				"borderColor": {
+					"items": [
+						{ "name": "White", "value": "white" },
+						{ "name": "Black", "value": "black" },
+						{ "name": "Red", "value": "red" },
+						{ "name": "Yellow", "value": "yellow" },
+						{ "name": "Green", "value": "green" },
+						{ "name": "Blue", "value": "blue" },
+						{ "name": "Orange", "value": "orange" }
+					]
+				}
+			},
 			"properties": [
 				{
 					"name": "saturation",
@@ -25,6 +37,15 @@
 					"maxFractionDigits": 2,
 					"required": false,
 					"default": 0.5
+				},
+				{
+					"name": "borderColor",
+					"type": "string",
+					"title": "Border Color",
+					"description": "The color of the panel's border: the thin frame around the picture that the picture does not cover. What a board can show depends on its model: white and black on every one, red or yellow on the ones that have that ink, and green, blue and orange on the 7-color Impressions. A color the board does not have is left at white (the log says so).",
+					"lookup": "borderColor",
+					"required": false,
+					"default": "white"
 				}
 			]
 		}
