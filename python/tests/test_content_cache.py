@@ -12,7 +12,13 @@ from unittest.mock import patch
 import httpx
 
 from ..datasources import content_cache, keeping
-from ..datasources.content_cache import BLOB_PREFIX, blob_name, fetch_cached, freshness, retain
+from ..datasources.content_cache import BLOB_PREFIX, blob_name, download_for, fetch_cached, freshness, retain
+from ..datasources.data_source import DataSourceExecutionContext
+from ..model.configuration_manager import DatasourceConfigurationManager
+from ..model.service_container import ServiceContainer
+from ..task.async_http_worker_pool import client_var
+from ..task.message_router import MessageRouter
+from ..task.messages import Telemetry
 from ..utils import url_guard
 from ..utils.url_guard import UrlRefused
 from .utils import temp_configuration_manager
@@ -157,6 +163,43 @@ class TestKeeping(CacheTestBase):
 		with self.assertRaisesRegex(RuntimeError, "Unexpected content type"):
 			self.get(Origin(), ctok=lambda ct: ct.startswith("text/"))
 		self.assertEqual(self.folder(), [])
+
+class TestTelemetry(CacheTestBase):
+	"""What a download tells the web app: the outcome, the data source and the size, never the address."""
+	def outcomes(self, steps: list[tuple[Origin, timedelta]], settings: dict[str, Any]|None = None, url: str = URL) -> list[str]:
+		told: list[str] = []
+		for origin, later in steps:
+			self.get(origin, NOW + later, url=url, settings=settings, report=lambda outcome, size: told.append(outcome))
+		return told
+
+	def test_hit_miss_revalidated_stale_and_bypass(self):
+		origin = Origin(headers={ "ETag": '"v1"', "Cache-Control": "max-age=60" })
+		self.assertEqual(self.outcomes([(origin, timedelta(0)), (origin, timedelta(seconds=30)), (origin, timedelta(minutes=5))]), ["miss", "hit", "revalidated"])
+		origin.fail = httpx.ConnectError("down")
+		self.assertEqual(self.outcomes([(origin, timedelta(hours=2))]), ["stale"])
+		self.assertEqual(self.outcomes([(Origin(headers={ "Cache-Control": "no-store" }), timedelta(0))], url="https://pics.example/b.jpg"), ["bypass"])
+		self.assertEqual(self.outcomes([(Origin(), timedelta(0))], { "contentCacheHours": 0 }, url="https://pics.example/c.jpg"), ["bypass"])
+
+	def test_the_data_source_sends_an_event_without_the_address(self):
+		sent: list[Telemetry] = []
+		class Router(MessageRouter):
+			def send(self, route, msg):  # type: ignore[override]
+				if route == "telemetry":
+					sent.append(msg)  # type: ignore[arg-type]
+		services = ServiceContainer()
+		services.add_service(DatasourceConfigurationManager, self.dscm)
+		services.add_service(MessageRouter, Router())
+		dsec = DataSourceExecutionContext(services, (800, 480), NOW)
+		origin = Origin()
+		async def run() -> None:
+			client_var.set(httpx.AsyncClient(transport=httpx.MockTransport(origin)))
+			for _ in range(2):
+				await download_for(dsec, URL, default_hours=24)
+		asyncio.run(run())
+		self.assertEqual([m.values["kind"] for m in sent], ["cache-miss", "cache-hit"])
+		self.assertEqual(sent[1].name, "data-source")
+		self.assertEqual((sent[1].values["datasource"], sent[1].values["bytes"]), ("wpotd", len(b"picture")))
+		self.assertNotIn("SECRET", str([m.values for m in sent]))
 
 class TestThePool(CacheTestBase):
 	def test_the_pool_is_bounded_and_the_oldest_use_goes_first(self):
