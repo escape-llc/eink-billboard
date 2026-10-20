@@ -139,6 +139,16 @@ cmd_build() {
 	mkdir -p "$LOG_DIR"
 	local log="$LOG_DIR/build.log" commit
 	commit=$(git -C "$HERE" rev-parse --short HEAD 2>/dev/null || echo unknown)
+	if [ "${IN_UPDATE:-0}" != 1 ]; then
+		# "build" builds what is in the clone and fetches nothing: say so, and say when the clone is behind (it was run again and again, expecting the newest code)
+		local branch behind
+		timeout 15 git -C "$HERE" fetch -q origin >/dev/null 2>&1
+		if branch=$(git -C "$HERE" symbolic-ref -q --short HEAD) && behind=$(git -C "$HERE" rev-list --count "HEAD..origin/$branch" 2>/dev/null) && [ "${behind:-0}" -gt 0 ]; then
+			warn "the clone is $behind commit(s) behind '$branch' on the internet, and build uses what is here, not the newest. To get the newest code and build it:  $SCRIPT update"
+		else
+			say "build uses the code in the clone as it is; '$SCRIPT update' fetches the newest first."
+		fi
+	fi
 	say "Building $IMAGE from $HERE (commit $commit)."
 	say "The first build takes 15 to 20 minutes on a Pi; later ones reuse what did not change. Everything is also written to $log."
 	if ! podman build --target app-device --build-arg "EINK_COMMIT=$commit" --label "eink.commit=$commit" -t "$IMAGE" "$HERE" 2>&1 | tee "$log"; then
