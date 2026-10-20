@@ -9,10 +9,10 @@ test.beforeEach(async ({ page }) => stubMapTiles(page))
 test("the activity goes live, shows what the panel shows, and reports a change of settings", async ({ page, request }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/system")
-	const gutter = page.getByRole("region", { name: "Device activity" })
+	const gutter = page.locator(".system-live")
 	await expect(gutter).toHaveAttribute("data-link", "live")
 	// the mock display drew the playlist's page when the server started: its thumbnail loads
-	const now = gutter.getByRole("region", { name: "Now showing" }).getByRole("button", { name: /full size/ }).getByRole("img")
+	const now = gutter.getByRole("region", { name: "Now showing" }).getByRole("button", { name: /full size/ }).getByRole("img").first()
 	await expect(now).toBeVisible({ timeout: 20000 })
 	await expect.poll(() => now.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
 
@@ -41,7 +41,7 @@ test("on the server with a token, the link connects once the page has signed in"
 	const watch = watchProblems(page, [401])
 	await page.goto(`${PROTECTED.url}/#/system`)
 	await signInWith(page, "API token", TOKEN)
-	await expect(page.getByRole("region", { name: "Device activity" })).toHaveAttribute("data-link", "live", { timeout: 15000 })
+	await expect(page.locator(".system-live")).toHaveAttribute("data-link", "live", { timeout: 15000 })
 	watch.expectNone()
 })
 
@@ -49,17 +49,17 @@ test("in a short window the System page scrolls inside its area and the events i
 	const watch = watchProblems(page)
 	await page.setViewportSize({ width: 1200, height: 450 })
 	await page.goto("/#/system")
-	const activity = page.getByRole("region", { name: "Device activity" })
+	const activity = page.locator(".system-live")
 	await expect(activity).toHaveAttribute("data-link", "live")
-	const events = activity.getByRole("region", { name: "Events" })
+	const events = activity.getByRole("region", { name: "Activity" })
 	await expect(events.getByRole("listitem").first()).toBeVisible({ timeout: 20000 })
 
-	// nothing is taller than the window: the page scrolls inside its area, to its end (backup and restore is the last part) ...
+	// nothing is taller than the window: the page scrolls inside its area, to its end (Storage is the last part) ...
 	const router = page.locator(".router-view")
 	expect(await page.evaluate(() => document.querySelector(".router-view")!.getBoundingClientRect().bottom)).toBeLessThanOrEqual(450)
 	expect(await router.evaluate(e => e.scrollHeight - e.clientHeight)).toBeGreaterThan(0)
 	await router.evaluate(e => { e.scrollTop = e.scrollHeight })
-	await expect(page.getByRole("region", { name: "Backup and restore" })).toBeInViewport()
+	await expect(page.getByRole("region", { name: "Storage" })).toBeInViewport()
 	// ... and the events list scrolls inside its own box: its last event can be reached
 	const list = events.getByRole("list")
 	await list.evaluate(e => { e.scrollTop = e.scrollHeight })
@@ -72,9 +72,9 @@ test("in a short window the System page scrolls inside its area and the events i
 test("the System page's parts have their own surface, which follows the theme", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/system")
-	const gutter = page.getByRole("region", { name: "Device activity" })
-	await expect(gutter).toHaveAttribute("data-link", "live")
-	const background = () => gutter.evaluate(el => getComputedStyle(el).backgroundColor)
+	const live = page.locator(".system-live")
+	await expect(live).toHaveAttribute("data-link", "live")
+	const background = () => page.getByRole("region", { name: "Activity" }).evaluate(el => getComputedStyle(el).backgroundColor)
 	const light = (rgb: string) => { const [r, g, b] = (rgb.match(/\d+/g) ?? []).map(Number); return ((r ?? 0) + (g ?? 0) + (b ?? 0)) / 765 }
 	await page.evaluate(() => document.documentElement.classList.remove("app-dark-mode"))
 	// painted, not the page showing through
@@ -85,24 +85,23 @@ test("the System page's parts have their own surface, which follows the theme", 
 	watch.expectNone()
 })
 
-test("the activity is the larger part of the System page, and its player and events are side by side", async ({ page }) => {
+test("the activity and what is showing are the larger part of the System page, each a panel of its own, and a narrow window stacks the page", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.setViewportSize({ width: 1500, height: 900 })
 	await page.goto("/#/system")
-	const activity = page.getByRole("region", { name: "Device activity" })
-	await expect(activity).toHaveAttribute("data-link", "live")
-	const events = activity.getByRole("region", { name: "Events" })
+	const live = page.locator(".system-live")
+	await expect(live).toHaveAttribute("data-link", "live")
+	const events = live.getByRole("region", { name: "Activity" })
 	await expect(events.getByRole("listitem").first()).toBeVisible({ timeout: 20000 })
-	const now = activity.getByRole("group", { name: "Playback" })
-	const [a, e, p, machine] = await Promise.all([activity.boundingBox(), events.boundingBox(), now.boundingBox(), page.getByRole("region", { name: "Machine" }).boundingBox()])
-	// the activity takes more than the facts beside it
-	expect(a!.width).toBeGreaterThan(machine!.width)
-	// the player's column is beside the events, not above them
-	expect(e!.x).toBeGreaterThan(p!.x + p!.width - 2)
-	expect(Math.abs(e!.y - p!.y)).toBeLessThan(60)
-	// a narrow window stacks them again
-	await page.setViewportSize({ width: 1000, height: 900 })
-	const [stackedPlayer, stackedEvents] = await Promise.all([now.boundingBox(), events.boundingBox()])
-	expect(stackedEvents!.y).toBeGreaterThan(stackedPlayer!.y)
+	const now = live.getByRole("region", { name: "Now showing" })
+	const machine = page.getByRole("region", { name: "Machine" })
+	const [l, e, n, m] = await Promise.all([live.boundingBox(), events.boundingBox(), now.boundingBox(), machine.boundingBox()])
+	// the two panels take more than the facts beside them, and the activity is below what is showing
+	expect(l!.width).toBeGreaterThan(m!.width)
+	expect(e!.y).toBeGreaterThan(n!.y + n!.height - 2)
+	// a narrow window stacks the page's two columns
+	await page.setViewportSize({ width: 800, height: 900 })
+	const [stackedNow, stackedMachine] = await Promise.all([now.boundingBox(), machine.boundingBox()])
+	expect(stackedNow!.y).toBeGreaterThan(stackedMachine!.y)
 	watch.expectNone()
 })

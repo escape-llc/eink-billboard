@@ -77,13 +77,14 @@ test("a claimed device is claimed once, and asks for the password after that", a
 	watch.expectNone()
 })
 
-test("the password is changed in the settings, and the old one stops working", async ({ page, request }) => {
+test("the password is changed from the System page, and the old one stops working", async ({ page, request }) => {
 	const watch = watchProblems(page, [401, 403], [/Failed|403|401/])
-	await page.goto("/#/settings")
+	await page.goto("/#/system")
 	await dialog(page).getByLabel("Password", { exact: true }).fill(PASSWORD)
 	await dialog(page).getByRole("button", { name: "Sign in" }).click()
-	// the form is drawn behind the dialog already (GET /api/access needs no sign-in), and the whole page is loaded again once signed in: type into that one
+	// the whole page is loaded again once signed in: open the password dialog on that one
 	await expect(page.locator(".p-toast-message-success")).toContainText("The page was reloaded")
+	await page.getByTestId("open-password").click()
 	const form = page.getByTestId("password-form")
 	await expect(form).toBeVisible()
 	await expect(form.getByRole("heading", { name: "Change the device password" })).toBeVisible()

@@ -72,7 +72,7 @@ async function submit() {
 }
 </script>
 <style scoped>
-.password-form { max-width: 28rem; margin-top: 1.5rem; }
+.password-form { max-width: 28rem; }
 .password-form h3 { margin: 0 0 .5rem 0; }
 .password-help { margin: 0 0 .5rem 0; }
 .password-fields { display: flex; flex-direction: column; gap: .75rem; }

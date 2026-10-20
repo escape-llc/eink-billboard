@@ -1,4 +1,27 @@
 <template>
+	<div class="system-page">
+	<!-- the page's commands, as on the playlist and schedule pages: the playlist's transport, then what changes the whole device (each opens its own dialog) -->
+	<Toolbar class="p-1">
+		<template #start>
+			<div style="font-size:150%">System</div>
+		</template>
+		<template #end>
+			<InputGroup class="system-actions" role="group" aria-label="Playback">
+				<Button size="small" severity="secondary" type="button" data-testid="play-stop"
+					:icon="transport.state.stopped ? 'pi pi-play' : 'pi pi-stop'"
+					:aria-label="transport.state.stopped ? 'Play' : 'Stop playback'" :title="transport.state.stopped ? 'Play' : 'Stop playback'"
+					:data-state="transport.state.stopped ? 'stopped' : 'playing'" :disabled="transport.state.busy"
+					@click="press(transport.state.stopped ? 'play' : 'stop')" />
+				<Button size="small" severity="secondary" type="button" icon="pi pi-step-forward" aria-label="Next track" title="Next track"
+					data-testid="next-track" :disabled="transport.state.busy" @click="press('next')" />
+			</InputGroup>
+			<InputGroup class="system-actions ml-2">
+				<Button size="small" severity="secondary" type="button" icon="pi pi-download" aria-label="Back up" title="Back up" data-testid="open-backup" @click="dialog = 'backup'" />
+				<Button size="small" severity="secondary" type="button" icon="pi pi-history" aria-label="Restore" title="Restore from a backup" data-testid="open-restore" @click="dialog = 'restore'" />
+				<Button size="small" severity="secondary" type="button" icon="pi pi-key" aria-label="Device password" title="Change the device password" data-testid="open-password" @click="dialog = 'password'" />
+			</InputGroup>
+		</template>
+	</Toolbar>
 	<div class="system">
 		<div class="system-main">
 			<section class="card" aria-label="Device">
@@ -111,64 +134,48 @@
 					<p class="muted note">Kept: what a plugin or data source can fetch again (downloads, answers, lists).</p>
 				</template>
 			</section>
-
-			<section class="card" aria-label="Backup and restore">
-				<BackupRestore />
-			</section>
 		</div>
 
-		<!-- what the device is doing now, and what it did: the telemetry link -->
-		<section class="card activity" aria-label="Device activity" :data-link="link.state.status">
-			<div class="card-head">
-				<strong>Activity</strong>
-				<Tag v-if="link.state.status !== 'live'" :severity="statusSeverity" :value="statusText" class="ml-auto" data-testid="link-status" />
-			</div>
-
-			<!-- the player (transport, what the panel shows, what it showed) beside the events: side by side, not stacked -->
-			<div class="activity-body">
-			<div class="activity-player">
-			<!-- the playlist's transport: stop (or play, when stopped) and next; the timer tasks keep running. The button follows the layer's own events -->
-			<div class="transport" role="group" aria-label="Playback">
-				<Button size="small" severity="secondary" outlined type="button" data-testid="play-stop"
-					:icon="transport.state.stopped ? 'pi pi-play' : 'pi pi-stop'"
-					:aria-label="transport.state.stopped ? 'Play' : 'Stop playback'" :title="transport.state.stopped ? 'Play' : 'Stop playback'"
-					:data-state="transport.state.stopped ? 'stopped' : 'playing'" :disabled="transport.state.busy"
-					@click="press(transport.state.stopped ? 'play' : 'stop')" />
-				<Button size="small" severity="secondary" outlined type="button" icon="pi pi-step-forward" aria-label="Next track" title="Next track"
-					data-testid="next-track" :disabled="transport.state.busy" @click="press('next')" />
-			</div>
-
+		<!-- what the device is doing now, and what it did: the telemetry link; two panels, as on the left -->
+		<div class="system-live" :data-link="link.state.status">
 			<!-- a media player: the picture, its title and the time it was sent, and one line per layer (its glyph, then the track or task that made it) -->
-			<section v-if="current" class="now" aria-label="Now showing">
-				<button type="button" class="thumb" :aria-label="`Show ${title(current)} full size`" @click="full = current">
-					<img :src="link.imageUrl(current.values?.digest)" :alt="title(current)" />
-				</button>
-				<div class="player">
-					<div class="player-head">
-						<span class="title">{{ title(current) }}</span>
-						<span class="clock">{{ clockOf(current.ts) }}</span>
-					</div>
-					<ul v-if="currentLayers.length" class="layers" aria-label="Layers" data-testid="layers">
-						<li v-for="(line, i) in currentLayers" :key="i" :data-layer="line.layer">
-							<i :class="LAYERS[line.layer].glyph" role="img" :aria-label="LAYERS[line.layer].name" :title="LAYERS[line.layer].name"></i>
-							<span class="layer-text">{{ line.text }}</span>
-						</li>
-					</ul>
+			<section class="card" aria-label="Now showing">
+				<div class="card-head">
+					<strong>Now showing</strong>
+					<Tag v-if="link.state.status !== 'live'" :severity="statusSeverity" :value="statusText" class="ml-auto" data-testid="link-status" />
 				</div>
-			</section>
-
-			<section v-if="recent.length > 1" aria-label="Recently shown">
-				<div class="label">Recently shown</div>
-				<div class="strip">
-					<button v-for="e in recent.slice(1)" :key="e.seq" type="button" class="mini" :title="`${clockOf(e.ts)} ${title(e)}`"
-						:aria-label="`Show ${title(e)} full size`" @click="full = e">
-						<img :src="link.imageUrl(e.values?.digest)" :alt="title(e)" />
+				<div v-if="current" class="now">
+					<button type="button" class="thumb" :aria-label="`Show ${title(current)} full size`" @click="full = current">
+						<img :src="link.imageUrl(current.values?.digest)" :alt="title(current)" />
 					</button>
+					<div class="player">
+						<div class="player-head">
+							<span class="title">{{ title(current) }}</span>
+							<span class="clock">{{ clockOf(current.ts) }}</span>
+						</div>
+						<ul v-if="currentLayers.length" class="layers" aria-label="Layers" data-testid="layers">
+							<li v-for="(line, i) in currentLayers" :key="i" :data-layer="line.layer">
+								<i :class="LAYERS[line.layer].glyph" role="img" :aria-label="LAYERS[line.layer].name" :title="LAYERS[line.layer].name"></i>
+								<span class="layer-text">{{ line.text }}</span>
+							</li>
+						</ul>
+					</div>
 				</div>
+				<p v-else class="muted">Nothing has been shown yet.</p>
+
+				<section v-if="recent.length > 1" aria-label="Recently shown">
+					<div class="label">Recently shown</div>
+					<div class="strip">
+						<button v-for="e in recent.slice(1)" :key="e.seq" type="button" class="mini" :title="`${clockOf(e.ts)} ${title(e)}`"
+							:aria-label="`Show ${title(e)} full size`" @click="full = e">
+							<img :src="link.imageUrl(e.values?.digest)" :alt="title(e)" />
+						</button>
+					</div>
+				</section>
 			</section>
 
-			</div>
-			<section class="events" aria-label="Events">
+			<section class="card" aria-label="Activity">
+				<div class="card-head"><strong>Activity</strong></div>
 				<div class="filters">
 					<Select v-model="source" :options="sources" optionLabel="label" optionValue="value" size="small" aria-label="Source" />
 					<label class="toggle"><ToggleSwitch v-model="problemsOnly" aria-label="Problems only" /> Problems only</label>
@@ -183,11 +190,21 @@
 				</ol>
 			</section>
 		</div>
-		</section>
+
+		<Dialog :visible="dialog === 'backup'" modal header="Back up" @update:visible="v => { if (!v) dialog = null }" style="width:36rem;max-width:95vw">
+			<BackupRestore part="backup" />
+		</Dialog>
+		<Dialog :visible="dialog === 'restore'" modal header="Restore" @update:visible="v => { if (!v) dialog = null }" style="width:36rem;max-width:95vw">
+			<BackupRestore part="restore" />
+		</Dialog>
+		<Dialog :visible="dialog === 'password'" modal header="Device password" @update:visible="v => { if (!v) dialog = null }" style="width:30rem;max-width:95vw">
+			<PasswordForm />
+		</Dialog>
 
 		<Dialog :visible="full !== null" modal :header="full ? title(full) : ''" @update:visible="v => { if (!v) full = null }" style="max-width:95vw">
 			<img v-if="full" class="full" :src="link.imageUrl(full.values?.digest, 'full')" :alt="title(full)" />
 		</Dialog>
+	</div>
 	</div>
 </template>
 <script setup lang="ts">
@@ -196,11 +213,12 @@
  * (the playlist's transport, what the panel shows, and what the tasks report over the telemetry link).
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
-import { Button, Dialog, Select, Tag, ToggleSwitch, useToast } from "primevue"
+import { Button, Dialog, InputGroup, Select, Tag, Toolbar, ToggleSwitch, useToast } from "primevue"
 import { apiJson } from "../components/ApiClient"
 import { LAYERS, clockOf, isProblem, layerOf, layersOf, useTelemetry, type TelemetryEvent } from "../components/TelemetryLink"
 import { useTransport, type TransportCommand } from "../components/Transport"
 import BackupRestore from "../components/BackupRestore.vue"
+import PasswordForm from "../components/PasswordForm.vue"
 import { formatBytes, formatUptime, gaugeSeverity, temperatureSeverity } from "../components/SystemFormat"
 
 type Component = { state: "ok" | "failed" | "starting", message: string }
@@ -256,6 +274,8 @@ async function press(command: TransportCommand): Promise<void> {
 	}
 }
 const full = ref<TelemetryEvent | null>(null)
+// the dialog the toolbar opened (backup, restore, password)
+const dialog = ref<"backup" | "restore" | "password" | null>(null)
 const source = ref<string>("all")
 const problemsOnly = ref(false)
 const sources = [
@@ -435,25 +455,12 @@ function describe(e: TelemetryEvent): string {
 	clip: rect(0 0 0 0);
 	white-space: nowrap;
 }
-.activity {
-	gap: .75rem;
-}
-/* the player's column beside the events: the picture and what it is made of stay at a readable size, the events take the rest */
-.activity-body {
-	display: grid;
-	grid-template-columns: minmax(14rem, 20rem) minmax(0, 1fr);
-	gap: .75rem;
-	align-items: start;
-}
-.activity-player {
+/* the right column: Now showing above Activity, each a panel of its own like the facts on the left */
+.system-live {
 	display: flex;
 	flex-direction: column;
 	gap: .75rem;
 	min-width: 0;
-}
-.transport {
-	display: flex;
-	gap: .5rem;
 }
 .label {
 	font-size: .8rem;
@@ -588,12 +595,7 @@ function describe(e: TelemetryEvent): string {
 	max-width: 100%;
 	display: block;
 }
-/* a narrower window: the activity's two parts stack first, then the page's two columns */
-@media (max-width: 1300px) {
-	.activity-body {
-		grid-template-columns: minmax(0, 1fr);
-	}
-}
+/* a narrower window: the page's two columns stack */
 @media (max-width: 900px) {
 	.system {
 		grid-template-columns: minmax(0, 1fr);

@@ -1,13 +1,11 @@
 <template>
 	<section class="backup" data-testid="backup">
-		<h3>Back up and restore</h3>
-		<p class="backup-help">
+		<p v-if="part === 'backup'" class="backup-help">
 			A backup is one file with all of this device's settings, including the API keys, so it is locked with a passphrase of its own (not the device password) that is not kept anywhere:
 			without it the file cannot be opened. The device password is never in it.
 		</p>
 
-		<form class="backup-fields" data-testid="backup-make" @submit.prevent="makeBackup">
-			<h4>Back up</h4>
+		<form v-if="part === 'backup'" class="backup-fields" data-testid="backup-make" @submit.prevent="makeBackup">
 			<div class="backup-field">
 				<label for="bk-pass">Passphrase (at least {{ MIN_PASSPHRASE }} characters)</label>
 				<InputText size="small" id="bk-pass" v-model="passphrase" type="password" autocomplete="new-password" aria-label="Backup passphrase" />
@@ -21,8 +19,7 @@
 			<div><Button size="small" type="submit" label="Download backup" icon="pi pi-download" :loading="backingUp" /></div>
 		</form>
 
-		<form class="backup-fields" data-testid="backup-restore" @submit.prevent="check">
-			<h4>Restore</h4>
+		<form v-if="part === 'restore'" class="backup-fields" data-testid="backup-restore" @submit.prevent="check">
 			<div class="backup-field">
 				<label>Backup file</label>
 				<div class="backup-file">
@@ -39,7 +36,7 @@
 			<div v-if="!summary"><Button size="small" type="submit" label="Check backup" :loading="checking" :disabled="!file" /></div>
 		</form>
 
-		<div v-if="summary" class="backup-summary" data-testid="backup-summary">
+		<div v-if="part === 'restore' && summary" class="backup-summary" data-testid="backup-summary">
 			<p v-if="summary.files.length === 0">Nothing would change: this device already has everything in the backup.</p>
 			<template v-else>
 				<p>Restoring will write {{ summary.files.length }} {{ summary.files.length === 1 ? "file" : "files" }} ({{ summary.unchanged }} already the same):</p>
@@ -57,17 +54,19 @@
 				<Button size="small" type="button" label="Cancel" severity="secondary" :disabled="restoring" @click="reset" />
 			</div>
 		</div>
-		<Message v-if="restoreDone" severity="success" size="small" variant="simple" role="status">{{ restoreDone }}</Message>
+		<Message v-if="part === 'restore' && restoreDone" severity="success" size="small" variant="simple" role="status">{{ restoreDone }}</Message>
 	</section>
 </template>
 <script setup lang="ts">
 /**
- * Back up the storage to an encrypted file and restore it (POST /api/backup, POST /api/restore). The passphrase is typed here and sent in the request body only; it is
+ * Back up the storage (one `part` at a time: the System page opens each in a dialog) to an encrypted file and restore it (POST /api/backup, POST /api/restore). The passphrase is typed here and sent in the request body only; it is
  * not kept (no storage of any kind) and the fields are cleared when it has been used. A restore is two steps: check (what would change, by name) and then restore.
  */
 import { ref } from "vue"
 import { Button, InputText, Message } from "primevue"
 import { ApiError, apiDownload, apiPost, joinUrl } from "./ApiClient"
+
+defineProps<{ part: "backup" | "restore" }>()
 
 const MIN_PASSPHRASE = 12
 const base = import.meta.env.VITE_API_URL ?? "/"
@@ -208,10 +207,8 @@ function reset() {
 </script>
 <style scoped>
 .backup { max-width: 34rem; }
-.backup h3 { margin: 0 0 .5rem 0; }
-.backup h4 { margin: 0; }
 .backup-help { margin: 0 0 .75rem 0; }
-.backup-fields { display: flex; flex-direction: column; gap: .75rem; margin-bottom: 1.25rem; }
+.backup-fields { display: flex; flex-direction: column; gap: .75rem; }
 .backup-field { display: flex; flex-direction: column; gap: .25rem; }
 .backup-file { display: flex; align-items: center; gap: .75rem; }
 .backup-summary ul { margin: .25rem 0 .75rem 0; padding-left: 1.25rem; }
