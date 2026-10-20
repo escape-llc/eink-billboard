@@ -21,7 +21,7 @@
 						</slot>
 					</template>
 					<template v-else>
-						<BasicFormField :field="field" :formContext="$form" :fieldNameWidth="fieldNameWidth" :baseUrl="baseUrl" :showHelp="showHelp" :newFields="newNames" :fields="localProperties" @form-field-event="handleFormFieldEvent">
+						<BasicFormField :field="field" :formContext="$form" :fieldNameWidth="labelWidth" :baseUrl="baseUrl" :showHelp="showHelp" :newFields="newNames" :fields="localProperties" @form-field-event="handleFormFieldEvent">
 						</BasicFormField>
 					</template>
 				</template>
@@ -50,6 +50,7 @@ import z from "zod"
 import BasicFormField from './BasicFormField.vue'
 import { fieldRules, type FormField } from "./FormValidation"
 import { hiddenNames } from "./FormVisibility"
+import { adaptiveLabelWidth, labelsOf } from "./LabelWidth"
 import type { LookupValue, FormDef, SchemaType } from "./FormDefs"
 
 const form = ref()
@@ -63,6 +64,7 @@ export type Owner = { kind: "plugin" | "datasource" | "display", id: string }
 export interface PropsType {
 	form?: FormDef
 	initialValues?: any
+	/** the label column's width as a CSS length (default 10rem), or `adaptive`: as wide as the longest label, so none wraps */
 	fieldNameWidth?: string
 	baseUrl: string
 	/** whose own settings the `settings` lookups of the form choose from (a plugin's instance form: that plugin) */
@@ -85,6 +87,8 @@ export interface EmitsType {
 }
 
 const props = withDefaults(defineProps<PropsType>(), { fieldNameWidth: "10rem", showHelp: true })
+/** The label column's width: the prop as given, or, for `adaptive`, wide enough for the longest label of the form (see LabelWidth.ts). */
+const labelWidth = computed(() => props.fieldNameWidth === "adaptive" ? adaptiveLabelWidth(labelsOf(localProperties.value)) : props.fieldNameWidth)
 const emits = defineEmits<EmitsType>()
 const localProperties = ref<any[]>([])
 const localValues = ref<any>({})
