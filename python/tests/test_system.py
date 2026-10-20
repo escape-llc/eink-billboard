@@ -6,7 +6,9 @@ import os
 import unittest
 from unittest.mock import patch
 
-from ..web import system_info
+import httpx
+
+from ..web import locate, system_info
 from ..web.system_info import pi_info, throttle_flags
 from .test_web_api import WebApiTestBase
 
@@ -87,6 +89,36 @@ class TestSystemRoute(WebApiTestBase):
 		self.setUp()
 		self.assertEqual(self.client.get("/api/system").status_code, 401)
 		self.assertEqual(self.client.get("/api/system", headers={ "Authorization": "Bearer secret-token" }).status_code, 200)
+
+class TestLocateByIp(WebApiTestBase):
+	"""The Location field's 'Locate by IP' button (#426): a rough position, in our words, and nothing saved."""
+
+	def test_the_route_answers_a_position_and_saves_nothing(self):
+		before = self.client.get("/api/settings/system").json()
+		answer = self.client.post("/api/system/locate").json()
+		self.assertTrue(answer["ok"], answer)
+		self.assertEqual((answer["latitude"], answer["longitude"]), (42.3314, -83.0457))
+		self.assertEqual(self.client.get("/api/settings/system").json(), before)
+
+	def test_an_answer_is_read_in_our_words(self):
+		def said(status: int, **kw) -> dict:
+			return locate.describe(httpx.Response(status, **kw))
+		self.assertIn("too many requests", said(429, json={ "error": True, "reason": "RateLimited" })["message"])
+		self.assertEqual(said(500, text="boom")["message"], "The location service answered 500.")
+		for bad in ({ "error": True, "reason": "Reserved IP Address" }, { "latitude": "x", "longitude": 1 }, { "latitude": 91, "longitude": 0 }, { "latitude": 0, "longitude": -181 }, { "latitude": True, "longitude": 0 }, [1, 2]):
+			with self.subTest(bad):
+				answer = said(200, json=bad)
+				self.assertFalse(answer["ok"])
+				self.assertNotIn("Reserved", answer["message"], "the service's own text is never passed on")
+		self.assertFalse(said(200, text="not json")["ok"])
+
+	def test_a_service_that_cannot_be_reached_is_said_so(self):
+		def refuse(request: httpx.Request) -> httpx.Response:
+			raise httpx.ConnectError("no route to 203.0.113.7")
+		with patch.object(locate.AsyncHttpWorkerPool, "default_transport", httpx.MockTransport(refuse)):
+			answer = self.client.post("/api/system/locate").json()
+		self.assertFalse(answer["ok"])
+		self.assertNotIn("203", answer["message"])
 
 if __name__ == "__main__":
 	unittest.main()

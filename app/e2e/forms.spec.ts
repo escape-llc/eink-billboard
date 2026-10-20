@@ -196,6 +196,23 @@ test("every field type grows to the width of its row: text, number, choice, colo
 	watch.expectNone()
 })
 
+test("Locate by IP fills the location and saves nothing, and says when the service has none", async ({ page }) => {
+	const watch = watchProblems(page)
+	let answer: object = { ok: true, message: "A rough position from this device's public IP address (about the city).", latitude: 42.3314, longitude: -83.0457 }
+	await page.route("**/api/system/locate", route => route.fulfill({ json: answer }))
+	await page.goto("/#/settings")
+	const saves: string[] = []
+	page.on("request", r => { if (r.method() !== "GET" && r.url().includes("/api/settings")) saves.push(r.url()) })
+	await page.getByLabel("Locate by IP").click()
+	await expect(page.locator(".p-toast-message-info")).toContainText("rough position")
+	await expect(page.getByText("42.3314N, 83.0457W")).toBeVisible()
+	expect(saves).toEqual([])
+	answer = { ok: false, message: "The location service gave no position for this device's address." }
+	await page.getByLabel("Locate by IP").click()
+	await expect(page.locator(".p-toast-message-warn")).toContainText("no position")
+	watch.expectNone()
+})
+
 test("a date field grows to the width of its row", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/playlist")
