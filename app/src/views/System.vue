@@ -111,6 +111,10 @@
 					<p class="muted note">Kept: what a plugin or data source can fetch again (downloads, answers, lists).</p>
 				</template>
 			</section>
+
+			<section class="card" aria-label="Backup and restore">
+				<BackupRestore />
+			</section>
 		</div>
 
 		<!-- what the device is doing now, and what it did: the telemetry link -->
@@ -120,6 +124,9 @@
 				<Tag :severity="statusSeverity" :value="statusText" class="ml-auto" data-testid="link-status" />
 			</div>
 
+			<!-- the player (transport, what the panel shows, what it showed) beside the events: side by side, not stacked -->
+			<div class="activity-body">
+			<div class="activity-player">
 			<!-- the playlist's transport: stop (or play, when stopped) and next; the timer tasks keep running. The button follows the layer's own events -->
 			<div class="transport" role="group" aria-label="Playback">
 				<Button size="small" severity="secondary" outlined type="button" data-testid="play-stop"
@@ -160,6 +167,7 @@
 				</div>
 			</section>
 
+			</div>
 			<section class="events" aria-label="Events">
 				<div class="filters">
 					<Select v-model="source" :options="sources" optionLabel="label" optionValue="value" size="small" aria-label="Source" />
@@ -174,6 +182,7 @@
 					<li v-if="shownEvents.length === 0" class="muted">Nothing yet.</li>
 				</ol>
 			</section>
+		</div>
 		</section>
 
 		<Dialog :visible="full !== null" modal :header="full ? title(full) : ''" @update:visible="v => { if (!v) full = null }" style="max-width:95vw">
@@ -191,6 +200,7 @@ import { Button, Dialog, Select, Tag, ToggleSwitch, useToast } from "primevue"
 import { apiJson } from "../components/ApiClient"
 import { LAYERS, clockOf, isProblem, layerOf, layersOf, useTelemetry, type TelemetryEvent } from "../components/TelemetryLink"
 import { useTransport, type TransportCommand } from "../components/Transport"
+import BackupRestore from "../components/BackupRestore.vue"
 import { formatBytes, formatUptime, gaugeSeverity, temperatureSeverity } from "../components/SystemFormat"
 
 type Component = { state: "ok" | "failed" | "starting", message: string }
@@ -310,7 +320,8 @@ function describe(e: TelemetryEvent): string {
 <style scoped>
 .system {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) 22rem;
+	/* the facts on the left, the activity (the larger part) on the right */
+	grid-template-columns: minmax(20rem, 2fr) minmax(0, 3fr);
 	gap: .75rem;
 	padding: .5rem;
 	align-items: start;
@@ -427,6 +438,19 @@ function describe(e: TelemetryEvent): string {
 .activity {
 	gap: .75rem;
 }
+/* the player's column beside the events: the picture and what it is made of stay at a readable size, the events take the rest */
+.activity-body {
+	display: grid;
+	grid-template-columns: minmax(14rem, 20rem) minmax(0, 1fr);
+	gap: .75rem;
+	align-items: start;
+}
+.activity-player {
+	display: flex;
+	flex-direction: column;
+	gap: .75rem;
+	min-width: 0;
+}
 .transport {
 	display: flex;
 	gap: .5rem;
@@ -534,7 +558,7 @@ function describe(e: TelemetryEvent): string {
 	margin: 0;
 	padding: 0;
 	font-size: .85rem;
-	max-height: 26rem;
+	max-height: 36rem;
 	overflow-y: auto;
 }
 .event {
@@ -563,6 +587,12 @@ function describe(e: TelemetryEvent): string {
 .full {
 	max-width: 100%;
 	display: block;
+}
+/* a narrower window: the activity's two parts stack first, then the page's two columns */
+@media (max-width: 1300px) {
+	.activity-body {
+		grid-template-columns: minmax(0, 1fr);
+	}
 }
 @media (max-width: 900px) {
 	.system {

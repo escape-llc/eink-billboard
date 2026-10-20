@@ -207,7 +207,7 @@ function reset() {
 }
 </script>
 <style scoped>
-.backup { max-width: 34rem; margin-top: 1.5rem; }
+.backup { max-width: 34rem; }
 .backup h3 { margin: 0 0 .5rem 0; }
 .backup h4 { margin: 0; }
 .backup-help { margin: 0 0 .75rem 0; }

@@ -54,12 +54,12 @@ test("in a short window the System page scrolls inside its area and the events i
 	const events = activity.getByRole("region", { name: "Events" })
 	await expect(events.getByRole("listitem").first()).toBeVisible({ timeout: 20000 })
 
-	// nothing is taller than the window: the page scrolls inside its area, to its end (the storage is the last part) ...
+	// nothing is taller than the window: the page scrolls inside its area, to its end (backup and restore is the last part) ...
 	const router = page.locator(".router-view")
 	expect(await page.evaluate(() => document.querySelector(".router-view")!.getBoundingClientRect().bottom)).toBeLessThanOrEqual(450)
 	expect(await router.evaluate(e => e.scrollHeight - e.clientHeight)).toBeGreaterThan(0)
 	await router.evaluate(e => { e.scrollTop = e.scrollHeight })
-	await expect(page.getByRole("region", { name: "Storage" })).toBeInViewport()
+	await expect(page.getByRole("region", { name: "Backup and restore" })).toBeInViewport()
 	// ... and the events list scrolls inside its own box: its last event can be reached
 	const list = events.getByRole("list")
 	await list.evaluate(e => { e.scrollTop = e.scrollHeight })
@@ -82,5 +82,27 @@ test("the System page's parts have their own surface, which follows the theme", 
 	expect(light(await background())).toBeGreaterThan(0.6)
 	await page.evaluate(() => document.documentElement.classList.add("app-dark-mode"))
 	expect(light(await background())).toBeLessThan(0.25)
+	watch.expectNone()
+})
+
+test("the activity is the larger part of the System page, and its player and events are side by side", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.setViewportSize({ width: 1500, height: 900 })
+	await page.goto("/#/system")
+	const activity = page.getByRole("region", { name: "Device activity" })
+	await expect(activity.getByTestId("link-status")).toHaveText("Live")
+	const events = activity.getByRole("region", { name: "Events" })
+	await expect(events.getByRole("listitem").first()).toBeVisible({ timeout: 20000 })
+	const now = activity.getByRole("group", { name: "Playback" })
+	const [a, e, p, machine] = await Promise.all([activity.boundingBox(), events.boundingBox(), now.boundingBox(), page.getByRole("region", { name: "Machine" }).boundingBox()])
+	// the activity takes more than the facts beside it
+	expect(a!.width).toBeGreaterThan(machine!.width)
+	// the player's column is beside the events, not above them
+	expect(e!.x).toBeGreaterThan(p!.x + p!.width - 2)
+	expect(Math.abs(e!.y - p!.y)).toBeLessThan(60)
+	// a narrow window stacks them again
+	await page.setViewportSize({ width: 1000, height: 900 })
+	const [stackedPlayer, stackedEvents] = await Promise.all([now.boundingBox(), events.boundingBox()])
+	expect(stackedEvents!.y).toBeGreaterThan(stackedPlayer!.y)
 	watch.expectNone()
 })
