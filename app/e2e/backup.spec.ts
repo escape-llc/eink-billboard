@@ -17,6 +17,7 @@ test("a backup is downloaded, and restoring it puts a changed setting back", asy
 	const before = await systemSettings(page)
 
 	// the two passphrases must agree and be long enough
+	await page.getByTestId("open-backup").click()
 	const make = page.getByTestId("backup-make")
 	await make.getByLabel("Backup passphrase", { exact: true }).fill("short")
 	await make.getByRole("button", { name: "Download backup" }).click()
@@ -34,11 +35,13 @@ test("a backup is downloaded, and restoring it puts a changed setting back", asy
 	// the fields are cleared once used
 	await expect(make.getByLabel("Backup passphrase", { exact: true })).toHaveValue("")
 
+	await page.keyboard.press("Escape")
 	// change a setting behind the backup's back
 	const other = before.timeFormat === "24h" ? "12h" : "24h"
 	const put = await page.request.put("/api/settings/system", { data: { ...before, timeFormat: other } })
 	expect(put.ok()).toBeTruthy()
 
+	await page.getByTestId("open-restore").click()
 	const restore = page.getByTestId("backup-restore")
 	await page.getByTestId("backup-file").setInputFiles(file)
 	await expect(page.getByTestId("backup-file-name")).not.toHaveText("No file chosen")
@@ -65,6 +68,7 @@ test("a backup is downloaded, and restoring it puts a changed setting back", asy
 test("a file that is not a backup is refused", async ({ page }) => {
 	const watch = watchProblems(page, [422])
 	await page.goto("/#/system")
+	await page.getByTestId("open-restore").click()
 	await page.getByTestId("backup-file").setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("just some notes") })
 	const restore = page.getByTestId("backup-restore")
 	await restore.getByLabel("Passphrase of the backup", { exact: true }).fill(PASSPHRASE)

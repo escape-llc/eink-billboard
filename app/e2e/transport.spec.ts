@@ -9,10 +9,10 @@ test("the System page stops and plays the playlist, and goes to the next track",
 	const watch = watchProblems(page)
 	try {
 		await page.goto("/#/system")
-		const gutter = page.getByRole("region", { name: "Device activity" })
-		await expect(gutter).toHaveAttribute("data-link", "live")
-		const playback = gutter.getByRole("group", { name: "Playback" })
-		const events = gutter.getByRole("region", { name: "Events" })
+		const live = page.locator(".system-live")
+		await expect(live).toHaveAttribute("data-link", "live")
+		const playback = page.getByRole("group", { name: "Playback" })
+		const events = live.getByRole("region", { name: "Activity" })
 		// the layer has begun: it reports its first track
 		await expect(events.getByText(/^Track started/).first()).toBeVisible({ timeout: 20000 })
 
