@@ -157,6 +157,18 @@
 		"properties": {
 			"feeds": {
 				"type": "array"
+			},
+			"feedCacheHours": {
+				"type": "number"
+			},
+			"contentCacheHours": {
+				"type": "number"
+			},
+			"contentCacheMB": {
+				"type": "number"
+			},
+			"staleDays": {
+				"type": "integer"
 			}
 		}
 	},

@@ -304,3 +304,35 @@ class TestFeedTestRoute(WebApiTestBase):
 		self.token = "secret-token"
 		self.setUp()
 		self.assertEqual(self.client.post(TEST_URL, json={ "value": "https://news.example.test/feed.xml" }).status_code, 401)
+
+
+class TestKeptDownloads(unittest.IsolatedAsyncioTestCase):
+	"""The feed and its pictures are kept in the data source's own pool (#400): a second look sends nothing, and what dropped out of the feed goes."""
+	async def test_the_feed_is_kept_and_a_picture_that_left_the_feed_is_removed(self):
+		from ..datasources.content_cache import BLOB_PREFIX, blob_name, fetch_cached
+		from .utils import temp_configuration_manager
+		cm = temp_configuration_manager(self)
+		dscm = cm.datasource_manager("rss")
+		cob = dscm.open()
+		cob.save(cob.get()[0], { **(cob.get()[1] or {}), "feeds": FEEDS })
+		sent: list[str] = []
+		def handler(request: httpx.Request) -> httpx.Response:
+			sent.append(str(request.url))
+			return httpx.Response(200, content=fixture_text("rss-news.xml").encode(), headers={ "Content-Type": "application/rss+xml" })
+		client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+		client_var.set(client)
+		async def public(host: str, port: int) -> list[str]:
+			return ["93.184.216.34"]
+		root = ServiceContainer()
+		root.add_service(DatasourceConfigurationManager, dscm)
+		dsec = DataSourceExecutionContext(root, (800, 480), datetime(2026, 10, 7, 12, 0, tzinfo=timezone.utc))
+		with patch.object(url_guard, "_resolve", public):
+			# a picture of this feed that the feed no longer has
+			await fetch_cached(dscm, { "contentCacheHours": 24 }, client, "https://img.example.test/gone.jpg", dsec.timestamp, scope="pictures:News", default_hours=24)
+			self.assertIn(blob_name("https://img.example.test/gone.jpg"), dscm.list_blobs(BLOB_PREFIX))
+			ds = RssAsync("rss", "rss")
+			first = await ds.open_async(dsec, { "feed": "News" })
+			second = await ds.open_async(dsec, { "feed": "News" })
+		self.assertEqual(first, second)
+		self.assertEqual(len([u for u in sent if u == NEWS]), 1)
+		self.assertNotIn(blob_name("https://img.example.test/gone.jpg"), dscm.list_blobs(BLOB_PREFIX))
