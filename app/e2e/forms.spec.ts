@@ -172,14 +172,16 @@ async function expectRowsFill(page: import("@playwright/test").Page, scope: impo
 		const widths = await r.evaluate(el => {
 			const box = el.getBoundingClientRect()
 			// the control itself: inside the addon that holds a picker, directly in the group for the others
-			const holder = el.lastElementChild!
+			// a Test button is a member of the group, joined after the control: it takes its width from the row too
+			const trailing = el.lastElementChild!.matches("button") ? el.lastElementChild! : null
+			const holder = trailing ? trailing.previousElementSibling! : el.lastElementChild!
 			const control = holder.matches(".p-inputgroupaddon") ? holder.querySelector(".p-datepicker, .color-field, .leaflet-container") ?? holder : holder
 			const last = control.getBoundingClientRect()
 			const first = el.firstElementChild!.getBoundingClientRect()
-			return { row: box.width, label: first.width, last: last.width }
+			return { row: box.width, label: first.width, last: last.width, joined: trailing ? trailing.getBoundingClientRect().width : 0 }
 		})
 		// the control takes what the label leaves, give or take a border and the addon's padding
-		expect(widths.last, `the control of "${label}" fills its row`).toBeGreaterThan(widths.row - widths.label - 24)
+		expect(widths.last, `the control of "${label}" fills its row`).toBeGreaterThan(widths.row - widths.label - widths.joined - 24)
 	}
 }
 

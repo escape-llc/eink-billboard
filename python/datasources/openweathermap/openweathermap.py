@@ -15,7 +15,7 @@ import httpx
 
 from ...model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager
 from ...plugins.plugin_base import PermanentError
-from ...task.async_http_worker_pool import client_var
+from ...task.async_http_worker_pool import AsyncHttpWorkerPool, client_var, tls_context
 from ..response_cache import cached
 from ..data_source import DataSource, DataSourceApi, DataSourceExecutionContext
 
@@ -169,6 +169,21 @@ def api_error(status: int) -> BaseException:
 	if status == 429:
 		return RuntimeError("OpenWeatherMap says too many requests were made; it will be tried again.")
 	return RuntimeError(f"OpenWeatherMap answered {status}.")
+
+async def check_key(key: str) -> dict[str, Any]:
+	"""
+	Ask OpenWeatherMap, with this key, for the weather at a fixed point and say what came of it: `{ ok, message }`, in our words (the address holds the key: it is never in a message).
+	A client of our own: the web app has no pool, and a test is rare; the tests' transport is installed the same way as the pool's.
+	"""
+	async with httpx.AsyncClient(timeout=httpx.Timeout(10.0), transport=AsyncHttpWorkerPool.default_transport, verify=tls_context()) as client:
+		try:
+			await fetch(client, "weather", 0.0, 0.0, units_for("metric", None), key)
+		except PermanentError:
+			return { "ok": False, "message": "OpenWeatherMap refused this key. A new key can take a couple of hours to start working." }
+		except RuntimeError as problem:
+			# 429 and the rest: our own words from `fetch`
+			return { "ok": False, "message": str(problem) }
+	return { "ok": True, "message": "OpenWeatherMap accepts this key." }
 
 # one kept time for each kind of answer, a setting of the data source each: the API path, the setting and its default (hours)
 CACHE_TIMES = { "weather": ("currentCacheHours", 0.5), "forecast": ("forecastCacheHours", 6.0) }

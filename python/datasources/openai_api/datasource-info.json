@@ -21,6 +21,7 @@
 				{
 					"name": "apiKey",
 					"type": "string",
+					"widget": "api-key",
 					"required": true,
 					"writeOnly": true,
 					"default": null,

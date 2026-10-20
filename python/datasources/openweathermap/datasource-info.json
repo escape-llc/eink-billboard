@@ -8,6 +8,12 @@
 	"description": "The weather at the device's location from OpenWeatherMap, for the Weather pages and the Weather Overlay: the API key, the units and the kept answers they share.",
 	"disabled": false,
 	"features": ["internet", "api-key", "api"],
+	"router": {
+		"id": "openweathermap-router",
+		"class": "openweathermap_router",
+		"file": "api.py",
+		"module": "python.datasources.openweathermap.api"
+	},
 	"tokens": [
 		{"name": "place", "description": "The place the weather is for, as OpenWeatherMap names it (Seattle)."},
 		{"name": "condition", "description": "The sky and weather now, in words (light rain, clear sky)."},
@@ -30,11 +36,13 @@
 				{
 					"name": "apiKey",
 					"type": "string",
-					"required": false,
+					"widget": "api-key",
+					"required": true,
 					"writeOnly": true,
 					"default": null,
 					"title": "API Key",
-					"description": "Your OpenWeatherMap key. The free plan is enough. A new key can take a couple of hours to start working.",
+					"description": "Your OpenWeatherMap key. The free plan is enough. A new key can take a couple of hours to start working. Test asks OpenWeatherMap whether it accepts the key.",
+					"test": { "url": "/api/datasource/openweathermap/test" },
 					"link": { "url": "https://home.openweathermap.org/users/sign_up", "label": "Get a free API key" }
 				},
 				{
