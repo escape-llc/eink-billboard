@@ -20,7 +20,7 @@ From a fresh Raspberry Pi to a working billboard in one command. The app runs in
   * **Memory:** 1 GB or more is comfortable (the app uses about 135 MB and each page drawn with the browser about 75 to 110 MB). A Pi 3, a Pi 3 A+ or a **Pi Zero 2 W** (the smallest 64-bit board) should work too, but only the Pi 5 has been tried: with 512 MB it needs swap (`deploy/eink-container.sh check` says), draws one page at a time, and building the image on it is the part most likely to run out of memory. Boards with a 32-bit system only (Pi 1, Pi Zero and Zero W, Pi 2 before the v1.2) cannot run it.
 * Your own user on it, allowed to use `sudo` (the user Raspberry Pi Imager makes is).
 * A panel, or none yet: a **Pimoroni Inky** (it identifies itself) or a **Waveshare e-Paper** (you choose its model, e.g. `epd7in3e`; the name is on the panel's Waveshare wiki page). With no panel you can still try the whole app; the pages are drawn but not shown.
-* About 4 GB of free space and 20 minutes for the first build.
+* About 6 GB of free space and 20 minutes for the first build.
 
 ## 1. Run the setup
 
@@ -120,7 +120,7 @@ Every command first checks the basics (Linux, not root, Podman and curl installe
 |---|---|
 | `help` | Lists the commands and settings. |
 | `update` | **Brings it up to date:** fetches the latest code into the clone, builds it and starts it (your data is kept). When nothing is new and the app already runs it, it says so and does nothing. Refuses when the clone has changes of your own. `update TAG` switches to a release by its tag, once there are releases; a plain `update` on a release stays on it. |
-| `build` | Builds the app's image (`localhost/eink-device`) from the clone as it is, without pulling anything (`update` pulls). It looks at the internet only to say so when the clone is behind (`WARNING: the clone is 3 commit(s) behind`, with the command to use): 15 to 20 minutes the first time, a few minutes after an update. Checks for about 4 GB of free space first, records the commit it was built from, and writes everything to `~/.cache/eink-billboard/build.log`; on failure it shows the end of that log. |
+| `build` | Builds the app's image (`localhost/eink-device`) from the clone as it is, without pulling anything (`update` pulls). It looks at the internet only to say so when the clone is behind (`WARNING: the clone is 3 commit(s) behind`, with the command to use): 15 to 20 minutes the first time, a few minutes after an update. Removes unused images first (the old one and what a failed build left), then checks for about 6 GB of free space, so a full disk is found in seconds; records the commit it was built from, and writes everything to `~/.cache/eink-billboard/build.log`; on failure it shows the end of that log. |
 | `start` | Starts the app (or replaces the running one; the data is kept) on port 8080 of every address of the Pi. Passes in the panel's devices that exist (`/dev/spidev0.0`, `/dev/spidev0.1`, `/dev/i2c-1`, `/dev/gpiochip0`) with your `spi`, `i2c` and `gpio` groups, warns when a group is missing, refuses a port that is already in use, waits up to 90 seconds for the app to answer (showing its last log lines if it stops), then prints the setup code. Also `restart`. |
 | `stop` | Stops and removes the container. The settings, playlists and password are kept, in the volume `eink-data`. |
 | `logs` | The app's log; `logs -f` follows it (Ctrl+C to stop). |
