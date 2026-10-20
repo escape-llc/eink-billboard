@@ -5,36 +5,61 @@ Its Test button asks the same question the data source does.
 import io
 import unittest
 from datetime import datetime
+from typing import Any, cast
 from unittest.mock import patch
 
 import httpx
 from PIL import Image
 
 from ..datasources.image_url import image_url
-from ..datasources.image_url.image_url import ImageUrlAsync, address_of, picture_content_type
+from ..datasources.image_url.image_url import ImageUrlAsync, address_of, picture_address, picture_content_type
+from ..model.configuration_manager import DatasourceConfigurationManager
 from ..plugins.plugin_base import PermanentError
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool, client_var
 from ..utils import url_guard
 from ..utils.upload_image import MAX_UPLOAD_BYTES
 from .fake_internet import FakeInternet
-from .test_datasource_fixes import TZ_TOKYO, make_dsec
+from .test_datasource_fixes import TZ_TOKYO, FakeDatasourceSettings, make_dsec
 from .test_web_api import WebApiTestBase
 
 NOW = datetime(2026, 10, 19, 12, 0, tzinfo=TZ_TOKYO)
 CAMERA = "https://camera.example.test"
 PUBLIC = "93.184.216.34"
 
+def pictures_dsec(pictures: list, **kw):
+	"""A context whose data source has these pictures in its settings (as a user typed them once, in the data source's settings)."""
+	dsec = make_dsec(**kw)
+	dsec.provider.add_service(DatasourceConfigurationManager, cast(Any, FakeDatasourceSettings({ "pictures": pictures })))  # type: ignore[attr-defined]
+	return dsec
+
 class TestAddress(unittest.TestCase):
 	def test_an_address_is_taken_as_typed_without_the_spaces_round_it(self):
-		self.assertEqual(address_of({ "url": "  https://camera.example.test/snapshot.jpg " }), "https://camera.example.test/snapshot.jpg")
+		self.assertEqual(address_of("  https://camera.example.test/snapshot.jpg "), "https://camera.example.test/snapshot.jpg")
 
 	def test_no_address_and_no_scheme_are_settings_problems_with_what_to_do(self):
-		for params in ({}, { "url": None }, { "url": "" }, { "url": "   " }, { "url": 7 }):
-			with self.subTest(params), self.assertRaisesRegex(PermanentError, "Enter the picture"):
-				address_of(params)
+		for url in (None, "", "   ", 7):
+			with self.subTest(url), self.assertRaisesRegex(PermanentError, "Enter the picture"):
+				address_of(url)
 		for url in ("ftp://camera.example.test/a.jpg", "file:///etc/passwd", "camera.example.test/a.jpg", "javascript:alert(1)"):
 			with self.subTest(url), self.assertRaisesRegex(PermanentError, "http://"):
-				address_of({ "url": url })
+				address_of(url)
+
+	def test_a_task_names_the_picture_and_the_address_comes_from_the_data_sources_settings(self):
+		dsec = pictures_dsec([{ "name": "Garage", "url": "https://camera.example.test/garage.jpg" }, { "name": "Gate", "url": " https://camera.example.test/gate.jpg " }])
+		self.assertEqual(picture_address(dsec, "Garage"), "https://camera.example.test/garage.jpg")
+		self.assertEqual(picture_address(dsec, "Gate"), "https://camera.example.test/gate.jpg")
+
+	def test_no_picture_chosen_one_that_is_gone_or_one_with_no_web_address_are_settings_problems(self):
+		dsec = pictures_dsec([{ "name": "Garage", "url": "https://camera.example.test/garage.jpg" }, { "name": "Odd", "url": "file:///etc/passwd" }])
+		for name in (None, "", 7):
+			with self.subTest(name), self.assertRaisesRegex(PermanentError, "Choose the picture"):
+				picture_address(dsec, name)
+		with self.assertRaisesRegex(PermanentError, "'Roof' is not in"):
+			picture_address(dsec, "Roof")
+		with self.assertRaisesRegex(PermanentError, "http://"):
+			picture_address(dsec, "Odd")
+		with self.assertRaisesRegex(PermanentError, "'Garage' is not in"):
+			picture_address(pictures_dsec([]), "Garage")
 
 	def test_a_server_that_does_not_say_what_it_sends_is_not_refused_for_it(self):
 		for content_type in ("image/jpeg", "IMAGE/PNG; charset=binary", "application/octet-stream", "", "  "):
@@ -57,9 +82,9 @@ class TestPicture(unittest.IsolatedAsyncioTestCase):
 
 	async def show(self, path: str, size=(800, 480), orientation="landscape", **params):
 		source = ImageUrlAsync("image-url", "Image from a Web Address")
-		dsec = make_dsec(orientation=orientation, dimensions=size, ts=NOW)
-		[item] = await source.open_async(dsec, { "url": f"{CAMERA}{path}", **params })
-		return await source.render_async(dsec, { "url": f"{CAMERA}{path}", **params }, item)
+		dsec = pictures_dsec([{ "name": "Camera", "url": f"{CAMERA}{path}" }], orientation=orientation, dimensions=size, ts=NOW)
+		[item] = await source.open_async(dsec, { "picture": "Camera", **params })
+		return await source.render_async(dsec, { "picture": "Camera", **params }, item)
 
 	async def test_a_picture_is_shown_whole_on_a_margin_of_its_own_colors(self):
 		result = await self.show("/snapshot.jpg")
@@ -123,9 +148,9 @@ class TestWhatCanGoWrong(unittest.IsolatedAsyncioTestCase):
 
 	async def show(self, url: str):
 		source = ImageUrlAsync("image-url", "Image from a Web Address")
-		dsec = make_dsec(ts=NOW)
-		[item] = await source.open_async(dsec, { "url": url })
-		return await source.render_async(dsec, { "url": url }, item)
+		dsec = pictures_dsec([{ "name": "Camera", "url": url }], ts=NOW)
+		[item] = await source.open_async(dsec, { "picture": "Camera" })
+		return await source.render_async(dsec, { "picture": "Camera" }, item)
 
 	async def test_an_address_on_this_device_is_refused_for_good_in_our_words(self):
 		self.names["inside.example.test"] = ["127.0.0.1"]
@@ -229,8 +254,9 @@ class TestTestRoute(WebApiTestBase):
 
 	def test_the_descriptor_names_the_route_and_it_exists(self):
 		info = next(d["info"] for d in self.cm.enum_datasources() if d["info"]["id"] == "image-url")
-		url_property = next(p for p in info["instanceSettings"]["schema"]["properties"] if p["name"] == "url")
-		self.assertEqual(url_property["test"]["url"], self.URL)
+		pictures = next(p for p in info["settings"]["schema"]["properties"] if p["name"] == "pictures")
+		url_field = next(p for p in pictures["items"]["properties"] if p["name"] == "url")
+		self.assertEqual(url_field["test"]["url"], self.URL)
 		self.assertEqual(self.client.post(self.URL, json={ "value": "" }).status_code, 200)
 
 if __name__ == "__main__":
