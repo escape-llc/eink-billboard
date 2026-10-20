@@ -13,6 +13,7 @@ import base64
 import io
 import json
 import os
+import re
 from typing import Callable
 from urllib.parse import parse_qs
 
@@ -233,6 +234,22 @@ def _ip_location(request: httpx.Request) -> httpx.Response | None:
 		return httpx.Response(404, json={ "error": True, "reason": "Not Found" })
 	return httpx.Response(200, json={ "ip": "203.0.113.7", "city": "Detroit", "region": "Michigan", "country_code": "US", "latitude": 42.33143, "longitude": -83.04575 })
 
+# Thunderforest Static Maps: /static/{style}/{lon},{lat},{zoom}/{w}x{h}.png?apikey=... ("tf-good" a picture of the size asked, "tf-busy" a 429, any other key a 401)
+STATIC_MAP = re.compile(r"^/static/(transport|cycle|outdoors|landscape|atlas)/(-?[\d.]+),(-?[\d.]+),(\d+)/(\d+)x(\d+)\.png$")
+
+def _thunderforest(request: httpx.Request) -> httpx.Response | None:
+	if request.url.host != "api.thunderforest.com":
+		return None
+	found = STATIC_MAP.match(request.url.path)
+	if found is None:
+		return httpx.Response(404, text="Not found")
+	key = request.url.params.get("apikey")
+	if key == "tf-busy":
+		return httpx.Response(429, json={ "status": 429, "error": f"Too many requests ({key})" })
+	if key != "tf-good":
+		return httpx.Response(401, json={ "status": 401, "error": f"Invalid apikey {key}" })
+	return _image(int(found.group(5)), int(found.group(6)), "map")
+
 # OpenAI: the key says what is answered ("sk-good" the fixtures, "sk-busy" a 429, "sk-broke" a 429 insufficient_quota, any other a 401 whose message
 # quotes the key, as the real one does). The model list is a fixture (its shape: it needs a key, so it is not recorded); a picture is a generated
 # PNG of the size asked, divided by 8 (the shape is what the code checks); the size follows the rules of the model's family.
@@ -380,7 +397,7 @@ def _comicvine(request: httpx.Request) -> httpx.Response | None:
 		return httpx.Response(200, json={ "error": "OK", "status_code": 1, "number_of_total_results": COMICVINE_ISSUES, "results": results })
 	return httpx.Response(404, text="Not found")
 
-ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _apod, _apod_image, _rss_feed, _rss_image, _picture_at_an_address, _calendar, _caldav, _weather, _ip_location, _openai, _google, _comicvine]
+ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _apod, _apod_image, _rss_feed, _rss_image, _picture_at_an_address, _calendar, _caldav, _weather, _thunderforest, _ip_location, _openai, _google, _comicvine]
 
 def install() -> FakeInternet | None:
 	"""Make every `AsyncHttpWorkerPool` talk to the fake (unless EINK_TEST_LIVE is set)."""

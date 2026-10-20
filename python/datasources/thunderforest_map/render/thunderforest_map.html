@@ -1,0 +1,38 @@
+{% extends "plugin.html" %}
+
+{% block style %}
+	<style>
+		/* every size is in rem: the root's font size is the page's (an em would follow the element it is on) */
+		html {
+			font-size: calc(min(4.8dvh, 4.8dvw) * var(--font-scale));
+		}
+		.map-page {
+			position: relative;
+			height: 100%;
+			width: 100%;
+			overflow: hidden;
+		}
+		/* the map is asked for at the page's own size: it fills the page, and is never scaled or cropped */
+		.map {
+			display: block;
+			height: 100%;
+			width: 100%;
+			object-fit: cover;
+		}
+		/* the attribution Thunderforest's terms ask for: on a solid strip so it reads on any map (the panel dithers a tint) */
+		.attribution {
+			position: absolute;
+			right: 0;
+			bottom: 0;
+			padding: .1rem .4rem;
+			font-size: .5rem;
+			background: var(--page-bg);
+		}
+	</style>
+{% endblock %}
+{% block content %}
+<div class="map-page">
+	<img class="map" src="{{ map }}" alt="">
+	<div class="attribution text-primary">{{ attribution }}</div>
+</div>
+{% endblock %}

@@ -209,6 +209,31 @@
 			}
 		}
 	},
+	"urn:inky:storage:schema:datasource:thunderforest": {
+		"version": 1,
+		"properties": {
+			"apiKey": {
+				"type": "string"
+			},
+			"contentCacheHours": {
+				"type": "number"
+			},
+			"contentCacheMB": {
+				"type": "number"
+			},
+			"staleDays": {
+				"type": "integer"
+			}
+		}
+	},
+	"urn:inky:storage:schema:datasource:thunderforest-map": {
+		"version": 1,
+		"properties": {
+			"places": {
+				"type": "array"
+			}
+		}
+	},
 	"urn:inky:storage:schema:datasource:today": {
 		"version": 1,
 		"properties": {}

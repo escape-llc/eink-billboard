@@ -1,0 +1,106 @@
+{
+	"id": "thunderforest-map",
+	"name": "Thunderforest Map",
+	"version": "0.0.1",
+	"class": "ThunderforestMapAsync",
+	"file": "thunderforest_map.py",
+	"module": "python.datasources.thunderforest_map.thunderforest_map",
+	"description": "A map of a place from Thunderforest (OpenStreetMap data), in one of their styles: transport shows the bus and rail lines, cycle the cycle routes. The places are kept in the data source's settings, and a task picks one, or the device's own location. The API key is in the Thunderforest settings (the free plan is enough: a map is kept for a week).",
+	"describe": "Map {place}",
+	"disabled": false,
+	"uses": ["thunderforest"],
+	"features": ["api-client", "layer-foreground", "media-image"],
+	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:thunderforest-map:1",
+		"schema": {
+			"properties": [
+				{
+					"name": "places",
+					"type": "array",
+					"required": false,
+					"default": [],
+					"title": "Places",
+					"description": "The places a task can show a map of, each with a name and a position (latitude and longitude in degrees; the Location picker of the System settings can help find one). A task picks one by its name, or shows the device's own location when it picks none.",
+					"items": {
+						"type": "object",
+						"key": "name",
+						"properties": [
+							{
+								"name": "name",
+								"type": "string",
+								"required": true,
+								"title": "Name",
+								"minLength": 1
+							},
+							{
+								"name": "latitude",
+								"type": "number",
+								"required": true,
+								"title": "Latitude",
+								"minimum": -90,
+								"maximum": 90,
+								"step": 0.01,
+								"minFractionDigits": 0,
+								"maxFractionDigits": 5
+							},
+							{
+								"name": "longitude",
+								"type": "number",
+								"required": true,
+								"title": "Longitude",
+								"minimum": -180,
+								"maximum": 180,
+								"step": 0.01,
+								"minFractionDigits": 0,
+								"maxFractionDigits": 5
+							}
+						]
+					}
+				}
+			]
+		},
+		"default": {
+			"places": []
+		}
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+				"place": {
+					"settings": "places",
+					"value": "name"
+				}
+			},
+			"properties": [
+				{
+					"name": "place",
+					"type": "string",
+					"required": false,
+					"default": null,
+					"lookup": "place",
+					"title": "Place",
+					"description": "Which place to show a map of. Leave it empty for the device's own location (System settings). Add places (a name and a position each) in the Thunderforest Map settings."
+				},
+				{
+					"name": "style",
+					"type": "string",
+					"required": true,
+					"default": "transport",
+					"title": "Map Style",
+					"description": "transport: bus and rail lines. cycle: cycle routes and hills. outdoors: paths and terrain. landscape: land cover and terrain. atlas: a plain road map.",
+					"enum": ["transport", "cycle", "outdoors", "landscape", "atlas"]
+				},
+				{
+					"name": "zoom",
+					"type": "integer",
+					"required": true,
+					"default": 12,
+					"minimum": 1,
+					"maximum": 20,
+					"title": "Zoom",
+					"description": "How close the map is: 1 shows the world, 10 a city, 14 a neighbourhood, 17 a few streets."
+				}
+			]
+		}
+	}
+}
