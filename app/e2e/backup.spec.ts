@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test"
 import { stubMapTiles, watchProblems } from "./support"
 
-// Back up and restore (System tab): the backup is one locked file; a restore says what it would change, by name, before it writes anything.
+// Back up and restore (the System page): the backup is one locked file; a restore says what it would change, by name, before it writes anything.
 // The open server's storage must end as it began (the other specs read it), so the test changes one setting, restores over it and reads it back.
 test.beforeEach(async ({ page }) => stubMapTiles(page))
 
@@ -13,7 +13,7 @@ async function systemSettings(page: import("@playwright/test").Page) {
 
 test("a backup is downloaded, and restoring it puts a changed setting back", async ({ page }) => {
 	const watch = watchProblems(page, [403])
-	await page.goto("/#/settings")
+	await page.goto("/#/system")
 	const before = await systemSettings(page)
 
 	// the two passphrases must agree and be long enough
@@ -64,7 +64,7 @@ test("a backup is downloaded, and restoring it puts a changed setting back", asy
 
 test("a file that is not a backup is refused", async ({ page }) => {
 	const watch = watchProblems(page, [422])
-	await page.goto("/#/settings")
+	await page.goto("/#/system")
 	await page.getByTestId("backup-file").setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("just some notes") })
 	const restore = page.getByTestId("backup-restore")
 	await restore.getByLabel("Passphrase of the backup", { exact: true }).fill(PASSPHRASE)
