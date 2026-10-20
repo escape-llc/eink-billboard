@@ -25,11 +25,14 @@ from random import randint
 
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 from ...task.async_http_worker_pool import client_var
-from ...utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, blurred_margin, stream_to_buffer
+from ..content_cache import download_for
+from ...utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, blurred_margin
 
 # a POTD original can be tens of megabytes: ask Wikipedia for a thumbnail this many times the display's long side, and refuse bigger downloads
 THUMBNAIL_FACTOR = 2
 MAX_IMAGE_BYTES = DEFAULT_MAX_DOWNLOAD_BYTES
+# the picture of a day does not change: what Wikimedia says (`Cache-Control`) decides, never longer than this
+DEFAULT_CONTENT_HOURS = 24.0
 
 API_URL = "https://en.wikipedia.org/w/api.php"
 HEADERS = { 'User-Agent': 'eInkBillboard/0.0 (https://github.com/escape-llc/eink-billboard/)' }
@@ -57,7 +60,7 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 	async def render_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any], state:Any) -> MediaRenderResult | None:
 		if state is None:
 			return None
-		image = await self._download_image(state.get("url"))
+		image = await self._download_image(dsec, state.get("url"))
 		if image is None:
 			self.logger.error(f"'{self.name}' Failed to download image.")
 			raise RuntimeError(f"'{self.name}' Failed to download image.")
@@ -73,13 +76,12 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		Images that already fit are not enlarged. Uses high-quality resampling.
 		"""
 		return blurred_margin(image, (max_width, max_height), enlarge=False)
-	async def _download_image(self, url: str) -> Image.Image:
+	async def _download_image(self, dsec: DataSourceExecutionContext, url: str) -> Image.Image:
 		if url.lower().endswith(".svg"):
 			self.logger.warning(f"'{self.name}' SVG format is not supported by Pillow. Skipping image download.")
 			raise RuntimeError(f"'{self.name}' Unsupported image format: SVG.")
 		try:
-			client = client_var.get()
-			buffer = await stream_to_buffer(client, url, headers=HEADERS, ctok=lambda ct: ct.startswith("image/"), max_bytes=MAX_IMAGE_BYTES)
+			buffer = await download_for(dsec, url, default_hours=DEFAULT_CONTENT_HOURS, headers=HEADERS, ctok=lambda ct: ct.startswith("image/"), max_bytes=MAX_IMAGE_BYTES)
 			img = Image.open(buffer)
 			# Image.open is lazy: a corrupt body must fail here
 			img.load()

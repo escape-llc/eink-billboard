@@ -13,6 +13,7 @@ import hashlib
 import tempfile
 import subprocess
 import threading
+from dataclasses import dataclass
 import psutil
 from dotenv import load_dotenv
 from httpx import AsyncClient
@@ -31,14 +32,24 @@ RENDER_SLOTS_ENV = "EINK_RENDER_SLOTS"
 SMALL_MEMORY_BYTES = 800 * 1024 * 1024
 RENDER_SLOT_WAIT_SECONDS = 180.0
 
-async def stream_to_buffer(client: AsyncClient, url: str, headers: Mapping[str, str]|None = None, ctok: Callable[[str], bool]|None = None, max_bytes: int|None = DEFAULT_MAX_DOWNLOAD_BYTES, guarded: bool = True) -> BytesIO:
+@dataclass(frozen=True)
+class Downloaded:
+	"""What `download` got: the status (200, or 304 for a conditional request the origin answered with "not modified"), the headers, and the body (None for a 304)."""
+	status: int
+	headers: Mapping[str, str]
+	body: BytesIO|None
+
+async def download(client: AsyncClient, url: str, headers: Mapping[str, str]|None = None, ctok: Callable[[str], bool]|None = None, max_bytes: int|None = DEFAULT_MAX_DOWNLOAD_BYTES, guarded: bool = True, conditional: bool = False) -> Downloaded:
 	"""
 	Download `url` into memory; refuse (RuntimeError) more than `max_bytes`, checked up front (Content-Length) and while streaming. None disables the cap.
 	`guarded` (the default) checks the address and every redirect with `url_guard` (not this device, not link-local, ...): the address is usually taken
 	from a feed or an answer. `guarded=False` is only for an address that is our own constant.
+	`conditional` says `headers` hold `If-None-Match` or `If-Modified-Since`: a 304 is then an answer (no body), not an error.
 	"""
 	opener = stream_checked(client, "GET", url, headers) if guarded else client.stream("GET", url, headers=headers, follow_redirects=True)
 	async with opener as resp:
+		if conditional and resp.status_code == 304:
+			return Downloaded(304, dict(resp.headers), None)
 		resp.raise_for_status()
 		ct = resp.headers.get("Content-Type", "")
 		if ctok and not ctok(ct):
@@ -56,7 +67,13 @@ async def stream_to_buffer(client: AsyncClient, url: str, headers: Mapping[str, 
 			if max_bytes is not None and buffer.tell() > max_bytes:
 				raise RuntimeError(f"Download too large: more than {max_bytes} bytes.")
 		buffer.seek(0)
-		return buffer
+		return Downloaded(resp.status_code, dict(resp.headers), buffer)
+
+async def stream_to_buffer(client: AsyncClient, url: str, headers: Mapping[str, str]|None = None, ctok: Callable[[str], bool]|None = None, max_bytes: int|None = DEFAULT_MAX_DOWNLOAD_BYTES, guarded: bool = True) -> BytesIO:
+	"""`download`'s body: the way a data source gets a picture or a feed with nothing kept (see `datasources/content_cache.py` for one that is kept)."""
+	got = await download(client, url, headers, ctok, max_bytes, guarded)
+	assert got.body is not None
+	return got.body
 
 async def get_image_async(image_url:str) -> Image.Image | None:
 	client = client_var.get()

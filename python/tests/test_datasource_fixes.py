@@ -436,14 +436,14 @@ class TestWpotd(unittest.IsolatedAsyncioTestCase):
 	async def test_svg_error_names_the_datasource(self):
 		ds = WpotdAsync("w", "My Wiki Source")
 		with self.assertLogs(wpotd.__name__, level="WARNING") as logs, self.assertRaises(RuntimeError) as cm:
-			await ds._download_image("http://x/a.svg")
+			await ds._download_image(make_dsec(), "http://x/a.svg")
 		self.assertIn("My Wiki Source", str(cm.exception))
 		self.assertNotIn("{self.name}", str(cm.exception) + "\n".join(logs.output))
 		self.assertIn("My Wiki Source", "\n".join(logs.output))
 	async def test_oversized_download_is_refused(self):
 		client_var.set(mock_client(lambda req: httpx.Response(200, content=b"x" * 5000, headers={"Content-Type": "image/png"})))
 		with patch.object(wpotd, "MAX_IMAGE_BYTES", 1000), self.assertLogs(wpotd.__name__, level="ERROR"), self.assertRaises(RuntimeError):
-			await WpotdAsync("w", "w")._download_image("http://x/a.png")
+			await WpotdAsync("w", "w")._download_image(make_dsec(), "http://x/a.png")
 
 # ---------------------------------------------------------------- 10. newspaper
 

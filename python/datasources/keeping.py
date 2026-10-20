@@ -7,7 +7,7 @@ import logging
 import threading
 import time
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Callable
 
 from ..model.configuration_manager import DatasourceConfigurationManager, PluginConfigurationManager
 
@@ -49,8 +49,8 @@ def owner_id(manager: DatasourceConfigurationManager|PluginConfigurationManager)
 def prune_key(manager: DatasourceConfigurationManager|PluginConfigurationManager) -> str:
 	return f"{type(manager).__name__}:{owner_id(manager)}"
 
-def prune_stale(dscm: DatasourceConfigurationManager|PluginConfigurationManager, prefixes: tuple[str, ...], stale_days: float, now: datetime) -> list[str]:
-	"""Remove the data source's or plugin's files (`state-...`, `cache-...`) not used for `stale_days` days (0: never). Returns the names removed."""
+def prune_stale(dscm: DatasourceConfigurationManager|PluginConfigurationManager, prefixes: tuple[str, ...], stale_days: float, now: datetime, remove: Callable[[str], None]|None = None) -> list[str]:
+	"""Remove the data source's or plugin's files (`state-...`, `cache-...`) not used for `stale_days` days (0: never), with `remove` (default: `delete_file`; a kept download's bytes go too). Returns the names removed."""
 	if stale_days <= 0:
 		return []
 	removed: list[str] = []
@@ -61,20 +61,21 @@ def prune_stale(dscm: DatasourceConfigurationManager|PluginConfigurationManager,
 			used = parse_moment((doc or {}).get("last_used"))
 			# a file that cannot say when it was used is as old as it can be
 			if used is None or used < limit:
-				dscm.delete_file(name)
+				(remove or dscm.delete_file)(name)
 				removed.append(name)
 	if removed:
 		logger.info(f"'{owner_id(dscm)}' removed {len(removed)} unused file(s).")
 	return removed
 
-def prune_stale_sometimes(dscm: DatasourceConfigurationManager|PluginConfigurationManager, prefixes: tuple[str, ...], stale_days: float, now: datetime) -> None:
+def prune_stale_sometimes(dscm: DatasourceConfigurationManager|PluginConfigurationManager, prefixes: tuple[str, ...], stale_days: float, now: datetime, remove: Callable[[str], None]|None = None) -> None:
 	with _prune_lock:
-		last = _last_prune.get(prune_key(dscm))
+		key = prune_key(dscm) + "|" + ",".join(prefixes)
+		last = _last_prune.get(key)
 		if last is not None and time.monotonic() - last < PRUNE_EVERY_SECONDS:
 			return
-		_last_prune[prune_key(dscm)] = time.monotonic()
+		_last_prune[key] = time.monotonic()
 	try:
-		prune_stale(dscm, prefixes, stale_days, now)
+		prune_stale(dscm, prefixes, stale_days, now, remove)
 	except Exception as e:
 		# a clean-up is never worth a slide
 		logger.warning(f"'{owner_id(dscm)}' could not remove its unused files ({type(e).__name__}).")

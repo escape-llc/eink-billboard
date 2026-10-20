@@ -16,7 +16,8 @@ from PIL import Image, UnidentifiedImageError
 
 from ...plugins.plugin_base import PermanentError
 from ...task.async_http_worker_pool import client_var
-from ...utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, blurred_margin, stream_to_buffer
+from ..content_cache import download_for
+from ...utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, blurred_margin
 from ...utils.text_utils import unescape_text
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 
@@ -31,6 +32,8 @@ LATEST_COUNT = 25
 RETRY_DELAYS = (2.0, 6.0)
 RETRY_STATUSES = (403, 408, 425, 429, 500, 502, 503, 504)
 MAX_IMAGE_BYTES = DEFAULT_MAX_DOWNLOAD_BYTES
+# the picture of a day does not change: what NASA says (`Cache-Control`) decides, never longer than this
+DEFAULT_CONTENT_HOURS = 24.0
 
 def day_id(day: date) -> str:
 	"""A day as the API names it: yymmdd."""
@@ -118,7 +121,7 @@ class ApodAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			return None
 		size = target_dimensions(dsec)
 		try:
-			buffer = await stream_to_buffer(client_var.get(), str(state["url"]), headers=HEADERS, ctok=lambda ct: ct.startswith("image/"), max_bytes=MAX_IMAGE_BYTES)
+			buffer = await download_for(dsec, str(state["url"]), default_hours=DEFAULT_CONTENT_HOURS, headers=HEADERS, ctok=lambda ct: ct.startswith("image/"), max_bytes=MAX_IMAGE_BYTES)
 			image = Image.open(buffer)
 			# a JPEG is decoded at a reduced size (a power of two, still at least twice the screen's): the originals run to tens of megapixels
 			image.draft("RGB", (size[0] * 2, size[1] * 2))

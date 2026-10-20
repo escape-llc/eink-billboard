@@ -47,3 +47,37 @@ def save_json(file_path: str, data: dict) -> None:
 			pass
 		logger.error(f"Error saving file '{file_path}'")
 		raise
+
+def load_bytes(file_path: str) -> bytes|None:
+	"""The file's bytes, or None when it is not there or cannot be read."""
+	try:
+		with open(file_path, 'rb') as fx:
+			return fx.read()
+	except OSError:
+		return None
+
+def save_bytes(file_path: str, data: bytes) -> None:
+	"""Atomically replace the file with `data` (the same temp file and rename as `save_json`). Errors propagate to the caller."""
+	folder = os.path.dirname(file_path) or "."
+	os.makedirs(folder, exist_ok=True)
+	fd, temp_path = tempfile.mkstemp(dir=folder, prefix=".tmp-", suffix=".bin")
+	try:
+		with os.fdopen(fd, 'wb') as fx:
+			fx.write(data)
+			fx.flush()
+			os.fsync(fx.fileno())
+		os.replace(temp_path, file_path)
+	except BaseException:
+		try:
+			os.remove(temp_path)
+		except OSError:
+			pass
+		logger.error(f"Error saving file '{file_path}'")
+		raise
+
+def remove_file(file_path: str) -> None:
+	"""Remove the file; a file that is not there is already removed."""
+	try:
+		os.remove(file_path)
+	except FileNotFoundError:
+		pass

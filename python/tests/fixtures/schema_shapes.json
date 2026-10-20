@@ -1,7 +1,17 @@
 {
 	"urn:inky:storage:schema:datasource:apod": {
 		"version": 1,
-		"properties": {}
+		"properties": {
+			"contentCacheHours": {
+				"type": "number"
+			},
+			"contentCacheMB": {
+				"type": "number"
+			},
+			"staleDays": {
+				"type": "integer"
+			}
+		}
 	},
 	"urn:inky:storage:schema:datasource:calendar": {
 		"version": 1,
@@ -168,7 +178,17 @@
 	},
 	"urn:inky:storage:schema:datasource:wpotd": {
 		"version": 1,
-		"properties": {}
+		"properties": {
+			"contentCacheHours": {
+				"type": "number"
+			},
+			"contentCacheMB": {
+				"type": "number"
+			},
+			"staleDays": {
+				"type": "integer"
+			}
+		}
 	},
 	"urn:inky:storage:schema:datasource:year_progress": {
 		"version": 1,

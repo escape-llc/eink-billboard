@@ -64,6 +64,8 @@ def leaf_name(name: str) -> str:
 BACKUP_AREAS = ("settings", "schedules", "plugins", "datasources")
 BACKUP_NEVER = ("settings/access-settings.json",)
 BACKUP_CACHE_PREFIX = "cache-"
+# the description of a kept picture or feed (`datasources/content_cache.py`); its bytes are a `.bin` file, which a backup (JSON files only) never holds
+BACKUP_BLOB_PREFIX = "blob-"
 # a file of a backup is a small JSON document (a storage is a few hundred kilobytes in all)
 BACKUP_MAX_FILE_BYTES = 5 * 1024 * 1024
 
@@ -92,7 +94,7 @@ def backup_file(name: Any) -> BackupFile|None:
 	if area not in BACKUP_AREAS or len(parts) != (2 if area in ("settings", "schedules") else 3):
 		return None
 	file_name = parts[-1]
-	if not file_name.endswith(".json") or file_name.startswith(BACKUP_CACHE_PREFIX):
+	if not file_name.endswith(".json") or file_name.startswith((BACKUP_CACHE_PREFIX, BACKUP_BLOB_PREFIX)):
 		return None
 	try:
 		stem = leaf_name(file_name[:-len(".json")])
@@ -136,7 +138,7 @@ def create_hash(data:dict) -> str:
 	return object_hash
 
 # the file primitives are in storage_files; these names stay for the tests that exercise them
-from .storage_files import load_json as _internal_load, save_json as _internal_save
+from .storage_files import load_bytes, load_json as _internal_load, remove_file, save_bytes, save_json as _internal_save
 
 # settings that moved from one data source to another (`upgrade_settings`, once per storage): (from, to, keys). The Weather's went to the
 # OpenWeatherMap API data source that asks the origin for it and the Weather Overlay; the OpenAI Image's key to the OpenAI provider its parts share.
@@ -275,6 +277,24 @@ class DatasourceConfigurationManager:
 		except FileNotFoundError:
 			pass
 		cob.evict()
+	def _blob_path(self, name: str) -> str:
+		return os.path.join(self.ROOT_PATH, f"{leaf_name(name)}.bin")
+	def read_blob(self, name: str) -> bytes|None:
+		"""A binary file of this data source (a kept picture), or None when it is not there. What describes it is a JSON file of the same name (`file(name)`)."""
+		return load_bytes(self._blob_path(name))
+	def write_blob(self, name: str, data: bytes) -> None:
+		"""Atomically keep `data` as a binary file of this data source."""
+		save_bytes(self._blob_path(name), data)
+	def delete_blob(self, name: str) -> None:
+		"""Remove a binary file of this data source and the JSON file that describes it."""
+		remove_file(self._blob_path(name))
+		self.delete_file(name)
+	def list_blobs(self, prefix: str) -> list[str]:
+		"""The names (no extension) of this data source's binary files that start with `prefix`; none when it has no folder yet."""
+		leaf_name(prefix)
+		if not os.path.isdir(self.ROOT_PATH):
+			return []
+		return sorted(f[:-4] for f in os.listdir(self.ROOT_PATH) if f.startswith(prefix) and f.endswith(".bin") and _LEAF.match(f[:-4]))
 
 class PluginConfigurationManager:
 	"""
