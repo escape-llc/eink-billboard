@@ -66,6 +66,8 @@ BACKUP_NEVER = ("settings/access-settings.json",)
 BACKUP_CACHE_PREFIX = "cache-"
 # the description of a kept picture or feed (`datasources/content_cache.py`); its bytes are a `.bin` file, which a backup (JSON files only) never holds
 BACKUP_BLOB_PREFIX = "blob-"
+# what a plugin or data source keeps for a while (a download, an origin's answer, a list): the System page counts it apart
+KEPT_PREFIXES = ("blob-", "cache-", "list-")
 # a file of a backup is a small JSON document (a storage is a few hundred kilobytes in all)
 BACKUP_MAX_FILE_BYTES = 5 * 1024 * 1024
 
@@ -781,6 +783,43 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			for ox in cached:
 				ox.evict()
 		return changed
+
+	def storage_usage(self) -> dict[str, Any]:
+		"""
+		How much of the disk the storage uses, for the System page (#390): by area, and by plugin and data source (`kept` is what they keep for a while: downloads, answers, lists), and
+		the disk the storage is on. Names and sizes only: never a path, a file name or a value. A folder is an owner's when its name is an id (`leaf_name`).
+		"""
+		def measure(folder: str) -> tuple[int, int, int]:
+			files = size = kept = 0
+			for current, _, names in os.walk(folder):
+				for name in names:
+					try:
+						n = os.lstat(os.path.join(current, name)).st_size
+					except OSError:
+						continue
+					files += 1
+					size += n
+					if name.startswith(KEPT_PREFIXES):
+						kept += n
+			return files, size, kept
+		areas = []
+		for area, folder in (("settings", self.storage_settings), ("schedules", self.storage_schedules), ("plugins", self.storage_plugins), ("datasources", self.storage_ds), ("schemas", self.storage_schemas), ("state", self.storage_state)):
+			files, size, _ = measure(folder) if os.path.isdir(folder) else (0, 0, 0)
+			areas.append({ "name": area, "files": files, "bytes": size })
+		def owners(root: str) -> list[dict[str, Any]]:
+			found = []
+			for name in sorted(os.listdir(root)) if os.path.isdir(root) else []:
+				if _LEAF.match(name) and os.path.isdir(os.path.join(root, name)):
+					files, size, kept = measure(os.path.join(root, name))
+					found.append({ "id": name, "files": files, "bytes": size, "kept_bytes": kept })
+			return found
+		volume = None
+		try:
+			usage = shutil.disk_usage(self.STORAGE_PATH)
+			volume = { "total": usage.total, "used": usage.used, "free": usage.free, "percent": round(usage.used / usage.total * 100, 1) if usage.total else 0 }
+		except OSError:
+			pass
+		return { "areas": areas, "plugins": owners(self.storage_plugins), "datasources": owners(self.storage_ds), "volume": volume }
 
 	def ensure_folders(self):
 		"""Ensures that necessary directories exist.  Does not consider files."""

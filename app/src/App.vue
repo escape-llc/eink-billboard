@@ -2,9 +2,7 @@
 import { InputGroup, Toast, TieredMenu, Button, Toolbar, ConfirmDialog } from 'primevue';
 import { RouterLink, RouterView } from 'vue-router'
 import ThemeSelector from './components/ThemeSelector.vue'
-import TelemetryGutter from './components/TelemetryGutter.vue'
 import AuthDialog from './components/AuthDialog.vue'
-import StatusIndicator from './components/StatusIndicator.vue'
 import { onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
@@ -25,8 +23,6 @@ const toggleMenu = (event:MouseEvent):void => {
 	menu.value?.toggle(event);
 }
 const version = ref(__APP_VERSION__)
-// the activity gutter: open or not lives as long as the page (the browser stores nothing but the theme)
-const gutterOpen = ref(false)
 const openSetup = ():void => {
 	router.push({ name: 'setup' }).catch(err => {
 		console.error("navigate to setup error", err);
@@ -46,6 +42,12 @@ const items = ref([
 			class: "p-0 m-0",
 //			disabled: () => appStore.currentStateAppConfig !== "initialized",
 			to: "/playlist",
+		},
+		{
+			label:"System",
+			icon: "pi pi-desktop",
+			class: "p-0 m-0",
+			to: "/system",
 		},
 		{
 			label:"Settings",
@@ -137,16 +139,6 @@ const items = ref([
 	</template>
 	<template #end>
 		<InputGroup>
-			<StatusIndicator />
-			<Button size="small"
-				icon="pi pi-wave-pulse"
-				class="p-button-sm"
-				:class="{ 'p-button-outlined': !gutterOpen }"
-				type="button"
-				aria-label="Activity"
-				:aria-pressed="gutterOpen"
-				@click="gutterOpen = !gutterOpen"
-				/>
 			<ThemeSelector class="p-button-sm"/>
 			<Button size="small"
 				icon="pi pi-cog"
@@ -161,7 +153,6 @@ const items = ref([
 	</Toolbar>
 	<div class="main-area">
 		<RouterView class="router-view" />
-		<TelemetryGutter v-if="gutterOpen" />
 	</div>
 	<ConfirmDialog></ConfirmDialog>
 	<AuthDialog />
@@ -170,7 +161,7 @@ const items = ref([
 <style scoped>
 .main-area {
 	display: flex;
-	/* what is left of the window under the toolbar: the page and the gutter scroll inside it, instead of growing past the window (the body does not scroll) */
+	/* what is left of the window under the toolbar: the page scrolls inside it, instead of growing past the window (the body does not scroll) */
 	flex: 1 1 0;
 	gap: .5rem;
 	min-height: 0;

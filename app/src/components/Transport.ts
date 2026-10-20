@@ -33,7 +33,7 @@ export class Transport {
 		try {
 			const answer = await apiJson<{ stopped: boolean }>(this.url())
 			this.state.stopped = answer.stopped === true
-		} catch { /* the gutter's link status says so */ }
+		} catch { /* the System page's link status says so */ }
 	}
 
 	/** Follow the link's events. */
@@ -57,7 +57,7 @@ export class Transport {
 }
 
 let shared: Transport | null = null
-/** The page's one transport (the gutter's buttons). */
+/** The page's one transport (the System page's buttons). */
 export function useTransport(base: string = import.meta.env.VITE_API_URL ?? "/"): Transport {
 	shared ??= new Transport(base)
 	return shared

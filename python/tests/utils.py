@@ -180,6 +180,11 @@ def save_datasource_settings(cm: ConfigurationManager, datasource_id: str, docum
 	assert committed
 
 def create_configuration_manager() -> ConfigurationManager:
-	storage = storage_path()
-	cm = ConfigurationManager(storage_path=storage)
-	return cm
+	"""
+	A configuration manager over the realistic test storage, on a **private copy**: the code under test writes what it keeps (a kept download, an origin's answer, a list), and the shared
+	template must stay as it was built, or one test's kept picture would serve the next.
+	"""
+	folder = tempfile.mkdtemp(prefix="eink-test-copy-")
+	atexit.register(shutil.rmtree, folder, True)
+	shutil.copytree(storage_path(), folder, dirs_exist_ok=True)
+	return ConfigurationManager(storage_path=folder)

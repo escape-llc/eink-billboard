@@ -1,7 +1,7 @@
 /**
  * After a sign-in the whole page is loaded again (`App.vue`, when `signInCount` moves): what it showed was read before the sign-in (or not at all),
- * the storage may have changed since, and the device may run a newer build. A reload starts everything over (the page, the activity gutter, the
- * status button) and loads the newest build.
+ * the storage may have changed since, and the device may run a newer build. A reload starts everything over (the page, the System page's
+ * activity and status) and loads the newest build.
  *
  * The reload is marked in `history.state` (which a reload keeps, and which is not storage: the browser keeps nothing but the theme), so the
  * reloaded page can say why it reloaded.
