@@ -118,10 +118,10 @@
 		</div>
 
 		<!-- what the device is doing now, and what it did: the telemetry link -->
-		<section class="card activity" aria-label="Device activity">
+		<section class="card activity" aria-label="Device activity" :data-link="link.state.status">
 			<div class="card-head">
 				<strong>Activity</strong>
-				<Tag :severity="statusSeverity" :value="statusText" class="ml-auto" data-testid="link-status" />
+				<Tag v-if="link.state.status !== 'live'" :severity="statusSeverity" :value="statusText" class="ml-auto" data-testid="link-status" />
 			</div>
 
 			<!-- the player (transport, what the panel shows, what it showed) beside the events: side by side, not stacked -->
