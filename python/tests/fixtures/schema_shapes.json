@@ -126,7 +126,11 @@
 	},
 	"urn:inky:storage:schema:datasource:image-url": {
 		"version": 1,
-		"properties": {}
+		"properties": {
+			"pictures": {
+				"type": "array"
+			}
+		}
 	},
 	"urn:inky:storage:schema:datasource:newspaper": {
 		"version": 1,

@@ -26,7 +26,7 @@ USER_SUPPLIED = {
 	("source", "clock", "clockFace"), ("source", "clock", "primaryColor"), ("source", "clock", "secondaryColor"),
 	("source", "countdown", "title"), ("source", "countdown", "targetDate"),
 	("source", "image-folder", "folder"), ("source", "ai-image", "prompt"), ("source", "rss", "feed"),
-	("source", "today", "customFormat"), ("source", "comic-vine", "series"), ("source", "image-url", "url"),
+	("source", "today", "customFormat"), ("source", "comic-vine", "series"), ("source", "image-url", "picture"),
 }
 # one name, different shapes (each is one form at a time, and a change of plugin or data source resets the form's values):
 SAME_NAME_DIFFERENT = {

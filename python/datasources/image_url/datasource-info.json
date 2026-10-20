@@ -5,8 +5,8 @@
 	"class": "ImageUrlAsync",
 	"file": "image_url.py",
 	"module": "python.datasources.image_url.image_url",
-	"description": "One picture from a web address, fetched each time it is shown: a camera's snapshot, a dashboard or chart image, a weather map.",
-	"describe": "Picture from a web address",
+	"description": "One picture from a web address, fetched each time it is shown: a camera's snapshot, a dashboard or chart image, a weather map. The addresses are kept in the data source's settings, and a task picks one by its name.",
+	"describe": "Picture {picture}",
 	"disabled": false,
 	"features": ["internet", "layer-background", "media-image"],
 	"router": {
@@ -19,24 +19,42 @@
 		"_schema": "urn:inky:storage:schema:datasource:image-url:1",
 		"schema": {
 			"properties": [
+				{
+					"name": "pictures",
+					"type": "array",
+					"required": false,
+					"default": [],
+					"title": "Pictures",
+					"description": "The pictures a task can show: a camera's snapshot, a dashboard or chart image, a weather map. A task picks one by its name. Only http and https addresses (PNG, JPEG, GIF or WEBP, up to 10 MB); each is fetched again every time it is shown, so an address that always gives the latest picture always shows the latest. Test fetches the address and says what it found. An address on this device, or in its link-local range, is refused.",
+					"items": {
+						"type": "object",
+						"key": "name",
+						"properties": [
+							{ "name": "name", "type": "string", "required": true, "title": "Name", "minLength": 1 },
+							{ "name": "url", "type": "string", "format": "uri", "required": true, "title": "Picture Address", "test": { "url": "/api/datasource/image-url/test" } }
+						]
+					}
+				}
 			]
 		},
-		"default": null
+		"default": {
+			"pictures": []
+		}
 	},
 	"instanceSettings": {
 		"schema": {
 			"lookups": {
+				"picture": { "settings": "pictures", "value": "name" }
 			},
 			"properties": [
 				{
-					"name": "url",
+					"name": "picture",
 					"type": "string",
-					"format": "uri",
 					"required": true,
 					"default": null,
-					"title": "Picture Address",
-					"description": "The web address of the picture (http or https; PNG, JPEG, GIF or WEBP, up to 10 MB). It is fetched again every time it is shown, so an address that always gives the latest picture (a camera snapshot) always shows the latest. Test fetches it and says what it found. An address on this device, or in its link-local range, is refused.",
-					"test": { "url": "/api/datasource/image-url/test" }
+					"lookup": "picture",
+					"title": "Picture",
+					"description": "Which picture to show. Add pictures (a name and an address each) in the Image from a Web Address data source settings."
 				},
 				{
 					"name": "shrinkToFit",
