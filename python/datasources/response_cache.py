@@ -56,7 +56,7 @@ async def cached(dscm: DatasourceConfigurationManager, settings: Mapping[str, An
 			rev, doc = None, None
 		doc = doc if isinstance(doc, dict) else {}
 		if _fresh(doc, now, ttl):
-			_use(cob, rev, doc, now)
+			note_use(cob, rev, doc, now)
 			return doc["data"]
 		lock = refill_lock(cob.moniker)
 		if not lock.acquire(blocking=False):
@@ -80,7 +80,7 @@ async def cached(dscm: DatasourceConfigurationManager, settings: Mapping[str, An
 				raise
 			try:
 				if len(json.dumps(data)) <= MAX_CACHE_BYTES:
-					_save(cob, rev, { "data": data, "fetched_at": now.isoformat(), "last_used": now.isoformat() })
+					save_quietly(cob, rev, { "data": data, "fetched_at": now.isoformat(), "last_used": now.isoformat() })
 			except (TypeError, ValueError):
 				pass
 			return data
@@ -89,15 +89,15 @@ async def cached(dscm: DatasourceConfigurationManager, settings: Mapping[str, An
 	# the answer kept changing under us: ask the origin and leave the cache alone
 	return await fetch()
 
-def _save(cob: Any, rev: str|None, doc: dict) -> None:
+def save_quietly(cob: Any, rev: str|None, doc: dict) -> None:
 	try:
 		cob.save(rev, doc)
 	except Exception as e:
 		logger.warning(f"A cached answer could not be saved ({type(e).__name__}); carrying on without it.")
 
-def _use(cob: Any, rev: str|None, doc: dict, now: datetime) -> None:
+def note_use(cob: Any, rev: str|None, doc: dict, now: datetime) -> None:
 	"""Note that the answer was used (the clean-up goes by it); not worth failing for, nor for losing a race."""
 	last = parse_moment(doc.get("last_used"))
 	if last is not None and now - last < timedelta(hours=1):
 		return
-	_save(cob, rev, { **doc, "last_used": now.isoformat() })
+	save_quietly(cob, rev, { **doc, "last_used": now.isoformat() })

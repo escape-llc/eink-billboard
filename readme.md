@@ -543,6 +543,15 @@ The weather at the device's location from [OpenWeatherMap](https://openweatherma
 * **Units**: `auto` reads miles and Fahrenheit in the US timezones and kilometres and Celsius elsewhere, or choose `metric` or `imperial`. The clock follows the System settings' time format.
 * It uses the free plan's endpoints (`/data/2.5/weather` and `/data/2.5/forecast`), only the ones the chosen views need, kept for the times in the settings. The icons are drawn by the page, so rendering needs no network. The key is in the address OpenWeatherMap wants, so the HTTP client's log lines have it hidden (`appid=***`).
 
+## Kept Downloads
+
+A data source that downloads the same picture again and again keeps it (#400, `python/datasources/content_cache.py`): the **Wikipedia and NASA Picture of the Day** sources do, and others adopt it by calling `download_for` instead of `stream_to_buffer`. What is kept belongs to the data source, so every task and every address under it shares one pool in the source's own folder (`blob-<hash of the address>.json` describes a download, `.bin` is its bytes; neither is in a backup, and the address, which can carry a key, is in neither).
+
+* **The origin decides how long.** `Cache-Control` (`max-age`, `no-cache`, `no-store`) and `Expires` set how long a download is trusted, never longer than the source's *Keep Downloads (hours)* (`contentCacheHours`, which is also the time when the origin says nothing; 0 keeps nothing). The headers can shorten the setting, never lengthen it.
+* **A kept download that is fresh sends nothing**: no `HEAD`, no conditional request. Once it has expired the next use asks again with the `ETag` and `Last-Modified` the origin gave (`If-None-Match`, `If-Modified-Since`): a `304` keeps the bytes and starts a new fresh period, a `200` replaces them. An origin that does not answer gives the old bytes; an address the URL guard refuses never does.
+* **The pool is bounded and tidied:** *Downloads Pool Size (MB)* (`contentCacheMB`, the one used longest ago goes first) and *Forget Unused Downloads After (days)* (`staleDays`). A source that loads a list (a feed's stories) can say which addresses the list still holds (`retain`, per list), so what dropped out goes at once and nothing needs a timer.
+* A list that outlasts a visit is a different thing: the Slide Show keeps it (`kept_list.py`); this is for the bytes behind its items.
+
 ## Storage Folder
 
 You must set up a separate `.storage` folder for the application to store its state.  See above for details.

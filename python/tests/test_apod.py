@@ -1,5 +1,6 @@
 import unittest
 from datetime import date, datetime
+from typing import Any
 from unittest.mock import patch
 
 import httpx
@@ -9,7 +10,10 @@ from ..datasources.apod.apod import ApodAsync, chosen_day, day_id, picture_of, r
 from ..plugins.plugin_base import PermanentError
 from ..task.async_http_worker_pool import client_var
 from .fake_internet import FakeInternet
+from ..model.configuration_manager import DatasourceConfigurationManager
+from ..utils import url_guard
 from .test_datasource_fixes import TZ_TOKYO, make_dsec, mock_client, png_bytes
+from .utils import temp_configuration_manager
 
 NOW = datetime(2026, 10, 14, 12, 0, tzinfo=TZ_TOKYO)
 
@@ -151,6 +155,36 @@ class TestRender(unittest.IsolatedAsyncioTestCase):
 		result = await ApodAsync("apod", "APOD").render_async(make_dsec(ts=NOW), {}, state)
 		assert result is not None
 		self.assertEqual(result.image.size, (800, 480))
+
+class TestKeptPicture(unittest.IsolatedAsyncioTestCase):
+	"""The picture of a day is kept in the data source's own pool (#400): the second render sends nothing, and 0 hours downloads every time."""
+	STATE = { "date": "2026-10-13", "title": "T", "url": "https://assets.science.nasa.gov/p.jpg?key=SECRET" }
+
+	async def render(self, cm: Any, settings: dict) -> int:
+		sent: list[httpx.Request] = []
+		def handler(request: httpx.Request) -> httpx.Response:
+			sent.append(request)
+			return httpx.Response(200, content=png_bytes((40, 30)), headers={ "Content-Type": "image/png" })
+		client_var.set(mock_client(handler))
+		dsec = make_dsec(ts=NOW)
+		dscm = cm.datasource_manager("apod")
+		dscm.open().save(dscm.open().get()[0], { **(dscm.open().get()[1] or {}), **settings })
+		dsec.provider.add_service(DatasourceConfigurationManager, dscm)  # type: ignore[attr-defined]
+		with patch.object(url_guard, "_resolve", self.public):
+			for _ in range(2):
+				result = await ApodAsync("apod", "APOD").render_async(dsec, {}, self.STATE)
+				assert result is not None
+		return len(sent)
+
+	@staticmethod
+	async def public(host: str, port: int) -> list[str]:
+		return ["93.184.216.34"]
+
+	async def test_the_second_render_of_the_same_picture_sends_nothing(self):
+		self.assertEqual(await self.render(temp_configuration_manager(self), {}), 1)
+
+	async def test_zero_hours_downloads_every_time(self):
+		self.assertEqual(await self.render(temp_configuration_manager(self), { "contentCacheHours": 0 }), 2)
 
 if __name__ == "__main__":
 	unittest.main()

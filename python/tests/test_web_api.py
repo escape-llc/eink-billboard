@@ -753,18 +753,18 @@ class TestPluginsAndDatasources(WebApiTestBase):
 			self.assertNotIn(probe, resp.text, url)
 
 	def test_datasource_settings_round_trip(self):
-		self.write_datasource_settings("wpotd", {"shrinkToFit": True})
+		self.write_datasource_settings("wpotd", {"contentCacheHours": 24, "contentCacheMB": 64, "staleDays": 30})
 		resp = self.client.get("/api/datasources/wpotd/settings")
 		self.assertEqual(resp.status_code, 200, resp.text)
 		doc = resp.json()
 		self.assertEqual(doc["_id"], "datasource-wpotd-settings")
-		doc["shrinkToFit"] = False
+		doc["contentCacheHours"] = 12
 		self.assertEqual(self.client.put("/api/datasources/wpotd/settings", json=doc).status_code, 200)
-		self.assertIs(self.client.get("/api/datasources/wpotd/settings").json()["shrinkToFit"], False)
+		self.assertEqual(self.client.get("/api/datasources/wpotd/settings").json()["contentCacheHours"], 12)
 
 	def test_missing_settings_is_404_and_first_save_needs_no_rev(self):
 		# a plugin with no stored settings.json yet
-		for ident in ("clock", "wpotd"):
+		for ident in ("clock",):
 			settings_file = os.path.join(self.storage, "datasources", ident, "settings.json")
 			if os.path.exists(settings_file):
 				os.remove(settings_file)
