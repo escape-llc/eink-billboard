@@ -241,5 +241,57 @@ class TestBackupAndFolders(CacheTestBase):
 		self.assertEqual(self.dscm.list_blobs(BLOB_PREFIX), [])
 		self.assertEqual(self.dscm.read_blob("blob-nothing"), None)
 
+class TestTheSourcesThatKeep(unittest.IsolatedAsyncioTestCase):
+	"""The comics and the newspaper covers go through their data source's pool (#400)."""
+	def setUp(self):
+		patcher = patch.object(url_guard, "_resolve", public)
+		patcher.start()
+		self.addCleanup(patcher.stop)
+
+	def context(self, source: str) -> tuple[DataSourceExecutionContext, DatasourceConfigurationManager]:
+		from .test_datasource_fixes import make_dsec
+		dscm = temp_configuration_manager(self).datasource_manager(source)
+		dsec = make_dsec(ts=NOW)
+		dsec.provider.add_service(DatasourceConfigurationManager, dscm)  # type: ignore[attr-defined]
+		return dsec, dscm
+
+	async def test_a_comics_feed_is_kept_and_a_strip_that_left_the_feed_is_removed(self):
+		from ..datasources.comic.comic_feed import ComicFeedAsync
+		from ..datasources.comic.comic_parser import COMICS
+		dsec, dscm = self.context("comic")
+		atom = """<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>x</title><entry><title>T</title>
+		<link href="http://x/1"/><id>1</id><updated>2026-01-01T00:00:00Z</updated>
+		<summary type="html">&lt;img src="http://x/a.png" alt="alt text" /&gt;</summary></entry></feed>"""
+		sent: list[str] = []
+		def handler(request: httpx.Request) -> httpx.Response:
+			sent.append(str(request.url))
+			return httpx.Response(200, text=atom, headers={ "Content-Type": "application/atom+xml" })
+		client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+		client_var.set(client)
+		await fetch_cached(dscm, { "contentCacheHours": 24 }, client, "https://x.example/gone.png", NOW, scope="pictures:XKCD", default_hours=24)
+		ds = ComicFeedAsync("comic", "comic")
+		first = await ds.open_async(dsec, { "comic": "XKCD" })
+		second = await ds.open_async(dsec, { "comic": "XKCD" })
+		feed = COMICS["XKCD"]["feed"]
+		self.assertEqual((len(first), first, sent.count(feed)), (1, second, 1))
+		# the feed's own body stays, the strip that is not in it any more does not
+		self.assertEqual(dscm.list_blobs(BLOB_PREFIX), [blob_name(feed)])
+
+	async def test_the_second_look_at_a_newspaper_cover_sends_nothing(self):
+		from ..datasources.newspaper.constants import NEWSPAPERS
+		from ..datasources.newspaper.newspaper import NewspaperAsync
+		from .test_datasource_fixes import png_bytes
+		dsec, dscm = self.context("newspaper")
+		sent: list[str] = []
+		def handler(request: httpx.Request) -> httpx.Response:
+			sent.append(str(request.url))
+			return httpx.Response(200, content=png_bytes((60, 90)), headers={ "Content-Type": "image/png" })
+		client_var.set(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+		slug = NEWSPAPERS[0]["slug"].upper()
+		for _ in range(2):
+			result = await NewspaperAsync("newspaper", "newspaper").render_async(dsec, {}, slug)
+			assert result is not None
+		self.assertEqual(len(sent), 1)
+
 if __name__ == "__main__":
 	unittest.main()

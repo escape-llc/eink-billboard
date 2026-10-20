@@ -6,10 +6,13 @@ import logging
 from httpx import HTTPError
 
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
-from ...utils.image_utils import blurred_margin, get_image_async
+from ...utils.image_utils import blurred_margin
+from ..content_cache import download_for
 from .constants import NEWSPAPERS
 
 FREEDOM_FORUM_URL = "https://cdn.freedomforum.org/dfp/jpg{}/lg/{}.jpg"
+# the cover of a day is not changed later; the address names only the day of the month, so it is not kept for long (the site's headers can shorten it)
+DEFAULT_CONTENT_HOURS = 12.0
 KNOWN_SLUGS = frozenset(x["slug"].upper() for x in NEWSPAPERS)
 
 class NewspaperAsync(DataSource, MediaListAsync, MediaRenderAsync):
@@ -28,11 +31,11 @@ class NewspaperAsync(DataSource, MediaListAsync, MediaRenderAsync):
 	async def render_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any], state:Any) -> MediaRenderResult | None:
 		if state is None:
 			return None
-		image = await self._generate_image(state, target_dimensions(dsec), dsec.timestamp)
+		image = await self._generate_image(dsec, state, target_dimensions(dsec), dsec.timestamp)
 		if image is not None:
 			return MediaRenderResult(image=image, title=f"Newspaper {state}")
 		return None
-	async def _generate_image(self, newspaper_slug:str, dimensions, timestamp:datetime) -> Image.Image | None:
+	async def _generate_image(self, dsec: DataSourceExecutionContext, newspaper_slug:str, dimensions, timestamp:datetime) -> Image.Image | None:
 		if newspaper_slug not in KNOWN_SLUGS:
 			raise ValueError("Unknown newspaper.")
 		# Get today's date
@@ -44,8 +47,10 @@ class NewspaperAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		for date in days:
 			image_url = FREEDOM_FORUM_URL.format(date.day, newspaper_slug)
 			try:
-				# decodes the image too, so a corrupt/truncated download is handled like a missing one
-				image = await get_image_async(image_url)
+				# kept (the cover of a day does not change; a day with no cover is an error and is not kept); decodes the image too, so a corrupt/truncated download is handled like a missing one
+				buffer = await download_for(dsec, image_url, default_hours=DEFAULT_CONTENT_HOURS, ctok=lambda ct: ct.startswith("image/"))
+				image = Image.open(buffer)
+				image.load()
 				if image:
 					self.logger.info(f"Found {newspaper_slug} front cover for {date.strftime('%Y-%m-%d')}")
 					break
