@@ -145,7 +145,7 @@ class TestComic(unittest.IsolatedAsyncioTestCase):
 	async def _generate(self, orientation, **params):
 		seen = {}
 		ds = ComicFeedAsync("comic", "comic")
-		async def fake(item, caption_font, width, height):
+		async def fake(item, caption_font, width, height, dsec):
 			seen.update(font=caption_font, size=(width, height))
 			return Image.new("RGB", (width, height))
 		ds._download_and_compose_image = fake  # type: ignore[method-assign]
@@ -161,12 +161,12 @@ class TestComic(unittest.IsolatedAsyncioTestCase):
 	async def test_feed_errors(self):
 		client_var.set(mock_client(lambda req: httpx.Response(503)))
 		with self.assertRaises(httpx.HTTPStatusError):
-			await comic_parser.get_items_async("XKCD")
+			await comic_parser.get_items_async("XKCD", make_dsec())
 	async def test_html_instead_of_feed_gives_empty_list_and_error(self):
 		html = "<html><body><h1>Please enable cookies</h1></body></html>"
 		client_var.set(mock_client(lambda req: httpx.Response(200, text=html, headers={"Content-Type": "text/html"})))
 		with self.assertLogs(comic_parser.__name__, level="ERROR") as logs:
-			items = await comic_parser.get_items_async("XKCD")
+			items = await comic_parser.get_items_async("XKCD", make_dsec())
 		self.assertEqual(items, [])
 		self.assertIn("XKCD", "\n".join(logs.output))
 	async def test_the_feed_is_asked_for_under_our_own_name_not_the_libraries(self):
@@ -178,7 +178,7 @@ class TestComic(unittest.IsolatedAsyncioTestCase):
 		client_var.set(mock_client(handler))
 		for name in comic_parser.COMICS:
 			with self.subTest(comic=name), self.assertLogs(comic_parser.__name__, level="ERROR"):
-				await comic_parser.get_items_async(name)
+				await comic_parser.get_items_async(name, make_dsec())
 		self.assertEqual(len(seen), len(comic_parser.COMICS))
 		self.assertFalse(any("httpx" in agent for agent in seen))
 	async def test_real_feed_still_parses(self):
@@ -186,7 +186,7 @@ class TestComic(unittest.IsolatedAsyncioTestCase):
 		<link href="http://x/1"/><id>1</id><updated>2026-01-01T00:00:00Z</updated>
 		<summary type="html">&lt;img src="http://x/a.png" alt="alt text" /&gt;</summary></entry></feed>"""
 		client_var.set(mock_client(lambda req: httpx.Response(200, text=atom, headers={"Content-Type": "application/atom+xml"})))
-		items = await comic_parser.get_items_async("XKCD")
+		items = await comic_parser.get_items_async("XKCD", make_dsec())
 		self.assertEqual(len(items), 1)
 		self.assertEqual(items[0]["image_url"], "http://x/a.png")
 

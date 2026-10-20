@@ -2,7 +2,8 @@ import feedparser
 import logging
 import re
 
-from ...task.async_http_worker_pool import client_var
+from ..content_cache import download_for
+from ..data_source import DataSourceExecutionContext
 from ...utils.text_utils import unescape_text
 
 def _first(pattern: str, text: str) -> str:
@@ -100,15 +101,18 @@ def parse_the_feed(comic_name: str, comic: dict, feed: feedparser.FeedParserDict
 
 logger = logging.getLogger(__name__)
 
+# a comic's feed changes at most daily and the site's headers can shorten this; a feed is a few hundred kilobytes at most
+DEFAULT_FEED_HOURS = 0.5
+MAX_FEED_BYTES = 2 * 1024 * 1024
+
 # some hosts refuse the HTTP library's own User-Agent (webcomicname.com, on Tumblr, answers 403 to `python-httpx` and 200 to a browser or any other name)
 HEADERS = { "User-Agent": "Mozilla/5.0 (compatible; eink-billboard)", "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.5" }
 
-async def get_items_async(comic_name):
+async def get_items_async(comic_name, dsec: DataSourceExecutionContext):
 	comic = COMICS[comic_name]
-	client = client_var.get()
-	resp = await client.get(comic["feed"], headers=HEADERS, follow_redirects=True)
-	resp.raise_for_status()
-	feed = feedparser.parse(resp.text)
+	# the feed is kept briefly (its headers and validators decide); a failure raises as it always did
+	buffer = await download_for(dsec, str(comic["feed"]), default_hours=DEFAULT_FEED_HOURS, headers=HEADERS, max_bytes=MAX_FEED_BYTES, scope=f"feed:{comic_name}", setting="feedCacheHours")
+	feed = feedparser.parse(buffer.getvalue())
 	if not feed.entries:
 		# a site that answers 200 with an HTML page (cookie wall, bot check, moved feed) parses as an empty "bozo" feed
 		reason = "the response is not a feed" if feed.get("bozo") else "the feed has no entries"

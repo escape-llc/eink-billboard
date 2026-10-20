@@ -13,13 +13,15 @@ from typing import Any, Mapping
 from PIL import Image, UnidentifiedImageError
 
 from ...plugins.plugin_base import PermanentError
-from ...task.async_http_worker_pool import client_var
-from ...utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, blurred_margin, stream_to_buffer
+from ...utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, blurred_margin
+from ..content_cache import download_for
 from ..comicvine.comicvine import HEADERS, PAGE, ComicVineApi
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 
 COMICVINE_ID = "comicvine"
 MAX_IMAGE_BYTES = DEFAULT_MAX_DOWNLOAD_BYTES
+# a cover does not change: kept for a day (the site's headers can shorten that)
+DEFAULT_CONTENT_HOURS = 24.0
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +58,8 @@ class ComicVineCoversAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			return None
 		size = target_dimensions(dsec)
 		try:
-			# a cover is a picture of ours to fit, from an address Comic Vine gave: it goes through the URL guard (stream_to_buffer's default)
-			buffer = await stream_to_buffer(client_var.get(), str(state["url"]), headers=HEADERS, ctok=lambda ct: ct.startswith("image/"), max_bytes=MAX_IMAGE_BYTES)
+			# a cover is a picture of ours to fit, from an address Comic Vine gave: it goes through the URL guard, and is kept (a cover does not change)
+			buffer = await download_for(dsec, str(state["url"]), default_hours=DEFAULT_CONTENT_HOURS, headers=HEADERS, ctok=lambda ct: ct.startswith("image/"), max_bytes=MAX_IMAGE_BYTES)
 			image = Image.open(buffer)
 			image.draft("RGB", (size[0] * 2, size[1] * 2))
 			image.load()

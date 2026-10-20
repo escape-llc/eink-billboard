@@ -1,12 +1,15 @@
 from typing import IO, Any, Mapping
 from PIL import Image, ImageDraw, ImageFont
 
-from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
+from ...model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ...model.theme import current_typography
-from ...task.async_http_worker_pool import client_var
-from ...utils.image_utils import stream_to_buffer, to_rgb
+from ...utils.image_utils import to_rgb
+from ..content_cache import download_for, retain
 from .comic_parser import get_items_async
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
+
+# a strip does not change once published: its picture is kept for a day (the site's headers can shorten that)
+DEFAULT_CONTENT_HOURS = 24.0
 
 def _wrap_text(text, font, width):
 	lines = []
@@ -63,7 +66,11 @@ class ComicFeedAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		super().__init__(id, name)
 	async def open_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any]) -> list:
 		comic = params.get("comic")
-		items = await get_items_async(comic)
+		items = await get_items_async(comic, dsec)
+		# the list was just loaded: the pictures of strips that left this comic's feed go now (this comic's only)
+		dscm = dsec.provider.get_service(DatasourceConfigurationManager)
+		if isinstance(dscm, DatasourceConfigurationManager):
+			retain(dscm, f"pictures:{comic}", [str(i["image_url"]) for i in items])
 		return items
 	async def render_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any], state:Any) -> MediaRenderResult | None:
 		if state is None:
@@ -84,9 +91,9 @@ class ComicFeedAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		# the caption wears the device theme's body font and text size
 		typography = current_typography(scm)
 		caption_font = stm.get_font(typography.body, font_size=max(1, round(int(caption_font_size) * typography.scale))) if is_caption else None
-		img = await self._download_and_compose_image(item, caption_font, width, height)
+		img = await self._download_and_compose_image(item, caption_font, width, height, context)
 		return MediaRenderResult(image=img, title=item.get("title", "Comic"))
-	async def _download_and_compose_image(self, item, caption_font, width, height):
-		client = client_var.get()
-		buffer = await stream_to_buffer(client, item["image_url"])
+	async def _download_and_compose_image(self, item, caption_font, width, height, dsec: DataSourceExecutionContext):
+		# a strip does not change once published: kept for a day, and what left the feed goes (per comic)
+		buffer = await download_for(dsec, item["image_url"], default_hours=DEFAULT_CONTENT_HOURS, scope=f"pictures:{item.get('name', '')}")
 		return _compose_image(buffer, item, caption_font, width, height)

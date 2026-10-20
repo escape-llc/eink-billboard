@@ -49,11 +49,34 @@
 	},
 	"urn:inky:storage:schema:datasource:comic": {
 		"version": 1,
-		"properties": {}
+		"properties": {
+			"feedCacheHours": {
+				"type": "number"
+			},
+			"contentCacheHours": {
+				"type": "number"
+			},
+			"contentCacheMB": {
+				"type": "number"
+			},
+			"staleDays": {
+				"type": "integer"
+			}
+		}
 	},
 	"urn:inky:storage:schema:datasource:comic-vine": {
 		"version": 1,
-		"properties": {}
+		"properties": {
+			"contentCacheHours": {
+				"type": "number"
+			},
+			"contentCacheMB": {
+				"type": "number"
+			},
+			"staleDays": {
+				"type": "integer"
+			}
+		}
 	},
 	"urn:inky:storage:schema:datasource:comicvine": {
 		"version": 1,
@@ -107,7 +130,17 @@
 	},
 	"urn:inky:storage:schema:datasource:newspaper": {
 		"version": 1,
-		"properties": {}
+		"properties": {
+			"contentCacheHours": {
+				"type": "number"
+			},
+			"contentCacheMB": {
+				"type": "number"
+			},
+			"staleDays": {
+				"type": "integer"
+			}
+		}
 	},
 	"urn:inky:storage:schema:datasource:openai": {
 		"version": 1,
