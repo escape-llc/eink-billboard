@@ -10,7 +10,7 @@ test("the activity goes live, shows what the panel shows, and reports a change o
 	const watch = watchProblems(page)
 	await page.goto("/#/system")
 	const gutter = page.getByRole("region", { name: "Device activity" })
-	await expect(gutter.getByTestId("link-status")).toHaveText("Live")
+	await expect(gutter).toHaveAttribute("data-link", "live")
 	// the mock display drew the playlist's page when the server started: its thumbnail loads
 	const now = gutter.getByRole("region", { name: "Now showing" }).getByRole("button", { name: /full size/ }).getByRole("img")
 	await expect(now).toBeVisible({ timeout: 20000 })
@@ -41,7 +41,7 @@ test("on the server with a token, the link connects once the page has signed in"
 	const watch = watchProblems(page, [401])
 	await page.goto(`${PROTECTED.url}/#/system`)
 	await signInWith(page, "API token", TOKEN)
-	await expect(page.getByTestId("link-status")).toHaveText("Live", { timeout: 15000 })
+	await expect(page.getByRole("region", { name: "Device activity" })).toHaveAttribute("data-link", "live", { timeout: 15000 })
 	watch.expectNone()
 })
 
@@ -50,7 +50,7 @@ test("in a short window the System page scrolls inside its area and the events i
 	await page.setViewportSize({ width: 1200, height: 450 })
 	await page.goto("/#/system")
 	const activity = page.getByRole("region", { name: "Device activity" })
-	await expect(activity.getByTestId("link-status")).toHaveText("Live")
+	await expect(activity).toHaveAttribute("data-link", "live")
 	const events = activity.getByRole("region", { name: "Events" })
 	await expect(events.getByRole("listitem").first()).toBeVisible({ timeout: 20000 })
 
@@ -73,7 +73,7 @@ test("the System page's parts have their own surface, which follows the theme", 
 	const watch = watchProblems(page)
 	await page.goto("/#/system")
 	const gutter = page.getByRole("region", { name: "Device activity" })
-	await expect(gutter.getByTestId("link-status")).toHaveText("Live")
+	await expect(gutter).toHaveAttribute("data-link", "live")
 	const background = () => gutter.evaluate(el => getComputedStyle(el).backgroundColor)
 	const light = (rgb: string) => { const [r, g, b] = (rgb.match(/\d+/g) ?? []).map(Number); return ((r ?? 0) + (g ?? 0) + (b ?? 0)) / 765 }
 	await page.evaluate(() => document.documentElement.classList.remove("app-dark-mode"))
@@ -90,7 +90,7 @@ test("the activity is the larger part of the System page, and its player and eve
 	await page.setViewportSize({ width: 1500, height: 900 })
 	await page.goto("/#/system")
 	const activity = page.getByRole("region", { name: "Device activity" })
-	await expect(activity.getByTestId("link-status")).toHaveText("Live")
+	await expect(activity).toHaveAttribute("data-link", "live")
 	const events = activity.getByRole("region", { name: "Events" })
 	await expect(events.getByRole("listitem").first()).toBeVisible({ timeout: 20000 })
 	const now = activity.getByRole("group", { name: "Playback" })

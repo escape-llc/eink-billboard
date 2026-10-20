@@ -10,7 +10,7 @@ test("the System page stops and plays the playlist, and goes to the next track",
 	try {
 		await page.goto("/#/system")
 		const gutter = page.getByRole("region", { name: "Device activity" })
-		await expect(gutter.getByTestId("link-status")).toHaveText("Live")
+		await expect(gutter).toHaveAttribute("data-link", "live")
 		const playback = gutter.getByRole("group", { name: "Playback" })
 		const events = gutter.getByRole("region", { name: "Events" })
 		// the layer has begun: it reports its first track
