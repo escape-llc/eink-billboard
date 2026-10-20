@@ -1,0 +1,77 @@
+{
+	"id": "thunderforest",
+	"name": "Thunderforest",
+	"version": "0.0.1",
+	"class": "ThunderforestApi",
+	"file": "thunderforest.py",
+	"module": "python.datasources.thunderforest.thunderforest",
+	"description": "Thunderforest, the OpenStreetMap map maker, for the Thunderforest Map: the API key and the maps it keeps, shared by every task.",
+	"disabled": false,
+	"features": ["internet", "api-key", "api"],
+	"router": {
+		"id": "thunderforest-router",
+		"class": "thunderforest_router",
+		"file": "api.py",
+		"module": "python.datasources.thunderforest.api"
+	},
+	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:thunderforest:1",
+		"schema": {
+			"properties": [
+				{
+					"name": "apiKey",
+					"type": "string",
+					"widget": "api-key",
+					"required": true,
+					"writeOnly": true,
+					"default": null,
+					"title": "API Key",
+					"description": "Your Thunderforest key. The free plan (a Hobby Project) is enough: sign up and the key is on your dashboard. Test asks Thunderforest whether it accepts the key.",
+					"test": {
+						"url": "/api/datasource/thunderforest/test"
+					},
+					"link": {
+						"url": "https://manage.thunderforest.com/users/sign_up",
+						"label": "Get a free API key"
+					}
+				},
+				{
+					"name": "contentCacheHours",
+					"type": "number",
+					"required": true,
+					"default": 168,
+					"minimum": 0,
+					"maximum": 8760,
+					"step": 24,
+					"minFractionDigits": 0,
+					"maxFractionDigits": 1,
+					"title": "Keep Maps (hours)",
+					"description": "The longest a map is kept and shared by every task before it is asked for again. A place and a zoom hardly change, and the free plan has a monthly quota, so a week is the default. The service's own headers can shorten this, never lengthen it. 0: ask every time."
+				},
+				{
+					"name": "contentCacheMB",
+					"type": "number",
+					"required": true,
+					"default": 64,
+					"minimum": 1,
+					"maximum": 4096,
+					"step": 16,
+					"minFractionDigits": 0,
+					"maxFractionDigits": 0,
+					"title": "Maps Pool Size (MB)",
+					"description": "The most disk the kept maps may use. When it is full, the one used longest ago goes first."
+				},
+				{
+					"name": "staleDays",
+					"type": "integer",
+					"required": true,
+					"default": 30,
+					"minimum": 0,
+					"title": "Forget Unused Maps After (days)",
+					"description": "A kept map nobody has used for this many days is removed. 0: never."
+				}
+			]
+		},
+		"default": { "apiKey": null, "contentCacheHours": 168, "contentCacheMB": 64, "staleDays": 30 }
+	}
+}
