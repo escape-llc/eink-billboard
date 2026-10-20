@@ -124,6 +124,10 @@ wait_ready() {
 
 # ---- the commands ---------------------------------------------------------------------------------------------------------------------------------
 
+# free space where Podman keeps its images, in KB (empty when it cannot be read)
+store_free_kb() { df -Pk "$(podman info --format '{{.Store.GraphRoot}}' 2>/dev/null || echo "$HOME")" 2>/dev/null | awk 'NR==2 {print $4}'; }
+BUILD_NEEDS_KB=6000000
+
 cmd_build() {
 	podman_version_ok || warn "Podman $(podman version --format '{{.Client.Version}}' 2>/dev/null) is older than 4.3, the oldest this was tried with."
 	case "$(uname -m)" in
@@ -131,10 +135,17 @@ cmd_build() {
 		armv7l|armv6l) warn "this is a 32-bit system ($(uname -m)). The app is built for 64-bit Raspberry Pi OS; install that if the build fails." ;;
 		*) warn "this is not a Raspberry Pi ($(uname -m)): the image builds, but there will be no panel to drive." ;;
 	esac
-	local free_kb
-	free_kb=$(df -Pk "$(podman info --format '{{.Store.GraphRoot}}' 2>/dev/null || echo "$HOME")" 2>/dev/null | awk 'NR==2 {print $4}')
-	if [ -n "$free_kb" ] && [ "$free_kb" -lt 4000000 ]; then
-		fail "the build needs about 4 GB of free disk space, and there is $((free_kb / 1024)) MB. Free some space (podman image prune removes old images) and try again."
+	# the old image and the layers a failed build left are unused, a few GB each: remove them first (the running container's image stays), then check, so a
+	# full disk is found in seconds and not after fifteen minutes of building
+	local free_kb before_kb
+	before_kb=$(store_free_kb)
+	if podman image prune -f >/dev/null 2>&1; then
+		free_kb=$(store_free_kb)
+		[ -n "$before_kb" ] && [ -n "$free_kb" ] && [ "$free_kb" -gt "$before_kb" ] && say "Removed unused images: $(( (free_kb - before_kb) / 1024 )) MB freed."
+	fi
+	free_kb=$(store_free_kb)
+	if [ -n "$free_kb" ] && [ "$free_kb" -lt "$BUILD_NEEDS_KB" ]; then
+		fail "the build needs about $((BUILD_NEEDS_KB / 1048576)) GB of free disk space, and there is $((free_kb / 1024)) MB (unused images were already removed). Free some space and try again: 'podman system df' shows what Podman holds, 'podman image prune -a' removes every image no container uses (the app's image too when it is stopped; the build makes it again)."
 	fi
 	mkdir -p "$LOG_DIR"
 	local log="$LOG_DIR/build.log" commit
