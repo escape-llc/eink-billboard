@@ -89,11 +89,18 @@
 			<template v-else>
 				<InputText style="flex-grow:1" :name="field.name" :id="field.name" :invalid="isInvalid" size="small" :type="field.writeOnly ? 'password' : field.format === 'uri' ? 'url' : 'text'"
 					:autocomplete="field.writeOnly ? 'new-password' : undefined"
+					:spellcheck="field.widget === 'api-key' ? false : undefined" :autocapitalize="field.widget === 'api-key' ? 'off' : undefined" :data-widget="field.widget"
 					:placeholder="field.title" fluid />
 			</template>
+			<!-- the Test is a member of the group: joined to the input -->
+			<TestUrlButton v-if="field.test?.url && field.type === 'string'" bare :route="field.test.url" :baseUrl="baseUrl ?? ''" :value="fieldState.value"
+				:label="field.title" :disabled="isInvalid" @result="(r: TestResult | null) => testResult = r" />
 		</InputGroup>
-		<TestUrlButton v-if="field.test?.url && field.type === 'string'" :route="field.test.url" :baseUrl="baseUrl ?? ''" :value="fieldState.value"
-			:label="field.title" :disabled="isInvalid" />
+		<!-- where to get a key, right under the input: one frame, then the feedback -->
+		<div v-if="safeLink" class="field-link">
+			<Button as="a" :href="safeLink.url" target="_blank" rel="noopener noreferrer" :label="safeLink.label" icon="pi pi-external-link" size="small" variant="text" />
+		</div>
+		<Message v-if="testResult" :severity="testResult.ok ? 'success' : 'error'" size="small" variant="simple" data-testid="test-result">{{ testResult.message }}</Message>
 		<slot name="message" v-bind="{ field, fieldState }">
 			<Message v-if="isInvalid && errorMessage"
 				severity="error" size="small" variant="simple">{{ errorMessage }}</Message>
@@ -109,9 +116,6 @@
 				<li v-for="token in field.tokens" :key="token.name"><code>{{ "{" + token.name + "}" }}</code> {{ token.description }}</li>
 			</ul>
 		</details>
-		<div v-if="safeLink">
-			<Button as="a" :href="safeLink.url" target="_blank" rel="noopener noreferrer" :label="safeLink.label" icon="pi pi-external-link" size="small" variant="text" />
-		</div>
 		<template v-if="field.children?.length">
 			<BasicFormField 
 				v-for="child in field.children" 
@@ -139,12 +143,12 @@ import FormField from '@primevue/forms/formfield';
 import LeafletPicker from './LeafletPicker.vue';
 import ArrayField from './ArrayField.vue';
 import ColorField from './ColorField.vue';
-import TestUrlButton from './TestUrlButton.vue';
+import TestUrlButton, { type TestResult } from './TestUrlButton.vue';
 import { isoToDate, dateToIso } from './FormDates';
 import { derivedValues, isVisible } from './FormVisibility';
 // a settings form that can restore a field's factory text provides this (SettingsForm)
 const restoreField = inject<((name: string) => void)|null>('restoreField', null);
-import { computed, inject, nextTick, onMounted, toRaw, watch } from 'vue';
+import { computed, inject, nextTick, onMounted, ref, toRaw, watch } from 'vue';
 export interface PropsType {
 	field: any
 	// pass the v-slot="$form" to this prop
@@ -189,6 +193,8 @@ const fieldState = computed(() => props.formContext?.[props.field.name] || {});
 // the form's field states, read by name, are the values the predicates look at
 const visible = computed(() => isVisible(props.field, derivedValues(props.fields ?? [], (name: string) => props.formContext?.[name]?.value)))
 // a link opens in a new tab and only to a secure address (the descriptor is ours, but a page is not built from what it holds without a look)
+// the answer of the Test button of this field (it is shown under the input, with the rest of the feedback)
+const testResult = ref<TestResult | null>(null)
 const safeLink = computed(() => {
 	const link = props.field.link
 	return link && typeof link.label === 'string' && /^https:\/\/[^\s]+$/.test(String(link.url)) ? link : null
@@ -240,6 +246,9 @@ const errorMessage = computed(() => {
 	color: var(--p-text-color);
 }
 /* the label keeps its width: a wide row editor beside it must not squeeze it until its text spills over the border */
+.field-link {
+	margin-top: -.25rem;
+}
 .field-label {
 	flex: 0 0 auto;
 }

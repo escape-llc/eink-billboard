@@ -13,8 +13,9 @@ from ...model.configuration_manager import DatasourceConfigurationManager
 from ...model.service_container import ServiceContainer
 from ...plugins.plugin_base import PermanentError
 from ...web.deps import CM
+from ...web.documents import SECRET_MASK
 from ..data_source import DataSourceExecutionContext
-from .comicvine import ComicVineApi
+from .comicvine import ComicVineApi, comicvine_client, fetch
 
 logger = logging.getLogger(__name__)
 
@@ -45,3 +46,25 @@ async def _test(cm, value: Any) -> dict:
 def test_series(cm: CM, body: dict[str, Any] = Body(...)):
 	# a plain `def`: it runs in the thread pool, where there is no event loop to be in the way of asyncio.run
 	return asyncio.run(_test(cm, body.get("value")))
+
+@comicvine_router.post('/test-key')
+def test_key(cm: CM, body: dict[str, Any] = Body(...)):
+	"""Ask Comic Vine with the key typed (or the saved one, when the field shows the mask): `{ ok, message }`, always 200, in our words. Never kept. (`/test` is the series' Test.)"""
+	value = body.get("value")
+	if value in (None, "", SECRET_MASK):
+		_, settings = cm.datasource_manager(DATASOURCE_ID).open().get()
+		value = (settings or {}).get("apiKey")
+	if not isinstance(value, str) or not value.strip():
+		return { "ok": False, "message": "Enter an API key first." }
+	async def ask() -> dict:
+		async with comicvine_client() as client:
+			await fetch(client, "search", value.strip(), { "query": "a", "resources": "volume", "limit": 1 })
+		return { "ok": True, "message": "Comic Vine accepts this key." }
+	try:
+		return asyncio.run(ask())
+	except (PermanentError, RuntimeError) as problem:
+		# the source's failures are in our words already (a refused key, the limit, no answer)
+		return { "ok": False, "message": str(problem) }
+	except Exception as problem:
+		logger.warning(f"Testing a Comic Vine key failed ({type(problem).__name__}).")
+		return { "ok": False, "message": "The key could not be tested." }

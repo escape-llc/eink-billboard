@@ -18,3 +18,34 @@ test("the OpenWeatherMap settings link to where an API key is got, and the key i
 	await expect(page.getByRole("textbox", { name: "API Key", exact: true })).toHaveAttribute("type", "password")
 	watch.expectNone()
 })
+
+test("an API key is one frame: the Test joined to the input, the link right under it, then the answer", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.route("**/api/datasource/openweathermap/test", route => route.fulfill({ json: { ok: false, message: "OpenWeatherMap refused this key. A new key can take a couple of hours to start working." } }))
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "Data Sources" }).click()
+	await page.getByRole("tabpanel").locator(".p-select").first().click()
+	await page.getByRole("option", { name: "openweathermap", exact: true }).click()
+	const key = page.getByRole("textbox", { name: "API Key", exact: true })
+	const test = page.getByRole("button", { name: "Test API Key" })
+	const link = page.getByRole("link", { name: "Get a free API key" })
+	// nothing to test until a key is typed
+	await expect(test).toBeDisabled()
+	await key.fill("any-key")
+	await expect(test).toBeEnabled()
+	await test.click()
+	const answer = page.getByTestId("test-result")
+	await expect(answer).toContainText("refused this key")
+	const [k, t, l, a] = await Promise.all([key.boundingBox(), test.boundingBox(), link.boundingBox(), answer.boundingBox()])
+	// joined: the button is on the input's row, touching its right edge
+	expect(Math.abs((t!.y + t!.height / 2) - (k!.y + k!.height / 2))).toBeLessThan(4)
+	expect(t!.x - (k!.x + k!.width)).toBeLessThan(2)
+	// the link is under the input and above the answer
+	expect(l!.y).toBeGreaterThan(k!.y + k!.height - 2)
+	expect(a!.y).toBeGreaterThan(l!.y + l!.height - 2)
+	// the key is required, as the others are
+	await key.fill("")
+	await key.press("Tab")
+	await expect(page.getByText("Required", { exact: true }).first()).toBeVisible()
+	watch.expectNone()
+})
