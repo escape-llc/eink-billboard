@@ -15,8 +15,8 @@ from PIL import Image
 from ...model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ...model.theme import ThemeInputs, current_inputs
 from ...plugins.plugin_base import PermanentError, RenderSession
-from ...task.async_http_worker_pool import client_var
-from ...utils.image_utils import stream_to_buffer, to_rgb
+from ...utils.image_utils import to_rgb
+from ..content_cache import download_for, retain
 from ...utils.text_utils import unescape_text
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 
@@ -27,6 +27,9 @@ MAX_STORIES = 20
 # a feed is text: a few hundred kilobytes is a long one
 MAX_FEED_BYTES = 2 * 1024 * 1024
 MAX_PICTURE_BYTES = 4 * 1024 * 1024
+# how long a feed's body, and a story's picture, is trusted without asking (what the site's headers say can shorten it)
+DEFAULT_FEED_HOURS = 0.25
+DEFAULT_PICTURE_HOURS = 24.0
 # a story's picture is shown at most this large, so it is shrunk before it goes into the page
 PICTURE_BOX = (900, 900)
 SUMMARY_CHARS = 700
@@ -139,16 +142,22 @@ class RssAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		if not name:
 			raise PermanentError("The 'feed' setting is required for the RSS Feed data source.")
 		url = self._feed_url(dsec, name)
-		buffer = await stream_to_buffer(client_var.get(), url, headers=HEADERS, max_bytes=MAX_FEED_BYTES)
-		return parse_stories(buffer.getvalue(), name)
+		# the feed's own body is kept briefly (its headers and validators decide); its pictures for a day
+		buffer = await download_for(dsec, url, default_hours=DEFAULT_FEED_HOURS, headers=HEADERS, max_bytes=MAX_FEED_BYTES, scope=f"feed:{name}", setting="feedCacheHours")
+		stories = parse_stories(buffer.getvalue(), name)
+		# the list was just loaded: the pictures of stories that dropped out of the feed go now (this feed's only: another feed's stay)
+		dscm = dsec.provider.get_service(DatasourceConfigurationManager)
+		if isinstance(dscm, DatasourceConfigurationManager):
+			retain(dscm, f"pictures:{name}", [str(s["picture_url"]) for s in stories if s.get("picture_url")])
+		return stories
 
-	async def _picture(self, story: Mapping[str, Any]) -> str|None:
+	async def _picture(self, dsec: DataSourceExecutionContext, story: Mapping[str, Any]) -> str|None:
 		"""The story's picture as an embedded image (the page then needs no network), or None: a picture that fails is left out, not the story."""
 		url = story.get("picture_url")
 		if not url:
 			return None
 		try:
-			buffer = await stream_to_buffer(client_var.get(), url, headers=HEADERS, ctok=lambda ct: ct.startswith("image/"), max_bytes=MAX_PICTURE_BYTES)
+			buffer = await download_for(dsec, url, default_hours=DEFAULT_PICTURE_HOURS, headers=HEADERS, ctok=lambda ct: ct.startswith("image/"), max_bytes=MAX_PICTURE_BYTES, scope=f"pictures:{story.get('feed')}")
 			return await asyncio.to_thread(_picture_data_uri, buffer)
 		except Exception as ex:
 			# the address of a picture can carry a key: say only what kind of failure it was
@@ -164,7 +173,7 @@ class RssAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		_, display_config = scm.open("display").get()
 		if display_config is None:
 			raise ValueError("Display settings is None")
-		picture = await self._picture(state) if params.get("includeImages") is True else None
+		picture = await self._picture(dsec, state) if params.get("includeImages") is True else None
 		template_params = {
 			"heading": params.get("title") or state.get("feed") or state.get("feed_title") or "RSS Feed",
 			"story": { **state, "picture": picture },

@@ -125,7 +125,7 @@ class TestConfigurationManager(unittest.TestCase):
 			self.assertEqual((doc["fontBody"], doc["fontScale"]), ("Jost", 1))
 			self.assertIn("fontHeading", doc)
 			with open(rss) as f:
-				self.assertEqual(json.load(f), { "_schema": "urn:inky:storage:schema:datasource:rss:1", "feeds": [] })
+				self.assertEqual(json.load(f), { "_schema": "urn:inky:storage:schema:datasource:rss:1", "feeds": [], "feedCacheHours": 0.25, "contentCacheHours": 24, "contentCacheMB": 64, "staleDays": 30 })
 			# nothing more to add, and the cached documents read the new ones
 			self.assertEqual(cm.upgrade_settings(), [])
 			_, read = cm.settings_manager().open("theme").get()

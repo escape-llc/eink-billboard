@@ -248,17 +248,19 @@ def retain(dscm: DatasourceConfigurationManager, scope: str, urls: list[str]) ->
 	return removed
 
 async def download_for(dsec: DataSourceExecutionContext, url: str, *, default_hours: float, headers: Mapping[str, str]|None = None, ctok: Callable[[str], bool]|None = None,
-		max_bytes: int|None = DEFAULT_MAX_DOWNLOAD_BYTES, scope: str = "") -> BytesIO:
+		max_bytes: int|None = DEFAULT_MAX_DOWNLOAD_BYTES, scope: str = "", setting: str = "contentCacheHours") -> BytesIO:
 	"""
+	`setting` names the setting that holds the time (a data source with feeds and pictures keeps each for its own time).
 	What a data source calls to download a picture or a feed from its own context: kept in the data source's own pool (`fetch_cached`) with the data source's settings, or
 	downloaded and forgotten when the context has no data source folder (a test's, a tool's). The address goes through the URL guard either way.
 	"""
 	client = client_var.get()
 	dscm = dsec.provider.get_service(DatasourceConfigurationManager)
-	if dscm is None:
+	# a context without the data source's folder (a test's stand-in, a tool's) downloads and keeps nothing
+	if not isinstance(dscm, DatasourceConfigurationManager):
 		return await stream_to_buffer(client, url, headers, ctok, max_bytes)
 	_, settings = dscm.open().get()
-	return await fetch_cached(dscm, settings or {}, client, url, dsec.timestamp, headers=headers, ctok=ctok, max_bytes=max_bytes, default_hours=default_hours, scope=scope,
+	return await fetch_cached(dscm, settings or {}, client, url, dsec.timestamp, headers=headers, ctok=ctok, max_bytes=max_bytes, default_hours=default_hours, scope=scope, setting=setting,
 		report=_telemetry(dsec, dscm.datasource_id))
 
 def _telemetry(dsec: DataSourceExecutionContext, source_id: str) -> Reporter:
