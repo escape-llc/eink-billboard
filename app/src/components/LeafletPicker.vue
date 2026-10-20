@@ -25,6 +25,14 @@
 				@click="locateUser"
 				aria-label="Locate Me"
 				/>
+			<Button
+				icon="pi pi-wifi"
+				size="small"
+				:loading="locatingByIp"
+				@click="locateByIp"
+				aria-label="Locate by IP"
+				title="A rough position (about the city) from this device's public IP address. It is looked up with an online service, which sees that address. Nothing is saved until you save the settings."
+				/>
 		</InputGroup>
 		<l-map 
 			style="flex-grow:1"
@@ -44,6 +52,8 @@ import { ref, watch, provide } from 'vue';
 import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
 import { OpenStreetMapProvider } from 'leaflet-geosearch';
 import Button from 'primevue/button';
+import { useToast } from 'primevue/usetoast';
+import { apiPost, joinUrl } from './ApiClient';
 import InputGroup from 'primevue/inputgroup';
 import InputGroupAddon from 'primevue/inputgroupaddon';
 import AutoComplete from 'primevue/autocomplete';
@@ -73,6 +83,8 @@ const zoom = ref<number>(props.zoom);
 const center = ref<Coords|null>(null);
 const markerPosition = ref<Coords|null>(null);
 const loadingLocation = ref(false);
+const locatingByIp = ref(false);
+const toast = useToast();
 const searchQuery = ref<string|undefined>(undefined);
 const suggestions = ref<any[]>([]);
 
@@ -164,6 +176,28 @@ const locateUser = () => {
 		},
 		{ enableHighAccuracy: true }
 	);
+};
+
+/** A rough position from the device's public IP (POST /api/system/locate): it fills the field and moves the map, and saves nothing; the person keeps it or not. */
+const locateByIp = async () => {
+	locatingByIp.value = true;
+	try {
+		const answer = await apiPost<{ ok: boolean, message: string, latitude?: number, longitude?: number }>(joinUrl(import.meta.env.VITE_API_URL ?? "/", "api/system/locate"), {});
+		if (answer.ok && answer.latitude !== undefined && answer.longitude !== undefined) {
+			zoom.value = 10;
+			updateLocation(answer.latitude, answer.longitude, true);
+			toast.add({ severity: "info", summary: "Location", detail: answer.message, life: 8000 });
+		}
+		else {
+			toast.add({ severity: "warn", summary: "Location", detail: answer.message, life: 8000 });
+		}
+	}
+	catch (ex: any) {
+		toast.add({ severity: "error", summary: "Location", detail: ex?.message || "The location could not be looked up.", life: 8000 });
+	}
+	finally {
+		locatingByIp.value = false;
+	}
 };
 </script>
 <style scoped>
