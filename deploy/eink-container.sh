@@ -141,7 +141,7 @@ cmd_build() {
 	commit=$(git -C "$HERE" rev-parse --short HEAD 2>/dev/null || echo unknown)
 	say "Building $IMAGE from $HERE (commit $commit)."
 	say "The first build takes 15 to 20 minutes on a Pi; later ones reuse what did not change. Everything is also written to $log."
-	if ! podman build --target app-device --label "eink.commit=$commit" -t "$IMAGE" "$HERE" 2>&1 | tee "$log"; then
+	if ! podman build --target app-device --build-arg "EINK_COMMIT=$commit" --label "eink.commit=$commit" -t "$IMAGE" "$HERE" 2>&1 | tee "$log"; then
 		say ""
 		say "The last lines of the build:"
 		tail -15 "$log" | sed 's/^/    /'
@@ -257,6 +257,12 @@ cmd_start() {
 		"$IMAGE" uv run --no-sync python -m python.eink-billboard --host 0.0.0.0 --port 8080 --storage /data --app /work/app/dist >/dev/null; then
 		fail "the app did not start: the lines above say why. '$SCRIPT check' looks at everything."
 	fi
+	# the container must run the image that was just built (not an older one that still has the name): the update says which code it is
+	local made built_id
+	made=$(podman inspect -f '{{.Image}}' "$NAME" 2>/dev/null)
+	built_id=$(podman image inspect -f '{{.Id}}' "$IMAGE" 2>/dev/null)
+	[ -z "$made" ] || [ -z "$built_id" ] || [ "$made" = "$built_id" ] 		|| fail "the container runs another image than the one just built (the old app is still running). Remove it and start again:  podman rm -f $NAME && $SCRIPT start"
+	say "Running commit $(image_commit)."
 	say "Started. The web app: $url"
 	wait_ready
 	cmd_code

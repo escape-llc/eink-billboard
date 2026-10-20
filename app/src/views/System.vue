@@ -29,6 +29,11 @@
 				<div class="card-head"><strong>Machine</strong></div>
 				<dl v-if="info" class="facts">
 					<dt>System</dt><dd>{{ info.host.os }} {{ info.host.os_release }} ({{ info.host.machine }})</dd>
+					<dt>App</dt>
+					<dd data-testid="builds">
+						Server {{ info.host.commit }}, web app {{ webCommit }}
+						<Tag v-if="mismatch" severity="warn" value="Different builds: reload the page" class="ml-2" />
+					</dd>
 					<dt>Python</dt><dd>{{ info.host.python }}</dd>
 					<dt>Up for</dt><dd>{{ formatUptime(info.host.uptime_seconds) }}</dd>
 					<dt>Processor</dt>
@@ -192,7 +197,7 @@ type Component = { state: "ok" | "failed" | "starting", message: string }
 type Status = { ok: boolean, components: Record<string, Component> }
 type Owner = { id: string, files: number, bytes: number, kept_bytes: number }
 type SystemInfo = {
-	host: { os: string, os_release: string, machine: string, python: string, cpus: number, uptime_seconds?: number }
+	host: { commit: string, os: string, os_release: string, machine: string, python: string, cpus: number, uptime_seconds?: number }
 	load: { cpu_percent?: number, load?: number[], memory?: { total: number, used: number, percent: number }, app_memory?: number }
 	pi: { model: string, temperature_c?: number, cpu_mhz?: number, cpu_max_mhz?: number, throttled?: string[], throttled_now?: boolean } | null
 	storage: {
@@ -208,6 +213,9 @@ const TITLES: Record<string, string> = { "display": "Display", "playlist-layer":
 const status = ref<Status | null>(null)
 const info = ref<SystemInfo | null>(null)
 const failed = ref(false)
+// the build this page's code is from, and the server's: they differ when the page was opened before an update (the server's is 'unknown' outside the container)
+const webCommit = __APP_COMMIT__
+const mismatch = computed(() => !!info.value && info.value.host.commit !== "unknown" && webCommit !== "dev" && info.value.host.commit !== webCommit)
 let timer: ReturnType<typeof setInterval> | undefined
 function load(): Promise<unknown> {
 	const asked = apiJson<Status>("/api/status").then(s => { status.value = s }).catch(() => {})

@@ -23,6 +23,8 @@ const toggleMenu = (event:MouseEvent):void => {
 	menu.value?.toggle(event);
 }
 const version = ref(__APP_VERSION__)
+// the commit this bundle was built from: a page that runs an old build says so here (and the System page compares it with the server's)
+const commit = __APP_COMMIT__
 const openSetup = ():void => {
 	router.push({ name: 'setup' }).catch(err => {
 		console.error("navigate to setup error", err);
@@ -128,7 +130,7 @@ const items = ref([
 			style="font-size:100%;align-self:baseline;width:6rem">eInk Billboard</h2>
 			<span
 			class="ml-0"
-			style="align-self:baseline">v{{version}}</span>
+			style="align-self:baseline" :title="`Web app build ${commit}`" data-testid="app-version">v{{version}} ({{commit}})</span>
 		</div>
 		</div>
 	</template>

@@ -53,6 +53,13 @@ class TestSystemRoute(WebApiTestBase):
 		self.assertEqual([a["name"] for a in body["storage"]["areas"]], ["settings", "schedules", "plugins", "datasources", "schemas", "state"])
 		self.assertGreater(body["storage"]["volume"]["total"], 0)
 
+	def test_the_server_says_which_commit_it_is_and_nothing_else_passes_for_one(self):
+		with patch.dict(os.environ, { "EINK_COMMIT": "a1b2c3d" }):
+			self.assertEqual(self.client.get("/api/system").json()["host"]["commit"], "a1b2c3d")
+		for bad in ("", "../../etc", "a1b2c3d; rm", "x" * 41):
+			with patch.dict(os.environ, { "EINK_COMMIT": bad }):
+				self.assertEqual(self.client.get("/api/system").json()["host"]["commit"], "unknown", bad)
+
 	def test_nothing_that_names_the_machine_or_a_path_is_sent(self):
 		text = self.client.get("/api/system").text
 		for private in (self.storage, os.path.basename(self.tmp.name), os.environ.get("COMPUTERNAME", "no-such-name"), os.environ.get("USERNAME", "no-such-user")):

@@ -10,6 +10,10 @@ COPY app/package.json app/package-lock.json ./
 RUN npm ci
 COPY app/ ./
 COPY python/tests/form_rules.json python/tests/form_visibility.json ../python/tests/
+# The commit the image is built from, set only here, after the dependencies: a new commit always runs the build again (it is part of the bundle, so a build kept from
+# an earlier commit can never be reused), and the page can say which build it is.
+ARG EINK_COMMIT=dev
+ENV EINK_COMMIT=$EINK_COMMIT
 RUN npm run build
 
 # --- Python base: same OS packages and Python as .github/workflows/unittest.yaml ----------
@@ -36,6 +40,9 @@ CMD ["sh", "-c", "uv run --no-sync ruff check && uv run --no-sync mypy && uv run
 # --- app: the server with the built web app --------------------------------------------------
 FROM base AS app
 RUN uv sync --frozen --no-dev --no-group device --no-install-project
+# after the dependencies, before the code: the server says which commit it is (GET /api/system), to be compared with the web app's
+ARG EINK_COMMIT=dev
+ENV EINK_COMMIT=$EINK_COMMIT
 COPY python/ ./python/
 COPY --from=web /repo/app/dist ./app/dist
 RUN useradd --system --create-home eink && mkdir /data && chown eink /data
