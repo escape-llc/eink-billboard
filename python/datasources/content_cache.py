@@ -28,6 +28,8 @@ from httpx import AsyncClient
 from ..model.configuration_manager import DatasourceConfigurationManager
 from ..task.async_http_worker_pool import client_var
 from ..plugins.plugin_base import PermanentError
+from ..task.message_router import MessageRouter
+from ..task.messages import Telemetry
 from ..utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, download, stream_to_buffer
 from ..utils.url_guard import UrlRefused
 from .data_source import DataSourceExecutionContext
@@ -37,6 +39,7 @@ from .response_cache import note_use, save_quietly
 logger = logging.getLogger(__name__)
 
 BLOB_PREFIX = "blob-"
+Reporter = Callable[[str, int], None]
 DEFAULT_CACHE_MB = 64.0
 
 def blob_name(url: str) -> str:
@@ -118,15 +121,19 @@ def _validators(doc: Mapping[str, Any]) -> dict[str, str]:
 
 async def fetch_cached(dscm: DatasourceConfigurationManager, settings: Mapping[str, Any], client: AsyncClient, url: str, now: datetime, *,
 		headers: Mapping[str, str]|None = None, ctok: Callable[[str], bool]|None = None, max_bytes: int|None = DEFAULT_MAX_DOWNLOAD_BYTES, guarded: bool = True,
-		default_hours: float = 0.0, scope: str = "", setting: str = "contentCacheHours") -> BytesIO:
+		default_hours: float = 0.0, scope: str = "", setting: str = "contentCacheHours", report: Reporter|None = None) -> BytesIO:
 	"""
 	The bytes at `url`: the kept ones while they are fresh (nothing is sent), else what the origin answers (kept, unless it says `no-store`).
 	`default_hours` is the data source's own default for its `setting` (0 keeps nothing); `scope` names the list the address belongs to (`retain`).
+	`report(outcome, size)` is told what happened: `hit` (read from disk, nothing sent), `revalidated` (asked, 304), `miss` (downloaded), `stale` (the origin did not answer, the old bytes were used), `bypass` (kept nothing: 0 hours, or `no-store`).
 	"""
+	tell = report or (lambda outcome, size: None)
 	now = aware(now)
 	hours = number(settings.get(setting), default_hours)
 	if hours <= 0:
-		return (await download(client, url, headers, ctok, max_bytes, guarded)).body or BytesIO()
+		plain = (await download(client, url, headers, ctok, max_bytes, guarded)).body or BytesIO()
+		tell("bypass", plain.getbuffer().nbytes)
+		return plain
 	ceiling = timedelta(hours=hours)
 	prune_stale_sometimes(dscm, (BLOB_PREFIX,), number(settings.get("staleDays"), DEFAULT_STALE_DAYS), now, dscm.delete_blob)
 	name = blob_name(url)
@@ -134,6 +141,7 @@ async def fetch_cached(dscm: DatasourceConfigurationManager, settings: Mapping[s
 		cob, rev, doc, body = _read(dscm, name)
 		if body is not None and _is_fresh(doc, now):
 			note_use(cob, rev, doc, now)
+			tell("hit", len(body))
 			return BytesIO(body)
 		lock = refill_lock(f"{dscm.datasource_id}:{name}")
 		if not lock.acquire(blocking=False):
@@ -156,6 +164,7 @@ async def fetch_cached(dscm: DatasourceConfigurationManager, settings: Mapping[s
 			except Exception as e:
 				if body is not None:
 					logger.warning(f"'{dscm.datasource_id}' could not refresh a kept download ({type(e).__name__}); using the old one.")
+					tell("stale", len(body))
 					return BytesIO(body)
 				raise
 			if got.status == 304 and body is not None:
@@ -166,21 +175,24 @@ async def fetch_cached(dscm: DatasourceConfigurationManager, settings: Mapping[s
 					if value:
 						keep[key] = value
 				save_quietly(cob, rev, keep)
+				tell("revalidated", len(body))
 				return BytesIO(body)
 			assert got.body is not None
 			data = got.body.getvalue()
-			_keep(dscm, name, rev, data, got.headers, now, ceiling, scope, number(settings.get("contentCacheMB"), DEFAULT_CACHE_MB))
+			kept = _keep(dscm, name, rev, data, got.headers, now, ceiling, scope, number(settings.get("contentCacheMB"), DEFAULT_CACHE_MB))
+			tell("miss" if kept else "bypass", len(data))
 			return BytesIO(data)
 		finally:
 			lock.release()
 	# what was kept kept changing under us: ask the origin and leave the cache alone
 	return (await download(client, url, headers, ctok, max_bytes, guarded)).body or BytesIO()
 
-def _keep(dscm: DatasourceConfigurationManager, name: str, rev: str|None, data: bytes, headers: Mapping[str, str], now: datetime, ceiling: timedelta, scope: str, cap_mb: float) -> None:
+def _keep(dscm: DatasourceConfigurationManager, name: str, rev: str|None, data: bytes, headers: Mapping[str, str], now: datetime, ceiling: timedelta, scope: str, cap_mb: float) -> bool:
+	"""Keep the download; False when it was not kept (`no-store`, bigger than the pool, or the disk said no)."""
 	fresh = freshness(headers, now, ceiling)
 	cap = int(cap_mb * 1024 * 1024)
 	if not fresh.keep or len(data) > cap:
-		return
+		return False
 	lowered = { k.lower(): v for k, v in headers.items() }
 	doc = { "scope": scope, "size": len(data), "fetched_at": now.isoformat(), "fresh_until": (now + fresh.lifetime).isoformat(), "last_used": now.isoformat(),
 		"etag": lowered.get("etag"), "last_modified": lowered.get("last-modified"), "content_type": lowered.get("content-type") }
@@ -194,8 +206,9 @@ def _keep(dscm: DatasourceConfigurationManager, name: str, rev: str|None, data: 
 			dscm.delete_blob(name)
 		except Exception:
 			pass
-		return
+		return False
 	_enforce_cap(dscm, name, cap)
+	return True
 
 def _enforce_cap(dscm: DatasourceConfigurationManager, just_kept: str, cap: int) -> None:
 	"""The pool is no bigger than `cap` bytes: the one used longest ago goes first, never the one just kept."""
@@ -245,4 +258,29 @@ async def download_for(dsec: DataSourceExecutionContext, url: str, *, default_ho
 	if dscm is None:
 		return await stream_to_buffer(client, url, headers, ctok, max_bytes)
 	_, settings = dscm.open().get()
-	return await fetch_cached(dscm, settings or {}, client, url, dsec.timestamp, headers=headers, ctok=ctok, max_bytes=max_bytes, default_hours=default_hours, scope=scope)
+	return await fetch_cached(dscm, settings or {}, client, url, dsec.timestamp, headers=headers, ctok=ctok, max_bytes=max_bytes, default_hours=default_hours, scope=scope,
+		report=_telemetry(dsec, dscm.datasource_id))
+
+def _telemetry(dsec: DataSourceExecutionContext, source_id: str) -> Reporter:
+	"""What a download tells the web app (`cache-<outcome>`): the data source and the size, never the address (it can carry a key). Said with the time it happens, not the slot's."""
+	router = dsec.provider.get_service(MessageRouter)
+	def tell(outcome: str, size: int) -> None:
+		if router is None:
+			return
+		try:
+			router.send("telemetry", Telemetry(datetime.now().astimezone(), "data-source", { "kind": f"cache-{outcome}", "datasource": source_id, "bytes": size,
+				"message": CACHE_WORDS[outcome].format(source=source_id, size=_kb(size)) }))
+		except Exception as e:
+			logger.warning(f"A cache event could not be sent ({type(e).__name__}).")
+	return tell
+
+CACHE_WORDS = {
+	"hit": "'{source}' used a kept download ({size}); nothing was sent.",
+	"revalidated": "'{source}' asked, and its kept download ({size}) is still good.",
+	"miss": "'{source}' downloaded and kept {size}.",
+	"stale": "'{source}' could not be reached; it used its old download ({size}).",
+	"bypass": "'{source}' downloaded {size} and kept nothing.",
+}
+
+def _kb(size: int) -> str:
+	return f"{size / 1024:.0f} KB" if size >= 1024 else f"{size} bytes"

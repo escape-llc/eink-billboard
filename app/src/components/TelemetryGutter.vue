@@ -93,6 +93,7 @@ const sources = [
 	{ label: "Playlist", value: "playlist_layer" },
 	{ label: "Timer tasks", value: "timer_layer" },
 	{ label: "Display", value: "display" },
+	{ label: "Data sources", value: "data-source" },
 	{ label: "Settings", value: "application" },
 ]
 onMounted(() => link.start())
@@ -123,7 +124,7 @@ function iconOf(e: TelemetryEvent): string {
 	if (e.kind === "transport") return e.values?.state === "halted" ? "pi pi-stop" : "pi pi-play"
 	// a page is shown on a layer: the layer's own glyph, as in Now showing
 	if (e.kind === "showing") return LAYERS[layerOf(e.values?.layer)].glyph
-	return { playlist_layer: "pi pi-play", timer_layer: "pi pi-clock", display: "pi pi-image", application: "pi pi-cog", telemetry: "pi pi-wifi" }[e.source] ?? "pi pi-circle"
+	return { playlist_layer: "pi pi-play", timer_layer: "pi pi-clock", display: "pi pi-image", "data-source": "pi pi-database", application: "pi pi-cog", telemetry: "pi pi-wifi" }[e.source] ?? "pi pi-circle"
 }
 /** Our own words for an event: its message when it has one, else what its values say. */
 function describe(e: TelemetryEvent): string {
