@@ -1,16 +1,15 @@
 import { expect, test } from "@playwright/test"
 import { stubMapTiles, watchProblems } from "./support"
 
-// Play, stop and next for the playlist, from the Activity gutter, on the real server (python/web/routers/transport.py): the button follows
+// Play, stop and next for the playlist, from the System page, on the real server (python/web/routers/transport.py): the button follows
 // what the playlist layer reports, so a click is checked by the event the layer sends.
 test.beforeEach(async ({ page }) => stubMapTiles(page))
 
-test("the gutter stops and plays the playlist, and goes to the next track", async ({ page, request }) => {
+test("the System page stops and plays the playlist, and goes to the next track", async ({ page, request }) => {
 	const watch = watchProblems(page)
 	try {
-		await page.goto("/#/settings")
-		await page.getByRole("button", { name: "Activity" }).click()
-		const gutter = page.getByRole("complementary", { name: "Device activity" })
+		await page.goto("/#/system")
+		const gutter = page.getByRole("region", { name: "Device activity" })
 		await expect(gutter.getByTestId("link-status")).toHaveText("Live")
 		const playback = gutter.getByRole("group", { name: "Playback" })
 		const events = gutter.getByRole("region", { name: "Events" })
@@ -56,8 +55,7 @@ test("a page opened while the playlist is stopped shows it stopped", async ({ pa
 	try {
 		expect((await request.post("/api/transport", { data: { command: "stop" } })).ok()).toBeTruthy()
 		await expect.poll(async () => (await (await request.get("/api/transport")).json()).stopped).toBe(true)
-		await page.goto("/#/settings")
-		await page.getByRole("button", { name: "Activity" }).click()
+		await page.goto("/#/system")
 		await expect(page.getByRole("group", { name: "Playback" }).getByRole("button", { name: "Play" })).toBeVisible({ timeout: 15000 })
 	} finally {
 		await request.post("/api/transport", { data: { command: "play" } })

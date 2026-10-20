@@ -2,7 +2,7 @@
 
 /*
  * The top level is the window: the document never scrolls (it is exactly the viewport's size), and what is taller than its place
- * scrolls inside it: the page in `.router-view` (App.vue), the gutter's events, a dialog. `dvh` follows a phone's moving toolbars.
+ * scrolls inside it: the page in `.router-view` (App.vue), the System page's events, a dialog. `dvh` follows a phone's moving toolbars.
  */
 html {
 	margin: 0;

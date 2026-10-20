@@ -1,5 +1,5 @@
 /**
- * The telemetry link: a WebSocket that follows what the device does (python/web/routers/telemetry.py), for the gutter.
+ * The telemetry link: a WebSocket that follows what the device does (python/web/routers/telemetry.py), for the System page.
  * This is the one place the app opens it, as ApiClient is the one place for HTTP: the link reconnects on its own (1 s doubling to 30 s),
  * resumes after the last event it has (`since`), and when the server asks for a sign-in (close code 4401) it signs in through ApiClient.
  * Nothing is stored in the browser: the events live as long as the page.
@@ -58,7 +58,7 @@ export function originText(o: Origin): string {
 	return `${o.kind === "playlist" && o.name ? `${o.name} › ` : ""}${o.title} (${o.plugin})`
 }
 
-/** A layer of the panel, as the gutter names it: a glyph, a short label and the full name. The compositor's `override` reads as the foreground. */
+/** A layer of the panel, as the System page names it: a glyph, a short label and the full name. The compositor's `override` reads as the foreground. */
 export type LayerKey = "background" | "foreground" | "blend" | "priority" | "overlay"
 export const LAYERS: Record<LayerKey, { glyph: string; short: string; name: string }> = {
 	background: { glyph: "mi mi-wallpaper", short: "bg", name: "Background" },
@@ -201,7 +201,7 @@ export class TelemetryLink {
 }
 
 let shared: TelemetryLink | null = null
-/** The page's one link (the gutter and anything else that wants to follow the device share it). */
+/** The page's one link (the System page and anything else that wants to follow the device share it). */
 export function useTelemetry(base: string = import.meta.env.VITE_API_URL ?? "/"): TelemetryLink {
 	shared ??= new TelemetryLink(base)
 	return shared

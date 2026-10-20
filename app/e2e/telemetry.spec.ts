@@ -2,15 +2,14 @@ import { expect, test } from "@playwright/test"
 import { PROTECTED, TOKEN } from "./servers"
 import { stubMapTiles, watchProblems, signInWith } from "./support"
 
-// The activity gutter follows the device through the telemetry link (a WebSocket) on the real servers: the mock display draws the
+// The System page's activity follows the device through the telemetry link (a WebSocket) on the real servers: the mock display draws the
 // playlist's pages, and a change of settings is reported.
 test.beforeEach(async ({ page }) => stubMapTiles(page))
 
-test("the gutter goes live, shows what the panel shows, and reports a change of settings", async ({ page, request }) => {
+test("the activity goes live, shows what the panel shows, and reports a change of settings", async ({ page, request }) => {
 	const watch = watchProblems(page)
-	await page.goto("/#/settings")
-	await page.getByRole("button", { name: "Activity" }).click()
-	const gutter = page.getByRole("complementary", { name: "Device activity" })
+	await page.goto("/#/system")
+	const gutter = page.getByRole("region", { name: "Device activity" })
 	await expect(gutter.getByTestId("link-status")).toHaveText("Live")
 	// the mock display drew the playlist's page when the server started: its thumbnail loads
 	const now = gutter.getByRole("region", { name: "Now showing" }).getByRole("button", { name: /full size/ }).getByRole("img")
@@ -26,7 +25,7 @@ test("the gutter goes live, shows what the panel shows, and reports a change of 
 	// the layer is said once, by its glyph: no chip repeats it
 	await expect(gutter.getByRole("region", { name: "Now showing" }).getByText(/^(override|background)$/)).toHaveCount(0)
 
-	// somebody saves the system settings: the change reaches the gutter by area, not by path
+	// somebody saves the system settings: the change reaches the activity by area, not by path
 	const current = await (await request.get("/api/settings/system")).json()
 	expect((await request.put("/api/settings/system", { data: current })).ok()).toBeTruthy()
 	await expect(gutter.getByText("The settings changed.").first()).toBeVisible({ timeout: 15000 })
@@ -40,51 +39,40 @@ test("the gutter goes live, shows what the panel shows, and reports a change of 
 
 test("on the server with a token, the link connects once the page has signed in", async ({ page }) => {
 	const watch = watchProblems(page, [401])
-	await page.goto(`${PROTECTED.url}/#/settings`)
+	await page.goto(`${PROTECTED.url}/#/system`)
 	await signInWith(page, "API token", TOKEN)
-	await page.getByRole("button", { name: "Activity" }).click()
 	await expect(page.getByTestId("link-status")).toHaveText("Live", { timeout: 15000 })
 	watch.expectNone()
 })
 
-test("in a short window the page and the gutter stay inside it and scroll, so the last events can be reached", async ({ page }) => {
+test("in a short window the System page scrolls inside its area and the events inside theirs, so the last ones can be reached", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.setViewportSize({ width: 1200, height: 450 })
-	await page.goto("/#/settings")
-	await page.getByRole("tab", { name: "Data Sources" }).click()
-	await page.getByRole("tabpanel").locator(".p-select").first().click()
-	await page.getByRole("option", { name: /^calendar/ }).click()
-	await page.getByRole("button", { name: "Activity" }).click()
-	const gutter = page.getByRole("complementary", { name: "Device activity" })
-	await expect(gutter.getByTestId("link-status")).toHaveText("Live")
-	await expect(gutter.getByRole("region", { name: "Events" }).getByRole("listitem").first()).toBeVisible({ timeout: 20000 })
+	await page.goto("/#/system")
+	const activity = page.getByRole("region", { name: "Device activity" })
+	await expect(activity.getByTestId("link-status")).toHaveText("Live")
+	const events = activity.getByRole("region", { name: "Events" })
+	await expect(events.getByRole("listitem").first()).toBeVisible({ timeout: 20000 })
 
-	// nothing is taller than the window ...
-	const heights = await page.evaluate(() => ({
-		window: innerHeight,
-		gutter: document.querySelector(".gutter")!.getBoundingClientRect().bottom,
-		router: document.querySelector(".router-view")!.getBoundingClientRect().bottom,
-	}))
-	expect(heights.gutter).toBeLessThanOrEqual(heights.window)
-	expect(heights.router).toBeLessThanOrEqual(heights.window)
-	// ... the long settings page scrolls inside its area, to its end ...
+	// nothing is taller than the window: the page scrolls inside its area, to its end (the storage is the last part) ...
 	const router = page.locator(".router-view")
+	expect(await page.evaluate(() => document.querySelector(".router-view")!.getBoundingClientRect().bottom)).toBeLessThanOrEqual(450)
 	expect(await router.evaluate(e => e.scrollHeight - e.clientHeight)).toBeGreaterThan(0)
 	await router.evaluate(e => { e.scrollTop = e.scrollHeight })
-	await expect(page.getByRole("button", { name: "Add to Holidays" })).toBeInViewport()
-	// ... and so does the gutter: its last event can be scrolled to
-	await gutter.evaluate(e => { e.scrollTop = e.scrollHeight })
-	const last = gutter.getByRole("region", { name: "Events" }).getByRole("listitem").last()
+	await expect(page.getByRole("region", { name: "Storage" })).toBeInViewport()
+	// ... and the events list scrolls inside its own box: its last event can be reached
+	const list = events.getByRole("list")
+	await list.evaluate(e => { e.scrollTop = e.scrollHeight })
+	const last = events.getByRole("listitem").last()
 	await last.evaluate(e => { e.scrollIntoView({ block: "end" }) })
 	await expect(last).toBeInViewport()
 	watch.expectNone()
 })
 
-test("the activity panel has its own surface, which follows the theme", async ({ page }) => {
+test("the System page's parts have their own surface, which follows the theme", async ({ page }) => {
 	const watch = watchProblems(page)
-	await page.goto("/#/settings")
-	await page.getByRole("button", { name: "Activity" }).click()
-	const gutter = page.getByRole("complementary", { name: "Device activity" })
+	await page.goto("/#/system")
+	const gutter = page.getByRole("region", { name: "Device activity" })
 	await expect(gutter.getByTestId("link-status")).toHaveText("Live")
 	const background = () => gutter.evaluate(el => getComputedStyle(el).backgroundColor)
 	const light = (rgb: string) => { const [r, g, b] = (rgb.match(/\d+/g) ?? []).map(Number); return ((r ?? 0) + (g ?? 0) + (b ?? 0)) / 765 }
