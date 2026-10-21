@@ -66,11 +66,16 @@ def pi_info() -> dict[str, Any]|None:
 	return info
 
 def host_info() -> dict[str, Any]:
-	"""The operating system and the Python that runs the app, and how long the machine has been up."""
+	"""The operating system and the Python that runs the app, how long the machine has been up and, separately, how long the app has been running."""
 	commit = os.environ.get("EINK_COMMIT", "")
 	info: dict[str, Any] = { "commit": commit if commit.isalnum() and len(commit) <= 40 else "unknown", "os": platform.system() or "Unknown", "os_release": platform.release(), "machine": platform.machine(), "python": platform.python_version(), "cpus": psutil.cpu_count() or 0 }
 	try:
 		info["uptime_seconds"] = int(time.time() - psutil.boot_time())
+	except Exception:
+		pass
+	try:
+		# the app's own: since this process started (the machine's can be days older, and a restart of the app does not change it)
+		info["app_uptime_seconds"] = max(0, int(time.time() - psutil.Process().create_time()))
 	except Exception:
 		pass
 	return info

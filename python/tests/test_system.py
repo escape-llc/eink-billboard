@@ -51,6 +51,9 @@ class TestSystemRoute(WebApiTestBase):
 		self.assertEqual(sorted(body), ["host", "load", "pi", "storage"])
 		self.assertTrue(body["host"]["python"])
 		self.assertGreater(body["host"]["cpus"], 0)
+		# the app has run for a moment, the machine for longer (or as long): two readings, not one
+		self.assertIn("app_uptime_seconds", body["host"])
+		self.assertLessEqual(body["host"]["app_uptime_seconds"], body["host"]["uptime_seconds"])
 		self.assertGreater(body["load"]["memory"]["total"], 0)
 		self.assertEqual([a["name"] for a in body["storage"]["areas"]], ["settings", "schedules", "plugins", "datasources", "schemas", "state"])
 		self.assertGreater(body["storage"]["volume"]["total"], 0)
