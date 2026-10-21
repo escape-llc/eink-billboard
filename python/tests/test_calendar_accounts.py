@@ -5,15 +5,14 @@ import os
 import tempfile
 import time
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Any, cast
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
-from ..datasources.calendar import accounts
-from ..datasources.calendar.accounts import (AccountError, TokenStore, access_token, finish_google, list_calendars, poll_microsoft, read_account_calendar,
+from ..datasources.calendar.accounts import (AccountError, TokenStore, access_token, finish_google, poll_microsoft, read_account_calendar,
 	read_google, read_microsoft, start)
 from ..datasources.calendar.calendar import CalendarAsync
 from ..datasources.data_source import DataSourceExecutionContext

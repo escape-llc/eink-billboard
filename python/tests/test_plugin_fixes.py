@@ -7,7 +7,7 @@ from typing import Any, cast
 
 from PIL import Image
 
-from ..datasources.data_source import DataSourceManager, MediaItemAsync, MediaListAsync, MediaRenderAsync, MediaRenderResult
+from ..datasources.data_source import DataSourceManager, MediaRenderResult
 from ..model.service_container import ServiceContainer
 from ..plugins.priority_update.priority_update import PriorityUpdateAsync
 from ..plugins.slide_show.slide_show import SlideShowAsync

@@ -5,7 +5,7 @@ drawn as the Generated Image is. Against the fake internet's OpenWeatherMap and 
 import json
 import logging
 import unittest
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from typing import Any, cast
 
 import httpx

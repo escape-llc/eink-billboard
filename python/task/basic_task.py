@@ -69,7 +69,7 @@ class CoreTask(threading.Thread, MessageSink):
 				self._dispatch(msg)
 				self.msg_queue.task_done()
 			except queue.ShutDown:
-				self.logger.debug(f"Queue shut down")
+				self.logger.debug("Queue shut down")
 				running = False
 				self.stopped.set()
 			except Exception as e:
@@ -83,7 +83,7 @@ class CoreTask(threading.Thread, MessageSink):
 		self.logger.info(f"'{self.name}' Quit.")
 
 	def is_stopped(self):
-		return self.msg_queue.is_shutdown == True or self.stopped.is_set()
+		return self.msg_queue.is_shutdown or self.stopped.is_set()
 
 	def accept(self, msg: BasicMessage):
 		if self.msg_queue.is_shutdown:
@@ -145,7 +145,6 @@ class DispatcherTask(CoreTask):
 
 		# Handler lookup: attempt exact class, then search superclasses up to BasicMessage
 		handler = None
-		matched_cls = None
 		for cls in type(msg).mro():
 			# stop looking once we reach BasicMessage's base classes
 			if cls is object:
@@ -161,7 +160,6 @@ class DispatcherTask(CoreTask):
 			hx = self.handlers.get(cls)
 			if hx is not None:
 				handler = hx
-				matched_cls = cls
 				break
 
 		if handler is not None:

@@ -1,7 +1,7 @@
 from datetime import datetime
 import unittest
 from ..task.basic_task import DispatcherTask
-from ..task.messages import BasicMessage, MessageWithContent, QuitMessage
+from ..task.messages import MessageWithContent, QuitMessage
 
 class RecordContentTask(DispatcherTask):
 	def __init__(self):

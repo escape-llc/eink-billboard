@@ -16,7 +16,7 @@ class ScheduleManagerDict(TypedDict):
 
 class ScheduleManager:
 	def __init__(self, root_path):
-		if root_path == None:
+		if root_path is None:
 			raise ValueError("root_path cannot be None")
 		if not os.path.exists(root_path):
 			raise ValueError(f"root_path {root_path} does not exist.")

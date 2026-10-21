@@ -19,7 +19,7 @@ class FutureSource(SubmitFuture, IRequireShutdown):
 		self._owner = owner
 		self.logger = logging.getLogger(__name__)
 	def shutdown(self) -> None:
-		if self._shutdown_called == False:
+		if not self._shutdown_called:
 			self.logger.debug(f"{self._owner}: Shutting down FutureSource executor.")
 			self._shutdown_called = True
 			self._executor.shutdown(cancel_futures=True)
@@ -49,7 +49,7 @@ class FutureSource(SubmitFuture, IRequireShutdown):
 				if msg is not None:
 					try:
 						self._port.accept(msg)
-					except Exception as ex:
+					except Exception:
 	#					self.logger.error(f"Error sending message: {ex}")
 						pass
 			except Exception as ex2:

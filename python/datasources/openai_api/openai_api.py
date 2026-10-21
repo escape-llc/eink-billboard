@@ -88,7 +88,7 @@ class OpenAIApi(DataSource, DataSourceApi):
 	- `models`: `{ "ids": [...] }`, every model the key may use (kept for the settings' `modelsCacheHours`, shared by the forms and the tasks);
 	- `text` (`model`, `instructions`, `input`): the text the model wrote (`str`), through the Responses API;
 	- `image` (`model`, `prompt`, `size`, `quality`, `moderation`): the picture, PNG `bytes`, from `images.generate` (opaque, base64: a GPT image model
-	  never answers an address). Never kept: each is a new picture.
+		never answers an address). Never kept: each is a new picture.
 	Failures are in our words (`openai_problem`): a PermanentError when trying again cannot help.
 	"""
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> Any:

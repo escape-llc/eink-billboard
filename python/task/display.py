@@ -16,7 +16,7 @@ from ..task.basic_task import DispatcherTask
 from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage, Telemetry
 from ..task.configure_event import ConfigureEvent
 from ..task.protocols import IProvideTimer
-from ..task.protocols import CreateTimerResult, IProvideTimer
+from ..task.protocols import CreateTimerResult
 from ..task.timer import TimerThreadService
 from ..task.async_worker_pool import AsyncWorkerPool
 from .message_router import MessageRouter
@@ -75,12 +75,12 @@ class Display(DispatcherTask):
 	def _stop_task(self, task:tuple[Future, threading.Event]):
 		fut, donev = task
 		if not fut.done():
-			self.logger.info(f"task still running, cancel...")
+			self.logger.info("task still running, cancel...")
 			fut.cancel()
-			self.logger.info(f"Waiting for task to complete...")
+			self.logger.info("Waiting for task to complete...")
 			donev.wait(timeout=2.0)
 		else:
-			self.logger.info(f"task completed.")
+			self.logger.info("task completed.")
 	def _telemetry(self, kind: str, values: Mapping[str, Any]) -> None:
 		"""Tell the telemetry link (the `telemetry` route) what the panel did; a failure to tell must never stop the panel."""
 		try:
@@ -309,7 +309,7 @@ class Display(DispatcherTask):
 						compositor.fill = current_palette(self.cm.settings_manager()).bg_page.rgb
 					package = compositor.commit()
 					if package is None:
-						self.logger.debug(f"Compositor no changes detected")
+						self.logger.debug("Compositor no changes detected")
 						# nothing newer than what the last pass handled: whoever waits for the current version has it
 						self._note_drawn(compositor.current_version)
 						continue

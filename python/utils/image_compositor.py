@@ -20,7 +20,7 @@ class LayerStack:
 	The layers (the readme's "Display Architecture"). What is shown, back to front:
 	- `background`, or the theme's color when there is none;
 	- `forground`, the playlist's page above the background: an `override` page is shown alone (on the theme's color) and nothing below it is
-	  drawn; a `blend` page washes over the background;
+		drawn; a `blend` page washes over the background;
 	- `blend`, a timer task's image for a while, washing over what is under it (a playlist override hides it);
 	- the `overlays`, only when nothing above the background is showing;
 	- `priority`, over everything.

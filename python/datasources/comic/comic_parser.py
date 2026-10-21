@@ -88,7 +88,7 @@ def parse_the_feed(comic_name: str, comic: dict, feed: feedparser.FeedParserDict
 				"caption": unescape_text(comic["caption"](element)),
 			}
 			items.append(data)
-		except Exception as e:
+		except Exception:
 			# malformed entry, skip it
 			continue
 	index: int = 0

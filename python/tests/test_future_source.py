@@ -28,7 +28,7 @@ class FutureSourceTests(unittest.TestCase):
 				self.assertEqual(result, 42)
 				return TestMsg(datetime.now(), 'ok')
 
-			cancel = fs.submit_future(future_fn, continuation)
+			fs.submit_future(future_fn, continuation)
 
 			# wait for message to be sent
 			got = port.wait_for_message(2.0)

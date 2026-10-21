@@ -15,9 +15,8 @@ from unittest.mock import patch
 import httpx
 from PIL import Image
 
-from ..datasources import data_source
 from ..datasources.clock.clock import Clock, ClockAsync
-from ..datasources.comic import comic_feed, comic_parser
+from ..datasources.comic import comic_parser
 from ..datasources.comic.comic_feed import ComicFeedAsync, _compose_image
 from ..datasources.countdown import countdown
 from ..datasources.countdown.countdown import CountdownAsync

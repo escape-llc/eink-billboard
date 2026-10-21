@@ -86,7 +86,7 @@ class TestPlaylistDocument(ScheduleApiBase):
 
 	def test_a_timer_task_document_is_not_a_playlist_and_the_other_way_round(self):
 		_error_shape(self, self.client.get(f"{BASE}/doc-a"), 404)
-		_error_shape(self, self.client.get(f"/api/schedule/timer/pl"), 404)
+		_error_shape(self, self.client.get("/api/schedule/timer/pl"), 404)
 
 	def test_there_are_no_single_track_routes(self):
 		self.assertEqual(self.client.get(f"{BASE}/pl/items/t1").status_code, 404)

@@ -25,7 +25,6 @@ def setup_test_logging():
 setup_test_logging()
 
 import os
-import sys
 from unittest.mock import MagicMock
 
 # Starlette's TestClient sends Host: testserver; the server answers only to names it expects (python/web/hosts.py)

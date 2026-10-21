@@ -1,8 +1,6 @@
 import asyncio
 from datetime import datetime
 import logging
-import os
-from pathlib import Path
 from typing import Any, Mapping
 
 from ...model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager

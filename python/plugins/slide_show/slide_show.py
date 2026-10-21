@@ -141,7 +141,7 @@ class SlideShowAsync(PluginAsync):
 					kept.drop()
 					if mrr is not None:
 						await timer.sleep(timedelta(minutes=slideMinutes))
-			except asyncio.CancelledError as e:
+			except asyncio.CancelledError:
 				# a kept list was saved item by item: the next visit goes on from here
 				self.logger.info(f"{self.id} cancelled")
 				raise

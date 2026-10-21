@@ -10,7 +10,6 @@ a document's revision covers the whole file, a task's revision covers that task 
 conflict with somebody else having changed task B.
 """
 import copy
-import json
 import logging
 import threading
 import uuid

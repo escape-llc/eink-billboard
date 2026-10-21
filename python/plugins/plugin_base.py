@@ -5,7 +5,7 @@ from typing import Protocol, runtime_checkable
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from ..datasources.data_source import DataSource, DataSourceExecutionContext
-from ..model.service_container import IServiceProvider, ServiceContainer, ServiceContainer
+from ..model.service_container import IServiceProvider, ServiceContainer
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, StaticConfigurationManager
 from ..model.schedule import ScheduleItemBase
 from ..model.theme import DEFAULT_INPUTS, ThemeInputs, css_vars

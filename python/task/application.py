@@ -19,7 +19,7 @@ from ..device.bindings import action_for
 from ..device.buttons import LABELS
 from ..device.pins import Panel
 from ..display.mock_display import MockDisplay
-from .basic_task import DispatcherTask, QuitMessage
+from .basic_task import DispatcherTask
 from .message_router import MessageRouter, Route
 from ..model.configuration_manager import ConfigurationManager
 from ..model.service_container import IServiceProvider, ServiceContainer
@@ -28,7 +28,6 @@ from ..task.display_messages import DisplaySettings, PriorityImage, PriorityRevo
 from ..model.theme import current_inputs
 from ..utils.error_image import WebAddress, render_error_image
 from ..task.playlist_layer import NextTrack, PlaylistLayer, ResumePlayback, StopPlayback
-from ..task.timer import IProvideTimer
 from ..task.timer_layer import TimerLayer
 
 SETUP_TITLE = "Set up this device"
@@ -427,13 +426,13 @@ class Application(DispatcherTask):
 			self.sink.accept(msg)
 
 		if msg.token == "playlist-layer":
-			if msg.error == False:
+			if not msg.error:
 				self.logger.info(f"'{self.name}' playlist-layer configured successfully.")
 			else:
 				self.logger.error(f"'{self.name}' Cannot configure playlist-layer")
 				self.logger.error(f"{msg.content}")
 		if msg.token == "timer-layer":
-			if msg.error == False:
+			if not msg.error:
 				self.logger.info(f"'{self.name}' timer-layer configured successfully.")
 			else:
 				self.logger.error(f"'{self.name}' Cannot start the timer; timer-layer failed to initialize")

@@ -22,7 +22,6 @@ from PIL import Image
 
 from ..display.display_base import DisplayBase
 from ..display.mock_display import MockDisplay
-from ..model.time_of_day import TimeOfDay
 from ..plugins.plugin_base import PluginAsync
 from ..task.application import Application
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool
@@ -32,7 +31,7 @@ from ..task.configure_event import ConfigureEvent, ConfigureOptions
 from ..task.display import Display
 from ..task.display_messages import DisplayImage, PriorityImage
 from ..task.message_router import MessageRouter, Route
-from ..task.messages import AsyncTaskCompleted, BasicMessage, QuitMessage, Telemetry
+from ..task.messages import BasicMessage, QuitMessage, Telemetry
 from ..task.playlist_layer import PlaylistLayer, StartPlayback
 from ..task.telemetry_sink import TelemetrySink
 from .utils import ConstantTimeOfDay, RecordingTask

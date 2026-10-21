@@ -17,7 +17,6 @@ from ..device.bindings import DEFAULT_BINDINGS, action_for
 from ..device.buttons import DEBOUNCE_SECONDS, LONG_PRESS_SECONDS, Buttons, load_button
 from ..device.pins import FIRST_PIN, LAST_PIN, Panel, check_pins, panel_lines
 from ..device.registry import available_devices
-from ..model.configuration_manager import ConfigurationManager
 from ..model.service_container import ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..plugins.plugin_base import PermanentError
@@ -26,7 +25,7 @@ from ..task.basic_task import DispatcherTask
 from ..task.configure_event import ConfigureEvent, ConfigureNotify, ConfigureOptions
 from ..task.device_io import DeviceIO
 from ..task.display import Display
-from ..task.message_router import MessageRouter, Route
+from ..task.message_router import MessageRouter
 from ..task.messages import BasicMessage, ConfigurationChanged, InputEvent, QuitMessage, Telemetry
 from ..task.playlist_layer import NextTrack, PlaylistLayer, ResumePlayback, StopPlayback
 from ..task.timer_layer import TimerLayer
