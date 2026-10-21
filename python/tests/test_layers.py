@@ -409,11 +409,13 @@ class PlaylistLayerTests(unittest.TestCase):
 		for error in (PermanentError("gone for good"), TypeError("bad setting"), ImportError("no module")):
 			with self.subTest(type(error).__name__):
 				class Hard:
+					# bound when the class is made, so each subtest's plugin raises its own error
+					failure = error
 					def __init__(self, id, name):
 						self.id, self.name = id, name
 					async def task_async(self, ctx, track, donev):
 						self.calls.append(track.id)
-						raise error
+						raise self.failure
 				self.setUp()
 				layer, playlists, root, calls = self._strike_setup(Hard)
 				self.assertIsInstance(self._run_pass(layer, playlists, root), LayerFaulted)

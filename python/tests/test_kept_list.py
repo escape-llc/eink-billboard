@@ -186,7 +186,7 @@ class TestWhenThingsGoWrong(KeptCase):
 		origin = Origin(4)
 		async def go():
 			kept = await open_list(self.pcm, "pl/t1", fingerprint_of("a"), T0, origin, True, 0, 30)
-			with open(self.path(), "w") as f:
+			with open(self.path(), "w") as f:  # noqa: ASYNC230 -- corrupts the kept file between two steps, on purpose
 				f.write('{"items": [], "fingerprint": "x"}')
 			got = []
 			while kept.head() is not NO_ITEM:

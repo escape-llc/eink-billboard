@@ -287,9 +287,9 @@ class FakeRenderSession:
 	last: "FakeRenderSession|None" = None
 	def __init__(self, *a, **k):
 		FakeRenderSession.last = self
-	def render(self, dimensions, template_params={}):
+	def render(self, dimensions, template_params=None):
 		self.dimensions = tuple(dimensions)
-		self.params = template_params
+		self.params = template_params or {}
 		return Image.new("RGB", tuple(dimensions), "white")
 
 class TestCountdown(unittest.TestCase):
@@ -341,7 +341,7 @@ class TestRenderAsyncKeepsLoopFree(unittest.IsolatedAsyncioTestCase):
 		main = __import__("threading").get_ident()
 		seen = []
 		class Session(FakeRenderSession):
-			def render(self, dimensions, template_params={}):
+			def render(self, dimensions, template_params=None):
 				seen.append(__import__("threading").get_ident())
 				return super().render(dimensions, template_params)
 		with patch.object(countdown, "RenderSession", Session), patch.object(year_progress, "RenderSession", Session):

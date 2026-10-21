@@ -25,7 +25,7 @@ def _load_schedules(cm) -> dict:
 	except (ValueError, OSError, json.JSONDecodeError) as e:
 		# the details name files and paths: keep them in the log
 		logger.error(f"schedule load failed: {e}", exc_info=True)
-		raise ApiError(500, "The stored schedules could not be loaded; see the server log.", "schedules")
+		raise ApiError(500, "The stored schedules could not be loaded; see the server log.", "schedules") from e
 
 def _with_rev(info) -> dict:
 	dx = info.to_dict()
@@ -61,7 +61,7 @@ def _system_timezone(cm, default: tzinfo|None) -> tzinfo|None:
 	try:
 		return zoneinfo.ZoneInfo(name)
 	except (zoneinfo.ZoneInfoNotFoundError, ValueError):
-		raise ApiError(500, f"The system timezone '{name}' is not valid.", "system-settings")
+		raise ApiError(500, f"The system timezone '{name}' is not valid.", "system-settings") from None
 
 # the render range is limited to years every platform's datetime and zone database handle
 MIN_RENDER_YEAR = 1970
@@ -79,7 +79,7 @@ def _parse_start(text: str|None) -> datetime|date|None:
 			return date.fromisoformat(text)
 		parsed = datetime.fromisoformat(text)
 	except ValueError:
-		raise ApiError(422, "start must be a date (YYYY-MM-DD) or a time with an offset (2026-01-05T09:00:00+01:00 or ...Z).", "start")
+		raise ApiError(422, "start must be a date (YYYY-MM-DD) or a time with an offset (2026-01-05T09:00:00+01:00 or ...Z).", "start") from None
 	if parsed.tzinfo is None:
 		raise ApiError(422, "start has a time but no offset: send a date (YYYY-MM-DD), or the time with an offset or Z.", "start")
 	return parsed
@@ -101,7 +101,7 @@ def _render_start(start: datetime|date|None, now: datetime, tz: tzinfo|None, day
 			raise OverflowError("year")
 		return start_ts
 	except (OverflowError, ValueError, OSError):
-		raise ApiError(422, f"start must be between the years {MIN_RENDER_YEAR} and {MAX_RENDER_YEAR}.", "start")
+		raise ApiError(422, f"start must be between the years {MIN_RENDER_YEAR} and {MAX_RENDER_YEAR}.", "start") from None
 
 @router.get('/tasks/render')
 def render_tasks_schedule(
@@ -184,18 +184,18 @@ def _call(doc_id: str|None, fn):
 	try:
 		return fn()
 	except NotFound as e:
-		raise ApiError(404, "Unknown schedule." if e.what == "schedule" else "Unknown task.", None)
+		raise ApiError(404, "Unknown schedule." if e.what == "schedule" else "Unknown task.", None) from None
 	except Ambiguous:
-		raise ApiError(409, "More than one stored schedule has this id; fix the files first.", None)
+		raise ApiError(409, "More than one stored schedule has this id; fix the files first.", None) from None
 	except Conflict as e:
-		raise ApiError(409, "Revision mismatch: it changed since it was loaded.", doc_id, rev=e.rev)
+		raise ApiError(409, "Revision mismatch: it changed since it was loaded.", doc_id, rev=e.rev) from None
 	except Invalid as e:
-		raise ApiError(422, "Schedule validation failed", doc_id, errors=e.errors)
+		raise ApiError(422, "Schedule validation failed", doc_id, errors=e.errors) from None
 	except ScheduleStoreError:
-		raise ApiError(400, "The change could not be made.", doc_id)
+		raise ApiError(400, "The change could not be made.", doc_id) from None
 	except (OSError, ValueError, json.JSONDecodeError) as e:
 		logger.error(f"schedule change failed: {e}", exc_info=True)
-		raise ApiError(500, "The schedule could not be changed; see the server log.", doc_id)
+		raise ApiError(500, "The schedule could not be changed; see the server log.", doc_id) from e
 
 def _rev_of(body: Any) -> Any:
 	return body.get(HASH_KEY) if isinstance(body, dict) else None

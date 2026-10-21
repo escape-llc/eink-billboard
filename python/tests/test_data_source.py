@@ -16,7 +16,8 @@ from ..task.async_http_worker_pool import AsyncHttpWorkerPool
 from ..model.configuration_manager import ConfigurationManager
 from .utils import create_configuration_manager, save_datasource_settings, save_image, temp_configuration_manager, test_output_path_for
 
-def create_data_source_context(dsid:str, schedule_ts: datetime = datetime.now(), cm: ConfigurationManager|None = None) -> DataSourceExecutionContext:
+def create_data_source_context(dsid:str, schedule_ts: datetime|None = None, cm: ConfigurationManager|None = None) -> DataSourceExecutionContext:
+	schedule_ts = schedule_ts or datetime.now()
 	cm = cm or create_configuration_manager()
 	cm.ensure_folders()
 	scm = cm.settings_manager()

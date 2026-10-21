@@ -25,7 +25,7 @@ from .fake_internet import FakeInternet
 from .test_datasource_fixes import STATIC, FakeDatasourceSettings, FakeRenderSession, _Cob
 from .test_rss import CHROME
 from .test_web_api import WebApiTestBase
-from .utils import save_datasource_settings, use_transport
+from .utils import test_output_path_for, save_datasource_settings, use_transport
 
 PLACES = [{ "name": "Home", "location": { "latitude": 42.33143, "longitude": -83.04575 } }, { "name": "Odd", "location": { "latitude": None, "longitude": 3 } }, { "name": "Unset", "location": None }]
 WHERE = { "latitude": 51.5, "longitude": -0.12 }
@@ -169,8 +169,7 @@ class TestRealPage(unittest.IsolatedAsyncioTestCase):
 		use_transport(self, FakeInternet())
 
 	async def test_pages_are_drawn_at_the_display_size(self):
-		folder = Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.joinpath(".test-output", "thunderforest")
-		folder.mkdir(parents=True, exist_ok=True)
+		folder = Path(test_output_path_for("thunderforest"))
 		for orientation, size in (("landscape", (800, 480)), ("portrait", (480, 800))):
 			with self.subTest(orientation=orientation):
 				dsec = storage(orientation=orientation)

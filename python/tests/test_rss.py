@@ -1,4 +1,3 @@
-import os
 import shutil
 import unittest
 from datetime import datetime, timezone
@@ -9,6 +8,7 @@ from unittest.mock import patch
 import httpx
 from PIL import Image
 
+from .utils import test_output_path_for
 from ..datasources.data_source import DataSourceExecutionContext
 from ..datasources.rss import rss
 from ..datasources.rss.rss import RssAsync, parse_stories, plain_text
@@ -214,8 +214,7 @@ class TestRealPage(unittest.IsolatedAsyncioTestCase):
 		client_var.set(httpx.AsyncClient(transport=FakeInternet()))
 
 	async def test_pages_are_drawn_at_the_display_size(self):
-		folder = Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.joinpath(".test-output", "rss")
-		folder.mkdir(parents=True, exist_ok=True)
+		folder = Path(test_output_path_for("rss"))
 		ds = RssAsync("rss", "rss")
 		for orientation, size in (("landscape", (800, 480)), ("portrait", (480, 800))):
 			stories = await ds.open_async(make_context(orientation), { "feed": "News" })

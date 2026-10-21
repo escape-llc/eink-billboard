@@ -151,7 +151,7 @@ def render_overlay(stm: StaticConfigurationManager, theme: ThemeInputs, size: tu
 	render_dir = os.path.join(stm.ROOT_PATH, "render")
 	image = RenderSession(stm, render_dir, "overlay-text.html", theme).render(size, {
 		"settings": {},
-		"lines": [{ "runs": runs, "text": text, "x": round(p.x, 2), "baseline": round(p.baseline, 2) } for runs, text, p in zip(lines, texts, block.lines)],
+		"lines": [{ "runs": runs, "text": text, "x": round(p.x, 2), "baseline": round(p.baseline, 2) } for runs, text, p in zip(lines, texts, block.lines, strict=True)],
 		"icon": icon_params,
 		"font_px": block.font_px,
 		"outline_px": round(block.outline_px, 2),

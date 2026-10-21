@@ -106,7 +106,7 @@ class CoreTask(threading.Thread, MessageSink):
 
 def exclude_from_dispatch(obj):
 	"""Mark a function or callable so the DispatcherTasks registration will skip it."""
-	setattr(obj, "__exclude_from_dispatch__", True)
+	setattr(obj, "__exclude_from_dispatch__", True)  # noqa: B010 -- any callable: the type checker knows no such attribute
 	return obj
 
 def is_excluded(obj: Any) -> bool:

@@ -33,7 +33,7 @@ class TestHeadlessRender(unittest.TestCase):
 			autoescape=select_autoescape(['html', 'xml'])
 		)
 		return env
-	def run_test(self, dimensions, template_file, title, arglist = []):
+	def run_test(self, dimensions, template_file, title, arglist = ()):
 		env = self.create_env()
 		template = env.get_template(template_file)
 		template_params = {

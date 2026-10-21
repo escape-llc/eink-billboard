@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from typing import Any, Mapping
@@ -47,14 +48,18 @@ class ImageFolderAsync(DataSource, MediaListAsync, MediaRenderAsync):
 				return entry["path"]
 		# nothing to retry: the folder was renamed or removed from the settings
 		raise PermanentError(f"The folder '{name}' is not in the Image Folder settings.")
+	@staticmethod
+	def _pictures_in(folder_path: str) -> list:
+		if not os.path.isdir(folder_path):
+			raise ValueError("The 'folder' setting is not a folder that exists.")
+		return list_files_in_folder(folder_path)
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
 		name = params.get('folder')
 		if not name:
 			raise ValueError("The 'folder' setting is required for the image folder datasource.")
 		folder_path = self._folder_path(dsec, name)
-		if not os.path.isdir(folder_path):
-			raise ValueError("The 'folder' setting is not a folder that exists.")
-		image_files = list_files_in_folder(folder_path)
+		# a folder is read from the disk (an SD card, a network share): not on the event loop
+		image_files = await asyncio.to_thread(self._pictures_in, folder_path)
 		if not image_files:
 			self.logger.warning(f"'{self.name}' no images found in the folder.")
 		return image_files

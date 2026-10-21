@@ -1,6 +1,5 @@
 import atexit
 import json
-import os
 import shutil
 import tempfile
 import unittest
@@ -26,7 +25,7 @@ from ..utils.image_utils import chrome_command
 from ..web.deps import get_time_of_day
 from .fake_internet import FakeInternet, fixture_text
 from .test_datasource_fixes import STATIC, FakeDatasourceSettings, FakeRenderSession, _Cob
-from .utils import save_datasource_settings
+from .utils import test_output_path_for, save_datasource_settings
 from .test_web_api import WebApiTestBase
 
 # the display is on the US west coast in October (daylight time); "now" is Wednesday 7 October 2026, noon
@@ -450,8 +449,7 @@ class TestRealPage(unittest.IsolatedAsyncioTestCase):
 		client_var.set(httpx.AsyncClient(transport=FakeInternet()))
 
 	async def test_pages_are_drawn_at_the_display_size(self):
-		folder = Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.joinpath(".test-output", "calendar")
-		folder.mkdir(parents=True, exist_ok=True)
+		folder = Path(test_output_path_for("calendar"))
 		ds = CalendarAsync("calendar", "Calendar")
 		for orientation, size in (("landscape", (800, 480)), ("portrait", (480, 800))):
 			for name, calendars, chosen, numbers in (("busy", None, ["Family", "Work", "Sign-in page"], True), ("empty", [], [], False)):
