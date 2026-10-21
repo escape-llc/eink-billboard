@@ -36,3 +36,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # Python stays on 3.13 (the project's version, CI's python:3.13.7-slim): only patch releases of the image
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # Node stays on its LTS line (24): an odd major is not an LTS release, and the next LTS is a decision of its own
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
