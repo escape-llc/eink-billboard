@@ -18,7 +18,7 @@ from python.plugins.plugin_base import PermanentError
 
 def main() -> int:
 	parser = argparse.ArgumentParser(description="Print the presses of buttons wired to GPIO pins.")
-	for name, key, label in INPUTS:
+	for name, _key, label in INPUTS:
 		parser.add_argument(f"--{name}", type=int, metavar="PIN", help=f"BCM pin of the {label}")
 	parser.add_argument("--panel", choices=["inky", "waveshare"], help="the panel's display type, to refuse its pins")
 	args = parser.parse_args()

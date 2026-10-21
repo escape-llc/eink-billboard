@@ -1,9 +1,9 @@
 import asyncio
 import atexit
+import itertools
 import json
 import logging
 from dataclasses import replace
-import os
 import shutil
 import tempfile
 import unittest
@@ -27,7 +27,7 @@ from ..plugins.plugin_base import PermanentError
 from ..utils.image_utils import chrome_command
 from .fake_internet import FakeInternet, fixture_text
 from .test_datasource_fixes import STATIC, FakeRenderSession, _Cob
-from .utils import save_datasource_settings, use_transport
+from .utils import test_output_path_for, save_datasource_settings, use_transport
 
 # the display is on the US west coast in October (daylight time); "now" is Wednesday 7 October 2026, noon, which is where the fixtures start
 ZONE = timezone(timedelta(hours=-7))
@@ -103,7 +103,7 @@ class TestParsing(unittest.TestCase):
 		self.assertEqual(len(r.hours), 8)
 		# the first step of the fixture starts at 11:00 local (18:00 UTC) and covers noon
 		self.assertEqual(r.hours[0].when, datetime(2026, 10, 7, 11, 0, tzinfo=ZONE))
-		self.assertEqual([b.when - a.when for a, b in zip(r.hours, r.hours[1:])], [timedelta(hours=3)] * 7)
+		self.assertEqual([b.when - a.when for a, b in itertools.pairwise(r.hours)], [timedelta(hours=3)] * 7)
 
 	def test_days_have_a_range_a_daytime_picture_and_a_chance_of_rain(self):
 		r = report()
@@ -426,8 +426,7 @@ class TestRealPage(unittest.IsolatedAsyncioTestCase):
 		use_transport(self, FakeInternet())
 
 	async def test_pages_are_drawn_at_the_display_size(self):
-		folder = Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.joinpath(".test-output", "weather")
-		folder.mkdir(parents=True, exist_ok=True)
+		folder = Path(test_output_path_for("weather"))
 		ds = WeatherAsync("weather", "Weather")
 		for orientation, size in (("landscape", (800, 480)), ("portrait", (480, 800))):
 			params = { "views": ["current", "hours", "days"], "fontSize": "normal" }

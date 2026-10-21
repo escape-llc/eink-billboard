@@ -1,9 +1,10 @@
 import asyncio
 import io
 import platform
+import sys
 import shutil
 import signal
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 from io import BytesIO
@@ -127,7 +128,7 @@ def change_orientation(image: Image.Image, orientation: str, rotate180=False) ->
 		return image
 	return image.rotate(angle, expand=1)
 
-def resize_image(image: Image.Image, desired_size: tuple[int, int], image_settings: list[str] = []) -> Image.Image:
+def resize_image(image: Image.Image, desired_size: tuple[int, int], image_settings: Sequence[str] = ()) -> Image.Image:
 	img_width, img_height = image.size
 	desired_width, desired_height = desired_size
 	desired_width, desired_height = int(desired_width), int(desired_height)
@@ -263,7 +264,8 @@ def chrome_command() -> str:
 def _kill_process_tree(proc: subprocess.Popen) -> None:
 	"""Kill the child and everything it started (Chromium spawns helper processes)."""
 	try:
-		if os_type == "Windows":
+		# sys.platform, not os_type: the type checker narrows on it, and the POSIX calls exist only on the other branch
+		if sys.platform == "win32":
 			subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
 		else:
 			os.killpg(proc.pid, signal.SIGKILL)
@@ -339,8 +341,10 @@ def _render_chrome_headless(source_html_path: str, arglist: list[str], timeout: 
 			"--no-sandbox"
 		]
 		command.extend(arglist)
-		if os_type == "Windows":
-			popen_kwargs: dict[str, Any] = {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP")}
+		# declared before the branch: the type checker reads only this platform's branch
+		popen_kwargs: dict[str, Any]
+		if sys.platform == "win32":
+			popen_kwargs = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
 		else:
 			# own session/process group, so the whole tree can be killed
 			popen_kwargs = {"start_new_session": True}

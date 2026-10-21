@@ -73,6 +73,11 @@ extend-exclude = ["python/display/waveshare_epd"]
 
 [tool.ruff.lint]
 # Syntax errors (E9), all of pyflakes (F: undefined names, unused imports and variables, redefinitions, f-strings without
-# placeholders), comparisons to None/True/False (E711, E712) and mixed tabs and spaces (E101). #25 started with E9 and F821;
-# #456 cleaned up the 146 findings of the wider set. The indentation is tabs on purpose: no W191, no E501.
-select = ["E9", "F", "E711", "E712", "E101"]
+# placeholders), comparisons to None/True/False (E711, E712), mixed tabs and spaces (E101), bugbear (B: mutable or call defaults,
+# closures over loop variables, exceptions raised without their cause, zip without strict) and blocking calls in async code (ASYNC).
+# #25 started with E9 and F821; #456 (#474) cleaned up the wider set. The indentation is tabs on purpose: no W191, no E501.
+select = ["E9", "F", "E711", "E712", "E101", "B", "ASYNC"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's parameter declarations are defaults by design: they describe the parameter and are not called per request
+extend-immutable-calls = ["fastapi.Body", "fastapi.Cookie", "fastapi.Depends", "fastapi.File", "fastapi.Form", "fastapi.Header", "fastapi.Path", "fastapi.Query", "fastapi.Security"]

@@ -339,7 +339,7 @@ class PoolRobustness(unittest.TestCase):
 		started = threading.Event()
 		async def blocker():
 			started.set()
-			time.sleep(1.5)	# a synchronous call: blocks the loop
+			time.sleep(1.5)	# noqa: ASYNC251 -- a synchronous call that blocks the loop is what this test is about
 		pool.submit(blocker())
 		self.assertTrue(started.wait(2))
 		t0 = time.monotonic()
@@ -644,7 +644,7 @@ class TkinterWindowTests(unittest.TestCase):
 		run_bounded(lambda: w.shutdown(), 3)
 		w2 = TkinterWindow("tk")
 		with patch("python.display.tkinter_window.tk.Tk", side_effect=RuntimeError("no display")):
-			with self.assertRaises(Exception):
+			with self.assertRaises(RuntimeError):
 				run_bounded(lambda: w2.initialize(fake_cm(**{"width": 8, "height": 8})), 3)
 		run_bounded(lambda: w2.shutdown(), 3)
 

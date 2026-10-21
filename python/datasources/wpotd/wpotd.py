@@ -88,10 +88,10 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			return img
 		except UnidentifiedImageError as e:
 			self.logger.error(f"'{self.name}' Unsupported image format at {url}: {str(e)}")
-			raise RuntimeError(f"'{self.name}' Unsupported image format.")
+			raise RuntimeError(f"'{self.name}' Unsupported image format.") from e
 		except Exception as e:
 			self.logger.error(f"'{self.name}' Failed to load WPOTD image from {url}: {str(e)}")
-			raise RuntimeError(f"'{self.name}' Failed to load WPOTD image.")
+			raise RuntimeError(f"'{self.name}' Failed to load WPOTD image.") from e
 	async def _fetch_potd(self, cur_date: date, thumb_width: int) -> Mapping[str, Any]:
 		title = f"Template:POTD/{cur_date.isoformat()}"
 		params = {
@@ -106,7 +106,7 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			filename = data["query"]["pages"][0]["images"][0]["title"]
 		except (KeyError, IndexError) as e:
 			self.logger.error(f"'{self.name}' Failed to retrieve POTD filename for {cur_date}: {e}")
-			raise RuntimeError(f"'{self.name}' Failed to retrieve POTD filename.")
+			raise RuntimeError(f"'{self.name}' Failed to retrieve POTD filename.") from e
 		image_src = await self._fetch_image_src(filename, thumb_width)
 		return {
 			"filename": filename,
@@ -122,7 +122,7 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			return response.json()
 		except Exception as e:
 			self.logger.error(f"'{self.name}' Wikipedia API request failed: {params}: {str(e)}")
-			raise RuntimeError(f"'{self.name}' Wikipedia API request failed.")
+			raise RuntimeError(f"'{self.name}' Wikipedia API request failed.") from e
 	async def _fetch_image_src(self, filename: str, thumb_width: int) -> str:
 		params = {
 			"action": "query",
@@ -140,4 +140,4 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			return info.get("thumburl") or info["url"]
 		except (KeyError, IndexError, StopIteration) as e:
 			self.logger.error(f"'{self.name}' Failed to retrieve image URL for {filename}: {e}")
-			raise RuntimeError(f"'{self.name}' Failed to retrieve image URL.")
+			raise RuntimeError(f"'{self.name}' Failed to retrieve image URL.") from e

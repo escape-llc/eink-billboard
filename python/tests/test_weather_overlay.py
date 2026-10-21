@@ -144,7 +144,7 @@ class TestRender(unittest.IsolatedAsyncioTestCase):
 
 	def _has(self, solid: set[tuple[int, int, int]], color: tuple[int, int, int]) -> bool:
 		"""Chromium and Python round a derived color a step apart at most (test_theme)."""
-		return any(all(abs(a - b) <= 1 for a, b in zip(px, color)) for px in solid)
+		return any(all(abs(a - b) <= 1 for a, b in zip(px, color, strict=True)) for px in solid)
 
 	async def test_each_view_is_outlined_text_on_a_transparent_zone(self):
 		palette = palette_of(inputs_from(FakeSettings.THEME))

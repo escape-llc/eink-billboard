@@ -241,7 +241,7 @@ class TestBackgroundInChromium(unittest.TestCase):
 		self.assertNotIn(tinted, ((255, 255, 255), (0, 0, 0)))
 		want = palette_of(inputs_from({ "theme": "analogous", "hue": 200, "saturation": 50, "lightness": 50, "background": "tinted" })).bg_page.rgb
 		# Chromium and Python round the derived color differently by a step at most
-		self.assertTrue(all(abs(a - b) <= 1 for a, b in zip(tinted, want)), (tinted, want))
+		self.assertTrue(all(abs(a - b) <= 1 for a, b in zip(tinted, want, strict=True)), (tinted, want))
 
 SWATCH = 20
 @unittest.skipUnless(HAVE_CHROME, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")
@@ -272,7 +272,7 @@ class TestCssMatchesPython(unittest.TestCase):
 				with self.subTest(theme=settings["theme"], role=role):
 					got = image.getpixel((i * SWATCH + SWATCH // 2, SWATCH // 2))
 					want = getattr(palette, role.replace("-", "_")).rgb
-					self.assertTrue(all(abs(g - w) <= 1 for g, w in zip(got, want)), f"{role}: CSS {got}, Python {want}")
+					self.assertTrue(all(abs(g - w) <= 1 for g, w in zip(got, want, strict=True)), f"{role}: CSS {got}, Python {want}")
 
 if __name__ == "__main__":
 	unittest.main()

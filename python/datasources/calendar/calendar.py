@@ -200,7 +200,7 @@ class CalendarAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		client = client_var.get()
 		results = await asyncio.gather(*(self._read_one(client, entry, first, last, slot, settings, store, dscm) for entry in calendars), return_exceptions=True)
 		failed: list[BaseException] = []
-		for entry, result in zip(calendars, results):
+		for entry, result in zip(calendars, results, strict=True):
 			if isinstance(result, BaseException):
 				failed.append(result)
 				# the type only: the text of an HTTP error holds the address

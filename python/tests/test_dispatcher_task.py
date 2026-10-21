@@ -12,10 +12,8 @@ class RecordingDispatcher(DispatcherTask):
 
 	def _execute(self, msg: BasicMessage):
 		# Record generic execute messages (fallback path)
-		try:
-			content = getattr(msg, 'content')
-		except Exception:
-			content = None
+		# only a MessageWithContent has content; any other type records None
+		content = msg.content if isinstance(msg, MessageWithContent) else None
 		self.received.append((type(msg).__name__, content))
 
 
@@ -57,7 +55,7 @@ class TestDispatcherTask(unittest.TestCase):
 				super().__init__()
 			# called instead of the BasicMessage handler
 			def _handler(self, msg: BasicMessage):
-				content = getattr(msg, 'content', None)
+				content = msg.content if isinstance(msg, MessageWithContent) else None
 				self.received.append(('superhandler', content))
 
 		task = SubHandlerDispatcher()

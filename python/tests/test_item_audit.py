@@ -88,7 +88,7 @@ class TestDescriptors(unittest.TestCase):
 
 	def test_one_name_means_one_thing(self):
 		shapes: dict[str, set[tuple]] = defaultdict(set)
-		for kind, id_, info in DESCRIPTORS.all():
+		for _kind, _id, info in DESCRIPTORS.all():
 			for p in properties(info):
 				shapes[p["name"]].add((p.get("type"), json.dumps(p.get("enum")), json.dumps((p.get("items") or {}).get("enum")), p.get("required"), json.dumps(p.get("default")), p.get("lookup")))
 		differing = { name for name, s in shapes.items() if len(s) > 1 }
@@ -149,7 +149,7 @@ class TestUses(unittest.TestCase):
 		for id_, info in DESCRIPTORS.sources.items():
 			mine = { p["name"] for p in properties(info) }
 			parts = { lookup: [s for s in DESCRIPTORS.sources.values() if set(features) & set(s.get("features") or [])] for lookup, features in choices(info).items() }
-			for lookup, offered in parts.items():
+			for offered in parts.values():
 				for part in offered:
 					with self.subTest(source=id_, part=part["id"]):
 						self.assertEqual(mine & { p["name"] for p in properties(part) }, set())
