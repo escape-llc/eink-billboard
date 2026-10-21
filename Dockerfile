@@ -17,7 +17,7 @@ ENV EINK_COMMIT=$EINK_COMMIT
 RUN npm run build
 
 # --- Python base: same OS packages and Python as .github/workflows/unittest.yaml ----------
-FROM python:3.13.7-slim AS base
+FROM python:3.13.15-slim AS base
 # apt runs without anyone to ask: no debconf prompt (and no "Can't locate Term/ReadLine.pm" while it looks for one). An ARG, so it is not left in the image.
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
