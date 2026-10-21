@@ -29,7 +29,7 @@ from .test_rss import CHROME
 from .test_web_api import WebApiTestBase
 from .utils import save_datasource_settings
 
-PLACES = [{ "name": "Home", "latitude": 42.33143, "longitude": -83.04575 }, { "name": "Odd", "latitude": None, "longitude": 3 }]
+PLACES = [{ "name": "Home", "location": { "latitude": 42.33143, "longitude": -83.04575 } }, { "name": "Odd", "location": { "latitude": None, "longitude": 3 } }, { "name": "Unset", "location": None }]
 WHERE = { "latitude": 51.5, "longitude": -0.12 }
 
 class FakeSettings:
@@ -95,8 +95,9 @@ class TestPlace(unittest.TestCase):
 	def test_a_missing_place_or_position_or_location_is_a_settings_problem_that_says_where(self):
 		with self.assertRaisesRegex(PermanentError, "'Gone' is not in the Thunderforest Map settings"):
 			place_of(context(), "Gone")
-		with self.assertRaisesRegex(PermanentError, "'Odd' has no position"):
-			place_of(context(), "Odd")
+		for name in ("Odd", "Unset"):
+			with self.assertRaisesRegex(PermanentError, f"'{name}' has no location"):
+				place_of(context(), name)
 		for location in (None, {}, { "latitude": 1 }, "here"):
 			with self.subTest(location), self.assertRaisesRegex(PermanentError, "no location"):
 				place_of(context(location=location), None)
@@ -222,10 +223,10 @@ class TestKeyRoute(WebApiTestBase):
 class TestPlacesSettings(WebApiTestBase):
 	def test_a_place_needs_a_position_in_range_and_a_task_picks_one_by_name(self):
 		doc = self.client.get("/api/datasources/thunderforest-map/settings").json()
-		for place in ({ "name": "Pole", "latitude": 91, "longitude": 0 }, { "name": "Date line", "latitude": 0, "longitude": 181 }, { "name": "", "latitude": 0, "longitude": 0 }, { "name": "Nowhere", "latitude": 0 }):
+		for place in ({ "name": "Pole", "location": { "latitude": 91, "longitude": 0 } }, { "name": "Date line", "location": { "latitude": 0, "longitude": 181 } }, { "name": "", "location": { "latitude": 0, "longitude": 0 } }, { "name": "Nowhere", "location": None }, { "name": "Nowhere" }):
 			with self.subTest(place):
 				self.assertEqual(self.client.put("/api/datasources/thunderforest-map/settings", json={ **doc, "places": [place] }).status_code, 422)
-		resp = self.client.put("/api/datasources/thunderforest-map/settings", json={ **doc, "places": [{ "name": "Home", "latitude": 42.3, "longitude": -83.0 }] })
+		resp = self.client.put("/api/datasources/thunderforest-map/settings", json={ **doc, "places": [{ "name": "Home", "location": { "latitude": 42.3, "longitude": -83.0 } }] })
 		self.assertEqual(resp.status_code, 200, resp.text)
 		lookup = self.client.get("/api/datasources/thunderforest-map/lookups/place")
 		self.assertEqual(lookup.status_code, 200, lookup.text)

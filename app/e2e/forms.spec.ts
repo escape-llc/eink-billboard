@@ -225,3 +225,23 @@ test("a date field grows to the width of its row", async ({ page }) => {
 	await expectRowsFill(page, editor)
 	watch.expectNone()
 })
+
+test("a list row with a location is chosen on a map, as everywhere else, and the header's name and build stay on one line", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.setViewportSize({ width: 500, height: 900 })
+	await page.goto("/#/settings")
+	// the name and the build do not wrap or stack, however narrow the window
+	const [name, build] = await Promise.all([page.getByRole("heading", { name: "eInk Billboard" }).boundingBox(), page.getByTestId("app-version").boundingBox()])
+	expect(name!.height).toBeLessThan(30)
+	expect(build!.height).toBeLessThan(30)
+	await page.getByRole("tab", { name: "Data Sources" }).click()
+	await page.getByRole("tabpanel").locator(".p-select").first().click()
+	await page.getByRole("option", { name: "thunderforest-map", exact: true }).click()
+	await page.getByRole("button", { name: "Add to Places" }).click()
+	// the row has a map picker (search, Locate Me, Locate by IP), not two number fields
+	const places = page.getByRole("group", { name: "Places" })
+	await expect(places.getByPlaceholder("Search for an address...")).toBeVisible()
+	await expect(places.getByLabel("Locate by IP")).toBeVisible()
+	await expect(places.getByRole("spinbutton")).toHaveCount(0)
+	watch.expectNone()
+})
