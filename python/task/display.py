@@ -52,7 +52,7 @@ class Display(DispatcherTask):
 		self.commit_timer: CreateTimerResult | None = None
 		self.priority_timer: CreateTimerResult | None = None
 		self.refresh_timer: CreateTimerResult | None = None
-		self.compsitor = ImageCompositor()
+		self.compositor = ImageCompositor()
 		self.task_pool: AsyncWorkerPool | None = None
 		self.resolution = (800, 480)
 		self.commitq: asyncio.Queue[BasicMessage] | None = None
@@ -153,7 +153,7 @@ class Display(DispatcherTask):
 			self.logger.info(f"Loading display {display_type} {self.resolution[0]}x{self.resolution[1]}")
 			orientation = cast(str, display_settings.get("orientation", "landscape"))
 			self.zones = { zone.name: zone for zone in zones_for(self.resolution, orientation) }
-			self._start_tasks(self.display, self.compsitor, self.timebase, display_settings)
+			self._start_tasks(self.display, self.compositor, self.timebase, display_settings)
 			msg.notify()
 			self.router.send("display-settings", DisplaySettings(msg.timestamp, display_type, self.resolution[0], self.resolution[1], [zone.definition() for zone in self.zones.values()]))
 		except Exception as e:
@@ -283,7 +283,7 @@ class Display(DispatcherTask):
 			raise
 		finally:
 			donev.set()
-	async def _task_render_and_display(self, taskq: asyncio.Queue[BasicMessage], compsitor: ImageCompositor, display: DisplayBase, display_settings: Mapping[str, Any]|None, donev: threading.Event):
+	async def _task_render_and_display(self, taskq: asyncio.Queue[BasicMessage], compositor: ImageCompositor, display: DisplayBase, display_settings: Mapping[str, Any]|None, donev: threading.Event):
 		try:
 			rotate: bool = display_settings.get("rotate180", False) if display_settings is not None else False
 			displayImageCount: int = 0
@@ -306,15 +306,15 @@ class Display(DispatcherTask):
 						await asyncio.sleep(wait)
 					# a page with no background under it shows the theme's color, read now so a theme change applies
 					if self.cm is not None:
-						compsitor.fill = current_palette(self.cm.settings_manager()).bg_page.rgb
-					package = compsitor.commit()
+						compositor.fill = current_palette(self.cm.settings_manager()).bg_page.rgb
+					package = compositor.commit()
 					if package is None:
 						self.logger.debug(f"Compositor no changes detected")
 						# nothing newer than what the last pass handled: whoever waits for the current version has it
-						self._note_drawn(compsitor.current_version)
+						self._note_drawn(compositor.current_version)
 						continue
 					taking = package.version
-					shown_layers = compsitor.layers()
+					shown_layers = compositor.layers()
 					the_image, the_title = package.render()
 					if rotate: the_image = the_image.rotate(180)
 					the_image = apply_image_enhancement(the_image, display_settings)
@@ -375,7 +375,7 @@ class Display(DispatcherTask):
 					control.title, control.ended = msg.title, asyncio.Event()
 					try:
 						# its time starts when it is on the panel (an e-ink refresh takes tens of seconds), unless it is revoked first
-						await self._until_drawn(self.compsitor.current_version, control.ended)
+						await self._until_drawn(self.compositor.current_version, control.ended)
 						if not control.ended.is_set():
 							await asyncio.wait_for(control.ended.wait(), cast(PriorityImage|BlendImage, msg).duration.total_seconds())
 					except asyncio.TimeoutError:
@@ -443,12 +443,12 @@ class Display(DispatcherTask):
 			self.logger.error(f"Overlay '{msg.title}': the display is not running")
 			return
 		self.logger.info(f"Overlay '{msg.title}' in '{msg.zone}'")
-		fut = self.task_pool.submit(self._task_overlay_layer(self.commitq, self.compsitor, msg), None)
+		fut = self.task_pool.submit(self._task_overlay_layer(self.commitq, self.compositor, msg), None)
 		self._wait_for(fut, f"overlay '{msg.title}'")
 	def _overlay_revoke(self, msg: OverlayRevoke):
 		if self.task_pool is None or self.commitq is None:
 			return
-		fut = self.task_pool.submit(self._task_overlay_revoke(self.commitq, self.compsitor, msg), None)
+		fut = self.task_pool.submit(self._task_overlay_revoke(self.commitq, self.compositor, msg), None)
 		self._wait_for(fut, f"overlay revoke '{msg.key}'")
 	def _display_image(self, msg: DisplayImage):
 		try:
@@ -478,7 +478,7 @@ class Display(DispatcherTask):
 			else:
 				di = msg
 			task = self._task_background_layer if di.layer == "background" else self._task_foreground_layer
-			fut  = self.task_pool.submit(task(self.commitq, self.compsitor, di), None)
+			fut  = self.task_pool.submit(task(self.commitq, self.compositor, di), None)
 			self._wait_for(fut, f"display '{msg.title}' ({di.layer})")
 		except Exception as e:
 			self.report_failure("A page could not be shown", e)

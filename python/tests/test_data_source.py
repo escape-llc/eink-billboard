@@ -86,7 +86,7 @@ class TestAsyncDataSources(unittest.TestCase):
 		params = {
 			"folder": "test images"
 		}
-		self.pool.submit(self.run_datasource_async, ds, params, (800, 480), 9, cm).result(timeout=60)
+		self.pool.submit(self.run_datasource_async, ds, params, (800, 480), 3, cm).result(timeout=60)
 	def test_image_folder_requires_folder(self):
 		import asyncio
 		ds = ImageFolderAsync("image-folder", "image-folder")
