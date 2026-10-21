@@ -30,15 +30,18 @@ def _compose_image(bytes:IO[bytes], item:dict, caption_font, width, height):
 		top_padding, bottom_padding = 0, 0
 
 		if caption_font is not None:
+			# measured as multiline text: a font's own getbbox is for one line, and Pillow 13 with raqm refuses a newline in it ("raqm_layout() failed")
 			if item["title"]:
-				lines, wrapped_text = _wrap_text(item["title"], caption_font, width)
+				_, wrapped_text = _wrap_text(item["title"], caption_font, width)
 				draw.multiline_text((width // 2, 0), wrapped_text, font=caption_font, fill="black", anchor="ma")
-				top_padding = caption_font.getbbox(wrapped_text)[3] * lines + 1
+				box = draw.multiline_textbbox((width // 2, 0), wrapped_text, font=caption_font, anchor="ma")
+				top_padding = int(box[3]) + 1
 
 			if item["caption"]:
-				lines, wrapped_text = _wrap_text(item["caption"], caption_font, width)
+				_, wrapped_text = _wrap_text(item["caption"], caption_font, width)
 				draw.multiline_text((width // 2, height), wrapped_text, font=caption_font, fill="black", anchor="md")
-				bottom_padding = caption_font.getbbox(wrapped_text)[3] * lines + 1
+				box = draw.multiline_textbbox((width // 2, height), wrapped_text, font=caption_font, anchor="md")
+				bottom_padding = height - int(box[1]) + 1
 
 		available = height - top_padding - bottom_padding
 		if available < max(1, height // 4):
