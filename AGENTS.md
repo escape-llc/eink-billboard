@@ -77,11 +77,12 @@ The same repo is worked on from three places. The rules above are the same every
 | | Cloud sandbox (Claude Code on the web) | Local (Windows, Claude Code in the IDE) | Local container (Podman or Docker) |
 |---|---|---|---|
 | OS | Linux | Windows | Linux, Debian image as CI |
-| Headless Chromium | preinstalled; symlink it (see Test environment) | not installed: the render tests **skip** with a message (about 14 skips) | installed in the image: nothing skips but 3 |
+| Headless Chromium | preinstalled; symlink it (see Test environment) | point `EINK_CHROME` in `.env` at a `chrome-headless-shell.exe` (Playwright's, under `%LOCALAPPDATA%\ms-playwright`, will do): then **5 skip**, all POSIX-only or a machine setting (tzset, a drive path, symbolic links); without it the render tests skip too | installed in the image: nothing skips but 3 |
 | `gh` / GitHub | needs a valid `GH_TOKEN` with write access to issues, PRs and Discussions; without one, draft session summaries for the maintainer (`SESSION_SUMMARIES.md`) | the maintainer's signed-in `gh`; reads and writes issues, PRs, Discussions | not needed |
 | Browser tests | `npx playwright install chromium` (its preinstalled browser may not match) | `npx playwright install chromium` once per Playwright version | not covered; run on the host |
 | Shell | bash | PowerShell, or Git Bash for POSIX syntax | bash |
 
+- **A test of process handling fakes the browser portably** (`TestChromeRender._browser` in `test_image_utils.py`, #441): a Python script, made runnable by a shebang on POSIX and a `.cmd` shim on Windows, patched in through `chrome_command` (an `EINK_CHROME` would otherwise win), so the Windows branch (`CREATE_NEW_PROCESS_GROUP`, `taskkill /T`) is tested as well as `killpg`; a render test checks for the browser with `chrome_command()`, never the platform's bare name. A skip on Windows is for what only POSIX has, not for a test written in shell.
 - **A Windows run is not the CI run.** `mypy` also reports POSIX-only calls (`os.killpg`, `signal.SIGKILL`, `time.tzset`) on Windows, and the render tests are skipped.
   Before a PR, run `podman compose run --rm test` (below): it does what `.github/workflows/unittest.yaml` does (`ruff`, `mypy`, `coverage run -m unittest discover .`) on Linux with Chromium.
 - **Containers** (`Dockerfile`, `compose.yaml`, `.dockerignore`):
