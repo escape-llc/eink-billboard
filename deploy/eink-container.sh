@@ -131,11 +131,13 @@ BUILD_NEEDS_KB=6000000
 # what the end of a failed build says it was, and what to do (it used to say "network or space" for everything)
 build_failure_hint() {
 	local log=$1
-	if grep -qiE "slirp4netns|pasta|netavark|rootlessport" "$log"; then
-		say "This is the container's network failing to start (not the disk or the code). It is usually left-over processes or a full /run/user. Try, in order:"
-		say "    1. podman system migrate        (restarts Podman's helper processes; stop the app first if it runs: $SCRIPT stop)"
-		say "    2. df -h /run/user/$(id -u)      (it should not be full)"
-		say "    3. EINK_BUILD_NETWORK=host $SCRIPT build      (builds on the Pi's own network, with nothing in between)"
+	if grep -qiE "slirp4netns|pasta|netavark|rootlessport|did not get container start message" "$log"; then
+		# found on a Pi: "slirp4netns failed" at a RUN step was Podman out of room (old images and the leftovers of failed builds), not the network: pruning fixed it
+		say "Podman could not start a build step. Most often it is out of room: old images and the leftovers of earlier failed builds. Try, in order:"
+		say "    1. podman system prune -f --external     (removes unused images and the leftovers of failed builds; the app's data is kept)"
+		say "    2. df -h / /var/tmp ~ /run/user/$(id -u)    (none should be nearly full)"
+		say "    3. podman system migrate, then $SCRIPT build again"
+		say "    4. EINK_BUILD_NETWORK=host $SCRIPT build    (builds on the Pi's own network, with nothing in between)"
 	elif grep -qiE "no space left on device|ENOSPC" "$log"; then
 		say "The disk is full. 'podman system df' shows what Podman holds; 'podman image prune -a' removes unused images; 'df -h / /var/tmp ~' shows where."
 	elif grep -qiE "could not resolve|temporary failure in name resolution|connection (timed out|refused|reset)|network is unreachable|tls|i/o timeout" "$log"; then
@@ -154,13 +156,12 @@ cmd_build() {
 	# full disk is found in seconds and not after fifteen minutes of building
 	local free_kb before_kb
 	before_kb=$(store_free_kb)
-	if podman image prune -f >/dev/null 2>&1; then
-		free_kb=$(store_free_kb)
-		[ -n "$before_kb" ] && [ -n "$free_kb" ] && [ "$free_kb" -gt "$before_kb" ] && say "Removed unused images: $(( (free_kb - before_kb) / 1024 )) MB freed."
-	fi
+	# the leftovers of failed builds (working containers) hold space an image prune does not free; not every Podman has --external
+	podman system prune -f --external >/dev/null 2>&1 || podman image prune -f >/dev/null 2>&1
 	free_kb=$(store_free_kb)
+	[ -n "$before_kb" ] && [ -n "$free_kb" ] && [ "$free_kb" -gt "$before_kb" ] && say "Removed unused images and leftovers of failed builds: $(( (free_kb - before_kb) / 1024 )) MB freed."
 	if [ -n "$free_kb" ] && [ "$free_kb" -lt "$BUILD_NEEDS_KB" ]; then
-		fail "the build needs about $((BUILD_NEEDS_KB / 1048576)) GB of free disk space, and there is $((free_kb / 1024)) MB (unused images were already removed). Free some space and try again: 'podman system df' shows what Podman holds, 'podman image prune -a' removes every image no container uses (the app's image too when it is stopped; the build makes it again)."
+		fail "the build needs about $((BUILD_NEEDS_KB / 1048576)) GB of free disk space, and there is $((free_kb / 1024)) MB (unused images and failed builds' leftovers were already removed). Free some space and try again: 'podman system df' shows what Podman holds, 'podman image prune -a' removes every image no container uses (the app's image too when it is stopped; the build makes it again)."
 	fi
 	mkdir -p "$LOG_DIR"
 	local log="$LOG_DIR/build.log" commit
