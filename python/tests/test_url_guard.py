@@ -104,6 +104,79 @@ class TestFetchChecked(unittest.IsolatedAsyncioTestCase):
 		with self.assertRaisesRegex(RuntimeError, "too large"):
 			await self.fetch(lambda r: httpx.Response(200, content=b"x" * 101), "https://a.test/feed", max_bytes=100)
 
+class TestRedirectCredentials(unittest.IsolatedAsyncioTestCase):
+	"""A redirect does not carry a sign-in to another origin (#456), and changes the method as the HTTP client would."""
+	async def follow(self, routes: dict[str, httpx.Response], url: str, method: str = "GET", headers: dict[str, str]|None = None, content: bytes|None = None) -> list[httpx.Request]:
+		"""Every request made, in order; `routes` answers by `scheme://host:port/path`, anything else is a 200."""
+		seen: list[httpx.Request] = []
+		def handler(request: httpx.Request) -> httpx.Response:
+			seen.append(request)
+			request.read()
+			key = f"{request.url.scheme}://{request.url.host}:{request.url.port or (443 if request.url.scheme == 'https' else 80)}{request.url.path}"
+			return routes.get(key) or httpx.Response(200, content=b"ok")
+		async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+			with patch.object(url_guard, "_resolve", resolver({ "a.test": [PUBLIC], "b.test": [PUBLIC] })):
+				async with url_guard.stream_checked(client, method, url, headers or { "Authorization": "Basic c2VjcmV0", "Cookie": "s=1", "Proxy-Authorization": "x", "User-Agent": "eink" }, content) as resp:
+					await resp.aread()
+		return seen
+	def signed(self, request: httpx.Request) -> list[str]:
+		return [h for h in ("authorization", "cookie", "proxy-authorization") if h in request.headers]
+	def moved(self, to: str, status: int = 302) -> httpx.Response:
+		return httpx.Response(status, headers={ "Location": to })
+
+	async def test_a_redirect_on_the_same_origin_keeps_the_sign_in(self):
+		seen = await self.follow({ "https://a.test:443/feed": self.moved("/moved") }, "https://a.test/feed")
+		self.assertEqual([self.signed(r) for r in seen], [["authorization", "cookie", "proxy-authorization"]] * 2)
+
+	async def test_a_redirect_to_another_host_drops_it_and_coming_back_does_not_bring_it_back(self):
+		seen = await self.follow({
+			"https://a.test:443/feed": self.moved("https://b.test/there"),
+			"https://b.test:443/there": self.moved("https://a.test/back"),
+		}, "https://a.test/feed")
+		self.assertEqual([str(r.url) for r in seen], ["https://a.test/feed", "https://b.test/there", "https://a.test/back"])
+		self.assertEqual([self.signed(r) for r in seen], [["authorization", "cookie", "proxy-authorization"], [], []])
+		# what is not a sign-in still goes
+		self.assertEqual(seen[1].headers["user-agent"], "eink")
+
+	async def test_another_port_or_https_to_http_on_the_same_host_drops_it(self):
+		for target in ("http://a.test/plain", "https://a.test:8443/other"):
+			with self.subTest(target):
+				seen = await self.follow({ "https://a.test:443/feed": self.moved(target) }, "https://a.test/feed")
+				self.assertEqual(self.signed(seen[1]), [])
+
+	async def test_the_header_names_are_matched_whatever_their_case(self):
+		seen = await self.follow({ "https://a.test:443/feed": self.moved("https://b.test/x") }, "https://a.test/feed", headers={ "AUTHORIZATION": "Bearer t", "cookie": "s=1" })
+		self.assertEqual(self.signed(seen[1]), [])
+
+	async def test_a_303_after_a_report_is_a_get_with_no_body(self):
+		seen = await self.follow({ "https://a.test:443/cal": self.moved("/result", 303) }, "https://a.test/cal", "REPORT",
+			{ "Authorization": "Basic c2VjcmV0", "Content-Type": "application/xml", "Depth": "1" }, b"<query/>")
+		self.assertEqual([(r.method, r.content) for r in seen], [("REPORT", b"<query/>"), ("GET", b"")])
+		self.assertNotIn("content-type", seen[1].headers)
+
+	async def test_a_307_keeps_the_method_and_the_body_and_a_301_keeps_a_report(self):
+		for status in (307, 308, 301, 302):
+			with self.subTest(status):
+				seen = await self.follow({ "https://a.test:443/cal": self.moved("/moved", status) }, "https://a.test/cal", "REPORT", content=b"<query/>")
+				self.assertEqual([(r.method, r.content) for r in seen], [("REPORT", b"<query/>")] * 2)
+
+	async def test_a_post_on_a_301_or_302_becomes_a_get(self):
+		for status in (301, 302):
+			with self.subTest(status):
+				seen = await self.follow({ "https://a.test:443/form": self.moved("/done", status) }, "https://a.test/form", "POST", content=b"a=1")
+				self.assertEqual([r.method for r in seen], ["POST", "GET"])
+				self.assertEqual(seen[1].content, b"")
+
+	async def test_fetch_checked_follows_the_same_rules(self):
+		seen: list[httpx.Request] = []
+		def handler(request: httpx.Request) -> httpx.Response:
+			seen.append(request)
+			return self.moved("https://b.test/x") if request.url.host == "a.test" else httpx.Response(200, content=b"body")
+		async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+			with patch.object(url_guard, "_resolve", resolver({ "a.test": [PUBLIC], "b.test": [PUBLIC] })):
+				self.assertEqual(await fetch_checked(client, "https://a.test/feed", { "Authorization": "Bearer t" }), b"body")
+		self.assertEqual([self.signed(r) for r in seen], [["authorization"], []])
+
 class TestRunTimeFetches(unittest.IsolatedAsyncioTestCase):
 	"""Addresses from a feed or an answer are fetched through the guard too (#189), not only by the Test buttons."""
 	async def download(self, handler, url: str):

@@ -469,6 +469,30 @@ class TestRealPage(unittest.IsolatedAsyncioTestCase):
 TEST_URL = "/api/datasource/calendar/test"
 PUBLIC = "93.184.216.34"
 
+class TestSignInStaysWithItsServer(unittest.IsolatedAsyncioTestCase):
+	"""A CalDAV server that redirects to another host does not get to hand the user's password on (#456)."""
+	async def test_a_basic_sign_in_is_not_sent_to_the_redirect_target(self):
+		from ..datasources.calendar.sources import read_caldav
+		seen: list[httpx.Request] = []
+		def handler(request: httpx.Request) -> httpx.Response:
+			seen.append(request)
+			request.read()
+			if request.url.host == "dav.example.test":
+				return httpx.Response(301, headers={ "Location": "https://elsewhere.example.test/cal/" })
+			return httpx.Response(207, content=b'<?xml version="1.0"?><D:multistatus xmlns:D="DAV:"/>')
+		entry = { "name": "Work", "source": "caldav", "url": "https://dav.example.test/cal/", "auth": "basic", "username": "me", "password": "s3cret" }
+		names = { "dav.example.test": [PUBLIC], "elsewhere.example.test": [PUBLIC] }
+		async def resolve(host: str, port: int) -> list[str]:
+			return names[host]
+		async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+			with patch.object(url_guard, "_resolve", resolve):
+				self.assertEqual(await read_caldav(client, entry, NOW, NOW + timedelta(days=7)), [])
+		self.assertEqual([r.url.host for r in seen], ["dav.example.test", "elsewhere.example.test"])
+		self.assertIn("authorization", seen[0].headers)
+		self.assertNotIn("authorization", seen[1].headers)
+		# a 301 keeps the REPORT and its query: the collection moved
+		self.assertEqual((seen[1].method, seen[1].content), ("REPORT", seen[0].content))
+
 class FixedTime:
 	def current_time(self) -> datetime:
 		return NOW

@@ -7,7 +7,10 @@ network, so the address must not be a way to reach this device itself or the pla
 - the host's addresses (all of them) must not be loopback, link-local (this includes the cloud metadata address 169.254.169.254),
   unspecified, multicast or reserved. Addresses on the home network (192.168.x.x, 10.x.x.x, unique-local IPv6) are allowed: a feed on
   a server at home is a use the device exists for;
-- the check is made again for every redirect, which is followed here, not by the HTTP client.
+- the check is made again for every redirect, which is followed here, not by the HTTP client;
+- credentials do not follow a redirect to another origin (#456): from the first hop whose scheme, host or port differs from the one before, or that goes
+  from https to http, `Authorization`, `Proxy-Authorization` and `Cookie` are not sent again (the HTTP client does the same when it follows redirects itself).
+  They must be the request's own headers: a client's default headers are the client's to send.
 
 Limit: the client resolves the name again when it connects, so a name that answers differently the second time (DNS rebinding) is not
 caught. The caller is signed in and the answer carries no content, only a verdict, which keeps what that could gain small.
@@ -68,17 +71,46 @@ def _is_ip(host: str) -> bool:
 	except ValueError:
 		return False
 
+# what a request says about who is asking: never sent to another origin than the one it was written for
+CREDENTIAL_HEADERS = frozenset({ "authorization", "proxy-authorization", "cookie" })
+# what describes a body: dropped with the body when a redirect turns the request into a GET
+BODY_HEADERS = frozenset({ "content-type", "content-length", "content-encoding", "transfer-encoding" })
+
+def _origin(url: str) -> tuple[str, str, int]:
+	parts = urlsplit(url)
+	scheme = parts.scheme.lower()
+	return (scheme, (parts.hostname or "").lower(), parts.port or (443 if scheme == "https" else 80))
+
+def _redirect_method(status: int, method: str) -> str:
+	"""The method of the next hop, as the HTTP client decides it when it follows redirects itself: a 303 is a GET (a HEAD stays one), and so is a POST on a 301 or 302."""
+	if status == 303 and method != "HEAD":
+		return "GET"
+	if status in (301, 302) and method == "POST":
+		return "GET"
+	return method
+
 @contextlib.asynccontextmanager
 async def stream_checked(client: httpx.AsyncClient, method: str, url: str, headers: Mapping[str, str]|None = None, content: bytes|None = None) -> AsyncIterator[httpx.Response]:
 	"""
 	Open `url` for streaming as `client.stream` does, but with the address checked first and again at every redirect (followed here, not by the client).
 	Use it for every address that is not our own constant: one typed in a settings page, or taken from a feed, an answer or a redirect.
+	A redirect is followed as the HTTP client would: a 307 or 308 keeps the method and the body, a 303 (and a POST on a 301 or 302) becomes a GET with no body,
+	any other method keeps itself on a 301 or 302 (a CalDAV REPORT to a collection that moved). Credentials are dropped from the first hop to another origin on.
 	"""
+	sent = dict(headers or {})
 	for _ in range(MAX_REDIRECTS + 1):
 		await check_url(url)
-		async with client.stream(method, url, headers=headers, content=content, follow_redirects=False) as resp:
+		async with client.stream(method, url, headers=sent, content=content, follow_redirects=False) as resp:
 			if resp.is_redirect and resp.headers.get("location"):
-				url = urljoin(url, resp.headers["location"])
+				target = urljoin(url, resp.headers["location"])
+				# another origin, or the same host without TLS: the credentials stay behind, for this hop and every later one
+				if _origin(target) != _origin(url) or (_origin(url)[0] == "https" and _origin(target)[0] == "http"):
+					sent = { k: v for k, v in sent.items() if k.lower() not in CREDENTIAL_HEADERS }
+				following = _redirect_method(resp.status_code, method)
+				if following != method:
+					content = None
+					sent = { k: v for k, v in sent.items() if k.lower() not in BODY_HEADERS }
+				method, url = following, target
 				continue
 			yield resp
 			return
@@ -86,20 +118,14 @@ async def stream_checked(client: httpx.AsyncClient, method: str, url: str, heade
 
 async def fetch_checked(client: httpx.AsyncClient, url: str, headers: Mapping[str, str]|None = None, max_bytes: int = 2 * 1024 * 1024) -> bytes:
 	"""
-	GET `url` (checked with `check_url`, and again at every redirect, at most MAX_REDIRECTS) and return the body.
+	GET `url` (checked with `check_url`, and again at every redirect, at most MAX_REDIRECTS: `stream_checked`'s rules) and return the body.
 	More than `max_bytes` is a RuntimeError; an error status raises httpx.HTTPStatusError.
 	"""
-	for _ in range(MAX_REDIRECTS + 1):
-		await check_url(url)
-		async with client.stream("GET", url, headers=headers, follow_redirects=False) as resp:
-			if resp.is_redirect and resp.headers.get("location"):
-				url = urljoin(url, resp.headers["location"])
-				continue
-			resp.raise_for_status()
-			body = bytearray()
-			async for chunk in resp.aiter_bytes():
-				body.extend(chunk)
-				if len(body) > max_bytes:
-					raise RuntimeError(f"Download too large: more than {max_bytes} bytes.")
-			return bytes(body)
-	raise UrlRefused("The address redirects too many times.")
+	async with stream_checked(client, "GET", url, headers) as resp:
+		resp.raise_for_status()
+		body = bytearray()
+		async for chunk in resp.aiter_bytes():
+			body.extend(chunk)
+			if len(body) > max_bytes:
+				raise RuntimeError(f"Download too large: more than {max_bytes} bytes.")
+		return bytes(body)
