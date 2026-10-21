@@ -33,6 +33,7 @@ from ..task.messages import Telemetry
 from ..utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, download, stream_to_buffer
 from ..utils.url_guard import UrlRefused
 from .data_source import DataSourceExecutionContext
+from .metering import METER
 from .keeping import DEFAULT_STALE_DAYS, CLOCK_SLACK, REFILL_WAIT_SECONDS, aware, number, parse_moment, prune_stale_sometimes, refill_lock
 from .response_cache import note_use, save_quietly
 
@@ -127,7 +128,13 @@ async def fetch_cached(dscm: DatasourceConfigurationManager, settings: Mapping[s
 	`default_hours` is the data source's own default for its `setting` (0 keeps nothing); `scope` names the list the address belongs to (`retain`).
 	`report(outcome, size)` is told what happened: `hit` (read from disk, nothing sent), `revalidated` (asked, 304), `miss` (downloaded), `stale` (the origin did not answer, the old bytes were used), `bypass` (kept nothing: 0 hours, or `no-store`).
 	"""
-	tell = report or (lambda outcome, size: None)
+	source = dscm.datasource_id
+	waited = False
+	def tell(outcome: str, size: int) -> None:
+		# the meter tells a download another task made while we waited for it from a hit of the cache's; the web app's report does not
+		METER.cache(source, "coalesced" if outcome == "hit" and waited else outcome, size)
+		if report is not None:
+			report(outcome, size)
 	now = aware(now)
 	hours = number(settings.get(setting), default_hours)
 	if hours <= 0:
@@ -146,6 +153,7 @@ async def fetch_cached(dscm: DatasourceConfigurationManager, settings: Mapping[s
 		lock = refill_lock(f"{dscm.datasource_id}:{name}")
 		if not lock.acquire(blocking=False):
 			# another task is asking the origin for this: wait for its answer without holding up our loop
+			waited = True
 			deadline = time.monotonic() + REFILL_WAIT_SECONDS
 			while time.monotonic() < deadline:
 				await asyncio.sleep(0.05)
@@ -248,13 +256,14 @@ def retain(dscm: DatasourceConfigurationManager, scope: str, urls: list[str]) ->
 	return removed
 
 async def download_for(dsec: DataSourceExecutionContext, url: str, *, default_hours: float, headers: Mapping[str, str]|None = None, ctok: Callable[[str], bool]|None = None,
-		max_bytes: int|None = DEFAULT_MAX_DOWNLOAD_BYTES, scope: str = "", setting: str = "contentCacheHours") -> BytesIO:
+		max_bytes: int|None = DEFAULT_MAX_DOWNLOAD_BYTES, scope: str = "", setting: str = "contentCacheHours", client: AsyncClient|None = None) -> BytesIO:
 	"""
 	`setting` names the setting that holds the time (a data source with feeds and pictures keeps each for its own time).
+	`client` is the HTTP client to ask with: an API data source passes its metered one (`metered_client`, #440), so the call counts against its service; else the pool's.
 	What a data source calls to download a picture or a feed from its own context: kept in the data source's own pool (`fetch_cached`) with the data source's settings, or
 	downloaded and forgotten when the context has no data source folder (a test's, a tool's). The address goes through the URL guard either way.
 	"""
-	client = client_var.get()
+	client = client if client is not None else client_var.get()
 	dscm = dsec.provider.get_service(DatasourceConfigurationManager)
 	# a context without the data source's folder (a test's stand-in, a tool's) downloads and keeps nothing
 	if not isinstance(dscm, DatasourceConfigurationManager):

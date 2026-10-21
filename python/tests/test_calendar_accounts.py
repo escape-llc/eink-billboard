@@ -243,6 +243,7 @@ class TestReading(TokenStoreCase):
 
 class FolderSettings:
 	"""Stands in for DatasourceConfigurationManager: these settings, and the real manager's files (where the tokens live)."""
+	datasource_id = "calendar"
 	def __init__(self, document, real):
 		self.document = document
 		self.real = real

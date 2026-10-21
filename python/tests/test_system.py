@@ -48,7 +48,7 @@ class TestPi(unittest.TestCase):
 class TestSystemRoute(WebApiTestBase):
 	def test_the_machine_and_the_storage_are_reported(self):
 		body = self.client.get("/api/system").json()
-		self.assertEqual(sorted(body), ["host", "load", "pi", "storage"])
+		self.assertEqual(sorted(body), ["host", "load", "pi", "storage", "usage"])
 		self.assertTrue(body["host"]["python"])
 		self.assertGreater(body["host"]["cpus"], 0)
 		# the app has run for a moment, the machine for longer (or as long): two readings, not one

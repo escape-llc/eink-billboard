@@ -9,9 +9,13 @@ import unittest
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Callable
+from unittest.mock import patch
+
+import httpx
 from pathvalidate import sanitize_filename
 
 from ..model.time_of_day import TimeOfDay
+from ..task.async_http_worker_pool import AsyncHttpWorkerPool, client_var
 from ..task.basic_task import DispatcherTask
 from ..task.messages import BasicMessage
 from ..task.protocols import MessageSink
@@ -188,3 +192,13 @@ def create_configuration_manager() -> ConfigurationManager:
 	atexit.register(shutil.rmtree, folder, True)
 	shutil.copytree(storage_path(), folder, dirs_exist_ok=True)
 	return ConfigurationManager(storage_path=folder)
+
+def use_transport(test: unittest.TestCase, transport: httpx.AsyncBaseTransport) -> None:
+	"""
+	Every HTTP client of this test talks through `transport`: the pool's (`client_var`, as the layers give it) and the ones the API data sources make themselves (`metered_client`,
+	which takes `AsyncHttpWorkerPool.default_transport` when it is made). Put back when the test ends.
+	"""
+	client_var.set(httpx.AsyncClient(transport=transport))
+	patcher = patch.object(AsyncHttpWorkerPool, "default_transport", transport)
+	patcher.start()
+	test.addCleanup(patcher.stop)
