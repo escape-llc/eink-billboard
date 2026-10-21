@@ -15,6 +15,10 @@ test("the activity goes live, shows what the panel shows, and reports a change o
 	const now = gutter.getByRole("region", { name: "Now showing" }).getByRole("button", { name: /full size/ }).getByRole("img").first()
 	await expect(now).toBeVisible({ timeout: 20000 })
 	await expect.poll(() => now.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
+	// the panel's own pixels, not the 320 pixel thumbnail: the card is wider than that, and an enlarged thumbnail is blurred
+	await expect(now).toHaveAttribute("src", /size=full/)
+	const [natural, shown] = await now.evaluate((img: HTMLImageElement) => [img.naturalWidth, img.getBoundingClientRect().width])
+	expect(natural).toBeGreaterThanOrEqual(Math.min(shown, 800))
 
 	// and who made it, on a line with its layer's glyph: the playlist, the track and the plugin; or, in the minute after a quarter hour,
 	// the fixture's Quarter-hour clock task on the priority layer (it covers the playlist then: the test cannot choose the time it runs)

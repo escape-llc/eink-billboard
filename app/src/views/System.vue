@@ -174,7 +174,8 @@
 				</div>
 				<div v-if="current" class="now">
 					<button type="button" class="thumb" :aria-label="`Show ${title(current)} full size`" @click="full = current">
-						<img :src="link.imageUrl(current.values?.digest)" :alt="title(current)" />
+						<!-- the panel's own pixels: the card is wider than the 320 pixel thumbnail, which the browser blurred when it enlarged it -->
+						<img :src="link.imageUrl(current.values?.digest, 'full')" :alt="title(current)" />
 					</button>
 					<div class="player">
 						<div class="player-head">

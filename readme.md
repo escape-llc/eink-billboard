@@ -610,7 +610,7 @@ The web app's **System** page (the left menu, #390) is where you see how the dev
 
 The page's toolbar (as on the playlist page) has a stop / play and a next-track button for the playlist (see "Transport" above; the timer tasks keep running), then **Back up**, **Restore** and **Device password**, each of which opens a dialog. Beside the facts, two panels follow the device live:
 * **Playback (toolbar):** the playlist's buttons. The button follows the playlist layer's own `transport` events, and asks `GET /api/transport` when the page opens or the link comes back, so a page opened while playback is stopped shows it stopped.
-* **Now showing (panel):** a thumbnail of what the panel shows, with the layers it was composed of (background, blend, override, timer blend, priority, overlays). Click it for full size.
+* **Now showing (panel):** what the panel shows, at its own size, with the layers it was composed of (background, blend, override, timer blend, priority, overlays). Click it for full size.
 * **Recently shown (panel):** the last few pages before the one on the panel, as thumbnails (click for full size).
 * **Activity (panel):** what the device reports, with a source filter and "Problems only".
 
