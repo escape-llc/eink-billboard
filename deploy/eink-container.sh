@@ -128,6 +128,21 @@ wait_ready() {
 store_free_kb() { df -Pk "$(podman info --format '{{.Store.GraphRoot}}' 2>/dev/null || echo "$HOME")" 2>/dev/null | awk 'NR==2 {print $4}'; }
 BUILD_NEEDS_KB=6000000
 
+# what the end of a failed build says it was, and what to do (it used to say "network or space" for everything)
+build_failure_hint() {
+	local log=$1
+	if grep -qiE "slirp4netns|pasta|netavark|rootlessport" "$log"; then
+		say "This is the container's network failing to start (not the disk or the code). It is usually left-over processes or a full /run/user. Try, in order:"
+		say "    1. podman system migrate        (restarts Podman's helper processes; stop the app first if it runs: $SCRIPT stop)"
+		say "    2. df -h /run/user/$(id -u)      (it should not be full)"
+		say "    3. EINK_BUILD_NETWORK=host $SCRIPT build      (builds on the Pi's own network, with nothing in between)"
+	elif grep -qiE "no space left on device|ENOSPC" "$log"; then
+		say "The disk is full. 'podman system df' shows what Podman holds; 'podman image prune -a' removes unused images; 'df -h / /var/tmp ~' shows where."
+	elif grep -qiE "could not resolve|temporary failure in name resolution|connection (timed out|refused|reset)|network is unreachable|tls|i/o timeout" "$log"; then
+		say "A download failed: the Pi's internet or a site was not answering. Try again."
+	fi
+}
+
 cmd_build() {
 	podman_version_ok || warn "Podman $(podman version --format '{{.Client.Version}}' 2>/dev/null) is older than 4.3, the oldest this was tried with."
 	case "$(uname -m)" in
@@ -162,11 +177,15 @@ cmd_build() {
 	fi
 	say "Building $IMAGE from $HERE (commit $commit)."
 	say "The first build takes 15 to 20 minutes on a Pi; later ones reuse what did not change. Everything is also written to $log."
-	if ! podman build --target app-device --build-arg "EINK_COMMIT=$commit" --label "eink.commit=$commit" -t "$IMAGE" "$HERE" 2>&1 | tee "$log"; then
+	# EINK_BUILD_NETWORK=host builds on the Pi's own network, with no slirp4netns or pasta in between: for a Pi whose container networking fails (see below)
+	local network=()
+	[ -z "${EINK_BUILD_NETWORK:-}" ] || network=(--network "$EINK_BUILD_NETWORK")
+	if ! podman build "${network[@]}" --target app-device --build-arg "EINK_COMMIT=$commit" --label "eink.commit=$commit" -t "$IMAGE" "$HERE" 2>&1 | tee "$log"; then
 		say ""
 		say "The last lines of the build:"
 		tail -15 "$log" | sed 's/^/    /'
-		fail "the build failed (the whole of it is in $log). A network error: try again. Out of space: podman image prune."
+		build_failure_hint "$log"
+		fail "the build failed (the whole of it is in $log)."
 	fi
 	say ""
 	# "update" starts it next by itself
