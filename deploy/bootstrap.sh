@@ -8,7 +8,8 @@
 #
 # What it does on the Pi itself (everything else, Python, the browser that draws the pages, the panel drivers, is inside the container):
 #   installs Podman and git; turns on SPI and I2C (the panel's connections); adds you to the spi, i2c and gpio groups;
-#   clones the app to ~/eink-billboard; asks which display you have; builds the app (15 to 20 minutes the first time);
+#   clones the app to ~/eink-billboard; asks which display you have; downloads the app (or builds it, 15 to 20 minutes, when
+#   there is no download for that version);
 #   starts it on port 8080; makes it start when the Pi starts; prints the address and the setup code.
 #
 # Options:     --yes      do not ask (the display is EINK_DISPLAY, or mock)       --dry-run   say what it would do, change nothing
@@ -41,7 +42,7 @@ eInk Billboard setup for a Raspberry Pi 4 or 5 (Raspberry Pi OS 64-bit). Run it 
   curl -fsSL https://raw.githubusercontent.com/escape-llc/eink-billboard/master/deploy/bootstrap.sh | bash
 
 It says what it will do and asks once, then: installs Podman and git, turns on SPI and I2C, adds you to the spi, i2c and gpio
-groups, clones the app to ~/eink-billboard, asks which display you have, builds the app (15 to 20 minutes the first time),
+groups, clones the app to ~/eink-billboard, asks which display you have, downloads the app (or builds it, 15 to 20 minutes),
 starts it on port 8080, makes it start when the Pi starts, and prints the address and the setup code.
 Run it again at any time: it continues after a restart it asked for, and later it updates the app.
 
@@ -139,7 +140,7 @@ EOF
 		[ ${#groups_missing[@]} -eq 0 ] || say "  - add you to the group(s) ${groups_missing[*]} (so the app may use the panel)"
 		say "  - get the app into $DIR (from $REPO, $REF)"
 		say "  - ask which display you have"
-		say "  - build the app (15 to 20 minutes the first time) and start it on port 8080"
+		say "  - download the app (or build it, 15 to 20 minutes, when there is no download) and start it on port 8080"
 		say "  - make it start when the Pi starts"
 		[ "$DRY" -eq 0 ] || say "(--dry-run: nothing will be changed)"
 		say ""
@@ -237,9 +238,9 @@ EOF
 	printf '%s\n' "$chosen" > "$STATE_DIR/display"
 	say "Display: $kind${model:+ $model}"
 
-	# ---- build -------------------------------------------------------------------------------------------------------------------------------------
-	step "Building the app (15 to 20 minutes the first time; a few after an update)"
-	"$KIT" build || exit 1
+	# ---- the app's image ---------------------------------------------------------------------------------------------------------------------------
+	step "Getting the app (a download of a few minutes; a build of 15 to 20 when there is none for this version)"
+	"$KIT" get || exit 1
 
 	if [ "$reboot" -eq 1 ]; then
 		step "Restart the Pi"

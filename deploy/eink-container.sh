@@ -2,8 +2,10 @@
 # eInk Billboard in a Podman container on a Raspberry Pi 4 or 5, built from this checkout.
 # Everything needed to build it, run it and find out why it does not work. Run it as yourself (not with sudo), from anywhere:
 #
-#   deploy/eink-container.sh update [TAG]        bring it up to date: fetch the latest code, build it, start it (data kept); TAG switches to that release
+#   deploy/eink-container.sh update [TAG]        bring it up to date: fetch the latest code, get its image, start it (data kept); TAG switches to that release
+#   deploy/eink-container.sh get                 get the image of this checkout: download the one GitHub made (a few minutes), or build it when there is none
 #   deploy/eink-container.sh build               build the image from this checkout as it is (15 to 20 minutes the first time, a few after a change)
+#   deploy/eink-container.sh rollback            go back to the image that ran before the last update or build, and start it (again: forward); asks first
 #   deploy/eink-container.sh start               start the app (or start it again), with the panel's devices, on port 8080 of every address of the Pi
 #   deploy/eink-container.sh stop                stop it (the settings, schedules and password are kept)
 #   deploy/eink-container.sh logs [-f]           the app's log (-f follows it; Ctrl+C to stop)
@@ -24,6 +26,8 @@
 #   EINK_ALLOW_HOSTS   names the app answers to besides addresses, comma separated (<hostname>,<hostname>.local)
 #   EINK_API_TOKEN     a token for scripts; it also counts as setting the device up (no setup code then)
 #   EINK_NAME, EINK_IMAGE, EINK_VOLUME   the container (eink), the image (localhost/eink-device), the data volume (eink-data)
+#   EINK_REGISTRY      where the images GitHub made are downloaded from (ghcr.io/escape-llc/eink-billboard)
+#   EINK_PULL          0: never download, always build here
 #
 # What the Pi needs: Raspberry Pi OS 64-bit, Podman (sudo apt install podman), SPI on (and I2C for an Inky panel: sudo raspi-config, Interface Options),
 # and your user in the spi, i2c and gpio groups. "check" says which of these is missing and how to fix it.
@@ -34,6 +38,9 @@ set -o pipefail
 
 NAME=${EINK_NAME:-eink}
 IMAGE=${EINK_IMAGE:-localhost/eink-device}
+# the image that ran before the last update or build, kept for "rollback"; the one before it is left with no name, and removed
+PREVIOUS="$IMAGE-previous"
+REGISTRY=${EINK_REGISTRY:-ghcr.io/escape-llc/eink-billboard}
 VOLUME=${EINK_VOLUME:-eink-data}
 PORT=${EINK_PORT:-8080}
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -185,7 +192,8 @@ cmd_build() {
 	# EINK_BUILD_NETWORK=host builds on the Pi's own network, with no slirp4netns or pasta in between: for a Pi whose container networking fails (see below)
 	local network=()
 	[ -z "${EINK_BUILD_NETWORK:-}" ] || network=(--network "$EINK_BUILD_NETWORK")
-	if ! podman build "${network[@]}" --target app-device --build-arg "EINK_COMMIT=$commit" --label "eink.commit=$commit" -t "$IMAGE" "$HERE" 2>&1 | tee "$log"; then
+	keep_previous
+	if ! podman build "${network[@]}" --target app-device --build-arg "EINK_COMMIT=$commit" --label "eink.commit=$commit" --label "eink.built-by=local" -t "$IMAGE" "$HERE" 2>&1 | tee "$log"; then
 		say ""
 		say "The last lines of the build:"
 		tail -15 "$log" | sed 's/^/    /'
@@ -197,11 +205,112 @@ cmd_build() {
 	if [ "${IN_UPDATE:-0}" = 1 ]; then say "Built $IMAGE (commit $commit)."; else say "Built $IMAGE (commit $commit). Start it with:  $SCRIPT start"; fi
 }
 
-# the commit the image was built from (its label), or "unknown"
+# the commit an image ($1, the app's by default) was built from (its label), or "unknown"
 image_commit() {
 	local built
-	built=$(podman image inspect -f '{{index .Labels "eink.commit"}}' "$IMAGE" 2>/dev/null)
+	built=$(podman image inspect -f '{{index .Labels "eink.commit"}}' "${1:-$IMAGE}" 2>/dev/null)
 	case "$built" in ''|'<no value>') echo unknown ;; *) echo "$built" ;; esac
+}
+
+# who made an image ($1, the app's by default): "GitHub" (downloaded) or "this Pi" (built here; an image from before the label was built here too)
+image_maker() {
+	case "$(podman image inspect -f '{{index .Labels "eink.built-by"}}' "${1:-$IMAGE}" 2>/dev/null)" in
+		github) echo "GitHub" ;;
+		*) echo "this Pi" ;;
+	esac
+}
+
+# whether a commit label ($1, short) is the clone's commit: the label is the start of the full commit (GitHub labels 7 characters; a Pi's git may use more)
+same_commit() {
+	local full
+	full=$(git -C "$HERE" rev-parse HEAD 2>/dev/null) || return 1
+	[ -n "$1" ] && [ "$1" != unknown ] && [ "${full#"$1"}" != "$full" ]
+}
+
+# the tag GitHub published this checkout's image under: the release tag when the clone is exactly on one, else its commit (sha-<the full commit>)
+published_tag() {
+	local tag full
+	if tag=$(git -C "$HERE" describe --tags --exact-match 2>/dev/null) && [[ "$tag" =~ ^v[0-9A-Za-z._-]{1,100}$ ]]; then
+		echo "$tag"
+		return 0
+	fi
+	full=$(git -C "$HERE" rev-parse HEAD 2>/dev/null) || return 1
+	echo "sha-$full"
+}
+
+# the image with the app's name becomes the previous one, for "rollback"; the one that was previous is left with no name, and goes with the next tidy-up
+keep_previous() {
+	podman image exists "$IMAGE" || return 0
+	podman tag "$IMAGE" "$PREVIOUS" >/dev/null 2>&1 || warn "the image that runs now could not be kept for a rollback."
+}
+
+# images left with no name (an older app image, a build's leftovers) that no container uses are removed; the app's and the previous one keep their names, and stay
+tidy_images() {
+	local before_kb after_kb
+	before_kb=$(store_free_kb)
+	if podman image prune -f >/dev/null 2>&1; then
+		after_kb=$(store_free_kb)
+		[ -n "$before_kb" ] && [ -n "$after_kb" ] && [ "$after_kb" -gt "$before_kb" ] && say "Removed old images: $(( (after_kb - before_kb) / 1024 )) MB freed."
+	fi
+	return 0
+}
+
+# download the image GitHub made for this checkout and give it the app's name; fails, changing nothing, when there is none, it is not this checkout's, or EINK_PULL=0
+pull_image() {
+	[ "${EINK_PULL:-1}" != 0 ] || { say "EINK_PULL=0: not downloading, building here."; return 1; }
+	local tag ref made
+	tag=$(published_tag) || return 1
+	ref="$REGISTRY:$tag"
+	say "Downloading the image GitHub made for this version ($tag)."
+	# EINK_REGISTRY_TLS_VERIFY=false only for a registry of one's own on this machine (a test's)
+	if ! podman pull --tls-verify="${EINK_REGISTRY_TLS_VERIFY:-true}" "$ref"; then
+		warn "there is no image to download for this version (GitHub may still be making it, a few minutes after a change, or there is none for this kind of machine): building it here instead."
+		return 1
+	fi
+	# the image says which commit it is: it must be this checkout's, or the app and the clone would disagree
+	made=$(image_commit "$ref")
+	if ! same_commit "$made"; then
+		warn "the downloaded image says it is commit $made, not this checkout's ($(git -C "$HERE" rev-parse --short HEAD)): building it here instead."
+		# "untag IMAGE NAME" removes that one name; "untag IMAGE" alone removes every name the image has (the app's too)
+		podman untag "$ref" "$ref" >/dev/null 2>&1
+		return 1
+	fi
+	keep_previous
+	podman tag "$ref" "$IMAGE" || { warn "the downloaded image could not be named $IMAGE: building it here instead."; return 1; }
+	# one name only: when the next image takes the app's name, this one is left with none, and goes
+	podman untag "$ref" "$ref" >/dev/null 2>&1
+	say "Downloaded $IMAGE (commit $made, made by GitHub)."
+	return 0
+}
+
+# the image of this checkout: downloaded when GitHub made it, else built here
+cmd_get() {
+	if same_commit "$(image_commit)" && podman image exists "$IMAGE"; then
+		say "The image is already this checkout's (commit $(image_commit), made by $(image_maker))."
+		return 0
+	fi
+	if pull_image; then
+		tidy_images
+		[ "${IN_UPDATE:-0}" = 1 ] || say "Start it with:  $SCRIPT start"
+		return 0
+	fi
+	cmd_build
+}
+
+# go back to the image that ran before (and "rollback" again goes forward): the two swap names, then the app starts on it
+cmd_rollback() {
+	podman image exists "$PREVIOUS" || fail "there is no earlier image to go back to: one is kept from the second update or build on."
+	local now before swap="$IMAGE-swap"
+	now=$(image_commit)
+	before=$(image_commit "$PREVIOUS")
+	say "The app's image is commit $now; the one before it is commit $before (made by $(image_maker "$PREVIOUS"))."
+	say "Settings saved by the newer version are kept; the older one does not change what it does not know, and names it in its log and on the System page."
+	confirm "This starts commit $before in place of $now. 'rollback' again goes forward." "yes"
+	podman tag "$IMAGE" "$swap" && podman tag "$PREVIOUS" "$IMAGE" && podman tag "$swap" "$PREVIOUS" \
+		|| fail "the images could not be swapped: 'podman images' lists them."
+	podman untag "$swap" "$swap" >/dev/null 2>&1
+	say "Commit $before has the app's name now; the clone stays at $(git -C "$HERE" rev-parse --short HEAD 2>/dev/null || echo unknown) ('$SCRIPT update' brings the newer one back)."
+	cmd_start
 }
 
 # fetch the latest code, build it, start it: the one command for "bring it up to date" ($1, optional: a branch or tag to switch to)
@@ -233,34 +342,27 @@ cmd_update() {
 		say "On $(git -C "$HERE" describe --tags --exact-match 2>/dev/null || echo "commit $before"), which does not move. For another release:  $SCRIPT update <tag>"
 	fi
 
-	local now
-	now=$(git -C "$HERE" rev-parse --short HEAD)
-	if [ "$now" = "$(image_commit)" ] && podman image exists "$IMAGE"; then
+	if same_commit "$(image_commit)" && podman image exists "$IMAGE"; then
 		if running; then
 			say "The app already runs this code: nothing to do."
 			return 0
 		fi
-		say "The image is already built from this code."
+		say "The image is already this code's."
 	else
-		section "Building"
-		IN_UPDATE=1 cmd_build
+		section "Getting the app"
+		IN_UPDATE=1 cmd_get
 	fi
 
 	section "Starting"
 	cmd_start
 
-	# the build moved the image's name to the new one, and the old one (and the layers only it used) are left behind, a few GB each time; the
-	# container now runs the new image, so they are unused. Only unused images go; a failure here is not one for the update.
-	local before_kb after_kb
-	before_kb=$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print $4}')
-	if podman image prune -f >/dev/null 2>&1; then
-		after_kb=$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print $4}')
-		[ -n "$before_kb" ] && [ -n "$after_kb" ] && [ "$after_kb" -gt "$before_kb" ] && say "Removed old images: $(( (after_kb - before_kb) / 1024 )) MB freed."
-	fi
+	# the new image took the app's name, the one that ran is now the previous one (for "rollback"), and the one before that has no name left: the
+	# container runs the new image, so it is unused, and goes. Only unused images go; a failure here is not one for the update.
+	tidy_images
 }
 
 cmd_start() {
-	podman image exists "$IMAGE" || fail "there is no image yet. Build it first:  $SCRIPT build"
+	podman image exists "$IMAGE" || fail "there is no image yet. Get it first:  $SCRIPT get"
 	if [ "$PORT" -lt 1024 ]; then
 		local lowest
 		lowest=$(cat /proc/sys/net/ipv4/ip_unprivileged_port_start 2>/dev/null || echo 1024)
@@ -402,8 +504,11 @@ cmd_check() {
 		built=$(image_commit)
 		local checkout
 		checkout=$(git -C "$HERE" rev-parse --short HEAD 2>/dev/null || echo unknown)
-		note "image $IMAGE, built $(podman image inspect -f '{{.Created}}' "$IMAGE" | cut -c1-16) from commit $built"
-		if [ "$built" = "$checkout" ]; then
+		note "image $IMAGE, made by $(image_maker) $(podman image inspect -f '{{.Created}}' "$IMAGE" | cut -c1-16) from commit $built"
+		if podman image exists "$PREVIOUS"; then
+			note "the image before it (for '$SCRIPT rollback'): commit $(image_commit "$PREVIOUS"), made by $(image_maker "$PREVIOUS")"
+		fi
+		if same_commit "$built"; then
 			note "the image is this checkout's commit"
 		elif [ "$built" = unknown ] || [ "$checkout" = unknown ]; then
 			info "cannot tell whether the image is this checkout's commit ($checkout); to be sure: '$SCRIPT update'"
@@ -660,7 +765,9 @@ preflight "$command"
 shift
 case "$command" in
 	build) cmd_build ;;
+	get) cmd_get ;;
 	update) cmd_update "$@" ;;
+	rollback) cmd_rollback ;;
 	start|restart) cmd_start ;;
 	stop) cmd_stop ;;
 	logs) cmd_logs "$@" ;;
