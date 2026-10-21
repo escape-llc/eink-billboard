@@ -31,9 +31,10 @@ def place_of(dsec: DataSourceExecutionContext, name: Any) -> tuple[str, float, f
 		_, settings = dsec.provider.required(DatasourceConfigurationManager).open().get()
 		for entry in (settings or {}).get("places") or []:
 			if isinstance(entry, dict) and entry.get("name") == name:
-				latitude, longitude = number(entry.get("latitude")), number(entry.get("longitude"))
+				where = entry.get("location")
+				latitude, longitude = (number(where.get("latitude")), number(where.get("longitude"))) if isinstance(where, dict) else (None, None)
 				if latitude is None or longitude is None:
-					raise PermanentError(f"The place '{name}' has no position. Set it in the Thunderforest Map settings.")
+					raise PermanentError(f"The place '{name}' has no location. Set it in the Thunderforest Map settings.")
 				return name, latitude, longitude
 		# nothing to retry: the place was renamed or removed from the settings
 		raise PermanentError(f"The place '{name}' is not in the Thunderforest Map settings.")

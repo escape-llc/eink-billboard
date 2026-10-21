@@ -124,13 +124,14 @@ const items = ref([
 			</template>
 			-->
 		</InputGroup>
-		<div class="flex flex-row p-0 m-0 pl-2" style="flex-grow:1">
+		<!-- one line, whatever the width: the name and the build do not wrap or stack -->
+		<div class="flex flex-row p-0 m-0 pl-2" style="flex-grow:1;flex-wrap:nowrap;gap:.5rem;white-space:nowrap">
 			<h2
 			class="m-0"
-			style="font-size:100%;align-self:baseline;width:6rem">eInk Billboard</h2>
+			style="font-size:100%;align-self:baseline;flex:none">eInk Billboard</h2>
 			<span
 			class="ml-0"
-			style="align-self:baseline" :title="`Web app build ${commit}`" data-testid="app-version">v{{version}} ({{commit}})</span>
+			style="align-self:baseline;flex:none" :title="`Web app build ${commit}`" data-testid="app-version">v{{version}} ({{commit}})</span>
 		</div>
 		</div>
 	</template>

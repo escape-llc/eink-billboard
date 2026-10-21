@@ -331,7 +331,7 @@ class TestDescriptorRules(unittest.TestCase):
 				own = { k: v for k, v in prop.items() if k not in ("visibleIf", "required") }
 				self.assertEqual(validate_properties({ prop["name"]: prop["default"] }, [own]), [])
 
-	ITEM_TYPES = ("string", "boolean", "number", "integer")
+	ITEM_TYPES = ("string", "boolean", "number", "integer", "location")
 
 	def test_arrays_and_settings_lookups_have_the_supported_shape(self):
 		root, files = self._files()

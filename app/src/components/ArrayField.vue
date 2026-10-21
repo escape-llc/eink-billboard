@@ -10,6 +10,10 @@
 					<label v-if="stacked" class="array-label">{{ f.title }}</label>
 					<ToggleSwitch v-if="f.type === 'boolean'" size="small" :modelValue="row[f.name] === true" :aria-label="`${f.title} ${index + 1}`"
 						@update:modelValue="(v: boolean) => change(index, f.name, v)" />
+					<!-- a location is chosen on a map, as everywhere else (the System settings): the picker sits in the row, a block of its own -->
+					<div v-else-if="f.type === 'location'" class="array-location" :class="{ invalid: !!cellError(index, f.name) }">
+						<LeafletPicker :name="`${f.name}-${index}`" :modelValue="(row[f.name] as any) ?? undefined" @change="(e: { value: unknown }) => change(index, f.name, e.value)" />
+					</div>
 					<Select v-else-if="f.enum" size="small" fluid :options="f.enum" :modelValue="row[f.name]" :placeholder="f.title" :aria-label="`${f.title} ${index + 1}`"
 						:showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
 						@update:modelValue="(v: unknown) => change(index, f.name, v ?? null)" />
@@ -50,6 +54,7 @@
 import { computed } from "vue"
 import { Button, InputNumber, InputText, Message, Select, ToggleSwitch } from "primevue"
 import ColorField from "./ColorField.vue"
+import LeafletPicker from "./LeafletPicker.vue"
 import RowAction from "./RowAction.vue"
 import TestUrlButton from "./TestUrlButton.vue"
 import { isVisible } from "./FormVisibility"
@@ -71,7 +76,8 @@ const emits = defineEmits<{ (e: "update:modelValue", value: Row[]): void }>()
 const itemFields = computed<any[]>(() => props.field.items?.properties ?? [])
 const rows = computed<Row[]>(() => Array.isArray(props.modelValue) ? props.modelValue : [])
 // more fields than fit across: each row is a block of labelled fields instead of a line under one header
-const stacked = computed(() => itemFields.value.length > 4)
+// (a map needs room: a row with a location is a block too)
+const stacked = computed(() => itemFields.value.length > 4 || itemFields.value.some(f => f.type === "location"))
 
 const text = (row: Row, name: string): string => typeof row[name] === "string" ? row[name] : ""
 const numeric = (row: Row, name: string): number|null => typeof row[name] === "number" ? row[name] : null
@@ -111,6 +117,13 @@ function cellError(index: number, name: string): string|undefined {
 }
 </script>
 <style scoped>
+.array-location {
+	width: 100%;
+	height: 300px;
+}
+.array-location.invalid {
+	outline: 1px solid var(--p-red-500);
+}
 .array-field {
 	display: flex;
 	flex-direction: column;
