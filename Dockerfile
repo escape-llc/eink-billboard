@@ -23,7 +23,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends chromium-headless-shell unzip zip \
 	&& rm -rf /var/lib/apt/lists/*
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+# uv pinned by version and digest (#456): the version setup-uv gave CI when it was pinned; Dependabot (docker) proposes the next
+COPY --from=ghcr.io/astral-sh/uv:0.13.4@sha256:9f130421e930bfbdc563c00740466603f8723158e90297d07957c2294640262b /uv /uvx /usr/local/bin/
 # The environment lives outside the source tree so a bind-mounted checkout (with a Windows .venv) cannot clobber it.
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
 	UV_LINK_MODE=copy \

@@ -31,3 +31,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+  # the base images and the pinned uv image in the Dockerfile (#456): a pin by digest gets its update proposed here
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"

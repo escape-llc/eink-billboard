@@ -109,5 +109,34 @@ class TestDispatcherExclude(unittest.TestCase):
 		self.assertTrue(is_excluded(self.helper_fn))
 		self.assertFalse(is_excluded(self.regular_fn))
 
+class TestPostponedAnnotations(unittest.TestCase):
+	"""With `from __future__ import annotations` every annotation is a string: handlers are still found (#456)."""
+	def test_a_task_in_such_a_module_dispatches_its_messages(self):
+		from .postponed_annotations_task import PostponedTask
+		task = PostponedTask()
+		self.assertIn(MessageWithContent, task.handlers)
+		task.start()
+		task.accept(MessageWithContent(datetime.now(), 'payload'))
+		task.accept(QuitMessage(datetime.now()))
+		task.join()
+		self.assertEqual(task.received, ['payload'])
+
+	def test_a_message_type_that_cannot_be_resolved_is_said_at_once(self):
+		from .postponed_annotations_task import UnresolvableTask
+		with self.assertLogs("python.task.basic_task", level="WARNING") as logs:
+			task = UnresolvableTask()
+		self.assertEqual(task.handlers, {})
+		self.assertIn("on_telemetry", "\n".join(logs.output))
+		self.assertIn("cannot be resolved", "\n".join(logs.output))
+
+	def test_a_string_annotation_that_is_not_a_message_says_nothing(self):
+		class Helper(DispatcherTask):
+			# a name that does not exist, on purpose: an annotation that cannot be resolved and is not a message's
+			def plain(self, value: "NotAThing") -> None:  # type: ignore[name-defined]  # noqa: F821
+				pass
+		with self.assertNoLogs("python.task.basic_task", level="WARNING"):
+			task = Helper()
+		self.assertEqual(task.handlers, {})
+
 if __name__ == '__main__':
 	unittest.main()
