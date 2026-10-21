@@ -1,0 +1,109 @@
+name: Device image
+
+# The image a Raspberry Pi downloads instead of building (#310): the `app-device` target, built natively on GitHub's arm64 runners and published to
+# ghcr.io/escape-llc/eink-billboard. Every push to master publishes `sha-<commit>` (what `deploy/eink-container.sh update` asks for: the clone's own commit)
+# and `edge`; a release tag `v...` also publishes `<tag>` and `latest`. A pull request that touches the image builds it without publishing (a fork's has no
+# right to, and nothing it builds is kept).
+on:
+  push:
+    branches: [ "master" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "master" ]
+    paths: [ "Dockerfile", ".dockerignore", ".github/workflows/image.yaml", "pyproject.toml", "uv.lock", "app/package.json", "app/package-lock.json" ]
+
+permissions:
+  contents: read
+
+# one build per ref at a time, none cancelled: a commit whose image was never published is built on the Pi instead, which is slow
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7
+
+    - name: Name the image and its tags
+      id: names
+      # every value comes from the environment, never from an expression in the script (a ref name is text someone chose)
+      run: |
+        image="ghcr.io/${GITHUB_REPOSITORY,,}"
+        short="${GITHUB_SHA::7}"
+        tags="$image:sha-$GITHUB_SHA"
+        if [ "$GITHUB_REF_TYPE" = tag ]; then
+          if ! [[ "$GITHUB_REF_NAME" =~ ^v[0-9A-Za-z._-]{1,100}$ ]]; then
+            echo "::error::a release tag is v followed by letters, digits, dots, dashes or underscores"
+            exit 1
+          fi
+          tags="$tags,$image:$GITHUB_REF_NAME,$image:latest"
+        elif [ "$GITHUB_EVENT_NAME" = push ]; then
+          tags="$tags,$image:edge"
+        fi
+        {
+          echo "image=$image"
+          echo "short=$short"
+          echo "tags=$tags"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Log in to GitHub's container registry
+      if: github.event_name == 'push'
+      env:
+        TOKEN: ${{ github.token }}
+      run: echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+    - name: Make a builder that can keep a cache in the registry
+      run: docker buildx create --use --name eink
+
+    - name: Build (and publish, on master or a tag)
+      id: build
+      env:
+        IMAGE: ${{ steps.names.outputs.image }}
+        SHORT: ${{ steps.names.outputs.short }}
+        TAGS: ${{ steps.names.outputs.tags }}
+        PUBLISH: ${{ github.event_name == 'push' }}
+      run: |
+        args=(--platform linux/arm64 --target app-device
+          --build-arg "EINK_COMMIT=$SHORT"
+          --label "eink.commit=$SHORT" --label "eink.built-by=github"
+          --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY"
+          --label "org.opencontainers.image.revision=$GITHUB_SHA"
+          --cache-from "type=registry,ref=$IMAGE:buildcache"
+          --metadata-file metadata.json)
+        IFS=, read -ra names <<< "$TAGS"
+        for name in "${names[@]}"; do args+=(-t "$name"); done
+        if [ "$PUBLISH" = true ]; then
+          args+=(--push --cache-to "type=registry,ref=$IMAGE:buildcache,mode=max")
+        fi
+        docker buildx build "${args[@]}" .
+        echo "digest=$(jq -r '."containerimage.digest" // empty' metadata.json)" >> "$GITHUB_OUTPUT"
+
+    - name: Attest where the image came from
+      if: github.event_name == 'push'
+      uses: actions/attest-build-provenance@v4
+      with:
+        subject-name: ${{ steps.names.outputs.image }}
+        subject-digest: ${{ steps.build.outputs.digest }}
+        push-to-registry: true
+
+    - name: Summary
+      env:
+        TAGS: ${{ steps.names.outputs.tags }}
+        DIGEST: ${{ steps.build.outputs.digest }}
+        PUBLISH: ${{ github.event_name == 'push' }}
+      run: |
+        {
+          if [ "$PUBLISH" = true ]; then echo "Published \`$DIGEST\` as:"; else echo "Built (not published) as:"; fi
+          IFS=, read -ra names <<< "$TAGS"
+          tick=$'\x60'
+          for name in "${names[@]}"; do printf -- '- %s%s%s\n' "$tick" "$name" "$tick"; done
+        } >> "$GITHUB_STEP_SUMMARY"
