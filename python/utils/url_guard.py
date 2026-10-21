@@ -34,11 +34,30 @@ async def _resolve(host: str, port: int) -> list[str]:
 	infos = await asyncio.get_running_loop().getaddrinfo(host, port, type=socket.SOCK_STREAM)
 	return [str(info[4][0]) for info in infos]
 
+# NAT64's well-known prefix (RFC 6052): the IPv4 address is the last 32 bits
+NAT64 = ipaddress.ip_network("64:ff9b::/96")
+
+def embedded_ipv4(ip: ipaddress.IPv6Address) -> ipaddress.IPv4Address|None:
+	"""The IPv4 address an IPv6 address stands for, when it is one of the forms that reach an IPv4 host: mapped (`::ffff:a.b.c.d`), 6to4 (`2002::/16`) or NAT64 (`64:ff9b::/96`)."""
+	if ip.ipv4_mapped is not None:
+		return ip.ipv4_mapped
+	if ip.sixtofour is not None:
+		return ip.sixtofour
+	if ip in NAT64:
+		return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+	return None
+
 def refused_reason(address: str) -> str|None:
-	"""Why an IP address may not be fetched, or None when it may."""
-	ip = ipaddress.ip_address(address.split("%", 1)[0])
-	if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
-		ip = ip.ipv4_mapped
+	"""
+	Why an IP address may not be fetched, or None when it may. An IPv6 address that stands for an IPv4 one (mapped, 6to4, NAT64) is judged by that IPv4 address:
+	on a network that translates them, `2002:7f00:1::` is this device and `64:ff9b::a9fe:a9fe` is the metadata address. Teredo is refused outright (a tunnel nothing
+	on a home network needs, whose embedded address is the server's, not the destination's).
+	"""
+	ip: ipaddress.IPv4Address|ipaddress.IPv6Address = ipaddress.ip_address(address.split("%", 1)[0])
+	if isinstance(ip, ipaddress.IPv6Address):
+		if ip.teredo is not None:
+			return "a reserved address"
+		ip = embedded_ipv4(ip) or ip
 	if ip.is_loopback or ip.is_unspecified:
 		return "this device"
 	if ip.is_link_local:

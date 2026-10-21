@@ -22,6 +22,20 @@ class TestRefusedReason(unittest.TestCase):
 			with self.subTest(address):
 				self.assertIsNotNone(refused_reason(address))
 
+	def test_an_ipv6_address_that_stands_for_an_ipv4_one_is_judged_by_it(self):
+		"""Mapped, 6to4 and NAT64 forms reach the IPv4 address inside them on a network that translates them (#456)."""
+		for inside, form in (("127.0.0.1", "2002:7f00:1::"), ("127.0.0.1", "64:ff9b::7f00:1"), ("169.254.169.254", "2002:a9fe:a9fe::1"), ("169.254.169.254", "64:ff9b::a9fe:a9fe"),
+				("127.0.0.1", "::ffff:7f00:1"), ("0.0.0.0", "2002::")):
+			with self.subTest(f"{form} is {inside}"):
+				self.assertIsNotNone(refused_reason(form))
+		# the same forms of a public IPv4 address are the internet (NAT64 is how an IPv6-only network reaches it)
+		for form in ("2002:5db8:d822::", "64:ff9b::5db8:d822", "::ffff:5db8:d822"):
+			with self.subTest(form):
+				self.assertIsNone(refused_reason(form))
+
+	def test_teredo_is_refused(self):
+		self.assertEqual(refused_reason("2001:0:4136:e378:8000:63bf:3fff:fdd2"), "a reserved address")
+
 	def test_the_home_network_and_the_internet_are_allowed(self):
 		for address in ("192.168.1.20", "10.0.0.5", "172.16.4.4", "fd12:3456:789a::1", PUBLIC, "2606:2800:220:1:248:1893:25c8:1946", "::ffff:192.168.1.20"):
 			with self.subTest(address):
