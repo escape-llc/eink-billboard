@@ -16,6 +16,7 @@ from ..datasources.content_cache import BLOB_PREFIX, blob_name, download_for, fe
 from ..datasources.data_source import DataSourceExecutionContext
 from ..model.configuration_manager import DatasourceConfigurationManager
 from ..model.service_container import ServiceContainer
+from ..model.time_of_day import TimeOfDay
 from ..task.async_http_worker_pool import client_var
 from ..task.message_router import MessageRouter
 from ..task.messages import Telemetry
@@ -200,6 +201,27 @@ class TestTelemetry(CacheTestBase):
 		self.assertEqual(sent[1].name, "data-source")
 		self.assertEqual((sent[1].values["datasource"], sent[1].values["bytes"]), ("wpotd", len(b"picture")))
 		self.assertNotIn("SECRET", str([m.values for m in sent]))
+
+	def test_the_event_is_said_on_the_devices_clock_not_the_processes(self):
+		"""In a container the process's zone is UTC: the event said 18:17 between events at 14:17 (#456 follow-up)."""
+		sent: list[Telemetry] = []
+		class Router(MessageRouter):
+			def send(self, route, msg):  # type: ignore[override]
+				sent.append(msg)  # type: ignore[arg-type]
+		device = datetime(2026, 10, 21, 14, 17, 21, tzinfo=timezone(timedelta(hours=-4)))
+		class Clock:
+			def current_time(self) -> datetime:
+				return device
+		services = ServiceContainer()
+		services.add_service(DatasourceConfigurationManager, self.dscm)
+		services.add_service(MessageRouter, Router())
+		services.add_service(TimeOfDay, Clock())
+		dsec = DataSourceExecutionContext(services, (800, 480), NOW)
+		async def run() -> None:
+			client_var.set(httpx.AsyncClient(transport=httpx.MockTransport(Origin())))
+			await download_for(dsec, URL, default_hours=24)
+		asyncio.run(run())
+		self.assertEqual(sent[0].timestamp, device)
 
 class TestThePool(CacheTestBase):
 	def test_the_pool_is_bounded_and_the_oldest_use_goes_first(self):

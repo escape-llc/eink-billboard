@@ -48,7 +48,9 @@ class AsyncHttpWorkerPool(IRequireShutdown):
 	def _run_loop(self):
 		asyncio.set_event_loop(self.loop)
 		try:
-			self.client = httpx.AsyncClient(max_redirects=5, timeout=self.REQUEST_TIMEOUT, transport=type(self).default_transport, verify=tls_context())
+			# counted (#440): it belongs to no data source, and `download_for` names the one each download is for (imported here: the meter's module imports this one)
+			from ..datasources.metering import MeteredClient
+			self.client = MeteredClient(None, max_redirects=5, timeout=self.REQUEST_TIMEOUT, transport=type(self).default_transport, verify=tls_context())
 		except BaseException as e:
 			# start() is waiting on _loop_ready: tell it why the loop will never run
 			self._start_error = e
