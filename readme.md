@@ -594,7 +594,7 @@ The **Help** button at the right end of the toolbar (a question mark) slides a d
 ## System page and Telemetry
 The web app's **System** page (the left menu, #390) is where you see how the device is and what it is doing. There is no status button or activity panel in the toolbar any more. It shows:
 * **Device:** whether the display and the two layers came up (`GET /api/status`), and, under **Problems**, the latest few things that went wrong.
-* **Machine:** the operating system, Python, uptime, processor load and memory (the whole machine's and this app's own) and the disk the storage is on (`GET /api/system`, every 10 s). Numbers and our own words only: no host name, address, user or path.
+* **Machine:** the operating system, Python, how long the machine has been up and, separately, how long the app has been running (a restart of the app moves only the second), processor load and memory (the whole machine's and this app's own) and the disk the storage is on (`GET /api/system`, every 10 s). Numbers and our own words only: no host name, address, user or path.
 * **Raspberry Pi** (only on one: the model name in `/proc/device-tree/model` says so): the model, the temperature, the clock and the firmware's power warnings (under-voltage, frequency capped, throttled, temperature limit: now, and since the start).
 * **Storage:** the files and bytes by area (settings, schedules, plugins, data sources, schemas, state) and by plugin and data source, with how much of each is *kept* (downloads, origin answers, lists: what can be fetched again).
 

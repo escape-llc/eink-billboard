@@ -58,7 +58,8 @@
 						<Tag v-if="mismatch" severity="warn" value="Different builds: reload the page" class="ml-2" />
 					</dd>
 					<dt>Python</dt><dd>{{ info.host.python }}</dd>
-					<dt>Up for</dt><dd>{{ formatUptime(info.host.uptime_seconds) }}</dd>
+					<dt>Machine up for</dt><dd>{{ formatUptime(info.host.uptime_seconds) }}</dd>
+					<dt>App running for</dt><dd data-testid="app-uptime">{{ formatUptime(info.host.app_uptime_seconds) }}</dd>
 					<dt>Processor</dt>
 					<dd>
 						{{ info.host.cpus }} {{ info.host.cpus === 1 ? "core" : "cores" }}<template v-if="info.load.cpu_percent !== undefined">, {{ info.load.cpu_percent }}% busy</template>
@@ -225,7 +226,7 @@ type Component = { state: "ok" | "failed" | "starting", message: string }
 type Status = { ok: boolean, components: Record<string, Component> }
 type Owner = { id: string, files: number, bytes: number, kept_bytes: number }
 type SystemInfo = {
-	host: { commit: string, os: string, os_release: string, machine: string, python: string, cpus: number, uptime_seconds?: number }
+	host: { commit: string, os: string, os_release: string, machine: string, python: string, cpus: number, uptime_seconds?: number, app_uptime_seconds?: number }
 	load: { cpu_percent?: number, load?: number[], memory?: { total: number, used: number, percent: number }, app_memory?: number }
 	pi: { model: string, temperature_c?: number, cpu_mhz?: number, cpu_max_mhz?: number, throttled?: string[], throttled_now?: boolean } | null
 	storage: {
