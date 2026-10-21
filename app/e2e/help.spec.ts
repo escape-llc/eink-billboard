@@ -1,35 +1,27 @@
-import { expect, test, type Locator, type Page } from "@playwright/test"
+import { expect, test } from "@playwright/test"
 import { stubMapTiles, watchProblems } from "./support"
 
-// Every form (BasicForm) can hide the help under its fields from its header (HelpToggle): the settings tabs, a timer task, a playlist track.
+// The Help button (it was a cog that went nowhere) opens a drawer that slides out over the page with a short guide, and closes again; the page under it is not left.
 test.beforeEach(async ({ page }) => stubMapTiles(page))
 
-async function toggles(page: Page, scope: Locator) {
-	const help = scope.locator(".field-help")
-	const toggle = scope.getByRole("button", { name: "Help text" }).first()
-	await expect(help.first()).toBeVisible()
-	await expect(toggle).toHaveAttribute("aria-pressed", "true")
-	await toggle.click()
-	await expect(help).toHaveCount(0)
-	await expect(toggle).toHaveAttribute("aria-pressed", "false")
-	await toggle.click()
-	await expect(help.first()).toBeVisible()
-}
-
-test("a settings form hides its help from its header", async ({ page }) => {
+test("the Help button opens a drawer over the page, with the guide in it, and it closes", async ({ page }) => {
 	const watch = watchProblems(page)
-	await page.goto("/#/settings")
-	await page.getByRole("tab", { name: "Data Sources" }).click()
-	await page.getByRole("tabpanel").locator(".p-select").first().click()
-	await page.getByRole("option", { name: "openweathermap", exact: true }).click()
-	await toggles(page, page.getByRole("tabpanel"))
-	watch.expectNone()
-})
-
-test("a timer task's form hides its help from its header", async ({ page }) => {
-	const watch = watchProblems(page)
-	await page.goto("/#/schedule")
-	await page.getByRole("button", { name: "New task" }).click()
-	await toggles(page, page.getByRole("dialog", { name: "New task" }))
+	await page.goto("/#/system")
+	await expect(page.getByRole("complementary").or(page.getByTestId("help"))).toHaveCount(0)
+	await page.getByRole("button", { name: "Help" }).click()
+	const help = page.getByTestId("help")
+	await expect(help).toBeVisible()
+	await expect(help.getByText("First steps")).toBeVisible()
+	// the first section is open; another opens on a click
+	await expect(help.getByText("Settings, System:")).toBeVisible()
+	await help.getByRole("button", { name: "The pages" }).click()
+	await expect(help.getByText("Timer tasks:")).toBeVisible()
+	// the build is the one in the header
+	await help.getByRole("button", { name: "When something is wrong" }).click()
+	await expect(help.getByText(/^v\S+ \(\S+\)$/)).toBeVisible()
+	// the page under it is still the System page
+	expect(page.url()).toContain("#/system")
+	await page.keyboard.press("Escape")
+	await expect(help).toBeHidden()
 	watch.expectNone()
 })
