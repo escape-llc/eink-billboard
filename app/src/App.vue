@@ -3,8 +3,8 @@ import { InputGroup, Toast, TieredMenu, Button, Toolbar, ConfirmDialog } from 'p
 import { RouterLink, RouterView } from 'vue-router'
 import ThemeSelector from './components/ThemeSelector.vue'
 import AuthDialog from './components/AuthDialog.vue'
+import HelpDrawer from './components/HelpDrawer.vue'
 import { onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { signInCount } from './components/ApiClient'
 import { justSignedIn, reloadAfterSignIn } from './components/SignedIn'
@@ -17,7 +17,6 @@ onMounted(() => {
 		toast.add({ severity: 'success', summary: 'Signed in', detail: 'The page was reloaded with the latest data.', life: 4000 })
 	}
 })
-const router = useRouter();
 const menu = ref<InstanceType<typeof TieredMenu>|null>(null)
 const toggleMenu = (event:MouseEvent):void => {
 	menu.value?.toggle(event);
@@ -25,11 +24,8 @@ const toggleMenu = (event:MouseEvent):void => {
 const version = ref(__APP_VERSION__)
 // the commit this bundle was built from: a page that runs an old build says so here (and the System page compares it with the server's)
 const commit = __APP_COMMIT__
-const openSetup = ():void => {
-	router.push({ name: 'setup' }).catch(err => {
-		console.error("navigate to setup error", err);
-	});
-};
+// the Help drawer slides out from the right
+const helpOpen = ref(false)
 const items = ref([
 		{
 			label:"Schedule",
@@ -144,12 +140,13 @@ const items = ref([
 		<InputGroup>
 			<ThemeSelector class="p-button-sm"/>
 			<Button size="small"
-				icon="pi pi-cog"
+				icon="pi pi-question-circle"
 				class="p-button-sm p-button-outlined"
 				type="button"
-				aria-haspopup="true"
-				aria-controls="overlay_tmenu"
-				@click="openSetup()"
+				aria-label="Help"
+				title="Help"
+				data-testid="help-button"
+				@click="helpOpen = true"
 				/>
 			</InputGroup>
 	</template>
@@ -159,6 +156,7 @@ const items = ref([
 	</div>
 	<ConfirmDialog></ConfirmDialog>
 	<AuthDialog />
+	<HelpDrawer v-model:visible="helpOpen" />
 	<Toast position="bottom-left"/>
 </template>
 <style scoped>
