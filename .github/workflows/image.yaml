@@ -31,7 +31,10 @@ jobs:
       attestations: write
     steps:
     - name: Checkout code
-      uses: actions/checkout@v7
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # the job's token can write packages: it is not left in .git/config, where the build (or anything it runs) could read it
+      with:
+        persist-credentials: false
 
     - name: Name the image and its tags
       id: names
@@ -89,7 +92,7 @@ jobs:
 
     - name: Attest where the image came from
       if: github.event_name == 'push'
-      uses: actions/attest-build-provenance@v4
+      uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
       with:
         subject-name: ${{ steps.names.outputs.image }}
         subject-digest: ${{ steps.build.outputs.digest }}
