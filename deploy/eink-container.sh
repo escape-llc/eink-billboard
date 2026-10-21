@@ -255,16 +255,69 @@ tidy_images() {
 	return 0
 }
 
+# how often a download says it is still going, and how long it may write nothing before it is given up (EINK_PULL_TICK, EINK_PULL_STALL: a test's)
+PULL_TICK=${EINK_PULL_TICK:-30}
+PULL_STALL_SECONDS=${EINK_PULL_STALL:-300}
+
+# the free space (KB) of the file system a path is on
+free_kb_at() { df -Pk "$1" 2>/dev/null | awk 'NR==2 {print $4}'; }
+
+# `podman pull` of $1 with a plain line every PULL_TICK seconds instead of Podman's progress bars (which redraw the screen, and stand still while a layer is
+# unpacked): how long, and how much has been written so far. Nothing written for PULL_STALL_SECONDS stops it (exit 124). Podman's own words go to pull.log.
+pull_plainly() {
+	local ref=$1 log="$LOG_DIR/pull.log" store tmp pid start_store start_tmp last now quiet=0 waited=0 written status
+	mkdir -p "$LOG_DIR"
+	# where the image is unpacked, and where Podman keeps the layers while they download: asked once, before the pull holds the storage
+	store=$(podman info --format '{{.Store.GraphRoot}}' 2>/dev/null || echo "$HOME")
+	tmp=${TMPDIR:-/var/tmp}
+	start_store=$(free_kb_at "$store")
+	start_tmp=$(free_kb_at "$tmp")
+	last="$start_store $start_tmp"
+	podman pull -q --tls-verify="${EINK_REGISTRY_TLS_VERIFY:-true}" "$ref" >"$log" 2>&1 &
+	pid=$!
+	# a pull in the background is not stopped by Ctrl+C on its own: stop it with the script (the number is put in now: $pid is gone when the script ends)
+	# shellcheck disable=SC2064
+	trap "kill $pid 2>/dev/null" EXIT
+	while kill -0 "$pid" 2>/dev/null; do
+		sleep "$PULL_TICK" & wait $!
+		kill -0 "$pid" 2>/dev/null || break
+		waited=$((waited + PULL_TICK))
+		now="$(free_kb_at "$store") $(free_kb_at "$tmp")"
+		if [ "$now" != "$last" ]; then quiet=0; last=$now; else quiet=$((quiet + PULL_TICK)); fi
+		if [ "$quiet" -ge "$PULL_STALL_SECONDS" ]; then
+			kill "$pid" 2>/dev/null
+			wait "$pid" 2>/dev/null
+			trap - EXIT
+			return 124
+		fi
+		# what was written: the space taken on the storage's file system, and on the download folder's when it is another one
+		written=$(( ${start_store:-0} - $(free_kb_at "$store") ))
+		[ "$(df -P "$store" 2>/dev/null | awk 'NR==2 {print $1}')" = "$(df -P "$tmp" 2>/dev/null | awk 'NR==2 {print $1}')" ] \
+			|| written=$(( written + ${start_tmp:-0} - $(free_kb_at "$tmp") ))
+		[ "$written" -ge 0 ] || written=0
+		say "  ... $((waited / 60)) min $((waited % 60)) s, $((written / 1024)) MB written so far"
+	done
+	wait "$pid"
+	status=$?
+	trap - EXIT
+	return "$status"
+}
+
 # download the image GitHub made for this checkout and give it the app's name; fails, changing nothing, when there is none, it is not this checkout's, or EINK_PULL=0
 pull_image() {
 	[ "${EINK_PULL:-1}" != 0 ] || { say "EINK_PULL=0: not downloading, building here."; return 1; }
 	local tag ref made
 	tag=$(published_tag) || return 1
 	ref="$REGISTRY:$tag"
-	say "Downloading the image GitHub made for this version ($tag)."
-	# EINK_REGISTRY_TLS_VERIFY=false only for a registry of one's own on this machine (a test's)
-	if ! podman pull --tls-verify="${EINK_REGISTRY_TLS_VERIFY:-true}" "$ref"; then
-		warn "there is no image to download for this version (GitHub may still be making it, a few minutes after a change, or there is none for this kind of machine): building it here instead."
+	say "Downloading the image GitHub made for this version ($tag): about 500 MB, then a few minutes of unpacking on a Pi's SD card."
+	local pulled
+	pull_plainly "$ref"
+	pulled=$?
+	if [ "$pulled" -eq 124 ]; then
+		warn "the download stopped moving (nothing was written for $((PULL_STALL_SECONDS / 60)) minutes; is the Pi's internet slow or gone?): building it here instead. 'update' again tries the download again."
+		return 1
+	elif [ "$pulled" -ne 0 ]; then
+		warn "there is no image to download for this version (GitHub may still be making it, a few minutes after a change, or there is none for this kind of machine): building it here instead. What Podman said is in $LOG_DIR/pull.log."
 		return 1
 	fi
 	# the image says which commit it is: it must be this checkout's, or the app and the clone would disagree
