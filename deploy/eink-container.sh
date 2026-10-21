@@ -127,6 +127,7 @@ wait_ready() {
 # free space where Podman keeps its images, in KB (empty when it cannot be read)
 store_free_kb() { df -Pk "$(podman info --format '{{.Store.GraphRoot}}' 2>/dev/null || echo "$HOME")" 2>/dev/null | awk 'NR==2 {print $4}'; }
 BUILD_NEEDS_KB=6000000
+PRUNE_UNUSED_AFTER=72h
 
 # what the end of a failed build says it was, and what to do (it used to say "network or space" for everything)
 build_failure_hint() {
@@ -134,7 +135,7 @@ build_failure_hint() {
 	if grep -qiE "slirp4netns|pasta|netavark|rootlessport|did not get container start message" "$log"; then
 		# found on a Pi: "slirp4netns failed" at a RUN step was Podman out of room (old images and the leftovers of failed builds), not the network: pruning fixed it
 		say "Podman could not start a build step. Most often it is out of room: old images and the leftovers of earlier failed builds. Try, in order:"
-		say "    1. podman system prune -f --external     (removes unused images and the leftovers of failed builds; the app's data is kept)"
+		say "    1. podman system prune -f --external; podman image prune -a -f     (removes unused images, all of them, and the leftovers of failed builds; the app's data is kept; the next build is slower)"
 		say "    2. df -h / /var/tmp ~ /run/user/$(id -u)    (none should be nearly full)"
 		say "    3. podman system migrate, then $SCRIPT build again"
 		say "    4. EINK_BUILD_NETWORK=host $SCRIPT build    (builds on the Pi's own network, with nothing in between)"
@@ -158,6 +159,9 @@ cmd_build() {
 	before_kb=$(store_free_kb)
 	# the leftovers of failed builds (working containers) hold space an image prune does not free; not every Podman has --external
 	podman system prune -f --external >/dev/null 2>&1 || podman image prune -f >/dev/null 2>&1
+	# every build leaves its layers (the web stage, the Python stage, the base images) as images their children still use, so no plain prune frees them: 28 of them were 24 GB on a Pi.
+	# Unused images older than three days go; the last few builds' layers stay, so a build after an update is still a few minutes, not twenty
+	podman image prune -a -f --filter "until=$PRUNE_UNUSED_AFTER" >/dev/null 2>&1
 	free_kb=$(store_free_kb)
 	[ -n "$before_kb" ] && [ -n "$free_kb" ] && [ "$free_kb" -gt "$before_kb" ] && say "Removed unused images and leftovers of failed builds: $(( (free_kb - before_kb) / 1024 )) MB freed."
 	if [ -n "$free_kb" ] && [ "$free_kb" -lt "$BUILD_NEEDS_KB" ]; then
