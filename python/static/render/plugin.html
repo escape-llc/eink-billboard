@@ -1,5 +1,7 @@
 <html>
 	<head>
+		{# the file is UTF-8 and says so, first (within the first 1024 bytes): with no declaration Chromium reads a local file as Windows-1252 and a © comes out as Â© #}
+		<meta charset="utf-8">
 		{# Chromium runs with --no-sandbox: a page can run nothing and fetch nothing. Styles, fonts and stylesheets are files of ours, pictures are embedded (data:) #}
 		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' file:; font-src file:; img-src data: file:">
 		<meta name="viewport" content="width={{width}},height={{height}},initial-scale=1"/>
