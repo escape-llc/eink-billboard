@@ -3,10 +3,22 @@ import threading
 import time
 import queue
 import logging
+import typing
 from datetime import datetime
 from typing import Any, Callable, Type
 from .messages import BasicMessage, QuitMessage, Telemetry
 from .protocols import MessageSink
+
+def _message_class_names() -> set[str]:
+	"""The names of every message class (BasicMessage and its subclasses, at any depth): what an unresolved string annotation is compared with."""
+	found: set[str] = set()
+	todo: list[type] = [BasicMessage]
+	while todo:
+		cls = todo.pop()
+		if cls.__name__ not in found:
+			found.add(cls.__name__)
+			todo.extend(cls.__subclasses__())
+	return found
 
 class TaskStoppedError(ValueError):
 	"""A message was sent to a task that has already stopped (a ValueError, as `accept` always raised)."""
@@ -130,10 +142,26 @@ class DispatcherTask(CoreTask):
 			params = list(sig.parameters.values())
 			if params and len(params) == 1:
 				# 3. Extract the type hint of the first argument
-				param_type = params[0].annotation
+				param_type = self._parameter_type(name, method, params[0])
 				# 4. Filter and store if it matches your base type
 				if inspect.isclass(param_type) and issubclass(param_type, BasicMessage) and not issubclass(param_type, QuitMessage):
 					self.handlers[param_type] = method
+
+	def _parameter_type(self, name: str, method: Callable, param: inspect.Parameter) -> Any:
+		"""
+		The class a one-parameter method is annotated with. In a module with `from __future__ import annotations` every annotation is a string: it is resolved
+		(`typing.get_type_hints`), or no handler would be registered and the first message of its type would find "no handler" at run time (#456). One that names a
+		message type and cannot be resolved (a name imported only for type checking) is said at once, by the task's and method's names.
+		"""
+		annotation = param.annotation
+		if not isinstance(annotation, str):
+			return annotation
+		try:
+			return typing.get_type_hints(method).get(param.name, annotation)
+		except Exception:
+			if annotation.rsplit(".", 1)[-1] in _message_class_names():
+				self.logger.warning(f"'{self.name}': the parameter of '{name}' is annotated '{annotation}', which cannot be resolved, so it handles no message.")
+			return annotation
 
 	def _dispatch(self, msg: BasicMessage):
 		if isinstance(msg, QuitMessage):
