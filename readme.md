@@ -578,3 +578,7 @@ The following JSON may be used to set up the launch configuration for Python deb
 ## Note to Cloners
 
 The tests need no secret and no private data: they build their own storage from the factory defaults and the synthetic schedules in `python/tests/fixtures/storage/`, so the `unittest.yaml` workflow works in a clone, and on a fork's pull request, as it is.
+
+# License
+
+Apache License 2.0: see [LICENSE](LICENSE). Copyright eScape LLC; the parts by others and their terms are listed in [NOTICE](NOTICE).
