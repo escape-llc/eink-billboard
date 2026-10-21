@@ -22,7 +22,7 @@ from PIL import Image, ImageDraw
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures", "http")
 XKCD_FEED = "xkcd-atom.xml"
-# every feed of python/datasources/comic/comic_parser.py (the test storage's playlist plays them all): URL (host, path) -> fixture file
+# every feed of python/datasources/comic/strips.py (the test storage's playlist plays them all): URL (host, path) -> fixture file
 COMIC_FEEDS = {
 	("xkcd.com", "/atom.xml"): XKCD_FEED,
 	("explosm-1311.appspot.com", "/"): "comic-cyanide.xml",

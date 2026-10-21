@@ -279,7 +279,7 @@ class TestTheSourcesThatKeep(unittest.IsolatedAsyncioTestCase):
 
 	async def test_a_comics_feed_is_kept_and_a_strip_that_left_the_feed_is_removed(self):
 		from ..datasources.comic.comic_feed import ComicFeedAsync
-		from ..datasources.comic.comic_parser import COMICS
+		from ..datasources.comic.strips import COMICS
 		dsec, dscm = self.context("comic")
 		atom = """<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>x</title><entry><title>T</title>
 		<link href="http://x/1"/><id>1</id><updated>2026-01-01T00:00:00Z</updated>
@@ -294,7 +294,7 @@ class TestTheSourcesThatKeep(unittest.IsolatedAsyncioTestCase):
 		ds = ComicFeedAsync("comic", "comic")
 		first = await ds.open_async(dsec, { "comic": "XKCD" })
 		second = await ds.open_async(dsec, { "comic": "XKCD" })
-		feed = COMICS["XKCD"]["feed"]
+		feed = COMICS["XKCD"].feed
 		self.assertEqual((len(first), first, sent.count(feed)), (1, second, 1))
 		# the feed's own body stays, the strip that is not in it any more does not
 		self.assertEqual(dscm.list_blobs(BLOB_PREFIX), [blob_name(feed)])

@@ -3,7 +3,6 @@ import base64
 from datetime import datetime
 import io
 import logging
-import re
 from typing import Any, Mapping
 from urllib.parse import urlsplit
 
@@ -15,6 +14,7 @@ from ...model.theme import ThemeInputs, current_inputs
 from ...plugins.plugin_base import PermanentError, RenderSession
 from ...utils.image_utils import to_rgb
 from ..content_cache import download_for, retain
+from ...utils.html_text import html_images, html_text
 from ...utils.text_utils import unescape_text
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 
@@ -33,21 +33,13 @@ PICTURE_BOX = (900, 900)
 SUMMARY_CHARS = 700
 HEADERS = { "User-Agent": "Mozilla/5.0 (compatible; eink-billboard)", "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.5" }
 
-# a block tag ends a line of text, so it becomes a space; an inline one (<b>, <em>, <a>) leaves the words as they were
-_BLOCK_TAGS = re.compile(r"</?(?:p|br|div|li|ul|ol|h[1-6]|tr|td|blockquote|figure|figcaption)[^>]*>", re.IGNORECASE)
-_TAGS = re.compile(r"<[^>]*>")
-_SPACE = re.compile(r"\s+")
-_IMG_SRC = re.compile(r"""<img\b[^>]*?\bsrc\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
-
 def plain_text(value: Any, limit: int|None = None) -> str:
 	"""
-	Text a feed gives as (possibly escaped) HTML, as plain text on one line. Tags are dropped, entities read, and once more for
-	markup that arrived escaped (`&lt;p&gt;`). `limit` cuts at a word with an ellipsis.
+	Text a feed gives as (possibly escaped) HTML, as plain text on one line. Tags are dropped, entities read, and read once more for
+	markup that arrived escaped (`&lt;p&gt;`, or twice: `&amp;lt;p&amp;gt;`). `limit` cuts at a word with an ellipsis.
 	"""
 	text = value if isinstance(value, str) else ""
-	def strip(markup: str) -> str:
-		return _TAGS.sub("", _BLOCK_TAGS.sub(" ", markup))
-	text = _SPACE.sub(" ", strip(unescape_text(strip(text)))).strip()
+	text = html_text(unescape_text(html_text(text)))
 	if limit is not None and len(text) > limit:
 		cut = text[:limit].rsplit(" ", 1)[0] if " " in text[:limit] else text[:limit]
 		text = cut.rstrip(" ,;:.-") + "…"
@@ -70,8 +62,9 @@ def _picture_url(entry: Mapping[str, Any]) -> str|None:
 		if link.get("rel") == "enclosure" and str(link.get("type") or "").startswith("image") and _is_web_url(link.get("href")):
 			return link["href"]
 	body = entry.get("summary") or ((entry.get("content") or [{}])[0].get("value")) or ""
-	found = _IMG_SRC.search(body) if isinstance(body, str) else None
-	return found.group(1) if found and _is_web_url(found.group(1)) else None
+	pictures = html_images(body) if isinstance(body, str) else []
+	src = pictures[0].get("src") if pictures else None
+	return src if _is_web_url(src) else None
 
 def _published(entry: Mapping[str, Any]) -> str:
 	stamp = entry.get("published_parsed") or entry.get("updated_parsed")

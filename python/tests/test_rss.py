@@ -56,6 +56,21 @@ class TestParsing(unittest.TestCase):
 		# escaped twice, as some feeds do: the same text, not a visible entity
 		self.assertEqual(plain_text("He said &amp;quot;hi&amp;quot; &amp;amp; left&amp;#039;"), "He said \"hi\" & left'")
 
+	def test_the_markup_is_read_by_a_parser_not_searched(self):
+		# a block tag parts the words around it; a "<" that opens no tag is text; what a script holds is not
+		self.assertEqual(plain_text("<p>one</p><p>two</p><br>three<br/>four"), "one two three four")
+		self.assertEqual(plain_text("x&lt;p&gt;y&lt;/p&gt;z"), "x y z")
+		self.assertEqual(plain_text("5 < 6 and 7 > 3"), "5 < 6 and 7 > 3")
+		self.assertEqual(plain_text("<!-- note -->text<script>hidden()</script><style>p{}</style>"), "text")
+		self.assertEqual(plain_text("&amp;lt;b&amp;gt;twice&amp;lt;/b&amp;gt;"), "twice")
+
+	def test_a_storys_picture_is_the_first_img_of_its_text(self):
+		from ..datasources.rss.rss import _picture_url
+		self.assertEqual(_picture_url({ "summary": "<p>x<IMG alt='a' SRC=\"https://e.example/1.png?a=1&amp;b=2\"><img src='https://e.example/2.png'></p>" }), "https://e.example/1.png?a=1&b=2")
+		# only a web address is a picture; markup without one is none
+		self.assertIsNone(_picture_url({ "summary": "<img src='data:image/png;base64,AAAA'>" }))
+		self.assertIsNone(_picture_url({ "summary": "no picture" }))
+
 	def test_a_long_text_is_cut_at_a_word(self):
 		cut = plain_text("alpha beta gamma delta epsilon", 14)
 		self.assertEqual(cut, "alpha beta…")

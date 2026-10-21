@@ -5,7 +5,7 @@ import unittest
 import httpx
 from PIL import Image
 
-from ..datasources.comic.comic_parser import COMICS, parse_the_feed
+from ..datasources.comic.strips import COMICS, read_feed
 from ..datasources.newspaper.newspaper import FREEDOM_FORUM_URL, KNOWN_SLUGS
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool
 from .fake_internet import COMIC_FEEDS, FakeInternet, fixture_text
@@ -26,11 +26,11 @@ class TestFakeInternet(unittest.TestCase):
 	def test_every_comic_feed_is_served_and_the_parsers_read_it(self):
 		import feedparser
 		for name, comic in COMICS.items():
-			url = httpx.URL(comic["feed"])
+			url = httpx.URL(comic.feed)
 			self.assertIn((url.host, url.path or "/"), COMIC_FEEDS, f"{name}: the fake does not serve its feed")
-			response = get(comic["feed"])
+			response = get(comic.feed)
 			self.assertEqual(response.status_code, 200)
-			items = parse_the_feed(name, comic, feedparser.parse(response.text))
+			items = read_feed(name, comic, feedparser.parse(response.text))
 			self.assertGreaterEqual(len(items), 4, f"{name}: the fixture feed has fewer than 4 entries the parser reads")
 			# the images the feed points at are served too
 			image = get(items[0]["image_url"])

@@ -16,8 +16,8 @@ import httpx
 from PIL import Image
 
 from ..datasources.clock.clock import Clock, ClockAsync
-from ..datasources.comic import comic_parser
-from ..datasources.comic.comic_feed import ComicFeedAsync, _compose_image
+from ..datasources.comic import strips
+from ..datasources.comic.comic_feed import ComicFeedAsync, line_count, strip_data_uri, words_that_fit
 from ..datasources.countdown import countdown
 from ..datasources.countdown.countdown import CountdownAsync
 from ..datasources.data_source import DataSourceExecutionContext, target_dimensions
@@ -106,12 +106,15 @@ class TestTargetDimensions(unittest.TestCase):
 class TestComic(unittest.IsolatedAsyncioTestCase):
 	def _font(self, size=16):
 		return StaticConfigurationManager(STATIC).get_font("Jost", font_size=size)
-	def test_character_entities_in_a_caption_title_and_address_are_decoded(self):
-		"""Dinosaur Comics: the caption is the img's title attribute, cut out of the HTML, so it came through as &quot;JORDAN&quot;."""
+	@staticmethod
+	def _rss(*items: str) -> Any:
 		import feedparser
+		return feedparser.parse('<rss version="2.0"><channel><title>x</title>' + "".join(f"<item>{i}</item>" for i in items) + "</channel></rss>")
+	def test_character_entities_in_a_caption_title_and_address_are_decoded(self):
+		"""Dinosaur Comics: the caption is the img's title attribute, and the feed escapes its text twice ("&amp;quot;JORDAN&amp;quot;")."""
 		description = '&lt;img src="http://www.qwantz.com/comics/c.png?a=1&amp;amp;b=2" title="a dude named &amp;quot;JORDAN&amp;quot; &amp;amp; it&amp;#039;s fine" /&gt;'
-		feed = feedparser.parse(f'<rss version="2.0"><channel><item><title>it&amp;#039;s a &amp;quot;title&amp;quot;</title><description>{description}</description></item></channel></rss>')
-		item = comic_parser.parse_the_feed("Dinosaur Comics", comic_parser.COMICS["Dinosaur Comics"], feed)[0]
+		feed = self._rss(f"<title>it&amp;#039;s a &amp;quot;title&amp;quot;</title><description>{description}</description>")
+		item = strips.read_feed("Dinosaur Comics", strips.COMICS["Dinosaur Comics"], feed)[0]
 		self.assertEqual(item["caption"], "a dude named \"JORDAN\" & it's fine")
 		self.assertEqual(item["image_url"], "http://www.qwantz.com/comics/c.png?a=1&b=2")
 		self.assertEqual(item["title"], "it's a \"title\"")
@@ -124,49 +127,80 @@ class TestComic(unittest.IsolatedAsyncioTestCase):
 		):
 			with self.subTest(raw):
 				self.assertEqual(unescape_text(raw), text)
-	def test_caption_taller_than_image_area_does_not_raise(self):
-		item = {"title": "t", "caption": "word " * 200}
-		out = _compose_image(io.BytesIO(png_bytes((100, 50))), item, self._font(), 200, 40)
-		self.assertEqual(out.size, (200, 40))
-	def test_rgba_comic_is_composited_on_white(self):
+	def test_the_caption_after_a_marker_ends_with_its_paragraph(self):
+		"""SMBC: the hovertext is the text after "Hovertext:" in its paragraph; the title is what follows the comic's name."""
+		description = "&lt;p&gt;&lt;img src='https://www.smbc-comics.com/c.png' /&gt;&lt;br /&gt;Hovertext:&lt;br /&gt;It is &lt;b&gt;bold&lt;/b&gt; &amp;amp; true.&lt;/p&gt;&lt;p&gt;Not this.&lt;/p&gt;"
+		feed = self._rss(f"<title>Saturday Morning Breakfast Cereal - A - B</title><description>{description}</description>")
+		item = strips.read_feed("Saturday Morning Breakfast Cereal", strips.COMICS["Saturday Morning Breakfast Cereal"], feed)[0]
+		self.assertEqual((item["title"], item["caption"]), ("A - B", "It is bold & true."))
+	def test_an_entry_without_a_picture_or_its_caption_is_left_out(self):
+		feed = self._rss("<title>no picture</title><description>just words</description>",
+			"<title>empty alt</title><description>&lt;img src='http://x/1.png' alt='' /&gt;</description>",
+			"<title>no alt</title><description>&lt;img src='http://x/2.png' /&gt;</description>")
+		items = strips.read_feed("XKCD", strips.COMICS["XKCD"], feed)
+		# an empty alt is a strip without a caption; a missing one is an entry not in the comic's shape
+		self.assertEqual([(i["title"], i["caption"], i["index"], i["count"]) for i in items], [("empty alt", "", 0, 1)])
+	def test_every_comic_is_a_record_the_reader_understands(self):
+		for name, comic in strips.COMICS.items():
+			with self.subTest(comic=name):
+				self.assertTrue(comic.feed.startswith("https://"))
+				self.assertEqual(comic.title == "after", bool(comic.title_after))
+				self.assertEqual(comic.caption == "marker", bool(comic.caption_after))
+	def test_a_long_caption_goes_before_the_strip_loses_its_room(self):
+		font = self._font(16)
+		self.assertEqual(words_that_fit("t", "word " * 200, font, (200, 400)), ("t", ""))
+		self.assertEqual(words_that_fit("word " * 400, "", font, (200, 400)), ("", ""))
+		self.assertEqual(words_that_fit("A title", "A short caption", font, (800, 480)), ("A title", "A short caption"))
+	def test_lines_break_between_words(self):
+		font = self._font(16)
+		self.assertEqual(line_count("", font, 100), 0)
+		self.assertEqual(line_count("one", font, 1000), 1)
+		self.assertGreater(line_count("word " * 50, font, 100), 10)
+		self.assertEqual(line_count("unbreakablewordwiderthantheline", font, 10), 1)
+	def _strip_pixel(self, image: Image.Image) -> Any:
 		src = io.BytesIO()
-		Image.new("RGBA", (20, 20), (0, 0, 0, 0)).save(src, "PNG")
+		image.save(src, "PNG")
 		src.seek(0)
-		out = _compose_image(src, {"title": "", "caption": ""}, None, 40, 40)
-		self.assertEqual(out.getpixel((20, 20)), (255, 255, 255))
-	def test_palette_comic_with_transparency_is_composited_on_white(self):
-		src = io.BytesIO()
-		img = Image.new("P", (20, 20), 0)
-		img.putpalette([0, 0, 0] * 256)
-		img.save(src, "PNG", transparency=0)
-		src.seek(0)
-		out = _compose_image(src, {"title": "", "caption": ""}, None, 40, 40)
-		self.assertEqual(out.getpixel((20, 20)), (255, 255, 255))
-	async def _generate(self, orientation, **params):
-		seen = {}
-		ds = ComicFeedAsync("comic", "comic")
-		async def fake(item, caption_font, width, height, dsec):
-			seen.update(font=caption_font, size=(width, height))
-			return Image.new("RGB", (width, height))
-		ds._download_and_compose_image = fake  # type: ignore[method-assign]
-		await ds._generate_image(make_dsec(orientation), params, {"title": "t", "caption": "c", "image_url": "http://x"})
-		return seen
-	async def test_boolean_title_caption_enables_font(self):
-		self.assertIsNotNone((await self._generate("landscape", titleCaption=True))["font"])
-		self.assertIsNone((await self._generate("landscape", titleCaption=False))["font"])
-		self.assertIsNone((await self._generate("landscape"))["font"])
+		import base64
+		uri = strip_data_uri(src, (40, 40))
+		self.assertTrue(uri.startswith("data:image/png;base64,"))
+		with Image.open(io.BytesIO(base64.b64decode(uri.split(",", 1)[1]))) as out:
+			return out.convert("RGB").getpixel((10, 10))
+	def test_a_transparent_strip_is_on_white_paper(self):
+		self.assertEqual(self._strip_pixel(Image.new("RGBA", (20, 20), (0, 0, 0, 0))), (255, 255, 255))
+		palette = Image.new("P", (20, 20), 0)
+		palette.putpalette([0, 0, 0] * 256)
+		palette.info["transparency"] = 0
+		self.assertEqual(self._strip_pixel(palette), (255, 255, 255))
+	def test_a_strip_is_never_larger_than_the_page(self):
+		with Image.open(io.BytesIO(__import__("base64").b64decode(strip_data_uri(io.BytesIO(png_bytes((1600, 400))), (800, 480)).split(",", 1)[1]))) as out:
+			self.assertEqual(out.size, (800, 200))
+	async def _page(self, orientation="landscape", **params):
+		dsec = make_dsec(orientation)
+		scm = dsec.provider.required(SettingsConfigurationManager)
+		stm = dsec.provider.required(StaticConfigurationManager)
+		size = target_dimensions(dsec)
+		return size, await ComicFeedAsync.page_params(stm, scm, params, {"title": "t", "caption": "c"}, size, io.BytesIO(png_bytes((100, 50))))
+	async def test_show_caption_prints_the_words_and_the_text_size_follows_the_task(self):
+		_, on = await self._page(titleCaption=True, fontSize=20)
+		self.assertEqual((on["title"], on["caption"], on["text_px"]), ("t", "c", 20))
+		# titleCaption is a boolean; older documents may hold the string
+		self.assertEqual((await self._page(titleCaption="true"))[1]["title"], "t")
+		for off in ({"titleCaption": False}, {}):
+			_, page = await self._page(**off)
+			self.assertEqual((page["title"], page["caption"]), ("", ""))
 	async def test_portrait_swaps_dimensions(self):
-		self.assertEqual((await self._generate("portrait", titleCaption=True))["size"], (480, 800))
-		self.assertEqual((await self._generate("landscape"))["size"], (800, 480))
+		self.assertEqual((await self._page("portrait"))[0], (480, 800))
+		self.assertEqual((await self._page("landscape"))[0], (800, 480))
 	async def test_feed_errors(self):
 		client_var.set(mock_client(lambda req: httpx.Response(503)))
 		with self.assertRaises(httpx.HTTPStatusError):
-			await comic_parser.get_items_async("XKCD", make_dsec())
+			await strips.strips_async("XKCD", make_dsec())
 	async def test_html_instead_of_feed_gives_empty_list_and_error(self):
 		html = "<html><body><h1>Please enable cookies</h1></body></html>"
 		client_var.set(mock_client(lambda req: httpx.Response(200, text=html, headers={"Content-Type": "text/html"})))
-		with self.assertLogs(comic_parser.__name__, level="ERROR") as logs:
-			items = await comic_parser.get_items_async("XKCD", make_dsec())
+		with self.assertLogs(strips.__name__, level="ERROR") as logs:
+			items = await strips.strips_async("XKCD", make_dsec())
 		self.assertEqual(items, [])
 		self.assertIn("XKCD", "\n".join(logs.output))
 	async def test_the_feed_is_asked_for_under_our_own_name_not_the_libraries(self):
@@ -176,19 +210,19 @@ class TestComic(unittest.IsolatedAsyncioTestCase):
 			seen.append(req.headers.get("User-Agent", ""))
 			return httpx.Response(403) if "httpx" in seen[-1] else httpx.Response(200, text="<rss version='2.0'><channel><title>x</title></channel></rss>")
 		client_var.set(mock_client(handler))
-		for name in comic_parser.COMICS:
-			with self.subTest(comic=name), self.assertLogs(comic_parser.__name__, level="ERROR"):
-				await comic_parser.get_items_async(name, make_dsec())
-		self.assertEqual(len(seen), len(comic_parser.COMICS))
+		for name in strips.COMICS:
+			with self.subTest(comic=name), self.assertLogs(strips.__name__, level="ERROR"):
+				await strips.strips_async(name, make_dsec())
+		self.assertEqual(len(seen), len(strips.COMICS))
 		self.assertFalse(any("httpx" in agent for agent in seen))
 	async def test_real_feed_still_parses(self):
 		atom = """<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>x</title><entry><title>T</title>
 		<link href="http://x/1"/><id>1</id><updated>2026-01-01T00:00:00Z</updated>
 		<summary type="html">&lt;img src="http://x/a.png" alt="alt text" /&gt;</summary></entry></feed>"""
 		client_var.set(mock_client(lambda req: httpx.Response(200, text=atom, headers={"Content-Type": "application/atom+xml"})))
-		items = await comic_parser.get_items_async("XKCD", make_dsec())
+		items = await strips.strips_async("XKCD", make_dsec())
 		self.assertEqual(len(items), 1)
-		self.assertEqual(items[0]["image_url"], "http://x/a.png")
+		self.assertEqual((items[0]["image_url"], items[0]["caption"]), ("http://x/a.png", "alt text"))
 
 # ---------------------------------------------------------------- 3. clock
 
