@@ -16,6 +16,9 @@ test("the Help button opens a drawer over the page, with the guide in it, and it
 	await expect(help.getByText("Settings, System:")).toBeVisible()
 	await help.getByRole("button", { name: "The pages" }).click()
 	await expect(help.getByText("Timer tasks:")).toBeVisible()
+	// how to use a data source is here, not in the readme: the calendar sign-ins
+	await help.getByRole("button", { name: "Calendars" }).click()
+	await expect(help.getByText("Calendars.Read")).toBeVisible()
 	// the build is the one in the header
 	await help.getByRole("button", { name: "When something is wrong" }).click()
 	await expect(help.getByText(/^v\S+ \(\S+\)$/)).toBeVisible()
