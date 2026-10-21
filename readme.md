@@ -180,12 +180,9 @@ Podman, SPI, I2C and your groups stay as they are.
 
 # Goals
 
-> Disclaimer: this is not a judgment on the original source code!
-
-After reviewing the code of the [InkyPi](https://github.com/fatihak/InkyPi) project, we got a plan:
-
 * Support Windows-based development
 	* Exercise Python's multi-platform capabilities
+* Support Docker/Podman-based development
 * Task-based architecture with Message Passing
 	* Explore the multi-thread capabilities of Python
 	* Explore Python's `async`/`await`
