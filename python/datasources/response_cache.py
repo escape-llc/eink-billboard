@@ -18,6 +18,7 @@ from typing import Any, Awaitable, Callable, Mapping
 
 from ..model.configuration_manager import DatasourceConfigurationManager
 from ..plugins.plugin_base import PermanentError
+from .metering import METER
 from .keeping import DEFAULT_STALE_DAYS, CLOCK_SLACK, REFILL_WAIT_SECONDS, aware, number, parse_moment, prune_stale_sometimes, refill_lock
 
 logger = logging.getLogger(__name__)
@@ -44,9 +45,12 @@ async def cached(dscm: DatasourceConfigurationManager, settings: Mapping[str, An
 	"""
 	now = aware(now)
 	hours = number(settings.get(setting), default_hours)
+	source = dscm.datasource_id
 	if hours <= 0:
+		METER.cache(source, "bypass", 0)
 		return await fetch()
 	ttl = timedelta(hours=hours)
+	waited = False
 	prune_stale_sometimes(dscm, (CACHE_PREFIX,), number(settings.get("staleDays"), DEFAULT_STALE_DAYS), now)
 	cob = dscm.file(cache_file_name(key))
 	for _ in range(5):
@@ -57,10 +61,13 @@ async def cached(dscm: DatasourceConfigurationManager, settings: Mapping[str, An
 		doc = doc if isinstance(doc, dict) else {}
 		if _fresh(doc, now, ttl):
 			note_use(cob, rev, doc, now)
+			# an answer another task fetched while we waited for it is not a hit of the cache's: it saved a call all the same, and the two are told apart
+			METER.cache(source, "coalesced" if waited else "hit", _size(doc))
 			return doc["data"]
 		lock = refill_lock(cob.moniker)
 		if not lock.acquire(blocking=False):
 			# another task is asking the origin for this: wait for its answer without holding up our loop
+			waited = True
 			deadline = time.monotonic() + REFILL_WAIT_SECONDS
 			while time.monotonic() < deadline:
 				await asyncio.sleep(0.05)
@@ -76,18 +83,27 @@ async def cached(dscm: DatasourceConfigurationManager, settings: Mapping[str, An
 			except Exception as e:
 				if isinstance(doc.get("data"), dict):
 					logger.warning(f"'{dscm.datasource_id}' could not get a new answer ({type(e).__name__}); using the old one.")
+					METER.cache(source, "stale", _size(doc))
 					return doc["data"]
 				raise
+			size = 0
 			try:
-				if len(json.dumps(data)) <= MAX_CACHE_BYTES:
-					save_quietly(cob, rev, { "data": data, "fetched_at": now.isoformat(), "last_used": now.isoformat() })
+				size = len(json.dumps(data))
+				if size <= MAX_CACHE_BYTES:
+					save_quietly(cob, rev, { "data": data, "fetched_at": now.isoformat(), "last_used": now.isoformat(), "size": size })
 			except (TypeError, ValueError):
 				pass
+			METER.cache(source, "miss", size)
 			return data
 		finally:
 			lock.release()
 	# the answer kept changing under us: ask the origin and leave the cache alone
 	return await fetch()
+
+def _size(doc: Mapping[str, Any]) -> int:
+	"""The size of a kept answer, as it was written when it was kept (an older file has none: its bytes are not counted)."""
+	size = doc.get("size")
+	return size if isinstance(size, int) and not isinstance(size, bool) and size >= 0 else 0
 
 def save_quietly(cob: Any, rev: str|None, doc: dict) -> None:
 	try:

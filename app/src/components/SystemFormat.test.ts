@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { formatBytes, formatUptime, gaugeSeverity, temperatureSeverity } from "./SystemFormat"
+import { deviceMoment, failedCalls, formatBytes, formatShare, formatUptime, gaugeSeverity, statusSummary, temperatureSeverity } from "./SystemFormat"
 
 describe("sizes", () => {
 	it("are in the largest unit that keeps them readable", () => {
@@ -37,5 +37,28 @@ describe("gauges", () => {
 		expect(temperatureSeverity(55)).toBe("success")
 		expect(temperatureSeverity(72)).toBe("warn")
 		expect(temperatureSeverity(81)).toBe("danger")
+	})
+})
+
+describe("API usage", () => {
+	it("counts a call as failed when there was no answer or the status is 400 or more", () => {
+		expect(failedCalls({ "200": 40, "304": 3, "404": 2, "429": 1, "timeout": 4, "tls": 1 })).toBe(8)
+		expect(failedCalls({})).toBe(0)
+		expect(failedCalls(undefined)).toBe(0)
+	})
+	it("lists the statuses, the most common first", () => {
+		expect(statusSummary({ "429": 2, "200": 40, "500": 2, "timeout": 1 })).toBe("200 × 40, 429 × 2, 500 × 2, timeout × 1")
+		expect(statusSummary(undefined)).toBe("")
+	})
+	it("shows a share as a percentage and nothing counted as a dash", () => {
+		expect(formatShare(0.857)).toBe("86%")
+		expect(formatShare(0)).toBe("0%")
+		expect(formatShare(null)).toBe("–")
+	})
+	it("reads the device's wall clock as the server wrote it, whatever zone the browser is in", () => {
+		expect(deviceMoment("2026-10-21T12:17:09.5+02:00")).toBe("2026-10-21 12:17")
+		expect(deviceMoment("2026-10-21T23:59:00-07:00")).toBe("2026-10-21 23:59")
+		expect(deviceMoment(null)).toBe("")
+		expect(deviceMoment("yesterday")).toBe("")
 	})
 })

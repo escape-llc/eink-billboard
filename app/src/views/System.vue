@@ -135,6 +135,33 @@
 					<p class="muted note">Kept: what a plugin or data source can fetch again (downloads, answers, lists).</p>
 				</template>
 			</section>
+
+			<!-- what each API data source asks of its service (#440): the calls, what went wrong, the bytes, and how much the cache spared -->
+			<section class="card" aria-label="API usage">
+				<div class="card-head"><strong>API usage</strong></div>
+				<template v-if="info">
+					<p v-if="info.usage.length === 0" class="muted note">No API data source has made a call yet.</p>
+					<div v-for="source in info.usage" :key="source.id" class="api-source" :data-source="source.id">
+						<table class="usage">
+							<caption>{{ source.name }}</caption>
+							<thead><tr><th scope="col">Period</th><th scope="col" class="num">Calls</th><th scope="col" class="num">Failed</th><th scope="col" class="num">Sent</th><th scope="col" class="num">Received</th><th scope="col" class="num">Cache</th></tr></thead>
+							<tbody>
+								<tr v-for="p in periods" :key="p.key">
+									<th scope="row">{{ p.label }}</th>
+									<td class="num">{{ source[p.key].calls }}</td>
+									<td class="num">{{ failedCalls(source[p.key].status) || "" }}</td>
+									<td class="num">{{ formatBytes(source[p.key].sent) }}</td>
+									<td class="num">{{ formatBytes(source[p.key].received) }}</td>
+									<td class="num" :title="`Saved ${formatBytes(source[p.key].bytesSaved)}`">{{ formatShare(source[p.key].hitRate) }}</td>
+								</tr>
+							</tbody>
+						</table>
+						<p v-if="statusSummary(source.month.status)" class="muted note">This month, by answer: {{ statusSummary(source.month.status) }}.</p>
+						<p v-if="source.lastLimited" class="muted note">Told "too many requests" last on {{ deviceMoment(source.lastLimited) }}.</p>
+					</div>
+					<p class="muted note">Calls the service saw, with the bytes of their bodies as they went over the wire. Cache: the share of lookups answered without a download (hover for the bytes saved). Days are the device's.</p>
+				</template>
+			</section>
 		</div>
 
 		<!-- what the device is doing now, and what it did: the telemetry link; two panels, as on the left -->
@@ -163,16 +190,17 @@
 					</div>
 				</div>
 				<p v-else class="muted">Nothing has been shown yet.</p>
+			</section>
 
-				<section v-if="recent.length > 1" aria-label="Recently shown">
-					<div class="label">Recently shown</div>
-					<div class="strip">
-						<button v-for="e in recent.slice(1)" :key="e.seq" type="button" class="mini" :title="`${clockOf(e.ts)} ${title(e)}`"
-							:aria-label="`Show ${title(e)} full size`" @click="full = e">
-							<img :src="link.imageUrl(e.values?.digest)" :alt="title(e)" />
-						</button>
-					</div>
-				</section>
+			<section class="card" aria-label="Recently shown">
+				<div class="card-head"><strong>Recently shown</strong></div>
+				<div v-if="recent.length > 1" class="strip">
+					<button v-for="e in recent.slice(1)" :key="e.seq" type="button" class="mini" :title="`${clockOf(e.ts)} ${title(e)}`"
+						:aria-label="`Show ${title(e)} full size`" @click="full = e">
+						<img :src="link.imageUrl(e.values?.digest)" :alt="title(e)" />
+					</button>
+				</div>
+				<p v-else class="muted">Nothing else has been shown yet.</p>
 			</section>
 
 			<section class="card" aria-label="Activity">
@@ -220,11 +248,13 @@ import { LAYERS, clockOf, isProblem, layerOf, layersOf, useTelemetry, type Telem
 import { useTransport, type TransportCommand } from "../components/Transport"
 import BackupRestore from "../components/BackupRestore.vue"
 import PasswordForm from "../components/PasswordForm.vue"
-import { formatBytes, formatUptime, gaugeSeverity, temperatureSeverity } from "../components/SystemFormat"
+import { deviceMoment, failedCalls, formatBytes, formatShare, formatUptime, gaugeSeverity, statusSummary, temperatureSeverity } from "../components/SystemFormat"
 
 type Component = { state: "ok" | "failed" | "starting", message: string }
 type Status = { ok: boolean, components: Record<string, Component> }
 type Owner = { id: string, files: number, bytes: number, kept_bytes: number }
+type Period = { calls: number, status: Record<string, number>, sent: number, received: number, cache: Record<string, number>, hitRate: number | null, bytesSaved: number }
+type Usage = { id: string, name: string, today: Period, week: Period, month: Period, lastLimited: string | null }
 type SystemInfo = {
 	host: { commit: string, os: string, os_release: string, machine: string, python: string, cpus: number, uptime_seconds?: number, app_uptime_seconds?: number }
 	load: { cpu_percent?: number, load?: number[], memory?: { total: number, used: number, percent: number }, app_memory?: number }
@@ -235,7 +265,9 @@ type SystemInfo = {
 		datasources: Owner[]
 		volume: { total: number, used: number, free: number, percent: number } | null
 	}
+	usage: Usage[]
 }
+const periods = [{ key: "today", label: "Today" }, { key: "week", label: "7 days" }, { key: "month", label: "Month" }] as const
 
 const POLL_MS = 10000
 const TITLES: Record<string, string> = { "display": "Display", "playlist-layer": "Playlist", "timer-layer": "Timer tasks" }
@@ -456,20 +488,12 @@ function describe(e: TelemetryEvent): string {
 	clip: rect(0 0 0 0);
 	white-space: nowrap;
 }
-/* the right column: Now showing above Activity, each a panel of its own like the facts on the left */
+/* the right column: Now showing, Recently shown and Activity, each a panel of its own like the facts on the left */
 .system-live {
 	display: flex;
 	flex-direction: column;
 	gap: .75rem;
 	min-width: 0;
-}
-.label {
-	font-size: .8rem;
-	font-weight: bold;
-	text-transform: uppercase;
-	letter-spacing: .04rem;
-	opacity: .7;
-	margin-bottom: .25rem;
 }
 .thumb, .mini {
 	padding: 0;

@@ -39,3 +39,40 @@ test("the System page reports the machine and the storage by data source, with n
 	expect(body).not.toMatch(/\.storage|[A-Za-z]:\\/)
 	watch.expectNone()
 })
+
+test("the System page says what each API data source has asked of its service", async ({ page }) => {
+	const watch = watchProblems(page)
+	const period = (calls: number, failed: number) => ({ calls, status: failed ? { "200": calls - failed, "429": failed } : { "200": calls }, sent: 120 * calls, received: 2048 * calls, cache: { hit: 6, miss: 2 }, cacheBytes: { hit: 6000, miss: 2000 }, hitRate: 0.75, bytesSaved: 6000 })
+	// no API data source runs against a real service in these servers: the page is given what the server would count (the counting itself is in test_api_metering)
+	await page.route("**/api/system", async route => {
+		const real = await route.fetch()
+		const body = await real.json()
+		body.usage = [{ id: "openweathermap", name: "OpenWeatherMap", today: period(4, 0), week: period(20, 1), month: period(70, 2), lastLimited: "2026-10-21T12:17:09.5+02:00" }]
+		await route.fulfill({ response: real, json: body })
+	})
+	await page.goto("/#/system")
+	const usage = page.getByRole("region", { name: "API usage" })
+	const table = usage.getByRole("table", { name: "OpenWeatherMap" })
+	await expect(table).toBeVisible({ timeout: 20000 })
+	const month = table.getByRole("row", { name: /^Month/ })
+	await expect(month.getByRole("cell").nth(0)).toHaveText("70")
+	await expect(month.getByRole("cell").nth(1)).toHaveText("2")
+	await expect(month.getByRole("cell").nth(4)).toHaveText("75%")
+	await expect(usage.getByText("200 × 68, 429 × 2")).toBeVisible()
+	// the moment is the device's wall clock as the server wrote it, not converted to the browser's zone
+	await expect(usage.getByText("2026-10-21 12:17")).toBeVisible()
+	watch.expectNone()
+})
+
+test("with nothing counted yet the API usage card says so", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.route("**/api/system", async route => {
+		const real = await route.fetch()
+		const body = await real.json()
+		body.usage = []
+		await route.fulfill({ response: real, json: body })
+	})
+	await page.goto("/#/system")
+	await expect(page.getByRole("region", { name: "API usage" }).getByText("No API data source has made a call yet.")).toBeVisible({ timeout: 20000 })
+	watch.expectNone()
+})

@@ -591,17 +591,27 @@ The web app finds the server through `VITE_API_URL`: `http://localhost:8080/` in
 
 The **Help** button at the right end of the toolbar (a question mark) slides a drawer out from the right with a short guide: the first steps, the pages, how a picture reaches the panel, play/stop/next, API keys and costs, keeping the device safe, what to do when something is wrong, and links to the documentation and the issue tracker. The page under it stays where it is.
 
+## API Metering
+
+An API data source counts what it asks of its service (#440, `python/datasources/metering.py`), so a quota is something you can see before it runs out. It makes its HTTP client with `metered_client("<the descriptor's id>", ...)`, which counts every call it sends (a redirect's hops each count, and so do the OpenAI SDK's retries: each is a request the service sees). Per data source and per day it keeps counts only, never an address, a key, a query or a body:
+* **Calls, by the exact HTTP status** (`200`, `304`, `401`, `429`, `500`, ...), and the calls that got no status: `timeout`, `connect`, `tls`, `error`. The last `429` is remembered with its time.
+* **Bytes** of the bodies sent and received, as they went over the wire (compressed, if the origin compressed them; headers are not counted).
+* **Cache outcomes**, from `cached` (an origin's answers) and `fetch_cached` (kept downloads): `hit`, `miss`, `stale` (the origin did not answer, the old one was used), `coalesced` (another task fetched it while this one waited), `revalidated` (asked, `304`) and `bypass` (the cache was off), with the bytes each answered. The hit rate is the share of lookups answered without a download (`hit`, `coalesced`, `revalidated`); the bytes saved are theirs.
+
+The counts are in memory behind a lock (a data source is called from several threads) and written to `state/api-usage.json` (versioned, last 31 days, not part of a backup) about once a minute and on quit, never per call (a Pi's SD card): a crash loses at most the last minute. `test_api_metering` fails for an API data source (features `api` and `internet`) that makes its client any other way. Downloads through the shared pool (RSS, pictures) are not calls of a source and are not counted as calls; their cache outcomes are. Not built: a quota that stops calls (a budget guard), and the cost in money or tokens of the AI sources.
+
 ## System page and Telemetry
 The web app's **System** page (the left menu, #390) is where you see how the device is and what it is doing. There is no status button or activity panel in the toolbar any more. It shows:
 * **Device:** whether the display and the two layers came up (`GET /api/status`), and, under **Problems**, the latest few things that went wrong.
 * **Machine:** the operating system, Python, how long the machine has been up and, separately, how long the app has been running (a restart of the app moves only the second), processor load and memory (the whole machine's and this app's own) and the disk the storage is on (`GET /api/system`, every 10 s). Numbers and our own words only: no host name, address, user or path.
 * **Raspberry Pi** (only on one: the model name in `/proc/device-tree/model` says so): the model, the temperature, the clock and the firmware's power warnings (under-voltage, frequency capped, throttled, temperature limit: now, and since the start).
 * **Storage:** the files and bytes by area (settings, schedules, plugins, data sources, schemas, state) and by plugin and data source, with how much of each is *kept* (downloads, origin answers, lists: what can be fetched again).
+* **API usage** (#440): what each API data source (OpenAI, Google AI, OpenWeatherMap, Comic Vine, Thunderforest) has asked of its service, for today, the last seven days and the month, in the device's days: the calls, how many failed, the bytes of the bodies sent and received, and the share of cache lookups that were answered without a download (hover for the bytes saved). Under it, the calls by the status the service answered (`200 × 40, 429 × 2`; a call that got no answer is `timeout`, `connect`, `tls` or `error`) and when the service last said "too many requests".
 
 The page's toolbar (as on the playlist page) has a stop / play and a next-track button for the playlist (see "Transport" above; the timer tasks keep running), then **Back up**, **Restore** and **Device password**, each of which opens a dialog. Beside the facts, two panels follow the device live:
 * **Playback (toolbar):** the playlist's buttons. The button follows the playlist layer's own `transport` events, and asks `GET /api/transport` when the page opens or the link comes back, so a page opened while playback is stopped shows it stopped.
 * **Now showing (panel):** a thumbnail of what the panel shows, with the layers it was composed of (background, blend, override, timer blend, priority, overlays). Click it for full size.
-* **Recently shown:** the last few pages, in the same panel.
+* **Recently shown (panel):** the last few pages before the one on the panel, as thumbnails (click for full size).
 * **Activity (panel):** what the device reports, with a source filter and "Problems only".
 
 The page follows a WebSocket (`/api/telemetry/ws?since=<seq>&run=<run>`), which reconnects on its own and resumes after the last event it had. `seq` starts again at every start of the device, so the link's first message, `hello`, names the run: a page that followed another run gets everything kept and starts over. The link starts once the page's first request has been answered (a WebSocket cannot ask for a sign-in), and after a sign-in the page loads again. Times are the device's, not the browser's. The other routes:
@@ -610,7 +620,7 @@ The page follows a WebSocket (`/api/telemetry/ws?since=<seq>&run=<run>`), which 
 * `GET /api/transport` / `POST /api/transport`: whether playback is stopped (`{ stopped }`) and `{ command: play | stop | next }` for the Playlist Layer. The command is accepted, not done: the layer does it on its own thread and reports a `transport` event; 503 before the application has started;
 * `GET /api/status`: how bringing up the display and the two layers went, `{ ok, components: { display | playlist-layer | timer-layer: { state: ok | failed | starting, message } } }`, in our words (a failure says to see the log); the System page reads it every 10 s. A failed display is not retried when its settings change (live reconfiguration is not built): fix the settings and restart;
 * `POST /api/system/locate`: the Location field's **Locate by IP** button (#426): a rough position (about the city) from the device's public IP address, `{ ok, message, latitude?, longitude? }`, always 200 and in our words. The device asks ipapi.co (a fixed host, no key; the service sees the device's public address, and the button's tooltip says so) and **nothing is saved**: the button only fills the field, and the person saves or not. The free tier is limited per day; a refusal says so.
-* `GET /api/system`: `{ host, load, pi, storage }` for the System page (`pi` is `null` unless the machine is a Raspberry Pi); needs the same sign-in as the rest of `/api`;
+* `GET /api/system`: `{ host, load, pi, storage, usage }` for the System page (`usage` is the API metering below) (`pi` is `null` unless the machine is a Raspberry Pi); needs the same sign-in as the rest of `/api`;
 * `GET /api/display/current`: the last `shown` event;
 * `GET /api/display/images/<digest>?size=thumb|full`: a shown image as PNG. The device keeps the last 8, in memory only.
 
