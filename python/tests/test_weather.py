@@ -25,7 +25,7 @@ from ..model.configuration_manager import ConfigurationManager, DatasourceConfig
 from ..model.service_container import ServiceContainer
 from ..plugins.plugin_base import PermanentError
 from ..task.async_http_worker_pool import client_var
-from ..utils.image_utils import LINUX_CHROME_HEADLESS, WIN_CHROME_HEADLESS, os_type
+from ..utils.image_utils import chrome_command
 from .fake_internet import FakeInternet, fixture_text
 from .test_datasource_fixes import STATIC, FakeRenderSession, _Cob
 from .utils import save_datasource_settings
@@ -418,7 +418,7 @@ class TestRender(unittest.IsolatedAsyncioTestCase):
 	async def test_anything_but_a_page_is_nothing_to_show(self):
 		self.assertIsNone(await WeatherAsync("weather", "Weather").render_async(make_context(), {}, None))
 
-CHROME = WIN_CHROME_HEADLESS if os_type == "Windows" else LINUX_CHROME_HEADLESS
+CHROME = chrome_command()
 
 @unittest.skipUnless(shutil.which(CHROME) is not None, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")
 class TestRealPage(unittest.IsolatedAsyncioTestCase):

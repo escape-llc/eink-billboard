@@ -10,23 +10,24 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import httpx
+import psutil
 from PIL import Image
 
 from ..utils import image_utils
 from ..utils.image_utils import apply_image_enhancement, blurred_margin, render_html_arglist, render_html_arglist_async, stream_to_buffer, to_rgb
 
-POSIX = os.name == "posix"
-
 def _alive(pid: int) -> bool:
-	"""True when the process exists and is not a zombie."""
+	"""True when the process exists and is not a zombie (Linux keeps a killed child's entry until it is reaped)."""
 	try:
-		with open(f"/proc/{pid}/stat") as f:
-			return f.read().rsplit(")", 1)[1].split()[0] != "Z"
-	except (FileNotFoundError, ProcessLookupError):
+		return psutil.Process(pid).status() != psutil.STATUS_ZOMBIE
+	except psutil.NoSuchProcess:
 		return False
 
-@unittest.skipUnless(POSIX, "fake chrome is a shell script")
 class TestChromeRender(unittest.TestCase):
+	"""
+	The render's handling of the browser process, with a fake browser: a Python script, made runnable as the browser is, by a shebang on POSIX and a `.cmd` shim on Windows
+	(which `CreateProcess` runs through `cmd.exe`), so both platforms' process handling is tested: the process group and `killpg` here, `CREATE_NEW_PROCESS_GROUP` and `taskkill /T` there.
+	"""
 	def setUp(self):
 		self.work = tempfile.TemporaryDirectory()
 		self.addCleanup(self.work.cleanup)
@@ -36,46 +37,57 @@ class TestChromeRender(unittest.TestCase):
 		p = patch.object(tempfile, "tempdir", self.tmp)
 		p.start()
 		self.addCleanup(p.stop)
-	def _script(self, name: str, body: str) -> str:
-		path = os.path.join(self.work.name, name)
-		with open(path, "w") as f:
-			f.write(f"#!/bin/sh\n{body}\n")
-		os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC)
-		return path
-	def _python_script(self, name: str, body: str) -> str:
-		path = os.path.join(self.work.name, name)
-		with open(path, "w") as f:
+	def _browser(self, name: str, body: str) -> str:
+		"""A fake browser running `body` (Python), and the patch that makes the render start it (`EINK_CHROME` in a `.env` would otherwise win)."""
+		script = os.path.join(self.work.name, f"{name}.py")
+		with open(script, "w", encoding="utf-8") as f:
 			f.write(f"#!{sys.executable}\n{body}\n")
-		os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC)
+		if os.name == "nt":
+			path = os.path.join(self.work.name, f"{name}.cmd")
+			with open(path, "w", encoding="utf-8") as f:
+				f.write(f'@"{sys.executable}" "{script}" %*\n')
+		else:
+			path = script
+			os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC)
+		patcher = patch.object(image_utils, "chrome_command", lambda: path)
+		patcher.start()
+		self.addCleanup(patcher.stop)
 		return path
 	def test_timeout_kills_child_and_group(self):
 		pidfile = os.path.join(self.work.name, "pids")
-		script = self._script("sleeper", f"sleep 300 &\necho $! > {pidfile}\nsleep 300")
-		with patch.object(image_utils, "LINUX_CHROME_HEADLESS", script), patch.object(image_utils, "CHROME_TIMEOUT_SECONDS", 1.0):
+		self._browser("sleeper", f"""
+import subprocess, sys, time
+child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(300)"])
+with open({pidfile!r}, "w") as f:
+	f.write(str(child.pid))
+time.sleep(300)
+""")
+		# long enough for the fake (a shell, then Python, then its child) to start on a slow machine
+		with patch.object(image_utils, "CHROME_TIMEOUT_SECONDS", 3.0):
 			start = time.monotonic()
 			result = render_html_arglist("<html></html>", [])
 			elapsed = time.monotonic() - start
 		self.assertIsNone(result)
-		self.assertLess(elapsed, 10)
+		self.assertLess(elapsed, 15)
 		with open(pidfile) as f:
 			grandchild = int(f.read().strip())
-		time.sleep(0.2)
+		deadline = time.monotonic() + 5
+		while _alive(grandchild) and time.monotonic() < deadline:
+			time.sleep(0.1)
 		self.assertFalse(_alive(grandchild), "the child's own child survived the timeout")
 		self.assertEqual(os.listdir(self.tmp), [], "temporary files left behind")
 	def test_failed_render_leaves_no_temp_files(self):
-		script = self._script("failing", "echo boom >&2\nexit 1")
-		with patch.object(image_utils, "LINUX_CHROME_HEADLESS", script):
-			self.assertIsNone(render_html_arglist("<html></html>", []))
+		self._browser("failing", "import sys\nsys.stderr.write('boom')\nsys.exit(1)")
+		self.assertIsNone(render_html_arglist("<html></html>", []))
 		self.assertEqual(os.listdir(self.tmp), [])
 	def test_empty_screenshot_is_a_failure(self):
 		# exits 0 but never writes the screenshot: the pre-created empty PNG must not count
-		script = self._script("lazy", "exit 0")
-		with patch.object(image_utils, "LINUX_CHROME_HEADLESS", script):
-			self.assertIsNone(render_html_arglist("<html></html>", []))
+		self._browser("lazy", "pass")
+		self.assertIsNone(render_html_arglist("<html></html>", []))
 		self.assertEqual(os.listdir(self.tmp), [])
 	def test_success_uses_private_profile_each_time(self):
 		log = os.path.join(self.work.name, "args.log")
-		script = self._python_script("fake_chrome", f"""
+		self._browser("fake_chrome", f"""
 import sys
 from PIL import Image
 shot = [a.split('=', 1)[1] for a in sys.argv if a.startswith('--screenshot=')][0]
@@ -83,9 +95,8 @@ prof = [a.split('=', 1)[1] for a in sys.argv if a.startswith('--user-data-dir=')
 open({log!r}, 'a').write((prof[0] if prof else '') + '\\n')
 Image.new('RGB', (8, 6), 'red').save(shot, 'PNG')
 """)
-		with patch.object(image_utils, "LINUX_CHROME_HEADLESS", script):
-			a = render_html_arglist("<html></html>", [])
-			b = render_html_arglist("<html></html>", [])
+		a = render_html_arglist("<html></html>", [])
+		b = render_html_arglist("<html></html>", [])
 		self.assertIsNotNone(a)
 		assert a is not None
 		self.assertEqual(a.size, (8, 6))
@@ -96,12 +107,12 @@ Image.new('RGB', (8, 6), 'red').save(shot, 'PNG')
 		self.assertNotEqual(profiles[0], profiles[1])
 		self.assertEqual(os.listdir(self.tmp), [])
 	def test_does_not_log_the_html(self):
-		script = self._script("failing", "exit 1")
-		with patch.object(image_utils, "LINUX_CHROME_HEADLESS", script), self.assertLogs(image_utils.logger, level="DEBUG") as cm:
+		self._browser("failing", "import sys\nsys.exit(1)")
+		with self.assertLogs(image_utils.logger, level="DEBUG") as cm:
 			render_html_arglist("<html>SECRET-MARKER-XYZ</html>", [])
 		self.assertNotIn("SECRET-MARKER-XYZ", "\n".join(cm.output))
 	def test_async_render_does_not_block_the_loop(self):
-		script = self._script("sleeper", "sleep 300")
+		self._browser("sleeper", "import time\ntime.sleep(300)")
 		async def go():
 			ticks = 0
 			stop = False
@@ -111,7 +122,7 @@ Image.new('RGB', (8, 6), 'red').save(shot, 'PNG')
 					await asyncio.sleep(0.05)
 					ticks += 1
 			t = asyncio.create_task(ticker())
-			with patch.object(image_utils, "LINUX_CHROME_HEADLESS", script), patch.object(image_utils, "CHROME_TIMEOUT_SECONDS", 1.0):
+			with patch.object(image_utils, "CHROME_TIMEOUT_SECONDS", 1.0):
 				result = await render_html_arglist_async("<html></html>", [])
 			stop = True
 			await t
