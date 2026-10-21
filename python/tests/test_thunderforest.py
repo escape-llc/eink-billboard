@@ -184,6 +184,15 @@ class TestRealPage(unittest.IsolatedAsyncioTestCase):
 				result.image.save(folder.joinpath(f"{orientation}.png"))
 				self.assertGreater(len(result.image.convert("L").getcolors(maxcolors=256) or []), 1, "the page is not blank")
 
+class TestPageCharset(unittest.TestCase):
+	def test_every_page_says_it_is_utf_8_before_anything_else(self):
+		"""Found with the attribution's © (it came out as Â©): a local file with no declaration is read as Windows-1252, which garbles any text that is not ASCII (a title, a feed, an event)."""
+		path = Path(os.path.dirname(os.path.abspath(__file__))).parent.joinpath("static", "render", "plugin.html")
+		text = path.read_text(encoding="utf-8")
+		start = text.index("<head>") + len("<head>")
+		self.assertLess(text.index('<meta charset="utf-8">'), 1024)
+		self.assertNotIn("<meta", text[start:text.index('<meta charset="utf-8">')])
+
 class TestKeyInLogs(unittest.TestCase):
 	def test_the_key_is_hidden_in_a_log_line_of_the_http_client(self):
 		record = logging.LogRecord("httpx", logging.INFO, "", 0, 'HTTP Request: GET https://api.thunderforest.com/static/a/1,2,3/4x5.png?apikey=sk-abc123&x=1 "HTTP/1.1 200 OK"', None, None)
