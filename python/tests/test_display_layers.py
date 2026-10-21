@@ -180,11 +180,11 @@ class TestDisplayRouting(unittest.TestCase):
 			image = PriorityImage(NOW, "setup", solid(GREEN, (800, 480)), datetime.timedelta(seconds=0.1))
 			await taskq.put(image)
 			control = self.display.priority_control
-			runner = asyncio.create_task(self.display._task_timed_layer(taskq, commitq, (800, 480), None, done, lambda di: (seen.append(di), self.display.compsitor.set_layer_priority(di)), "priority", control))
+			runner = asyncio.create_task(self.display._task_timed_layer(taskq, commitq, (800, 480), None, done, lambda di: (seen.append(di), self.display.compositor.set_layer_priority(di)), "priority", control))
 			# the panel is still drawing it: the time (0.1 s) has not started, however long it takes
 			await asyncio.sleep(0.4)
 			self.assertEqual([di is None for di in seen], [False], "still shown while the panel draws it")
-			self.display._note_drawn(self.display.compsitor.current_version)
+			self.display._note_drawn(self.display.compositor.current_version)
 			await asyncio.sleep(0.4)
 			runner.cancel()
 			try:
@@ -203,7 +203,7 @@ class TestDisplayRouting(unittest.TestCase):
 			done = threading.Event()
 			await taskq.put(PriorityImage(NOW, "setup", solid(GREEN, (800, 480)), datetime.timedelta(minutes=1)))
 			control = self.display.priority_control
-			runner = asyncio.create_task(self.display._task_timed_layer(taskq, commitq, (800, 480), None, done, lambda di: (seen.append(di), self.display.compsitor.set_layer_priority(di)), "priority", control))
+			runner = asyncio.create_task(self.display._task_timed_layer(taskq, commitq, (800, 480), None, done, lambda di: (seen.append(di), self.display.compositor.set_layer_priority(di)), "priority", control))
 			await asyncio.sleep(0.2)
 			await self.display._task_priority_revoke(taskq, "setup")
 			await asyncio.sleep(0.2)

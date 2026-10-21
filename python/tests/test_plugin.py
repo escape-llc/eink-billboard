@@ -93,7 +93,7 @@ class TestAsyncPlugins(unittest.TestCase):
 		cm = temp_configuration_manager(self)
 		save_datasource_settings(cm, "image-folder", { "folders": [{ "name": "test images", "path": "python/tests/images" }] })
 		display = self.run_slide_show(track, datasources, cm=cm)
-		self.assertEqual(len(display.msgs), 9, "display.msgs failed")
+		self.assertEqual(len(display.msgs), 3, "one slide per picture in the folder")
 	def test_slide_show_with_comic(self):
 		content = {
 			"dataSource": "comic-feed",

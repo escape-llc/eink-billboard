@@ -136,9 +136,9 @@ class TestDisplayOverlays(unittest.TestCase):
 				return asyncio.Queue()
 			d.commitq = pool.submit(queue(), None).result(timeout=5)
 			d._overlay_image(OverlayImage(NOW, "a", "top-center", "A", solid((246, 96))))
-			self.assertEqual(len(d.compsitor._current_stack.overlays), 1)
+			self.assertEqual(len(d.compositor._current_stack.overlays), 1)
 			d._overlay_revoke(OverlayRevoke(NOW, "a"))
-			self.assertEqual(d.compsitor._current_stack.overlays, [])
+			self.assertEqual(d.compositor._current_stack.overlays, [])
 		finally:
 			pool.shutdown()
 

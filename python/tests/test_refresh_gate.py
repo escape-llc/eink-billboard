@@ -244,7 +244,7 @@ class TestDisplayTask(unittest.TestCase):
 	REST = 0.6
 
 	def run_display(self, display: Display, panel: RecordingDisplay, body):
-		comp = display.compsitor
+		comp = display.compositor
 		async def go():
 			taskq: asyncio.Queue = asyncio.Queue()
 			loop = asyncio.create_task(display._task_render_and_display(taskq, comp, panel, None, MagicMock()))
