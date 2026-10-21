@@ -12,11 +12,13 @@ An API data source makes its HTTP client with `metered_client(source_id, ...)`, 
 The counts live in memory behind a lock (a data source is called from several threads) and are written to the storage's `state/api-usage.json` about once a minute by a thread of their own, and on quit:
 never per call (a Pi's SD card). A crash loses at most the last minute. A file that cannot be read or written is no history, and never stops a call.
 """
+import contextlib
 import logging
 import ssl
 import threading
+from contextvars import ContextVar
 from datetime import datetime, timedelta
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterator, Mapping
 
 import httpx
 
@@ -258,29 +260,48 @@ def _received(response: httpx.Response) -> int:
 	except httpx.ResponseNotRead:
 		return 0
 
+# the data source a shared client's calls are counted under, for as long as it is set (`metered_as`): the download pool's client belongs to no source,
+# and `download_for` names the one it downloads for. A context variable, so each task and thread names its own.
+current_source: ContextVar[str|None] = ContextVar("metering_source", default=None)
+
+@contextlib.contextmanager
+def metered_as(source: str) -> Iterator[None]:
+	"""Count the calls of a shared client (one made with no source) under `source` until the block ends."""
+	token = current_source.set(source)
+	try:
+		yield
+	finally:
+		current_source.reset(token)
+
 class MeteredClient(httpx.AsyncClient):
-	"""An `httpx.AsyncClient` that counts every call it sends (`get`, `post` and `stream` all go through `send`)."""
-	def __init__(self, source: str, meter: UsageMeter|None = None, **kwargs: Any):
+	"""
+	An `httpx.AsyncClient` that counts every call it sends (`get`, `post` and `stream` all go through `send`): under its own source, or, for a shared client
+	made with none (the download pool's), under the source `metered_as` names at the time; a call with neither is not counted.
+	"""
+	def __init__(self, source: str|None, meter: UsageMeter|None = None, **kwargs: Any):
 		super().__init__(**kwargs)
 		self._source = source
 		self._meter = meter or METER
 
 	async def send(self, request: httpx.Request, *, stream: bool = False, **kwargs: Any) -> httpx.Response:
+		source = self._source or current_source.get()
+		if source is None:
+			return await super().send(request, stream=stream, **kwargs)
 		try:
 			response = await super().send(request, stream=stream, **kwargs)
 		except httpx.HTTPError as e:
-			self._meter.call(self._source, None, failure_kind(e), _sent(request), 0)
+			self._meter.call(source, None, failure_kind(e), _sent(request), 0)
 			raise
 		for hop in response.history:
-			self._meter.call(self._source, hop.status_code, None, _sent(hop.request), _received(hop))
+			self._meter.call(source, hop.status_code, None, _sent(hop.request), _received(hop))
 		if not stream:
-			self._meter.call(self._source, response.status_code, None, _sent(request), _received(response))
+			self._meter.call(source, response.status_code, None, _sent(request), _received(response))
 			return response
 		# a streamed body is not here yet: its size is counted when it is closed
-		self._meter.call(self._source, response.status_code, None, _sent(request), 0)
+		self._meter.call(source, response.status_code, None, _sent(request), 0)
 		closed = False
 		original = response.aclose
-		meter, source = self._meter, self._source
+		meter = self._meter
 		async def aclose() -> None:
 			nonlocal closed
 			try:

@@ -24,7 +24,6 @@ from ..display.display_base import DisplayBase
 from ..display.mock_display import MockDisplay
 from ..model.time_of_day import TimeOfDay
 from ..plugins.plugin_base import PluginAsync
-from ..task import async_http_worker_pool as ahwp_module
 from ..task.application import Application
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool
 from ..task.async_worker_pool import AsyncWorkerPool
@@ -312,8 +311,10 @@ class TelemetrySinkTests(unittest.TestCase):
 
 class PoolRobustness(unittest.TestCase):
 	def test_http_pool_start_fails_clearly_when_client_constructor_raises(self):
+		from ..datasources.metering import MeteredClient
 		pool = AsyncHttpWorkerPool()
-		with patch.object(ahwp_module.httpx, "AsyncClient", side_effect=RuntimeError("client-ctor")):
+		# the pool's client is a metered one (#440): its constructor is the one that fails
+		with patch.object(MeteredClient, "__init__", side_effect=RuntimeError("client-ctor")):
 			with self.assertRaises(RuntimeError) as cm:
 				run_bounded(lambda: pool.start(), 5)
 		self.assertIn("client-ctor", str(cm.exception))
@@ -323,9 +324,12 @@ class PoolRobustness(unittest.TestCase):
 			def __init__(self, *a, **k): pass
 			async def aclose(self):
 				raise RuntimeError("aclose-failed")
+		from ..datasources import metering
 		pool = AsyncHttpWorkerPool()
-		with patch.object(ahwp_module.httpx, "AsyncClient", BadClient):
+		# the pool makes its client from the meter's module when it starts (#440)
+		with patch.object(metering, "MeteredClient", BadClient):
 			pool.start()
+			self.assertIsInstance(pool.client, BadClient, "the client whose aclose fails is the pool's")
 			run_bounded(lambda: pool.shutdown(), 4)
 		self.assertFalse(pool.thread.is_alive())
 

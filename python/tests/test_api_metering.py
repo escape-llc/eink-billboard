@@ -262,6 +262,64 @@ class TestCacheOutcomes(unittest.TestCase):
 			asyncio.run(get(NOW + later))
 		self.assertEqual(self.outcomes(), { "miss": 1, "hit": 1, "revalidated": 1 })
 
+class TestThePoolsDownloads(unittest.TestCase):
+	"""
+	The download pool's client belongs to no data source; `download_for` names the one it downloads for, so a picture of the day counts as that source's call
+	(the System page said 0 calls beside "'apod' downloaded and kept 2363 KB").
+	"""
+	def setUp(self):
+		self.cm = temp_configuration_manager(self)
+		METER.reset()
+		self.addCleanup(METER.reset)
+		patcher = patch.object(url_guard, "_resolve", public)
+		patcher.start()
+		self.addCleanup(patcher.stop)
+		keeping._last_prune.clear()
+
+	def context(self, source: str):
+		from ..datasources.data_source import DataSourceExecutionContext
+		from ..model.configuration_manager import DatasourceConfigurationManager
+		from ..model.service_container import ServiceContainer
+		services = ServiceContainer()
+		services.add_service(DatasourceConfigurationManager, self.cm.datasource_manager(source))
+		return DataSourceExecutionContext(services, (800, 480), NOW)
+
+	def test_a_download_through_the_pool_is_a_call_of_the_data_source_it_is_for(self):
+		from ..datasources.content_cache import download_for
+		from ..task.async_http_worker_pool import client_var
+		async def run():
+			client_var.set(MeteredClient(None, transport=httpx.MockTransport(lambda r: httpx.Response(200, content=b"x" * 2048))))
+			for _ in range(2):
+				await download_for(self.context("apod"), "https://pics.example/today.jpg", default_hours=24)
+		asyncio.run(run())
+		today = only(METER, "apod")["today"]
+		# the second look is read from disk: one call, and a hit
+		self.assertEqual((today["calls"], today["status"], today["received"]), (1, { "200": 1 }, 2048))
+		self.assertEqual(today["cache"], { "miss": 1, "hit": 1 })
+
+	def test_a_shared_client_counts_nothing_unless_a_data_source_is_named(self):
+		async def run():
+			async with MeteredClient(None, transport=httpx.MockTransport(lambda r: httpx.Response(200))) as client:
+				await client.get("https://a.example/")
+		asyncio.run(run())
+		self.assertEqual(METER.report(), [])
+
+	def test_a_clients_own_source_wins_over_the_one_named_for_the_pool(self):
+		from ..datasources.metering import metered_as
+		async def run():
+			async with MeteredClient("thunderforest", transport=httpx.MockTransport(lambda r: httpx.Response(200))) as client:
+				with metered_as("thunderforest-map"):
+					await client.get("https://a.example/")
+		asyncio.run(run())
+		self.assertEqual([e["id"] for e in METER.report()], ["thunderforest"])
+
+	def test_the_pools_client_is_a_metered_one(self):
+		from ..task.async_http_worker_pool import AsyncHttpWorkerPool
+		pool = AsyncHttpWorkerPool()
+		pool.start(timeout=5)
+		self.addCleanup(pool.shutdown)
+		self.assertIsInstance(pool.client, MeteredClient)
+
 class TestEveryApiSourceIsMetered(WebApiTestBase):
 	def test_an_api_data_source_makes_its_client_with_metered_client(self):
 		"""A client made any other way, or the pool's, is a service whose calls nobody counts (OpenWeatherMap's forecasts and Thunderforest's maps once went through the pool)."""

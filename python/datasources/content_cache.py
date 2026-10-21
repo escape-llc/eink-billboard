@@ -26,6 +26,7 @@ from typing import Any, Callable, Mapping
 from httpx import AsyncClient
 
 from ..model.configuration_manager import DatasourceConfigurationManager
+from ..model.time_of_day import TimeOfDay
 from ..task.async_http_worker_pool import client_var
 from ..plugins.plugin_base import PermanentError
 from ..task.message_router import MessageRouter
@@ -33,7 +34,7 @@ from ..task.messages import Telemetry
 from ..utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, download, stream_to_buffer
 from ..utils.url_guard import UrlRefused
 from .data_source import DataSourceExecutionContext
-from .metering import METER
+from .metering import METER, metered_as
 from .keeping import DEFAULT_STALE_DAYS, CLOCK_SLACK, REFILL_WAIT_SECONDS, aware, number, parse_moment, prune_stale_sometimes, refill_lock
 from .response_cache import note_use, save_quietly
 
@@ -269,17 +270,24 @@ async def download_for(dsec: DataSourceExecutionContext, url: str, *, default_ho
 	if not isinstance(dscm, DatasourceConfigurationManager):
 		return await stream_to_buffer(client, url, headers, ctok, max_bytes)
 	_, settings = dscm.open().get()
-	return await fetch_cached(dscm, settings or {}, client, url, dsec.timestamp, headers=headers, ctok=ctok, max_bytes=max_bytes, default_hours=default_hours, scope=scope, setting=setting,
-		report=_telemetry(dsec, dscm.datasource_id))
+	# the pool's client belongs to no data source: its calls are counted under this one while it downloads (a client of the data source's own counts under its own)
+	with metered_as(dscm.datasource_id):
+		return await fetch_cached(dscm, settings or {}, client, url, dsec.timestamp, headers=headers, ctok=ctok, max_bytes=max_bytes, default_hours=default_hours, scope=scope, setting=setting,
+			report=_telemetry(dsec, dscm.datasource_id))
 
 def _telemetry(dsec: DataSourceExecutionContext, source_id: str) -> Reporter:
-	"""What a download tells the web app (`cache-<outcome>`): the data source and the size, never the address (it can carry a key). Said with the time it happens, not the slot's."""
+	"""
+	What a download tells the web app (`cache-<outcome>`): the data source and the size, never the address (it can carry a key). Said with the time it happens,
+	not the slot's, on the device's clock (`TimeOfDay`: the device's zone), as every other event is: the process's own zone is UTC in a container.
+	"""
 	router = dsec.provider.get_service(MessageRouter)
+	clock = dsec.provider.get_service(TimeOfDay)
 	def tell(outcome: str, size: int) -> None:
 		if router is None:
 			return
 		try:
-			router.send("telemetry", Telemetry(datetime.now().astimezone(), "data-source", { "kind": f"cache-{outcome}", "datasource": source_id, "bytes": size,
+			now = clock.current_time() if clock is not None else datetime.now().astimezone()
+			router.send("telemetry", Telemetry(now, "data-source", { "kind": f"cache-{outcome}", "datasource": source_id, "bytes": size,
 				"message": CACHE_WORDS[outcome].format(source=source_id, size=_kb(size)) }))
 		except Exception as e:
 			logger.warning(f"A cache event could not be sent ({type(e).__name__}).")
