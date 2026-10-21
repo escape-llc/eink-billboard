@@ -24,11 +24,10 @@ from ..datasources.weather.weather import Page, WeatherAsync, chosen_views, page
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
 from ..plugins.plugin_base import PermanentError
-from ..task.async_http_worker_pool import client_var
 from ..utils.image_utils import chrome_command
 from .fake_internet import FakeInternet, fixture_text
 from .test_datasource_fixes import STATIC, FakeRenderSession, _Cob
-from .utils import save_datasource_settings
+from .utils import save_datasource_settings, use_transport
 
 # the display is on the US west coast in October (daylight time); "now" is Wednesday 7 October 2026, noon, which is where the fixtures start
 ZONE = timezone(timedelta(hours=-7))
@@ -187,7 +186,7 @@ class TestCache(unittest.IsolatedAsyncioTestCase):
 	"""The API's answers are kept for the data source's kept times, shared by every page and task, and the free plan's calls are for new answers only."""
 	def setUp(self):
 		self.fake = FakeInternet()
-		client_var.set(httpx.AsyncClient(transport=self.fake))
+		use_transport(self, self.fake)
 
 	def asked(self) -> list[str]:
 		return [r.url.path.rsplit("/", 1)[-1] for r in self.fake.requests]
@@ -261,7 +260,7 @@ class TestCache(unittest.IsolatedAsyncioTestCase):
 		await self.open(dscm, ["current"])
 		def down(request: httpx.Request) -> httpx.Response:
 			raise httpx.ConnectError("down")
-		client_var.set(httpx.AsyncClient(transport=httpx.MockTransport(down)))
+		use_transport(self, httpx.MockTransport(down))
 		pages = await self.open(dscm, ["current"], NOW + timedelta(hours=3))
 		self.assertEqual([p.view for p in pages], ["current"], "the old answer")
 
@@ -274,7 +273,7 @@ class TestTheApiDataSource(unittest.IsolatedAsyncioTestCase):
 	"""OpenWeatherMap is an API data source (`DataSourceApi`): data only, asked by every source that shows the weather through `dsec.use`: its settings, its cache, one call."""
 	def setUp(self):
 		self.fake = FakeInternet()
-		client_var.set(httpx.AsyncClient(transport=self.fake))
+		use_transport(self, self.fake)
 		self.cm = weather_settings({ "forecastCacheHours": 6, "currentCacheHours": 6 })
 
 	def other(self, now=NOW) -> DataSourceExecutionContext:
@@ -330,7 +329,7 @@ class TestTheApiDataSource(unittest.IsolatedAsyncioTestCase):
 class TestOpen(unittest.IsolatedAsyncioTestCase):
 	def setUp(self):
 		self.fake = FakeInternet()
-		client_var.set(httpx.AsyncClient(transport=self.fake))
+		use_transport(self, self.fake)
 
 	def asked(self) -> list[str]:
 		return [r.url.path.rsplit("/", 1)[-1] for r in self.fake.requests]
@@ -376,7 +375,7 @@ class TestOpen(unittest.IsolatedAsyncioTestCase):
 	async def test_a_network_failure_says_its_kind_and_not_the_address(self):
 		def refuse(request: httpx.Request) -> httpx.Response:
 			raise httpx.ConnectError(f"cannot connect to {request.url}", request=request)
-		client_var.set(httpx.AsyncClient(transport=httpx.MockTransport(refuse)))
+		use_transport(self, httpx.MockTransport(refuse))
 		with self.assertRaises(RuntimeError) as caught:
 			await WeatherAsync("weather", "Weather").open_async(make_context(), {})
 		self.assertIn("ConnectError", str(caught.exception))
@@ -401,7 +400,7 @@ class TestKeyIsNotLogged(unittest.IsolatedAsyncioTestCase):
 
 class TestRender(unittest.IsolatedAsyncioTestCase):
 	def setUp(self):
-		client_var.set(httpx.AsyncClient(transport=FakeInternet()))
+		use_transport(self, FakeInternet())
 
 	async def test_each_page_is_rendered_at_the_target_size(self):
 		ds = WeatherAsync("weather", "Weather")
@@ -424,7 +423,7 @@ CHROME = chrome_command()
 class TestRealPage(unittest.IsolatedAsyncioTestCase):
 	"""The pages as Chromium draws them. The images are in .test-output/weather for a look."""
 	def setUp(self):
-		client_var.set(httpx.AsyncClient(transport=FakeInternet()))
+		use_transport(self, FakeInternet())
 
 	async def test_pages_are_drawn_at_the_display_size(self):
 		folder = Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.joinpath(".test-output", "weather")

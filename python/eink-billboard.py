@@ -20,6 +20,7 @@ from .model.service_container import ServiceContainer
 from .task.fanout_sink import FanoutSink
 from .model.time_of_day import ConfiguredTimeOfDay, TimeOfDay
 from .model.configuration_manager import ConfigurationManager
+from .datasources.metering import METER
 
 from .task.telemetry_hub import TelemetryHub
 from .task.application import Application, StartEvent
@@ -136,6 +137,8 @@ def run_application(args: argparse.Namespace) -> None:
 		_, system = cm.settings_manager().open("system").get()
 		return system.get("timezoneName") if system else None
 	time_base = ConfiguredTimeOfDay(system_timezone_name)
+	# what the API data sources ask of their services is counted in memory and kept in the state folder (#440)
+	METER.attach(cm, time_base.current_time)
 	# the cache is evicted first, so that whoever hears of a change next reads the new file; the application is added once it exists
 	watcher_sink = FanoutSink(ConfigurationManagerEvictionSink(cm))
 	# EINK_WATCH_POLL (seconds) for a storage whose file system sends no change events (a Windows folder mounted into a container)
@@ -205,6 +208,7 @@ def run_application(args: argparse.Namespace) -> None:
 			xapp.accept(QuitMessage(time_base.current_time()))
 			xapp.join(timeout=5)
 			config_watcher.stop()
+			METER.close()
 		except Exception as ee:
 			logger.error(f"Exception during shutdown: {ee}", exc_info=True)
 		finally:

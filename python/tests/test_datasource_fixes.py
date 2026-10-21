@@ -52,6 +52,7 @@ class FakeSettings:
 
 class FakeDatasourceSettings:
 	"""Stands in for DatasourceConfigurationManager: the stored settings document."""
+	datasource_id = "fake"
 	def __init__(self, document):
 		self.document = document
 	def open(self):

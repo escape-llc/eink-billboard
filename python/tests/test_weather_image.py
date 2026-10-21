@@ -16,14 +16,13 @@ from ..datasources.weather_image.weather_image import WeatherImageAsync, tidy
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
 from ..plugins.plugin_base import PermanentError
-from ..task.async_http_worker_pool import client_var
 from ..utils.prompt_tokens import unknown_token
 from ..web.documents import validate_properties
 from .fake_internet import FakeInternet, fixture_text
 from .test_datasource_fixes import STATIC
 from .test_openai_image import openai_requests, sources
 from .test_weather import KEY, NOW, ZONE, FakeSettings, report as fixture_report, weather_settings
-from .utils import save_datasource_settings
+from .utils import save_datasource_settings, use_transport
 
 PROMPT = "A cozy poster of {place} at {daypart} in {season}: {condition}, {temp} (feels {feels}), wind {wind}, high {high}, low {low}, rain {rain}."
 
@@ -114,7 +113,7 @@ class TestTheDescriptor(unittest.TestCase):
 class TestTheVisualizer(unittest.IsolatedAsyncioTestCase):
 	def setUp(self):
 		self.fake = FakeInternet()
-		client_var.set(httpx.AsyncClient(transport=self.fake))
+		use_transport(self, self.fake)
 		self.source = WeatherImageAsync("weather-image", "Weather Visualizer")
 		logging.getLogger("python.datasources.weather_image").setLevel(logging.CRITICAL)
 
@@ -154,7 +153,7 @@ class TestTheVisualizer(unittest.IsolatedAsyncioTestCase):
 			if request.url.path.endswith("/forecast"):
 				return httpx.Response(502)
 			return self.fake._handle(request)
-		client_var.set(httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+		use_transport(self, httpx.MockTransport(handler))
 		prompt, result = await self.picture(storage())
 		self.assertIsNotNone(result)
 		self.assertIn("14°C", prompt)
@@ -166,7 +165,7 @@ class TestTheVisualizer(unittest.IsolatedAsyncioTestCase):
 			if request.url.host == "api.openweathermap.org":
 				raise httpx.ConnectError("down", request=request)
 			return self.fake._handle(request)
-		client_var.set(httpx.AsyncClient(transport=httpx.MockTransport(down)))
+		use_transport(self, httpx.MockTransport(down))
 		prompt, result = await self.picture(storage(), weatherPrompt="A poster of {place} in {condition}, a bold flat sky.")
 		self.assertEqual(prompt, "A poster of in, a bold flat sky.")
 		self.assertIsNotNone(result)

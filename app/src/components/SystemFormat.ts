@@ -39,3 +39,32 @@ export function temperatureSeverity(celsius: number | null | undefined): "succes
 	if (typeof celsius !== "number") return "success"
 	return celsius >= 80 ? "danger" : celsius >= 70 ? "warn" : "success"
 }
+
+/** A call that did not succeed: no answer at all (`timeout`, `connect`, `tls`, `error`) or an HTTP status from 400 up. */
+export function failedCalls(status: Record<string, number> | null | undefined): number {
+	let failed = 0
+	for (const [code, count] of Object.entries(status ?? {})) {
+		const number = Number(code)
+		if (Number.isNaN(number) || number >= 400) failed += count
+	}
+	return failed
+}
+
+/** The calls by what the service answered, `200 x 40, 429 x 2`: the most common first, the status codes in order among equals. */
+export function statusSummary(status: Record<string, number> | null | undefined): string {
+	return Object.entries(status ?? {})
+		.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+		.map(([code, count]) => `${code} × ${count}`)
+		.join(", ")
+}
+
+/** A share (0 to 1) as `86%`; nothing counted is a dash. */
+export function formatShare(share: number | null | undefined): string {
+	return typeof share === "number" && Number.isFinite(share) ? `${Math.round(share * 100)}%` : "–"
+}
+
+/** The device's wall clock from a moment the server sent (`2026-10-21T12:17:09.5+02:00` is `2026-10-21 12:17`): the offset is the device's own, so the text is read as written, not in the browser's zone. */
+export function deviceMoment(moment: string | null | undefined): string {
+	const found = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(moment ?? "")
+	return found ? `${found[1]} ${found[2]}` : ""
+}

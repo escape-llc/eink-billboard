@@ -15,11 +15,10 @@ from ..model.configuration_manager import ConfigurationManager, DatasourceConfig
 from ..model.service_container import ServiceContainer
 from ..model.theme import inputs_from, palette_of
 from ..plugins.plugin_base import PermanentError
-from ..task.async_http_worker_pool import client_var
 from .fake_internet import FakeInternet
 from .test_theme import CHROME, HAVE_CHROME
 from .test_weather import KEY, NOW, STATIC, FakeSettings, report
-from .utils import save_datasource_settings, save_image, test_output_path_for
+from .utils import save_datasource_settings, save_image, test_output_path_for, use_transport
 
 class TestViews(unittest.TestCase):
 	def test_a_view_is_one_of_three_and_unset_is_now(self):
@@ -83,7 +82,7 @@ class Harness:
 	"""A storage with the OpenWeatherMap settings, and the context the Weather Overlay gets (its own folder; the API data source found by the DataSourceManager)."""
 	def __init__(self, test: unittest.TestCase, sources: dict|None = None, settings: dict|None = None):
 		self.fake = FakeInternet()
-		client_var.set(httpx.AsyncClient(transport=self.fake))
+		use_transport(test, self.fake)
 		folder = tempfile.mkdtemp(prefix="eink-weather-overlay-test-")
 		test.addCleanup(shutil.rmtree, folder, True)
 		self.cm = ConfigurationManager(storage_path=folder)

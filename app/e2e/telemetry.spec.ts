@@ -85,7 +85,7 @@ test("the System page's parts have their own surface, which follows the theme", 
 	watch.expectNone()
 })
 
-test("the activity and what is showing are the larger part of the System page, each a panel of its own, and a narrow window stacks the page", async ({ page }) => {
+test("the activity, what is showing and what was shown are the larger part of the System page, each a panel of its own, and a narrow window stacks the page", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.setViewportSize({ width: 1500, height: 900 })
 	await page.goto("/#/system")
@@ -94,11 +94,14 @@ test("the activity and what is showing are the larger part of the System page, e
 	const events = live.getByRole("region", { name: "Activity" })
 	await expect(events.getByRole("listitem").first()).toBeVisible({ timeout: 20000 })
 	const now = live.getByRole("region", { name: "Now showing" })
+	const recent = live.getByRole("region", { name: "Recently shown" })
 	const machine = page.getByRole("region", { name: "Machine" })
-	const [l, e, n, m] = await Promise.all([live.boundingBox(), events.boundingBox(), now.boundingBox(), machine.boundingBox()])
-	// the two panels take more than the facts beside them, and the activity is below what is showing
+	const [l, e, n, r, m] = await Promise.all([live.boundingBox(), events.boundingBox(), now.boundingBox(), recent.boundingBox(), machine.boundingBox()])
+	// the panels take more than the facts beside them; three of them, one under the other: what is showing, what was shown before it, the activity
 	expect(l!.width).toBeGreaterThan(m!.width)
-	expect(e!.y).toBeGreaterThan(n!.y + n!.height - 2)
+	await expect(live.locator(":scope > section.card")).toHaveCount(3)
+	expect(r!.y).toBeGreaterThan(n!.y + n!.height - 2)
+	expect(e!.y).toBeGreaterThan(r!.y + r!.height - 2)
 	// a narrow window stacks the page's two columns
 	await page.setViewportSize({ width: 800, height: 900 })
 	const [stackedNow, stackedMachine] = await Promise.all([now.boundingBox(), machine.boundingBox()])

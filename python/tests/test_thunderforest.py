@@ -21,13 +21,12 @@ from ..datasources.thunderforest_map.thunderforest_map import ThunderforestMapAs
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
 from ..plugins.plugin_base import PermanentError
-from ..task.async_http_worker_pool import client_var
 from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager
 from .fake_internet import FakeInternet
 from .test_datasource_fixes import STATIC, FakeDatasourceSettings, FakeRenderSession, _Cob
 from .test_rss import CHROME
 from .test_web_api import WebApiTestBase
-from .utils import save_datasource_settings
+from .utils import save_datasource_settings, use_transport
 
 PLACES = [{ "name": "Home", "location": { "latitude": 42.33143, "longitude": -83.04575 } }, { "name": "Odd", "location": { "latitude": None, "longitude": 3 } }, { "name": "Unset", "location": None }]
 WHERE = { "latitude": 51.5, "longitude": -0.12 }
@@ -105,7 +104,7 @@ class TestPlace(unittest.TestCase):
 class TestRender(unittest.IsolatedAsyncioTestCase):
 	def setUp(self):
 		self.fake = FakeInternet()
-		client_var.set(httpx.AsyncClient(transport=self.fake))
+		use_transport(self, self.fake)
 
 	async def render(self, params: dict, dsec: DataSourceExecutionContext|None = None):
 		dsec = dsec or storage()
@@ -168,7 +167,7 @@ class TestRender(unittest.IsolatedAsyncioTestCase):
 class TestRealPage(unittest.IsolatedAsyncioTestCase):
 	"""The page as Chromium draws it on both orientations, at the display size, with the attribution on it; the images are in .test-output/thunderforest for a look."""
 	def setUp(self):
-		client_var.set(httpx.AsyncClient(transport=FakeInternet()))
+		use_transport(self, FakeInternet())
 
 	async def test_pages_are_drawn_at_the_display_size(self):
 		folder = Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.joinpath(".test-output", "thunderforest")

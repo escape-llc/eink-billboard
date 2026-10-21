@@ -15,7 +15,7 @@ import httpx
 
 from ...model.configuration_manager import DatasourceConfigurationManager
 from ...plugins.plugin_base import PermanentError
-from ...task.async_http_worker_pool import AsyncHttpWorkerPool, tls_context
+from ..metering import metered_client
 from ..content_cache import download_for
 from ..data_source import DataSource, DataSourceApi, DataSourceExecutionContext
 
@@ -64,7 +64,7 @@ def refusal(status: int) -> Exception:
 
 async def check_key(key: str) -> dict[str, Any]:
 	"""Ask for the smallest map with this key and say what came of it: `{ ok, message }`, in our words (the address holds the key)."""
-	async with httpx.AsyncClient(timeout=TIMEOUT, transport=AsyncHttpWorkerPool.default_transport, verify=tls_context(), headers=HEADERS) as client:
+	async with metered_client("thunderforest", timeout=TIMEOUT, headers=HEADERS) as client:
 		try:
 			response = await client.get(map_address("transport", 0.0, 0.0, 1, (64, 64), key))
 		except httpx.HTTPError as ex:
@@ -93,7 +93,9 @@ class ThunderforestApi(DataSource, DataSourceApi):
 		key = stored_key(dsec.provider.required(DatasourceConfigurationManager))
 		url = map_address(str(params.get("style") or "transport"), float(params["latitude"]), float(params["longitude"]), int(params.get("zoom") or 12), params["size"], key)
 		try:
-			buffer = await download_for(dsec, url, default_hours=DEFAULT_CONTENT_HOURS, headers=HEADERS, ctok=lambda ct: ct.startswith("image/"), max_bytes=MAX_IMAGE_BYTES)
+			# a metered client of its own: a map that is not kept is a call against the key's quota (#440)
+			async with metered_client(self.id, timeout=TIMEOUT, headers=HEADERS) as client:
+				buffer = await download_for(dsec, url, default_hours=DEFAULT_CONTENT_HOURS, headers=HEADERS, ctok=lambda ct: ct.startswith("image/"), max_bytes=MAX_IMAGE_BYTES, client=client)
 		except httpx.HTTPStatusError as bad:
 			# its text names the address, which holds the key
 			raise refusal(bad.response.status_code) from None

@@ -58,7 +58,7 @@
 				<AccordionHeader>API keys and costs</AccordionHeader>
 				<AccordionContent>
 					<p>Some sources need a key from their service: OpenWeatherMap, Comic Vine, Thunderforest (maps), OpenAI and Google (generated pictures). Most have a free plan; generated pictures are paid by use. Keys are kept on the device, are never shown again (a field shows only stars), and are sent only to their own service.</p>
-					<p>Downloads are kept for a while (see each data source's <b>Keep</b> settings), so a free plan's quota goes a long way. The System page shows how much each source keeps.</p>
+					<p>Downloads are kept for a while (see each data source's <b>Keep</b> settings), so a free plan's quota goes a long way. The System page shows how much each source keeps, and under <b>API usage</b> how many calls each service has been asked for (today, this week, this month), how many failed, and how much the cache spared. Check it against your plan's quota.</p>
 				</AccordionContent>
 			</AccordionPanel>
 

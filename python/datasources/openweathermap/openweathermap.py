@@ -15,7 +15,8 @@ import httpx
 
 from ...model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager
 from ...plugins.plugin_base import PermanentError
-from ...task.async_http_worker_pool import AsyncHttpWorkerPool, client_var, tls_context
+from ...task.async_http_worker_pool import AsyncHttpWorkerPool
+from ..metering import metered_client
 from ..response_cache import cached
 from ..data_source import DataSource, DataSourceApi, DataSourceExecutionContext
 
@@ -175,7 +176,7 @@ async def check_key(key: str) -> dict[str, Any]:
 	Ask OpenWeatherMap, with this key, for the weather at a fixed point and say what came of it: `{ ok, message }`, in our words (the address holds the key: it is never in a message).
 	A client of our own: the web app has no pool, and a test is rare; the tests' transport is installed the same way as the pool's.
 	"""
-	async with httpx.AsyncClient(timeout=httpx.Timeout(10.0), transport=AsyncHttpWorkerPool.default_transport, verify=tls_context()) as client:
+	async with metered_client("openweathermap", timeout=httpx.Timeout(10.0)) as client:
 		try:
 			await fetch(client, "weather", 0.0, 0.0, units_for("metric", None), key)
 		except PermanentError:
@@ -284,15 +285,16 @@ class OpenWeatherMapApi(DataSource, DataSourceApi):
 		report = Report("", units_for(settings.get("units"), system.get("timezoneName")), system.get("timeFormat") == "12h", now)
 		latitude, longitude = float(where["latitude"]), float(where["longitude"])
 		report.latitude = latitude
-		client = client_var.get()
-		def answer(path: str):
-			"""The API's answer for this place: kept for the time the settings give that kind of answer (it is the same for every task), so the free plan's calls are for new answers only."""
-			# the key is not part of what is kept or what it is called: an answer is the same whoever asks
-			name = f"{path}|{latitude:.4f}|{longitude:.4f}|{report.units.system}"
-			setting, default = CACHE_TIMES[path]
-			return cached(dscm, settings, name, dsec.timestamp, lambda: fetch(client, path, latitude, longitude, report.units, key.strip()), default, setting)
-		if "current" in needs:
-			parse_current(await answer("weather"), report, zone)
-		if "forecast" in needs:
-			parse_forecast(await answer("forecast"), report, zone)
+		# a metered client of its own (#440): every answer that is not kept is a call against the key's quota
+		async with metered_client(self.id, timeout=AsyncHttpWorkerPool.REQUEST_TIMEOUT) as client:
+			def answer(path: str):
+				"""The API's answer for this place: kept for the time the settings give that kind of answer (it is the same for every task), so the free plan's calls are for new answers only."""
+				# the key is not part of what is kept or what it is called: an answer is the same whoever asks
+				name = f"{path}|{latitude:.4f}|{longitude:.4f}|{report.units.system}"
+				setting, default = CACHE_TIMES[path]
+				return cached(dscm, settings, name, dsec.timestamp, lambda: fetch(client, path, latitude, longitude, report.units, key.strip()), default, setting)
+			if "current" in needs:
+				parse_current(await answer("weather"), report, zone)
+			if "forecast" in needs:
+				parse_forecast(await answer("forecast"), report, zone)
 		return report
