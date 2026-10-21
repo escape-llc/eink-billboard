@@ -8,12 +8,12 @@ Welcome to eInk Billboard!
 
 From a fresh Raspberry Pi to a working billboard in one command. The app runs in a container (Podman), so the Pi itself only gets Podman, git and its panel connections switched on; Python, the browser that draws the pages and the panel drivers are all inside the container.
 
-> **Status:** the whole setup has been run start to finish on a Raspberry Pi 5 (Raspberry Pi OS Bookworm, Podman 4.3), including starting again after a restart, with no panel attached: the app opens the panel's devices and loads every driver inside the container, but no panel has been driven yet.
+> **Status:** the whole setup runs start to finish on a Raspberry Pi 5 (Raspberry Pi OS Bookworm, Podman 4.3), including starting again after a restart, with no panel attached: the app opens the panel's devices and loads every driver inside the container. Driving a real panel is untested.
 
 ## What you need
 
 * A **Raspberry Pi 4 or 5** with **Raspberry Pi OS 64-bit** (Bookworm or later), on your network, with internet access.
-  * **Memory:** 1 GB or more is comfortable (the app uses about 135 MB and each page drawn with the browser about 75 to 110 MB). A Pi 3, a Pi 3 A+ or a **Pi Zero 2 W** (the smallest 64-bit board) should work too, but only the Pi 5 has been tried: with 512 MB it needs swap (`deploy/eink-container.sh check` says), draws one page at a time, and building the image on it is the part most likely to run out of memory. Boards with a 32-bit system only (Pi 1, Pi Zero and Zero W, Pi 2 before the v1.2) cannot run it.
+  * **Memory:** 1 GB or more is comfortable (the app uses about 135 MB and each page drawn with the browser about 75 to 110 MB). A Pi 3, a Pi 3 A+ or a **Pi Zero 2 W** (the smallest 64-bit board) should work too, but only the Pi 5 is tested: with 512 MB it needs swap (`deploy/eink-container.sh check` says), draws one page at a time, and building the image on it is the part most likely to run out of memory. Boards with a 32-bit system only (Pi 1, Pi Zero and Zero W, Pi 2 before the v1.2) cannot run it.
 * Your own user on it, allowed to use `sudo` (the user Raspberry Pi Imager makes is).
 * A panel, or none yet: a **Pimoroni Inky** (it identifies itself) or a **Waveshare e-Paper** (you choose its model, e.g. `epd7in3e`; the name is on the panel's Waveshare wiki page). With no panel you can still try the whole app; the pages are drawn but not shown.
 * About 2 GB of free space and a few minutes to download the app. (When there is no download for the version you install, it is built on the Pi: about 6 GB and 15 to 20 minutes.)
@@ -116,8 +116,8 @@ Every command first checks the basics (Linux, not root, Podman and curl installe
 |---|---|
 | `help` | Lists the commands and settings. |
 | `update` | **Brings it up to date:** fetches the latest code into the clone, gets its image (`get`) and starts it (your data is kept); the image that ran before is kept for `rollback`, and older ones are removed. When nothing is new and the app already runs it, it says so and does nothing. Refuses when the clone has changes of your own. `update TAG` switches to a release by its tag, once there are releases; a plain `update` on a release stays on it. |
-| `get` | **Gets the image of the clone's code** (#310): downloads the one GitHub made for that exact commit (`ghcr.io/escape-llc/eink-billboard:sha-<commit>`, or `:<tag>` when the clone is on a release tag), checks that its label names the clone's commit, and names it `localhost/eink-device`; a few minutes. When there is none (GitHub makes it a few minutes after a change reaches `master`; there is none for a branch of your own or a machine that is not 64-bit ARM), it says so and builds instead (`build`). `EINK_PULL=0` always builds. While it downloads it prints a plain line every 30 seconds (`... 2 min 30 s, 640 MB written so far`) instead of Podman's progress bars, which redraw the screen and stand still while a layer is unpacked; Podman's own words go to `~/.cache/eink-billboard/pull.log`. When nothing has been written for 5 minutes, the download is stopped and the image is built instead (`update` again tries the download again); Ctrl+C stops the download too. |
-| `build` | Builds the app's image (`localhost/eink-device`) from the clone as it is, without pulling anything (`update` pulls). It looks at the internet only to say so when the clone is behind (`WARNING: the clone is 3 commit(s) behind`, with the command to use): 15 to 20 minutes the first time, a few minutes after an update. Removes unused images and the leftovers of failed builds first (`podman system prune --external`, then every unused image older than three days, because the layers of each build otherwise pile up: 24 GB in 28 images on a Pi; the running app and its data are kept), then checks for about 6 GB of free space, so a full disk is found in seconds; records the commit it was built from, and writes everything to `~/.cache/eink-billboard/build.log`; on failure it shows the end of that log and says what it was: Podman failing to start a step (`slirp4netns failed` is usually Podman out of room, not the network: `podman system prune -f --external` fixed it on a Pi; then `podman system migrate`, or `EINK_BUILD_NETWORK=host build`), a full disk, or a download that did not answer. |
+| `get` | **Gets the image of the clone's code**: downloads the one GitHub made for that exact commit (`ghcr.io/escape-llc/eink-billboard:sha-<commit>`, or `:<tag>` when the clone is on a release tag), checks that its label names the clone's commit, and names it `localhost/eink-device`; a few minutes. When there is none (GitHub makes it a few minutes after a change reaches `master`; there is none for a branch of your own or a machine that is not 64-bit ARM), it says so and builds instead (`build`). `EINK_PULL=0` always builds. While it downloads it prints a plain line every 30 seconds (`... 2 min 30 s, 640 MB written so far`) instead of Podman's progress bars, which redraw the screen and stand still while a layer is unpacked; Podman's own words go to `~/.cache/eink-billboard/pull.log`. When nothing has been written for 5 minutes, the download is stopped and the image is built instead (`update` again tries the download again); Ctrl+C stops the download too. |
+| `build` | Builds the app's image (`localhost/eink-device`) from the clone as it is, without pulling anything (`update` pulls). It looks at the internet only to say so when the clone is behind (`WARNING: the clone is 3 commit(s) behind`, with the command to use): 15 to 20 minutes the first time, a few minutes after an update. Removes unused images and the leftovers of failed builds first (`podman system prune --external`, then every unused image older than three days, because the layers of each build otherwise pile up; the running app and its data are kept), then checks for about 6 GB of free space, so a full disk is found in seconds; records the commit it was built from, and writes everything to `~/.cache/eink-billboard/build.log`; on failure it shows the end of that log and says what it was: Podman failing to start a step (`slirp4netns failed` is usually Podman out of room, not the network: try `podman system prune -f --external`, then `podman system migrate`, or `EINK_BUILD_NETWORK=host build`), a full disk, or a download that did not answer. |
 | `start` | Starts the app (or replaces the running one; the data is kept) on port 8080 of every address of the Pi. Passes in the panel's devices that exist (`/dev/spidev0.0`, `/dev/spidev0.1`, `/dev/i2c-1`, `/dev/gpiochip0`) with your `spi`, `i2c` and `gpio` groups, warns when a group is missing, refuses a port that is already in use, waits up to 90 seconds for the app to answer (showing its last log lines if it stops), then prints the setup code. Also `restart`. |
 | `stop` | Stops and removes the container. The settings, playlists and password are kept, in the volume `eink-data`. |
 | `logs` | The app's log; `logs -f` follows it (Ctrl+C to stop). |
@@ -178,68 +178,45 @@ rm -rf ~/eink-billboard ~/.config/eink-billboard ~/.cache/eink-billboard
 
 Podman, SPI, I2C and your groups stay as they are.
 
-# Goals
+# Design
 
-* Support Windows-based development
-	* Exercise Python's multi-platform capabilities
-* Support Docker/Podman-based development
-* Task-based architecture with Message Passing
-	* Explore the multi-thread capabilities of Python
-	* Explore Python's `async`/`await`
-	* We actually build Real Production Apps this way!
-* Unit test coverage of the Python code
-* Playlist scheduling model
-	* Provides images for the main background display (see below)
-	* No concept of time-of-day
-* "Day-planner" scheduling model
-	* Time/date sensitive tasks
-	* Tasks have day/time "trigger"
-	* Tasks run plugins
-		* Different settings per task
-	* Multiple tasks may trigger at the same time
-* Replace Jinja with a modern web front end toolchain
-	* Vite
-	* Vue JS
-	* Descriptor-based UI
-* Different architecture for settings, etc.
-	* Described in JSON configuration
-	* Web settings UI automatically build themselves
-* Color theme
-	* Device-wide algorithmic color scheme
-	* Unified colors for all components
-* Re-implement existing plugins as `async` data sources
-	* The existing plugins just render one/list of image(s)
-	* Encapsulate the notion of "list of images"
+* Developed on Windows and Linux alike
+	* Python's multi-platform support
+* Developed in Docker or Podman containers too (see Containers)
+* Task-based architecture with message passing
+	* Threads, each with its own `asyncio` loop
+	* Easy cancellation during shutdown or reconfiguration
+* Unit tests for the Python code
+* A playlist scheduling model
+	* Provides the pages of the background and foreground (see below)
+	* No time of day
+* A "day-planner" scheduling model
+	* Time and date sensitive tasks, each with a day and time "trigger"
+	* Tasks run plugins, with settings of their own
+	* Several tasks may trigger at the same time
+* A web app built with Vite, Vue and PrimeVue
+	* Settings forms built from descriptors
+* Settings described in JSON
+	* The web settings forms build themselves from schema descriptors; a component needs web code of its own only for a custom control
+* A device-wide algorithmic color theme, the same colors in every component
+* `async` data sources make the content
+	* A page or a list of pages
 	* Data sources may use other data sources
-* Plugins now "render" data sources to display layers (see below)
-	* Handles any data source with matching "features"
-	* Fewer and simpler plugins
-* Re-implement plugins as `async`
-	* Plugins are general-purpose "media player" like a slide-show
-	* Same plugin handles many data sources
-	* Tied to the display policy (see below) instead of the data
-* Re-implement with `async` tasks
-	* Self-hosting `async` loops for isolation between different tasks
-	* Easy cancellation during shutdown or re-configuration
-	* Greatly simplifies implementations
-* Support same displays
-	* Pimoroni
-	* Waveshare
-	* Mock
-	* Tk
-* Components do not require web authoring (for configuration) unless they need custom UI
-	* This is separate from plugins rendering content via `chromium-headless-shell`
-	* Schema descriptors provide the web application with metadata to build UI automatically
-* Plugins and Data Sources have more infrastructure support
-	* Set timers (for slideshows, etc.)
-	* Schedule async operations, e.g. HTTP
-	* Plugin (temporary) state (saved as JSON)
+* `async` plugins show data sources on display layers (see below)
+	* A plugin is a general-purpose "media player", such as a slide show
+	* It handles any data source with matching "features", so there are few, simple plugins
+	* It follows the display policy (see below), not the data
+* Displays: Pimoroni Inky, Waveshare, Mock, Tk
+* Infrastructure for plugins and data sources
+	* Timers (for slide shows, etc.)
+	* `async` operations such as HTTP
+	* State of their own, saved as JSON
 
-> Some of the Goals may seem "Enterprise-y" or over-complicated for a "hobby" project, but that is just how we roll!
+> Some of this may seem "Enterprise-y" or over-complicated for a "hobby" project, but that is just how we roll!
 
 # Display Architecture
 
-After struggling with different ideas, we arrive at the following architecture, based on "layers".  These are the layers, back to front:
+The display is built from "layers", back to front:
 
 * Background layer
 	* Playlist Layer provides images for the background layer.
@@ -252,16 +229,7 @@ After struggling with different ideas, we arrive at the following architecture, 
 	* The screen has six overlay **zones**, three across the top and three across the bottom (`top-left` ... `bottom-right`), laid out as the viewer sees the screen; the Display announces them at startup (`DisplaySettings.overlays`).
 	* The **Overlay** plugin runs as a timer task: it asks its data source (one with the `layer-overlay` feature; it makes a single image, `media-image`) for an image the size of its zone, and the overlay stays until the task's next run replaces it.
 	  When the data source has nothing to show, the overlay is taken down (revoked); so is the overlay of a task that is disabled or removed. A failing overlay task shows its error in its zone.
-	* The **Today** data source draws the date (formats `long`, `full`, `short`, `numeric`, or a custom strftime pattern) in the theme's overlay font (`fontOverlay`, shared by every overlay) and colors, the weekday highlighted, outlined.
-	* The **Weather Overlay** data source draws the weather in a zone: `now` (the temperature and the sky, with a drawing), `today` (the high, the low, the chance of rain) or `outlook` (the next three days, a line each). It has no settings of its own: it asks the OpenWeatherMap API data source for its report, so it uses that source's API key and units and shares its kept answers (a Weather page and the overlay of the same hours make one call).
-	* The **Reminder Overlay** data source (#158) draws what is coming up in a zone: the events that are on now or start within the task's window (minutes), the nearest first, as many as the zone has room for, at a readable size. Nothing in the window takes the overlay off. It uses the Calendar's calendars (a task may choose some) and shares its kept answers (the Calendar's `cacheHours`, default 15 minutes: an edit to a calendar shows after it); it starts nothing: the overlay task's own trigger decides when it runs.
-	* The **Weather Visualizer** data source (#271) draws a picture of the weather where the device is. Its prompt has fields for the weather (`{place}`, `{condition}`, `{temp}`, `{feels}`, `{humidity}`, `{wind}`, `{high}`, `{low}`, `{rain}`, `{sunrise}`, `{sunset}`, `{daypart}`: dawn, day, dusk or night, and `{season}`), which OpenWeatherMap supplies (the key, the units and the kept answers are its settings, shared with the Weather pages), and the form lists them under the field and refuses another. The text and the picture are the Generated Image's parts, chosen separately (the rewrite is off until you turn it on). A field that is not known drops out of the prompt and the picture is still drawn.
-	* **Master Prompts** (Settings, the Master Prompts tab; #271) are the system prompts the Generated Image gives its text model (to make up a prompt, or to rewrite yours) and the picture instructions it adds for the panel. They were fixed in the code and are yours to edit now; the factory text is kept with the device's factory settings, **Restore default** puts one back in the form and **Restore defaults** all of them (nothing is saved until you save). A prompt that uses a field, like the rewrite request's `{prompt}`, lists the fields it may use under it, and a name that is not listed is refused. `{{` and `}}` write a brace.
-	* The **Comic Vine Covers** data source (#237) shows the covers of a comic series from [Comic Vine](https://comicvine.gamespot.com/api/): a task names the series (**Test** says which series the search matches, since the first match is used), and a page of up to 100 of its issues, a random page for a long series, is shown in a random order through the Slide Show. A cover is portrait, so it goes on a blurred margin like every picture here. It is two data sources, like the weather: **Comic Vine** (`comicvine`, an API data source) holds the free API key and the kept answers (a series search for a week, an issue list for a day, both settings), and **Comic Vine Covers** (`comic-vine`) shows them. The key is in the address Comic Vine wants, so the HTTP client's log lines have it hidden (`api_key=***`), and Comic Vine limits how many requests an hour may make.
-	* The **Thunderforest Map** data source (#428) shows a map of a place from [Thunderforest](https://www.thunderforest.com/) (OpenStreetMap data) through their Static Maps API: a task picks a **place** (a name and a location chosen on the same map picker as the System settings' Location, kept in the data source's settings) or none, for the device's own location, a **style** (`transport` shows the bus and rail lines, `cycle`, `outdoors`, `landscape`, `atlas`) and a **zoom**. The map is asked for at the panel's size and drawn with the attribution Thunderforest's terms require ("Maps © www.thunderforest.com, Data © www.osm.org/copyright"), as a foreground page (overlays are not drawn on it). It is two data sources, like the weather: **Thunderforest** (`thunderforest`, an API data source) holds the free API key (a Hobby Project; **Test** asks for the smallest map) and keeps every map for a week (*Keep Maps (hours)*; the free plan has a monthly quota, so a place and zoom are asked for once), and **Thunderforest Map** (`thunderforest-map`) shows them. The key is in the address, so the HTTP client's log lines have it hidden (`apikey=***`). It is not live transit data: `transport` is a map of the lines.
-	* The **NASA Picture of the Day** data source (#278) shows NASA's Astronomy Picture of the Day: today's (or the latest one when today's is a video or not published yet), a day you choose, or a random day since 1995. It needs no key (NASA's public API) and fits the picture to the screen with a blurred margin. A chosen day with a video says so.
-* The **Image from a Web Address** data source (#367) shows one picture from an address, fetched again each time it is shown: a camera's snapshot, a chart or dashboard image, a weather map. A task gives the address (**Test** fetches it and says what it found: its size and format, or why not) and whether to **Shrink to Fit** (the whole picture on a blurred margin of its own colors, never cropped, a small one not enlarged). The address goes through the URL guard (not this device, not link-local, every redirect checked); what comes back is untrusted: at most 10 MB and 40 million pixels, only PNG, JPEG, GIF and WEBP (by content, whatever the server says: a camera that sends `application/octet-stream` works), the first frame of an animation. It is a background page, so overlays may be drawn on it; failures say what to do and never repeat the address (it can carry a key), and the panel's title for it is the host only.
-	  A good timer task: plugin Overlay, data source Today, zone `top-right`, triggered on startup and every day at 0:00 (the midnight run replaces yesterday's date; the startup run covers a restart, since overlays are not kept across restarts).
+	* Overlay data sources draw the date, the weather or the coming events in a zone; each plugin and data source is described in the web app's Help drawer.
 	* Similar behavior to device Lock Screen, e.g. Date/weather/reminders/etc.
 	* Persistent (date/weather) or time-sensitive (reminders).
 	* Determined by the Data Source.
@@ -360,7 +328,7 @@ Application Task manages the following additional components (tasks).
 
 ### Restoring a backup: one notice, not one per file
 
-A restore (see "Backup and Restore" under Web API) writes many files at once. Today every changed file is its own change event, and each would reach every task: the layers would reload against a half-written storage, and the web app would be told thirty times. So the restore is bracketed by two messages and **the Application enforces the semantics** (it is the one place that turns the watcher's events into `ConfigurationChanged`):
+A restore (see "Backup and Restore" under Web API) writes many files at once. Left alone, every changed file would be its own change event, and each would reach every task: the layers would reload against a half-written storage, and the web app would be told thirty times. So the restore is bracketed by two messages and **the Application enforces the semantics** (it is the one place that turns the watcher's events into `ConfigurationChanged`):
 
 * `RestoreBegin` (from the route, which waits for the answer) is **refused** when the device has not been claimed or a restore is already running. Otherwise the Application goes from `idle` to `restoring`: the watcher's per-file events are **absorbed** (counted, not sent), the layers and the display hear nothing.
 * `RestoreEnd` (sent in a `finally`, so it always comes) makes it `draining`: every cached configuration object is forgotten, and the Application waits until no change event has come for 3 seconds (the watcher reports a file a debounce after it was written), at most 15 seconds.
@@ -390,7 +358,7 @@ When a Playlist ends, another Playlist is selected from the schedule and started
 
 #### Transport: play, stop, next
 
-A viewer controls the Playlist Layer (the Timer Layer keeps running) with three commands. They go to the Application Task first (`Application.transport(command)`, thread-safe, called by `POST /api/transport` and, later, by a button on the device), which drops them while the device is not claimed and forwards the rest on the `playlist-layer` route.
+A viewer controls the Playlist Layer (the Timer Layer keeps running) with three commands. They go to the Application Task first (`Application.transport(command)`, thread-safe, called by `POST /api/transport` and by the device's buttons), which drops them while the device is not claimed and forwards the rest on the `playlist-layer` route.
 
 * **Stop** (`StopPlayback`) cancels the running track. The panel keeps what it shows and nothing starts the layer again (not a schedule reload, not the restart after a failure, not the end of a pass) until Play or Next.
 * **Play** (`ResumePlayback`) enters the interrupted track again with `PluginExecutionContext.resumed` set. **Every plugin handles that flag** (`resume_contract` on the class, `"honours"` or `"ignores"`; `test_transport` fails for a plugin that says neither). The Slide Show carries on with the next item of a kept list; it passes on (returns at once, and the layer goes on to the next track) for a single picture, a list that is not kept, and a kept list that was used up, so a picture is not shown or generated twice.
@@ -427,15 +395,14 @@ When a track's task triggers, it is executed.  Multiple tasks can fire at the sa
 
 This task operates primarily on the `DisplayImage` message (and subclasses) and sends the image to the current display.
 
-Display Task uses a dynamically determined "driver" that matches the hardware used. **Each display device is a descriptor** (#397), like a plugin or a data source: `python/displays/<id>/display-info.json` (`mock`, `tk`, `inky`, `waveshare`: `id`, `name`, `class`, `module`, `file`, `features` including `display-device`, `describe`, and `instanceSettings` with the device's own properties). The Display settings' **Display Type** is a `schema` field whose lookup is `{ "schema": "displays", "features": ["display-device"] }`, so it offers the installed displays and, once one is chosen, its fields appear under it (`GET /api/displays/list` feeds the form). The chosen device's fields are stored **in the `display` settings document** beside the common ones (orientation, rotate 180, rest after a refresh, image settings), are checked on save like a task's content (only the chosen device's), and their defaults are filled in at seeding and at every start. The Display task looks the type up among the descriptors by declared id and makes its class (`ConfigurationManager.enum_displays` / `create_display`); a type that is not installed fails in our words. A new display is a folder with a descriptor and a class: nothing else lists it. (The GPIO buttons are not displays: they are the Devices tab.)
+Display Task uses a dynamically determined "driver" that matches the hardware used. **Each display device is a descriptor**, like a plugin or a data source: `python/displays/<id>/display-info.json` (`mock`, `tk`, `inky`, `waveshare`: `id`, `name`, `class`, `module`, `file`, `features` including `display-device`, `describe`, and `instanceSettings` with the device's own properties). The Display settings' **Display Type** is a `schema` field whose lookup is `{ "schema": "displays", "features": ["display-device"] }`, so it offers the installed displays and, once one is chosen, its fields appear under it (`GET /api/displays/list` feeds the form). The chosen device's fields are stored **in the `display` settings document** beside the common ones (orientation, rotate 180, rest after a refresh, image settings), are checked on save like a task's content (only the chosen device's), and their defaults are filled in at seeding and at every start. The Display task looks the type up among the descriptors by declared id and makes its class (`ConfigurationManager.enum_displays` / `create_display`); a type that is not installed fails in our words. A new display is a folder with a descriptor and a class: nothing else lists it. (The GPIO buttons are not displays: they are the Devices tab.)
 
-* Pimoroni **Inky** (`inky`, #281): "auto mode": the driver reads the board's EEPROM (pHAT, wHAT, Impression, Spectra...) and its size is the display's resolution.
+* Pimoroni **Inky** (`inky`): "auto mode": the driver reads the board's EEPROM (pHAT, wHAT, Impression, Spectra...) and its size is the display's resolution.
 	* The driver is part of the `device` dependency group (Linux, `uv sync --frozen`, `--no-group device` elsewhere) and is imported when the display is made, never at start-up, so Windows, the container and a Pi without it all run.
-	* The Display task owns it like the others. When the driver is not installed, or no board answers (nothing attached, SPI or I2C off), the display does **not** start: there is no fallback to the mock one (it would draw somewhere nobody looks). The web app's status button turns red and says why in our words ("The Inky driver is not installed...", "No Inky display was found. Check that it is attached and that SPI and I2C are enabled..."); the playlist and the timer wait for the display. Fix it (or choose `mock` or `tk` in the Display settings) and restart: live reconfiguration is not built.
-	* **Inky Palette Saturation** (the Inky's own setting, `saturation`, 0.5): how saturated a 7-color Impression's palette is; other boards ignore it.
-	* **Border Color** (`borderColor`, white): the color of the thin frame around the picture that the picture does not cover. It is given to the driver's `set_border` before each refresh. **Each model numbers its colors differently** (a pHAT has white 0 and black 1, an Impression black 0 and white 1, and the Spectra boards' class attributes disagree with the module constants that `set_border` checks), so the name is looked up in the constants of the board's own driver module, never in `inky.BLACK` or a class attribute. White and black exist on every model, red or yellow on the ones with that ink, green, blue and orange on the 7-color ones; a color the board does not have keeps the driver's own border and the log says so once (never a failed refresh).
+	* The Display task owns it like the others. When the driver is not installed, or no board answers (nothing attached, SPI or I2C off), the display does **not** start: there is no fallback to the mock one (it would draw somewhere nobody looks). The System page's Device card says why in our words ("The Inky driver is not installed...", "No Inky display was found. Check that it is attached and that SPI and I2C are enabled..."); the playlist and the timer wait for the display. Fix it (or choose `mock` or `tk` in the Display settings) and restart: live reconfiguration is not built.
+	* **Border Color** (`borderColor`) is given to the driver's `set_border` before each refresh. **Each model numbers its colors differently** (a pHAT has white 0 and black 1, an Impression black 0 and white 1, and the Spectra boards' class attributes disagree with the module constants that `set_border` checks), so the name is looked up in the constants of the board's own driver module, never in `inky.BLACK` or a class attribute. White and black exist on every model, red or yellow on the ones with that ink, green, blue and orange on the 7-color ones; a color the board does not have keeps the driver's own border and the log says so once (never a failed refresh).
 	* **Not tried on a real panel** (there is none on the development machine): the driver is tested with a fake board, and its failure flow can be run for real in a container (below).
-	* **Troubleshooting without a panel:** `podman compose --profile inky up --build -d app-inky` serves the app on http://localhost:8081 with the real `inky` driver installed (the `device` group, built with a compiler) and a storage of its own. Set the Display Type to `inky` (Display settings), save, and restart it (`podman compose --profile inky restart app-inky`): the driver loads, reads for the board's EEPROM, finds none, and the status button says so. `EINK_FAKE_INKY=<mode> podman compose --profile inky up -d app-inky` pretends there is a board (`scripts/fake_inky.py` replaces only I2C, the GPIO lines and SPI): `ok` (draws; the last image is `/tmp/fake-inky/fake-inky-last.png`, `podman cp` it out), `busy-stuck` (a busy line held high: every refresh waits out the driver's timeout), `spi-off` (the display starts, the first draw fails: SPI not enabled), `unknown-board` (the board answered, this driver version has no class for it).
+	* **Troubleshooting without a panel:** `podman compose --profile inky up --build -d app-inky` serves the app on http://localhost:8081 with the real `inky` driver installed (the `device` group, built with a compiler) and a storage of its own. Set the Display Type to `inky` (Display settings), save, and restart it (`podman compose --profile inky restart app-inky`): the driver loads, reads for the board's EEPROM, finds none, and the System page says so. `EINK_FAKE_INKY=<mode> podman compose --profile inky up -d app-inky` pretends there is a board (`scripts/fake_inky.py` replaces only I2C, the GPIO lines and SPI): `ok` (draws; the last image is `/tmp/fake-inky/fake-inky-last.png`, `podman cp` it out), `busy-stuck` (a busy line held high: every refresh waits out the driver's timeout), `spi-off` (the display starts, the first draw fails: SPI not enabled), `unknown-board` (the board answered, this driver version has no class for it).
 * **Waveshare** (`waveshare`): any of the 65 models whose official drivers are vendored in `python/display/waveshare_epd/` (see its `VENDORED.md`: source commit, the few lines removed, how to update). A Waveshare cannot say which model it is, so the Display settings have a **Waveshare Model** (`model`, Waveshare's module names: `epd7in3e` is the 7.3 inch 7-color one). The model's driver is imported when the display is made (it needs `gpiozero` and `spidev`, the `device` group, Raspberry Pi only; a Pi 5 also needs the `lgpio` backend, which has no wheel for Python 3.13: it is in the `device` group and built from source, which the container image does (the C library `lg`, pinned and checked by hash, plus `swig`; Debian has no package for it); outside a container install `swig` and `lg` first). Black-white-red panels are given the black and the red layer.
 	* The driver stage guards every panel the same way (`python/display/panel_guard.py`, used by the Inky and Waveshare displays). The drivers wait for the panel's busy line with a loop that never ends by itself, so a panel that is not there (or wired wrong) would hold the device for good: starting and each refresh are given a time (60 and 180 seconds); a panel that does not answer is reported in the status in our words, and a stuck refresh refuses the next ones. Like the Inky, a display that cannot start is not replaced by the mock one.
 	* **Troubleshooting without a panel:** `podman compose --profile waveshare up --build -d app-waveshare` (http://localhost:8082, own storage, the same image as `app-inky`). Choose `waveshare` and a model, save, restart. `EINK_FAKE_WAVESHARE=<mode>` pretends there is a Raspberry Pi with a panel (`scripts/fake_waveshare.py` answers for `/proc/cpuinfo`, `spidev` and the `gpiozero` pins): `ok` (draws; the last image is `/tmp/fake-waveshare/fake-waveshare-last.png`), `busy-stuck` (the busy line stays low: the start times out), `spi-off` (no SPI bus: the start fails); with none set the driver finds no Raspberry Pi.
@@ -447,13 +414,13 @@ Display Task uses a dynamically determined "driver" that matches the hardware us
 
 ### Device I/O Task
 
-Everything connected to the Pi's own lines that is **not the panel** (push buttons now, sensors on the I2C and SPI buses later) belongs to one task, `DeviceIO` (`python/task/device_io.py`, #365). The display's driver stage keeps the panel's lines; this task opens, listens to and closes the rest. It knows hardware and nothing about what an input *means*:
+Everything connected to the Pi's own lines that is **not the panel** (push buttons; sensors on the I2C and SPI buses would join them) belongs to one task, `DeviceIO` (`python/task/device_io.py`). The display's driver stage keeps the panel's lines; this task opens, listens to and closes the rest. It knows hardware and nothing about what an input *means*:
 
 * A device (`python/device/`) reports that something happened: `InputEvent(source, name, gesture)` (`gesture`: `press`, `long-press`). The library's callback only puts the event on this task's queue; the task forwards it on the `device-input` route and the **Application** gives it its meaning (`python/device/bindings.py`: the play/stop button toggles, the next button is next, the stop button stops; they are the same commands as the web app's buttons, and are ignored while the device is not claimed).
-* **Buttons** (Settings, **Devices** tab: `buttonPlayStop`, `buttonNext`, `buttonStop`): the GPIO (BCM) number of a push button wired between that pin and ground (the pin's pull-up holds it high; 50 ms debounce); empty means there is no such button. Nothing is imported or opened for a pin that is not set. `gpiozero` (the `device` dependency group) is imported when a button is opened; on a machine without it the status says what to do.
+* **Buttons** (the `devices` settings: `buttonPlayStop`, `buttonNext`, `buttonStop`, a GPIO number each; the pin's pull-up holds it high, 50 ms debounce). Nothing is imported or opened for a pin that is not set. `gpiozero` (the `device` dependency group) is imported when a button is opened; on a machine without it the status says what to do.
 * **The panel's lines are off limits** (`python/device/pins.py`): a pin is refused, in words that name it, when the panel uses it (Waveshare: 17 reset, 25 data/command, 8 chip select, 24 busy, 18 power, 10 and 11 SPI; Inky: 27 reset, 17 busy, 22 data/command, 8 chip select, 10 and 11 SPI, plus 26 and 16 on the 13.3 inch one), when it is not on the 40-pin header (2 to 27), or when two buttons share it. I2C bus 1 and SPI chip select 1 (`/dev/spidev0.1`) are left for sensors.
 * A change to the Devices settings is applied within a few seconds, without a restart; a configuration that is refused or cannot be opened leaves the one that worked in place, and the failure is told (status, telemetry `error`).
-* More devices are added in `python/device/registry.py` as they are written (an `InputDevice`: its pins, `open`, `close`).
+* A new device is added in `python/device/registry.py` (an `InputDevice`: its pins, `open`, `close`).
 * **Trying the buttons on a Pi:** `python -m scripts.gpio_check --next 5` (the app stopped) opens the same `Buttons` device and prints each press; `python -m scripts.gpio_press --pin 12` presses a button for the running app, by pulling a free driver pin low (the driver pin is wired to the button's pin; it is only driven low, then let go). Both refuse the panel's pins with `--panel`.
 
 # Storage Architecture
@@ -476,7 +443,7 @@ The application uses a specific "storage root" folder it keeps everything in.
 
 ## Versions of stored documents
 
-A stored document says which version of its **source** it is (#391), so a setting can be renamed, removed or reinterpreted and an older document still comes along.
+A stored document says which version of its **source** it is, so a setting can be renamed, removed or reinterpreted and an older document still comes along.
 
 * A settings document carries the `_schema` of its source: the schema file (`schemas/system.json`) for the device's own, the `settings` block of a plugin's or data source's descriptor, the constants in `python/model/schedule.py` for a schedule. The number at the end is the version (`urn:inky:storage:schema:system:1`); a document with no `_schema` is version 1. A document that has no source (a kept list, the panel's refresh state, the Calendar's sign-ins) carries an integer `_version`, which the code that writes it owns.
 * **A migration** is a pure function from version `n` to `n + 1`, registered in `python/model/migrations.py`: it is hard-coded on purpose, because what a rename means is for a person to say. At every start `upgrade_settings()` migrates each stored document in order up to its source's number, then fills in the keys the source added since (a default), and stamps it. A value the person set is never changed unless a migration says so.
@@ -497,12 +464,7 @@ How to use the app (the pages, each data source's settings, the calendar sign-in
 
 ## Kept Downloads
 
-A data source that downloads the same picture again and again keeps it (#400, `python/datasources/content_cache.py`): the **Wikipedia and NASA Picture of the Day** sources and the **RSS Feed** (the feed itself for *Keep Feeds (hours)*, 15 minutes by default, and each story's picture for *Keep Downloads*) do, and so do the **Comics** (the feed and each strip), **Comic Vine Covers**, **Thunderforest Map** and **Newspaper** covers; others adopt it by calling `download_for` instead of `stream_to_buffer`. What is kept belongs to the data source, so every task and every address under it shares one pool in the source's own folder (`blob-<hash of the address>.json` describes a download, `.bin` is its bytes; neither is in a backup, and the address, which can carry a key, is in neither).
-
-* **The origin decides how long.** `Cache-Control` (`max-age`, `no-cache`, `no-store`) and `Expires` set how long a download is trusted, never longer than the source's *Keep Downloads (hours)* (`contentCacheHours`, which is also the time when the origin says nothing; 0 keeps nothing). The headers can shorten the setting, never lengthen it.
-* **A kept download that is fresh sends nothing**: no `HEAD`, no conditional request. Once it has expired the next use asks again with the `ETag` and `Last-Modified` the origin gave (`If-None-Match`, `If-Modified-Since`): a `304` keeps the bytes and starts a new fresh period, a `200` replaces them. An origin that does not answer gives the old bytes; an address the URL guard refuses never does.
-* **The pool is bounded and tidied:** *Downloads Pool Size (MB)* (`contentCacheMB`, the one used longest ago goes first) and *Forget Unused Downloads After (days)* (`staleDays`). A source that loads a list (a feed's stories) can say which addresses the list still holds (`retain`, per list), so what dropped out goes at once and nothing needs a timer.
-* A list that outlasts a visit is a different thing: the Slide Show keeps it (`kept_list.py`); this is for the bytes behind its items.
+A data source that downloads the same thing again and again calls `download_for` (`python/datasources/content_cache.py`) instead of `stream_to_buffer`. What is kept belongs to the data source: one pool in its own folder (`blob-<hash of the address>.json` describes a download, `.bin` is its bytes; the address, which can carry a key, is in neither, and neither is in a backup). `Cache-Control` and `Expires` can shorten `contentCacheHours`, never lengthen it; a fresh download sends nothing, an expired one is asked for with `If-None-Match` / `If-Modified-Since`; the pool is bounded by `contentCacheMB` and tidied by `staleDays` and `retain(scope, urls)`. The settings are explained in the Help drawer.
 
 ## Storage Folder
 
@@ -510,7 +472,7 @@ You must set up a separate `.storage` folder for the application to store its st
 
 ## Run
 
-Use the following recipe to get started with development (to run it on a Raspberry Pi, see the next section):
+Use the following recipe to get started with development (to run it on a Raspberry Pi, see "Set up a Raspberry Pi"):
 
 * New Terminal 1
 * `python -m python.eink-billboard --dev --cors "http://localhost:5173" --host localhost --storage ./.storage`
@@ -519,22 +481,39 @@ Use the following recipe to get started with development (to run it on a Raspber
 
 The web app finds the server through `VITE_API_URL`: `http://localhost:8080/` in development (`app/.env.development`, the recipe above) and `/` in the built app, which the server serves itself (`app/.env.production`). Copy `app/.env.example` to `app/.env.local` to change it for yourself; a trailing slash is expected.
 
+## Containers
+
+The same checks CI runs, and the app itself, run in a container with Podman or Docker (`Dockerfile`, `compose.yaml`; with Docker, `docker compose` in place of `podman compose`):
+
+```
+podman compose run --rm test                         # ruff, mypy and the unit tests on Linux with Chromium, against your checkout
+podman compose up --build app                        # the web app and API on http://localhost:8080, storage in a named volume
+EINK_STORAGE=./.storage podman compose up --build -d app   # the same, on that folder of the checkout
+podman compose --profile inky up --build -d app-inky       # with the Inky driver installed, on :8081
+podman compose --profile waveshare up --build -d app-waveshare   # with the Waveshare drivers, on :8082
+```
+
+* `test` mounts the checkout, so an untracked file of yours is checked too; its virtual environment is `/opt/venv`, never your `.venv`. Run it before a pull request: a Windows run skips the render tests and reports POSIX-only calls in `mypy`.
+* The `app` image has no display drivers; the `inky` and `waveshare` profiles do, with a storage of their own, and `EINK_FAKE_INKY` / `EINK_FAKE_WAVESHARE` (`ok`, `busy-stuck`, `spi-off`, and `unknown-board` for the Inky) pretend a board is attached (see the Display Task).
+* The port is published on `127.0.0.1` only; set `EINK_API_TOKEN` before widening it. A Windows folder mounted into the container sends no file change events, so compose sets `EINK_WATCH_POLL=2` (seconds).
+* **Podman on Windows** needs WSL 3.0 or later and Podman 6.1 or later (`wsl --version`, `podman version`); after upgrading Podman, recreate the machine (`podman machine rm`, `podman machine init --rootful`, `podman machine start`).
+
 ## Web API
 
 * The API is under `/api`; interactive documentation is served at `/api/docs`.
 * Every error response has the same body: `{ "success": false, "message": "...", "id": "..." }` (plus `rev` on a `409` revision conflict, and `errors` on a `422` validation failure).
 * Settings documents carry `_id` and `_rev`. A `PUT` must send back the `_rev` it loaded; if the settings changed in the meantime the server answers `409` with the current `rev`.
 * Settings the schema marks `"writeOnly": true` (e.g. an API key) are returned as `********`. Sending `********` back, or omitting the field, keeps the stored value.
-* **A new device is claimed, not given a default password.** Listening on the network (the default), it starts unclaimed: every `/api` route answers 401 with `setup: true` until someone enters the one-time **setup code**, which is in the log (`journalctl -u <service>` under systemd) and on the e-Ink panel, and chooses the device password (at least 8 characters). `--host localhost` stays open until a password is set. `--no-auth` keeps a device open on a network you trust; `--require-auth` asks even on `localhost`; `python -m python.eink-billboard --reset-password` forgets the password (console access is ownership). Below, the API token is the credential for scripts.
+* **A new device is claimed, not given a default password.** Listening on the network (the default), it starts unclaimed: every `/api` route answers 401 with `setup: true` until someone enters the one-time **setup code**, which is in the log and on the e-Ink panel (`deploy/eink-container.sh code` on a Pi), and chooses the device password (at least 8 characters). `--host localhost` stays open until a password is set. `--no-auth` keeps a device open on a network you trust; `--require-auth` asks even on `localhost`; `python -m python.eink-billboard --reset-password` forgets the password (console access is ownership). Below, the API token is the credential for scripts.
 * Set `--token <value>` (or the `EINK_API_TOKEN` environment variable) to require `Authorization: Bearer <value>` on every `/api` request. The web app asks for the token the first time it gets a `401` and sends it once to `POST /api/session`; the server remembers the sign-in in memory (a restart signs everyone out; sessions last seven days) and the browser keeps only an `HttpOnly`, `SameSite=Strict` cookie that scripts cannot read. The browser stores nothing else but the theme. `DELETE /api/session` signs out. A client that gets the token wrong more than three times in a row is told to wait (429, `Retry-After`; 2 s, doubling, at most 5 minutes) and each failure is logged with the client's address. The server answers only to `localhost`, IP addresses, the machine's own name and `<name>.local`; a device reached by another name needs `--allow-host <name>` (or `EINK_ALLOW_HOSTS`), otherwise the request is refused with 421 (a defence against DNS rebinding). Scripts can keep sending `Authorization: Bearer <value>`. Do this whenever the server listens on a network you do not fully trust. Behind a TLS-terminating proxy the app sees plain `http`, so the session cookie is not marked `Secure` (forwarded headers are not trusted); `/api/docs` and `/api/openapi.json` require the token like the rest of `/api`.
 * `--port` overrides the listening port (default `8080` with `--dev`, otherwise `80`).
 * Plugins and datasources may contribute an API router; name it in the `"router"` entry of their `*-info.json`.
-* **Push a message or a picture to the panel** (#366), from a script (Home Assistant, cron, CI, a doorbell): it is shown over everything for a few minutes (a priority image), then the playlist is back. It needs the same sign-in as the rest of the API (the `--token` works for scripts) and a device that has been claimed (403 before that).
+* **Push a message or a picture to the panel**, from a script (Home Assistant, cron, CI, a doorbell): it is shown over everything for a few minutes (a priority image), then the playlist is back. It needs the same sign-in as the rest of the API (the `--token` works for scripts) and a device that has been claimed (403 before that).
   * `POST /api/display/message` with `{ "text": "...", "title": "...", "minutes": 5 }` (`text` 1 to 1000 characters, line breaks kept; `title` optional, up to 80; `minutes` 1 to 60, default 5) makes a page in the device theme: `curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"title":"Doorbell","text":"Someone is at the door","minutes":2}' http://pi.local:8080/api/display/message`.
   * `POST /api/display/image?title=...&minutes=...` takes the picture itself as the body (PNG, JPEG, GIF or WEBP, at most 10 MB and 40 million pixels; checked by its content, only the first frame of an animation, a phone's rotation applied) and shows it whole on a blurred margin of its own colors: `curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: image/jpeg" --data-binary @door.jpg "http://pi.local:8080/api/display/image?minutes=2"`.
   * Both answer `{ "success": true, "id": "...", "title": "...", "startsInSeconds": n }`: `startsInSeconds` is the least it waits (the panel's rest after its last refresh, and the commit timer); messages queue behind each other. `DELETE /api/display/message/{id}` takes one down, showing or waiting (404 when there is none: never made, or over). Twenty messages may be waiting or showing at once (429 beyond that). A title that is already about gets ` (2)`, ` (3)`, since the title is what takes a message down.
 
-* **Backup and Restore** (#368; the System page toolbar: Back up and Restore each open a dialog). `POST /api/backup` with `{ "passphrase": "...", "confirm": "..." }` answers the storage as one file (`application/octet-stream`, `Cache-Control: no-store`); `POST /api/restore` with `{ "archive": "<base64 of the file>", "passphrase": "...", "apply": false }` says what would change, and with `"apply": true` writes it. Both need a **claimed** device (403 otherwise) and the usual sign-in.
+* **Backup and Restore** (the System page toolbar: Back up and Restore each open a dialog). `POST /api/backup` with `{ "passphrase": "...", "confirm": "..." }` answers the storage as one file (`application/octet-stream`, `Cache-Control: no-store`); `POST /api/restore` with `{ "archive": "<base64 of the file>", "passphrase": "...", "apply": false }` says what would change, and with `"apply": true` writes it. Both need a **claimed** device (403 otherwise) and the usual sign-in.
   * The file is a ZIP of the storage's JSON files (`settings/`, `schedules/`, `plugins/<id>/`, `datasources/<id>/`: the settings with their API keys, the schedules, OAuth tokens, a Slide Show's kept lists), **encrypted as one blob** so even the file names are hidden: AES-256-GCM, the key made from the passphrase by scrypt (N 2^15), the header authenticated. The passphrase is its own (12 to 256 characters, typed twice): **not the device password** (a password reset would make the backup unreadable), and kept nowhere. A wrong passphrase and a damaged file give the same answer (403).
   * **Never in it:** the device password (the `access` settings: a restore does not change who owns the device), the `schemas` (the code refreshes them), the panel's `state` (when it was last refreshed: it describes *this* panel) and the OpenWeatherMap/Calendar/... kept answers (`cache-*`).
   * A restore opens the file (at most 8 MB, 500 files, 32 MB unpacked, no absolute, `..` or backslash names, no links; sizes are counted as the bytes come out, never believed from the ZIP's header), checks **every document by the rules of the route that would have saved it** (a missing required value is not a reason to refuse: a device keeps an API key that is not typed in yet), and with any problem refuses the whole restore naming the file and field (`errors`, never a value). **Each document is brought up to this version first** (`migrate`, the same function the start uses: see "Versions of stored documents"), so an old backup restores current-shaped; a document from a **newer** version refuses the whole restore, naming the file. The archive carries a `MANIFEST.json` (its format, when it was made, the version each file carried); a format newer than this version refuses, a backup without one (an earlier release's) restores as before, and the preview says when it was made and how many files are upgraded. A plugin or data source this device does not have is left out and counted. Without `apply` nothing is written and the answer is the summary: each file that is new or would change, by name and kind, and how many are the same. With it, the files are written (each atomically, by name through the configuration manager); if one fails the files written before it are put back, and **nothing is ever deleted**. See "Restoring a backup" under the Application Task for the notices.
@@ -542,22 +521,17 @@ The web app finds the server through `VITE_API_URL`: `http://localhost:8080/` in
 
 ## API Metering
 
-An API data source counts what it asks of its service (#440, `python/datasources/metering.py`), so a quota is something you can see before it runs out. It makes its HTTP client with `metered_client("<the descriptor's id>", ...)`, which counts every call it sends (a redirect's hops each count, and so do the OpenAI SDK's retries: each is a request the service sees). Per data source and per day it keeps counts only, never an address, a key, a query or a body:
-* **Calls, by the exact HTTP status** (`200`, `304`, `401`, `429`, `500`, ...), and the calls that got no status: `timeout`, `connect`, `tls`, `error`. The last `429` is remembered with its time.
-* **Bytes** of the bodies sent and received, as they went over the wire (compressed, if the origin compressed them; headers are not counted).
-* **Cache outcomes**, from `cached` (an origin's answers) and `fetch_cached` (kept downloads): `hit`, `miss`, `stale` (the origin did not answer, the old one was used), `coalesced` (another task fetched it while this one waited), `revalidated` (asked, `304`) and `bypass` (the cache was off), with the bytes each answered. The hit rate is the share of lookups answered without a download (`hit`, `coalesced`, `revalidated`); the bytes saved are theirs.
-
-The counts are in memory behind a lock (a data source is called from several threads) and written to `state/api-usage.json` (versioned, last 31 days, not part of a backup) about once a minute and on quit, never per call (a Pi's SD card): a crash loses at most the last minute. `test_api_metering` fails for an API data source (features `api` and `internet`) that makes its client any other way. **Downloads through the shared pool count too**: the pool's client is a metered one that belongs to no data source, and `download_for` names the source each download is for (`metered_as`, a context variable), so a picture of the day, a feed or a comic is a call of its data source (a call made with no source named is not counted). Not built: a quota that stops calls (a budget guard), and the cost in money or tokens of the AI sources.
+An API data source makes its HTTP client with `metered_client("<the descriptor's id>", ...)` (`python/datasources/metering.py`), which counts every call it sends (each redirect hop and SDK retry included): per data source and per day, the calls by exact status or `timeout` / `connect` / `tls` / `error`, the body bytes each way, and the cache outcomes `cached` and `fetch_cached` report (`hit`, `miss`, `stale`, `coalesced`, `revalidated`, `bypass`). Counts only: never an address, a key, a query or a body. They are kept in memory behind a lock and written to `state/api-usage.json` (versioned, 31 days, not in a backup) about once a minute and on quit. Downloads through the shared pool count too: the pool's client is metered with no source, and `download_for` names the source for the download (`metered_as`). `test_api_metering` fails for an API data source that makes its client any other way. Not built: a quota that stops calls, and the cost of the AI sources.
 
 ## System page and Telemetry
-The web app's **System** page (#390; what it shows is in the Help drawer) reads `GET /api/status` and `GET /api/system` every 10 s, both numbers and our own words only (no host name, address, user or path), and follows the device live through the telemetry link. Its playback button follows the playlist layer's own `transport` events and asks `GET /api/transport` when the page opens or the link comes back, so a page opened while playback is stopped shows it stopped.
+The web app's **System** page (what it shows is in the Help drawer) reads `GET /api/status` and `GET /api/system` every 10 s, both numbers and our own words only (no host name, address, user or path), and follows the device live through the telemetry link. Its playback button follows the playlist layer's own `transport` events and asks `GET /api/transport` when the page opens or the link comes back, so a page opened while playback is stopped shows it stopped.
 
 The page follows a WebSocket (`/api/telemetry/ws?since=<seq>&run=<run>`), which reconnects on its own and resumes after the last event it had. `seq` starts again at every start of the device, so the link's first message, `hello`, names the run: a page that followed another run gets everything kept and starts over. The link starts once the page's first request has been answered (a WebSocket cannot ask for a sign-in), and after a sign-in the page loads again. Times are the device's, not the browser's. The other routes:
 * `GET /api/telemetry?since=<seq>`: the kept events, the last 200, newest last;
 * a failure's event also carries `detail`, the exception in full, but only for a page opened on the device itself (`localhost`: the connection's address is loopback); to anyone else it is left out, since the text can hold an address with a key. In a container the published port does not look local, so read the log there;
 * `GET /api/transport` / `POST /api/transport`: whether playback is stopped (`{ stopped }`) and `{ command: play | stop | next }` for the Playlist Layer. The command is accepted, not done: the layer does it on its own thread and reports a `transport` event; 503 before the application has started;
 * `GET /api/status`: how bringing up the display and the two layers went, `{ ok, components: { display | playlist-layer | timer-layer: { state: ok | failed | starting, message } } }`, in our words (a failure says to see the log); the System page reads it every 10 s. A failed display is not retried when its settings change (live reconfiguration is not built): fix the settings and restart;
-* `POST /api/system/locate`: the Location field's **Locate by IP** button (#426): a rough position (about the city) from the device's public IP address, `{ ok, message, latitude?, longitude? }`, always 200 and in our words. The device asks ipapi.co (a fixed host, no key; the service sees the device's public address, and the button's tooltip says so) and **nothing is saved**: the button only fills the field, and the person saves or not. The free tier is limited per day; a refusal says so.
+* `POST /api/system/locate`: the Location field's **Locate by IP** button: a rough position (about the city) from the device's public IP address, `{ ok, message, latitude?, longitude? }`, always 200 and in our words. The device asks ipapi.co (a fixed host, no key; the service sees the device's public address, and the button's tooltip says so) and **nothing is saved**: the button only fills the field, and the person saves or not. The free tier is limited per day; a refusal says so.
 * `GET /api/system`: `{ host, load, pi, storage, usage }` for the System page (`usage` is the API metering below) (`pi` is `null` unless the machine is a Raspberry Pi); needs the same sign-in as the rest of `/api`;
 * `GET /api/display/current`: the last `shown` event;
 * `GET /api/display/images/<digest>?size=thumb|full`: a shown image as PNG. The device keeps the last 8, in memory only.
