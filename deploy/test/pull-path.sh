@@ -17,7 +17,7 @@ BUILDS=/tmp/builds.log
 
 if [ "$(id -u)" -eq 0 ]; then
 	export DEBIAN_FRONTEND=noninteractive
-	apt-get update -qq && apt-get install -y -qq --no-install-recommends podman uidmap git curl ca-certificates docker-registry >/dev/null || { echo "could not install the tools"; exit 1; }
+	apt-get update -qq && apt-get install -y -qq --no-install-recommends podman uidmap git curl ca-certificates docker-registry netcat-openbsd procps >/dev/null || { echo "could not install the tools"; exit 1; }
 	# the registry ghcr.io stands in for, on this container's own loopback, open to all (Debian's own configuration asks for a password)
 	printf 'version: 0.1\nstorage:\n  filesystem:\n    rootdirectory: /tmp/registry\nhttp:\n  addr: 127.0.0.1:5000\n' > /tmp/registry.yml
 	/usr/bin/docker-registry serve /tmp/registry.yml >/tmp/registry.log 2>&1 &
@@ -46,12 +46,15 @@ check() {
 	shift
 	if "$@"; then passed=$((passed + 1)); echo "  ok    $what"; else failed=$((failed + 1)); echo "  FAIL  $what"; fi
 }
-kit() { (cd "$CLONE" && EINK_REGISTRY=$REGISTRY EINK_REGISTRY_TLS_VERIFY=false PATH="$SHIM:$PATH" deploy/eink-container.sh "$@"); }
+kit() { (cd "$CLONE" && EINK_REGISTRY=${KIT_REGISTRY:-$REGISTRY} EINK_REGISTRY_TLS_VERIFY=false PATH="$SHIM:$PATH" deploy/eink-container.sh "$@"); }
 label() { podman image inspect -f "{{index .Labels \"$2\"}}" "$1" 2>/dev/null; }
 short() { git -C "$CLONE" rev-parse --short=7 HEAD; }
 full() { git -C "$CLONE" rev-parse HEAD; }
 commit() { git -C "$CLONE" commit -q --allow-empty -m "$1"; }
 builds() { [ -f "$BUILDS" ] && wc -l < "$BUILDS" || echo 0; }
+no_bars() { ! grep -q 'Copying blob' <<< "$1"; }
+# "[p]" so the pattern never finds the command line that holds it
+no_pull_left() { ! pgrep -f '[p]odman pull -q' >/dev/null; }
 
 # an image as GitHub publishes it: its commit's label, and (unless $3 says otherwise) the label of the commit it is published for
 publish() {
@@ -107,6 +110,8 @@ check "it says it downloaded" grep -q "Downloaded $APP (commit $A, made by GitHu
 check "nothing was built" [ "$(builds)" -eq 0 ]
 check "the app's image is $A, made by GitHub" [ "$(label "$APP" eink.commit)/$(label "$APP" eink.built-by)" = "$A/github" ]
 check "the registry's name is not kept beside the app's" bash -c "! podman image exists '$REGISTRY:sha-$(full)'"
+check "no progress bars on the screen" no_bars "$out"
+check "Podman's own words are in pull.log" [ -s /home/pi/.cache/eink-billboard/pull.log ]
 
 echo "== the same commit again: nothing to do"
 out=$(kit get 2>&1)
@@ -155,6 +160,21 @@ before=$(builds)
 out=$(EINK_PULL=0 kit get 2>&1)
 check "it built" [ "$(builds)" -eq $((before + 1)) ]
 check "the app's image is $F, built here" [ "$(label "$APP" eink.commit)/$(label "$APP" eink.built-by)" = "$F/local" ]
+
+echo "== a download that stops moving is given up, and built here"
+# a port that takes the connection and never answers: the network that went away halfway
+nc -lk 127.0.0.1 5001 >/dev/null 2>&1 &
+sink=$!
+commit G
+G=$(short)
+before=$(builds)
+out=$(KIT_REGISTRY=localhost:5001/eink-billboard EINK_PULL_TICK=1 EINK_PULL_STALL=4 kit get 2>&1)
+kill "$sink" 2>/dev/null
+check "it said how it was going, in plain lines" grep -q "MB written so far" <<< "$out"
+check "it said the download stopped moving" grep -q "stopped moving" <<< "$out"
+check "it built instead" [ "$(builds)" -eq $((before + 1)) ]
+check "the app's image is $G, built here" [ "$(label "$APP" eink.commit)/$(label "$APP" eink.built-by)" = "$G/local" ]
+check "no download is left running" no_pull_left
 
 echo "== rollback swaps the app's image and the previous one (the start after it fails here: there is no app in these images)"
 now=$(label "$APP" eink.commit)
