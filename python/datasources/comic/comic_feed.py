@@ -1,5 +1,5 @@
 from typing import IO, Any, Mapping
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 from ...model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ...model.theme import current_typography

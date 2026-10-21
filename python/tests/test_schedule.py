@@ -1,6 +1,6 @@
 from typing import cast
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from ..model.schedule import (

@@ -2,7 +2,7 @@ import unittest
 import time
 from datetime import datetime, timezone, timedelta
 
-from .utils import ConstantTimeOfDay, ScaledTimeOfDay, ScaledTimerThreadService, MessageCollectSink, ScaledTimerThreadService
+from .utils import ConstantTimeOfDay, ScaledTimeOfDay, MessageCollectSink, ScaledTimerThreadService
 
 class TestScaledTimeOfDay(unittest.TestCase):
 	def test_current_time_scaling(self):

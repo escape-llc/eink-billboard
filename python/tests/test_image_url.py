@@ -2,14 +2,12 @@
 The Image from a Web Address data source (#367): one picture from an address, fetched each time it is shown, through the URL guard, treated as untrusted, and fitted to the panel on a blurred margin.
 Its Test button asks the same question the data source does.
 """
-import io
 import unittest
 from datetime import datetime
 from typing import Any, cast
 from unittest.mock import patch
 
 import httpx
-from PIL import Image
 
 from ..datasources.image_url import image_url
 from ..datasources.image_url.image_url import ImageUrlAsync, address_of, picture_address, picture_content_type

@@ -38,7 +38,7 @@ API_URL = "https://en.wikipedia.org/w/api.php"
 HEADERS = { 'User-Agent': 'eInkBillboard/0.0 (https://github.com/escape-llc/eink-billboard/)' }
 
 def _determine_date(settings: Mapping[str, Any], schedule_ts) -> date:
-	if settings.get("randomizeDate") == True:
+	if settings.get("randomizeDate"):
 		start = datetime(2015, 1, 1).astimezone(schedule_ts.tzinfo)
 		delta_days = (schedule_ts - start).days
 		return (start + timedelta(days=randint(0, delta_days))).date()
@@ -64,7 +64,7 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		if image is None:
 			self.logger.error(f"'{self.name}' Failed to download image.")
 			raise RuntimeError(f"'{self.name}' Failed to download image.")
-		if params.get("shrinkToFit") == True:
+		if params.get("shrinkToFit"):
 			max_width, max_height = target_dimensions(dsec)
 			image = self._shrink_to_fit(image, max_width, max_height)
 			self.logger.info(f"'{self.name}' Image resized: {max_width},{max_height}")

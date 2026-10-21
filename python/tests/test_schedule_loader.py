@@ -1,7 +1,6 @@
 import unittest
 import tempfile
 import json
-from datetime import datetime, timedelta
 
 from ..model.schedule import SCHEMA_PLAYLIST
 from ..model.schedule_loader import ScheduleLoader
@@ -9,7 +8,6 @@ from ..model.schedule_loader import ScheduleLoader
 class TestScheduleLoader(unittest.TestCase):
     def test_load_schedule_from_json(self):
         # Create a temporary JSON file with schedule data
-        now = datetime.now().replace(second=0, microsecond=0)
         schedule_data = {
         "_schema": SCHEMA_PLAYLIST,
         "name": "Test Playlist",

@@ -108,7 +108,7 @@ class TkinterWindow(DisplayBase):
 			self.logger.error("No display_settings loaded")
 			return
 		if self.root is None:
-			self.logger.warning(f"No TK window was created")
+			self.logger.warning("No TK window was created")
 			return
 		frame = img.copy()	# the caller may reuse the image while the Tk thread has not drawn it yet
 		def draw():

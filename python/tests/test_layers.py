@@ -4,7 +4,7 @@ from PIL import Image
 from datetime import datetime, timedelta, timezone
 import os
 from threading import Event
-from typing import Any, cast
+from typing import cast
 import unittest
 
 from python.model.schedule_loader import ScheduleLoaderDict
@@ -16,14 +16,13 @@ from ..model.service_container import ServiceContainer
 from ..model.time_of_day import TimeOfDay
 from ..plugins.plugin_base import PermanentError, PluginAsync, PluginExecutionContext, TrackType
 from ..task.display_messages import DisplaySettings
-from ..task.timer import IProvideTimer
 from ..task.messages import BasicMessage, QuitMessage, Telemetry
 from ..task.protocols import MessageSink
 from ..task.configure_event import ConfigureEvent, ConfigureOptions
 from ..task.playlist_layer import LayerFaulted, PlaylistLayer, RetryStruckOut, StartPlayback
 from ..task.message_router import MessageRouter, Route
 from ..task.timer_layer import TimerLayer
-from ..task.protocols import IProvideTimer, IRequireShutdown, MessageSink
+from ..task.protocols import IProvideTimer
 from .utils import RecordingTask, ScaledTimeOfDay, ScaledTimerThreadService, create_configuration_manager, save_images
 
 class TestPlugin(PluginAsync):
@@ -106,7 +105,6 @@ class NewDeviceHasNothingScheduled(unittest.TestCase):
 			cm.hard_reset()
 			display = RecordingTask("FakeDisplay")
 			errors: list[BasicMessage] = []
-			shown = Event()
 			router = MessageRouter()
 			router.addRoute(Route("display", [display]))
 			router.addRoute(Route("telemetry", [MessageTriggerSink(lambda m: isinstance(m, Telemetry) and m.values.get("state") == "error" and not errors.append(m))]))
@@ -177,7 +175,6 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.layer.datasources = DataSourceManager({})
 		self.layer.timebase = ScaledTimeOfDay(datetime.now().astimezone(), 60)
 		self.layer.timer = ScaledTimerThreadService(self.layer.timebase, 60)
-		sink = NullMessageSink()
 
 	def test_start_playback_success(self):
 		# Prepare a plugin and a playlist with one track that references it
@@ -598,7 +595,6 @@ class PlaylistLayerTests(unittest.TestCase):
 		self.assertEqual(calls, [])
 
 	def test_faulted_layer_waits_then_retries_on_a_configuration_change(self):
-		import asyncio
 		from ..task.messages import ConfigurationChanged
 		layer = self.layer
 		layer.cm = object()  # type: ignore
@@ -647,7 +643,6 @@ class TimerLayerTests(unittest.TestCase):
 		self.layer.datasources = DataSourceManager({})
 		self.layer.timebase = ScaledTimeOfDay(datetime.now().astimezone(), 60)
 		self.layer.timer = ScaledTimerThreadService(self.layer.timebase, 60)
-		sink = NullMessageSink()
 	def test_start_schedule_success(self):
 		# Prepare a plugin_info and a playlist with one track that references it
 		# plugin_map keys are plugin ids used in PlaylistSchedule.plugin_name

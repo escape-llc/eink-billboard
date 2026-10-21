@@ -5,7 +5,7 @@ from typing import Any, Callable, cast
 from fastapi import APIRouter, Body
 from fastapi.responses import JSONResponse
 
-from ...model.configuration_manager import CollectInfoDict, ConfigurationManager
+from ...model.configuration_manager import CollectInfoDict
 from ..deps import CM
 from ..documents import get_document, instance_properties, load_schema_lookups, load_schema_properties, put_document, secret_fields, settings_choices, settings_lookup_items
 from ..errors import ApiError

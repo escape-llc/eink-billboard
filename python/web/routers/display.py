@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from ...model.theme import current_inputs
-from ...task.application import Application, PushRefused
+from ...task.application import PushRefused
 from ...utils.message_image import MAX_TEXT_CHARACTERS, MAX_TITLE_CHARACTERS, render_message_image
 from ...utils.upload_image import MAX_UPLOAD_BYTES, decode_upload
 from ..deps import CM

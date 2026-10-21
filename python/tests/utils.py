@@ -1,6 +1,5 @@
 import atexit
 import shutil
-from concurrent.futures import Executor, Future, ThreadPoolExecutor
 import os
 from pathlib import Path
 import tempfile

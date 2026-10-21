@@ -1,7 +1,6 @@
 from datetime import datetime
 import inspect
 import unittest
-import logging
 from ..task.basic_task import DispatcherTask, exclude_from_dispatch, is_excluded
 from ..task.messages import BasicMessage, MessageWithContent, QuitMessage
 

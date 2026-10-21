@@ -9,10 +9,8 @@ import asyncio
 import json
 import logging
 import math
-import os
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, tzinfo
-from pathlib import Path
 from typing import Any, Mapping
 
 import httpx

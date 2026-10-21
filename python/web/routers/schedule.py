@@ -191,7 +191,7 @@ def _call(doc_id: str|None, fn):
 		raise ApiError(409, "Revision mismatch: it changed since it was loaded.", doc_id, rev=e.rev)
 	except Invalid as e:
 		raise ApiError(422, "Schedule validation failed", doc_id, errors=e.errors)
-	except ScheduleStoreError as e:
+	except ScheduleStoreError:
 		raise ApiError(400, "The change could not be made.", doc_id)
 	except (OSError, ValueError, json.JSONDecodeError) as e:
 		logger.error(f"schedule change failed: {e}", exc_info=True)

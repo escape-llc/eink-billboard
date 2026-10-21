@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Any, cast
 from unittest.mock import patch
 
-import httpx
 
 from ..datasources.thunderforest.thunderforest import HideKey, ThunderforestApi, map_address, refusal
 from ..datasources.thunderforest_map import thunderforest_map

@@ -1,6 +1,5 @@
 import json
 import os
-import shutil
 import threading
 import unittest
 

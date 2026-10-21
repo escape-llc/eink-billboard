@@ -2,7 +2,7 @@
 import logging
 import os
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Mapping
 
 from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.openapi.docs import get_swagger_ui_html

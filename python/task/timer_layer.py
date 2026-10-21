@@ -4,7 +4,7 @@ from concurrent.futures import CancelledError, Future
 from datetime import datetime, timedelta
 import logging
 import threading
-from typing import Any, Any, Mapping, NotRequired, ReadOnly, TypedDict, cast
+from typing import Any, Mapping, NotRequired, ReadOnly, TypedDict, cast
 
 from ..datasources.data_source import DataSourceManager
 from ..model.configuration_manager import CollectInfoDict, ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
@@ -22,9 +22,8 @@ from ..task.source_router import SourceRouter, image_source
 from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage, ReloadSchedules, Telemetry
 from ..task.protocols import IProvideTimer, IRequireShutdown, MessageSink
 from ..task.configure_event import ConfigureEvent
-from ..task.playlist_layer import NextTrack, StartPlayback
-from ..task.message_router import MessageRouter
-from ..task.timer import IProvideTimer, TimerThreadService
+from ..task.playlist_layer import StartPlayback
+from ..task.timer import TimerThreadService
 from ..model.theme import ThemeInputs, current_inputs
 from ..utils.error_image import WebAddress, error_detail, render_error_image, safe_reason
 from ..web.documents import content_with_defaults, plugin_content_errors
@@ -165,7 +164,7 @@ class TimerLayer(DispatcherTask):
 				self.shutdownlist.append(self.task_pool)
 				self.task_pool.start()
 
-			self.logger.info(f"schedule loaded")
+			self.logger.info("schedule loaded")
 			self.state = 'loaded'
 			msg.notify()
 			self.accept(StartPlayback(self.timebase.current_time()))
@@ -185,10 +184,10 @@ class TimerLayer(DispatcherTask):
 			return
 		if len(self.tasks) == 0:
 			# nothing scheduled is valid (every timer task document may have been deleted); a later reload can bring tasks
-			self.logger.info(f"No timer task documents: nothing is scheduled.")
+			self.logger.info("No timer task documents: nothing is scheduled.")
 			return
 		if self.timer is None:
-			self.logger.error(f"Timer service is not available.")
+			self.logger.error("Timer service is not available.")
 			return
 		self._run_layer_task(self.tasks, msg.timestamp)
 	# where the web app is, for the error pages (None: they do not say)
@@ -293,7 +292,7 @@ class TimerLayer(DispatcherTask):
 			if self.startup_done:
 				pass
 			elif initial_playlist is None:
-				self.logger.info(f"No startup playlist.")
+				self.logger.info("No startup playlist.")
 			else:
 				self.startup_done = True
 				for index, item in enumerate(initial_playlist.items):
@@ -339,7 +338,7 @@ class TimerLayer(DispatcherTask):
 			donev.set()
 	def _run_layer_task(self, tasks: list[ScheduleLoaderDict], timestamp: datetime):
 		if self.task_pool is None:
-			self.logger.error(f"No task pool available to invoke plugin start.")
+			self.logger.error("No task pool available to invoke plugin start.")
 			return False
 		try:
 			donev = threading.Event()
@@ -359,30 +358,30 @@ class TimerLayer(DispatcherTask):
 			return
 		fut, donev = self.layer_task
 		if not fut.done():
-			self.logger.info(f"Layer task still running, cancel...")
+			self.logger.info("Layer task still running, cancel...")
 			fut.cancel()
-			self.logger.info(f"Waiting for layer task to complete...")
+			self.logger.info("Waiting for layer task to complete...")
 			donev.wait(timeout=2.0)
 		else:
-			self.logger.info(f"Layer task completed.")
+			self.logger.info("Layer task completed.")
 		self.layer_task = None
 	def _async_task_completed(self, msg: AsyncTaskCompleted):
 		if not msg.fut.done():
-			self.logger.info(f"Plugin task still running, cancel...")
+			self.logger.info("Plugin task still running, cancel...")
 			msg.fut.cancel()
-			self.logger.info(f"Waiting for plugin task to complete...")
+			self.logger.info("Waiting for plugin task to complete...")
 			msg.donev.wait(timeout=2.0)
 			return
 		# only the layer task this message is about: a reload may have started its replacement already
 		if msg.token == "layer_task" and (self.layer_task is None or self.layer_task[1] is msg.donev):
 			self.layer_task = None
 		if msg.fut.cancelled():
-			self.logger.info(f"Plugin task was cancelled.")
+			self.logger.info("Plugin task was cancelled.")
 			return
 		try:
 			rmsg = msg.fut.result()
 		except CancelledError:
-			self.logger.info(f"Plugin task was cancelled.")
+			self.logger.info("Plugin task was cancelled.")
 			return
 		except Exception as e:
 			# the layer task died; keep the display alive by starting it again after a pause
@@ -397,7 +396,7 @@ class TimerLayer(DispatcherTask):
 			self.accept(rmsg)
 		elif msg.token == "layer_task":
 			# the layer task only ends by being cancelled; if it returned, start it again
-			self.logger.warning(f"Layer task ended unexpectedly, restarting.")
+			self.logger.warning("Layer task ended unexpectedly, restarting.")
 			self._schedule_restart(msg.timestamp)
 	def _configuration_changed(self, msg: ConfigurationChanged):
 		if msg.area in ("schedules", "restore") and self.cm is not None and self.timebase is not None and not self.is_stopped():

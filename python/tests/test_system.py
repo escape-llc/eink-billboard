@@ -1,7 +1,6 @@
 """
 The System page's data (#390): the machine's readings, the Raspberry Pi's own when it is one, and the storage by area, plugin and data source. Numbers and our own words only.
 """
-import json
 import os
 import unittest
 from unittest.mock import patch

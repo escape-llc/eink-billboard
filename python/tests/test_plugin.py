@@ -1,7 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 import queue
 import threading
-from time import sleep, time
+from time import sleep
 import unittest
 
 from ..model.time_of_day import TimeOfDay

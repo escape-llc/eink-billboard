@@ -3,8 +3,6 @@ import base64
 from datetime import datetime
 import io
 import logging
-import os
-from pathlib import Path
 import re
 from typing import Any, Mapping
 from urllib.parse import urlsplit

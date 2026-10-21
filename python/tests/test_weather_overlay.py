@@ -4,7 +4,6 @@ import unittest
 from datetime import timedelta
 from typing import Any, cast
 
-import httpx
 
 from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager
 from ..datasources.overlay_text import fit_block

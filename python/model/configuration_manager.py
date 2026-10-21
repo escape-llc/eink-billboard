@@ -7,7 +7,6 @@ import json
 import re
 import logging
 import shutil
-import tempfile
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -162,11 +161,11 @@ class ConfigurationObject:
 	"""
 	def __init__(self, moniker: str, loader: LoadFunc, saver: SaveFunc, verify_on_save: bool = False):
 		"""`verify_on_save`: `save()` re-reads the content with the loader and compares against that, not the cache (for stores others can edit, like files)."""
-		if moniker == None:
+		if moniker is None:
 			raise ValueError("moniker cannot be None")
-		if loader == None:
+		if loader is None:
 			raise ValueError("loader cannot be None")
-		if saver == None:
+		if saver is None:
 			raise ValueError("saver cannot be None")
 		self.moniker = moniker
 		self._content: dict|None = None
@@ -236,11 +235,11 @@ class DatasourceConfigurationManager:
 	Rooted at the "datasources/<datasource_id>" folder in storage.
 	"""
 	def __init__(self, root_path:str, datasource_id:str, cof: ConfigurationObjectFactory):
-		if root_path == None:
+		if root_path is None:
 			raise ValueError("root_path cannot be None")
-		if datasource_id == None:
+		if datasource_id is None:
 			raise ValueError("datasource_id cannot be None")
-		if cof == None:
+		if cof is None:
 			raise ValueError("cof cannot be None")
 		if not os.path.exists(root_path):
 			raise ValueError(f"root_path {root_path} does not exist.")
@@ -304,11 +303,11 @@ class PluginConfigurationManager:
 	Rooted at the "plugins/<plugin_id>" folder in storage.
 	"""
 	def __init__(self, root_path:str, plugin_id:str, cof: ConfigurationObjectFactory):
-		if root_path == None:
+		if root_path is None:
 			raise ValueError("root_path cannot be None")
-		if plugin_id == None:
+		if plugin_id is None:
 			raise ValueError("plugin_id cannot be None")
-		if cof == None:
+		if cof is None:
 			raise ValueError("cof cannot be None")
 		if not os.path.exists(root_path):
 			raise ValueError(f"root_path {root_path} does not exist.")
@@ -383,11 +382,11 @@ class SettingsConfigurationManager:
 	Rooted at the "settings" folder in storage.
 	"""
 	def __init__(self, root_path:str, cof: ConfigurationObjectFactory):
-		if root_path == None:
+		if root_path is None:
 			raise ValueError("root_path cannot be None")
 		if not os.path.exists(root_path):
 			raise ValueError(f"root_path {root_path} does not exist.")
-		if cof == None:
+		if cof is None:
 			raise ValueError("cof cannot be None")
 		self.ROOT_PATH = root_path
 		self._cof = cof
@@ -430,7 +429,7 @@ class StaticConfigurationManager:
 	Rooted at the "static" folder; manages static resources like fonts and render assets.
 	"""
 	def __init__(self, root_path):
-		if root_path == None:
+		if root_path is None:
 			raise ValueError("root_path cannot be None")
 		if not os.path.exists(root_path):
 			raise ValueError(f"root_path {root_path} does not exist.")
@@ -484,7 +483,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		# Source path is the python directory
 		# Storage path is where working storage is hosted (SHOULD be OUTSIDE the source tree)
 		# NVE path (Non-Volatile Environment) is the source used to initialize Storage
-		if source_path != None:
+		if source_path is not None:
 			self.ROOT_PATH = source_path
 #			logger.debug(f"Provided source_path: {self.ROOT_PATH}")
 		else:
@@ -503,7 +502,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 #		logger.debug(f"plugin_image_dir: {self.plugin_image_dir} storage: {self.STORAGE_PATH}")
 
 		# Storage path is for storage; MUST BE external to the ROOT_PATH
-		if storage_path != None:
+		if storage_path is not None:
 			# points directly to ".storage" folder
 			self.STORAGE_PATH = storage_path
 #			logger.debug(f"Provided storage_path: {self.STORAGE_PATH}")
@@ -513,7 +512,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			self.STORAGE_PATH = os.path.join(pobj.parent, ".storage")
 #			logger.debug(f"Calculated storage_path: {self.STORAGE_PATH}")
 
-		if nve_path != None:
+		if nve_path is not None:
 			self.NVE_PATH = nve_path
 #			logger.debug(f"Provided nve_path: {nve_path}")
 		else:
@@ -621,10 +620,10 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			plugin_id = info.get("id")
 			pcm = self.plugin_manager(plugin_id)
 			psettings = info.get("settings", None)
-			if psettings == None:
+			if psettings is None:
 				continue
 			settings = psettings.get("default", None)
-			if settings == None:
+			if settings is None:
 				continue
 			self._save_settings(pcm.settings_path(), self._with_schema(psettings, settings))
 
@@ -635,10 +634,10 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			item_id = info.get("id")
 			dsm = self.datasource_manager(item_id)
 			psettings = info.get("settings", None)
-			if psettings == None:
+			if psettings is None:
 				continue
 			settings = psettings.get("default", None)
-			if settings == None:
+			if settings is None:
 				continue
 			self._save_settings(dsm.settings_path(), self._with_schema(psettings, settings))
 
@@ -856,7 +855,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 
 	def find(self, moniker: str) -> ConfigurationObject|None:
 		"""Find a ConfigurationObject for the given moniker, or None if not found."""
-		if moniker == None:
+		if moniker is None:
 			raise ValueError("moniker cannot be None")
 		with self._lock:
 			ox = self._objectMap.get(moniker, None)
@@ -864,9 +863,9 @@ class ConfigurationManager(ConfigurationObjectFactory):
 
 	def obtain(self, moniker: str, ctor: type[FileConfiguration]) -> tuple[bool, ConfigurationObject]:
 		"""Obtain a ConfigurationObject for the given moniker, and ctor."""
-		if moniker == None:
+		if moniker is None:
 			raise ValueError("moniker cannot be None")
-		if ctor == None:
+		if ctor is None:
 			raise ValueError("ctor cannot be None")
 		with self._lock:
 			ox = self._objectMap.get(moniker, None)
@@ -886,7 +885,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 	def watch(self, type: str, moniker: str) -> None:
 		"""Evicts the ConfigurationObject for the given moniker from the cache."""
 		logger.info(f"ConfigurationManager.watch: type={type} moniker={moniker}")
-		if moniker == None:
+		if moniker is None:
 			return
 		# Lock order: the manager's lock is only held to look the object up. Evicting waits for the object's own lock,
 		# which `save()` holds across an fsync, and must not stall `obtain()` of every other moniker meanwhile.
@@ -899,13 +898,13 @@ class ConfigurationManager(ConfigurationObjectFactory):
 
 	def read_schema(self, schema_name: str) -> dict|None:
 		"""The schema document of a device setting (`system`, `display`, `theme`), or None when there is none (or it does not load)."""
-		if schema_name == None:
+		if schema_name is None:
 			raise ValueError("schema_name cannot be None")
 		return _internal_load(os.path.join(self.storage_schemas, f"{leaf_name(schema_name)}.json"))
 
 	def plugin_manager(self, plugin_id: str) -> PluginConfigurationManager:
 		"""Returns a PluginConfigurationManager for the given plugin_id."""
-		if plugin_id == None:
+		if plugin_id is None:
 			raise ValueError("plugin_id cannot be None")
 		with self._lock:
 			manager = PluginConfigurationManager(self.storage_plugins, plugin_id, self)
@@ -913,7 +912,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 
 	def datasource_manager(self, datasource_id: str) -> DatasourceConfigurationManager:
 		"""Returns a DatasourceConfigurationManager for the given datasource_id."""
-		if datasource_id == None:
+		if datasource_id is None:
 			raise ValueError("datasource_id cannot be None")
 		with self._lock:
 			manager = DatasourceConfigurationManager(self.storage_ds, datasource_id, self)

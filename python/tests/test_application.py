@@ -18,7 +18,7 @@ class TestApplication(unittest.TestCase):
 		# stop when playlist_layer gets to the 4th track (index 3) OR configure failed
 		stopsink = MessageTriggerSink(lambda msg:
 																(isinstance(msg, Telemetry) and msg.name == "playlist_layer" and msg.values.get("current_track_index", None) == 3)
-																or (isinstance(msg, ConfigureNotify) and msg.error == True)
+																or (isinstance(msg, ConfigureNotify) and msg.error)
 																)
 		app = Application("TestApp", stopsink)
 		app.start()

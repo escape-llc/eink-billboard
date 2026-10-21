@@ -36,7 +36,7 @@ class ScheduleLoader:
 		data = json.loads(s)
 		schema = data.get("_schema", None)
 		if schema is None:
-			raise ValueError(f"Schedule is missing _schema field.")
+			raise ValueError("Schedule is missing _schema field.")
 		if schema == SCHEMA_PLAYLIST:
 			info = ScheduleLoader.parsePlaylist(data)
 			return info

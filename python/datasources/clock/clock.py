@@ -2,7 +2,7 @@ import logging
 from typing import Any, Mapping, cast
 import numpy as np
 import math
-from PIL import Image, ImageColor, ImageDraw, ImageFont
+from PIL import Image, ImageColor, ImageDraw
 
 from ...model.configuration_manager import StaticConfigurationManager
 from ..data_source import DataSource, DataSourceExecutionContext, MediaItemAsync, MediaRenderAsync, MediaRenderResult, target_dimensions

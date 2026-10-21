@@ -5,8 +5,6 @@ source (`dsec.use`), whose key, units and kept answers every page and overlay sh
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime
-import os
-from pathlib import Path
 from typing import Any, Mapping
 
 from ...model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager

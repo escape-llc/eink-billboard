@@ -27,7 +27,7 @@ from ..model.configuration_manager import ConfigurationManager, SettingsConfigur
 from ..plugins.plugin_base import PermanentError, PluginAsync, PluginExecutionContext
 from ..web.documents import content_with_defaults, plugin_content_errors
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool
-from ..task.timer import IProvideTimer, TimerThreadService
+from ..task.timer import TimerThreadService
 from ..task.protocols import IRequireShutdown
 from ..model.theme import ThemeInputs, current_inputs
 from ..utils.error_image import WebAddress, error_detail, render_error_image, safe_reason
@@ -325,7 +325,7 @@ class PlaylistLayer(DispatcherTask):
 			self.logger.error(f"Cannot start playback, state is '{self.state}'")
 			return
 		if len(self.playlists) == 0:
-			self.logger.warning(f"No playlists available to play.")
+			self.logger.warning("No playlists available to play.")
 			self._show_nothing(msg.timestamp)
 			return
 		self._run_layer_task(self.playlists, msg.timestamp, msg.start)
@@ -484,7 +484,7 @@ class PlaylistLayer(DispatcherTask):
 				self.logger.warning(f"'{self.name}' no track succeeded in this pass, waiting {self._backoff:g}s before the next one.")
 				await asyncio.sleep(self._backoff)
 			return None
-		except CancelledError as ce:
+		except CancelledError:
 			self.logger.info(f"'{self.name}' Layer task cancelled.")
 			raise
 		finally:
@@ -532,16 +532,16 @@ class PlaylistLayer(DispatcherTask):
 			return
 		fut, donev = self.layer_task
 		if not fut.done():
-			self.logger.info(f"Layer task still running, cancel...")
+			self.logger.info("Layer task still running, cancel...")
 			fut.cancel()
-			self.logger.info(f"Waiting for layer task to complete...")
+			self.logger.info("Waiting for layer task to complete...")
 			donev.wait(timeout=2.0)
 		else:
-			self.logger.info(f"Layer task completed.")
+			self.logger.info("Layer task completed.")
 		self.layer_task = None
 	def _run_layer_task(self, playlists: list[ScheduleLoaderDict], timestamp: datetime, start: Start|None = None):
 		if self.task_pool is None:
-			self.logger.error(f"No task pool available to invoke plugin start.")
+			self.logger.error("No task pool available to invoke plugin start.")
 			return False
 		try:
 			donev = threading.Event()
@@ -558,15 +558,15 @@ class PlaylistLayer(DispatcherTask):
 			return False
 	def _async_task_completed(self, msg: AsyncTaskCompleted):
 		if not msg.fut.done():
-			self.logger.info(f"Layer task still running, cancel...")
+			self.logger.info("Layer task still running, cancel...")
 			msg.fut.cancel()
-			self.logger.info(f"Waiting for layer task to complete...")
+			self.logger.info("Waiting for layer task to complete...")
 			msg.donev.wait(timeout=2.0)
 		else:
-			self.logger.info(f"Layer task completed.")
+			self.logger.info("Layer task completed.")
 			if msg.fut.cancelled():
 				# stopped on purpose (_task_stop); whoever cancelled it decides what happens next
-				self.logger.info(f"Layer task was cancelled.")
+				self.logger.info("Layer task was cancelled.")
 				self._clear_layer_task(msg.token, msg.donev)
 				return
 			try:
@@ -580,11 +580,11 @@ class PlaylistLayer(DispatcherTask):
 				self.accept(rmsg)
 			elif self._halted:
 				# the pass ended as the stop came in: it stays stopped
-				self.logger.info(f"Layer task ended while stopped.")
+				self.logger.info("Layer task ended while stopped.")
 			else:
 				# the end of a pass is not a stop and tells nobody anything (the next track's start does): it was announced as "The playlist stopped" after every pass, with the stamp of
 				# the first pass ever started (`msg.timestamp` is the stamp the pass began with, and each pass passed it on to the next), so it looked like a stop at a time long gone
-				self.logger.info(f"Layer task returned no message, forcing StartPlayback.")
+				self.logger.info("Layer task returned no message, forcing StartPlayback.")
 				self.state = 'stopped'
 				self.accept(StartPlayback(self._now(msg.timestamp)))
 		self._clear_layer_task(msg.token, msg.donev)
@@ -738,7 +738,7 @@ class PlaylistLayer(DispatcherTask):
 				self.shutdownlist.append(self.task_pool)
 				self.task_pool.start()
 
-			self.logger.info(f"schedule loaded")
+			self.logger.info("schedule loaded")
 			self.state = 'loaded'
 			msg.notify()
 			self.accept(StartPlayback(self.timebase.current_time()))
