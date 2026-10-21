@@ -1,12 +1,8 @@
 # eInk Billboard
 
-This is a project to use the [InkyPi](https://github.com/fatihak/InkyPi) project to:
+Welcome to eInk Billboard!
 
-* Learn Python
-* Play with Raspberry Pi
-* Play with e-Ink technology
-
-We have a reMarkable tablet, and enjoy it very much.  Also a long-standing fascination with e-Ink technology.
+> This project is maintained by Claude Sonnet and Opus with Human-in-the-Loop
 
 # Set up a Raspberry Pi
 
@@ -68,7 +64,7 @@ Open that address from any computer or phone on your network, enter the setup co
 
 ## 4. Make your first playlist
 
-After you sign in, the web app opens the playlist page, since a new device has none: create a playlist, add tracks (a slide show of pictures, a calendar, the weather, comics, ...) and save it. Timer tasks (the clock on the quarter hour, a weather overlay in a corner) are in the Scheduler. The display type can be changed later under Settings, Display.
+After you sign in, the web app opens the playlist page, since a new device has none. From here on, the web app explains itself: the **Help** button (the question mark at the right end of its toolbar) walks through the first steps, the pages, the data sources and their keys, and what to do when something is wrong.
 
 ## Update
 
@@ -500,51 +496,7 @@ By default it is named `.storage` and is by default ignored in `.gitignore`. As 
 
 # DEV Mode
 
-## Calendar Data Source
-A month grid, the coming weeks, and/or an agenda of the coming days, from the calendars kept in the Calendar data source's settings:
-* **iCal links** (`https`, `http` or `webcal`): most calendar apps publish one. Google Calendar has a "Public address in iCal format" (the calendar must be public) or a "Secret address in iCal format" (treat it as a password). A link that needs a sign-in can use Basic (username and password) or a Bearer token.
-* **CalDAV servers** (Nextcloud, Fastmail, iCloud with an app password, Radicale): one query for the days the page shows.
-* **Holidays** by country (and state or province), from the `holidays` package, which needs no internet.
-
-The settings also choose the first day of the week and whether the grid shows ISO week numbers. A task chooses the views, each a page of its slot, in this order:
-* **month:** the month's grid;
-* **weeks:** the current week and the next few (Weeks Ahead, default 4) as continuous rows across month ends. Every other month is tinted and each month is named on its first day;
-* **agenda:** a list of the coming days (Agenda Days, default 7).
-
-It also chooses which calendars and holiday sets to show (none chosen means all that are enabled).
-Each address has a Test button. Besides how many events are coming, it warns when a calendar **runs out**: when nothing in it repeats, it is empty after its last event. A season's fixture list is like this, and the address usually changes for the next season. The page says the same in its footer once that day is in view.
-* **Google and Microsoft accounts:** add the account under Accounts, save, then press **Connect**. A calendar row of the kind `google` or `microsoft` names the account and, optionally, a calendar ID; Connect lists the account's calendars and their IDs. Empty means the main calendar.
-
-### Registering your own app (once per account)
-The device signs in with an app registration of your own; nothing is shared with anyone else.
-* **Google:**
-  1. In the Google Cloud console, create a project, enable the **Google Calendar API**, and create an **OAuth client ID** of type **Desktop app**.
-  2. Put its client ID and client secret in the account row.
-  3. On the OAuth consent screen, **publish** the app. An app left in "Testing" gets sign-ins that expire after 7 days. An unverified app works for your own account: Google warns once.
-  4. Connect opens Google's sign-in. Afterwards your browser goes to a `http://localhost/...` address that does not load: copy that whole address back into the settings page.
-* **Microsoft:**
-  1. In the Microsoft Entra admin center, register an app.
-  2. Under Authentication, allow **public client flows**.
-  3. Add the delegated permissions **Calendars.Read** and **offline_access**.
-  4. Put its application (client) ID in the account row. The tenant is `common` for a personal or any work account, or your tenant's name or ID.
-  5. Connect shows a code: open microsoft.com/devicelogin on any device, enter it and sign in, and the page finishes on its own.
-
-The sign-in's tokens are kept in `datasources/calendar/tokens.json` in the storage folder, never in the settings (which the browser reads). Delete an account, or change its client ID, and it must be connected again.
-
-## Generated Image Data Source
-A picture drawn by an AI image model from your prompt, which an AI text model can rewrite first so no two are alike.
-* **Choose each part**: the track's **Image Source** draws (OpenAI Image) and its **Text Source** rewrites the prompt (OpenAI Text). Each part's own fields (the model, the quality, ...) show under its choice. Each part is a provider's: **OpenAI** or **Google**, so the text of one can go with the picture of the other (GPT text, a Gemini picture).
-* **The keys are the providers'**: Settings, Data Sources, `openai` or `google-ai` (Test lists the image models the key may use). The model lists come from the provider, kept for a day. A Google key is a **Google AI Studio key** (it starts with `AQ.`); the shapes and sizes a Gemini picture takes are read from Google's own description of its API.
-* **The panel's shape**: `gpt-image-2` and later draw at the panel's ratio; Gemini draws at the ratio Google offers nearest it; older OpenAI models draw a fixed size. What does not fill the panel is shown with a blurred margin.
-* A track from before that names `openai-image` as its data source says to choose Generated Image instead; the OpenAI key moved to the `openai` settings at the first start.
-
-## Weather Data Source
-The weather at the device's location from [OpenWeatherMap](https://openweathermap.org), one page per chosen view: the weather **now**, the next day in steps of three **hours**, the next five **days**. Several views make a slot of that many pages.
-* **The place** is the `location` of the System settings (the GPS position; empty means the slot fails with a message telling you to set it).
-* **The settings are OpenWeatherMap's** (Settings, Data Sources, `openweathermap`): an **API data source** that only fetches the data (the key, the units and the kept answers), shared by the Weather pages and the Weather Overlay. A storage from before it had them in the Weather's settings: they are moved there at the first start.
-* **The key**: register for a free key (the settings page has a button to the sign-up page). It goes in the OpenWeatherMap settings and is never sent back to the browser. A new key can take a couple of hours to start working: until then the slot says the key was refused.
-* **Units**: `auto` reads miles and Fahrenheit in the US timezones and kilometres and Celsius elsewhere, or choose `metric` or `imperial`. The clock follows the System settings' time format.
-* It uses the free plan's endpoints (`/data/2.5/weather` and `/data/2.5/forecast`), only the ones the chosen views need, kept for the times in the settings. The icons are drawn by the page, so rendering needs no network. The key is in the address OpenWeatherMap wants, so the HTTP client's log lines have it hidden (`appid=***`).
+How to use the app (the pages, each data source's settings, the calendar sign-ins, the keys) is in the web app's **Help** drawer (`app/src/components/HelpDrawer.vue`), not here: this readme is for installing the device and working on the code.
 
 ## Kept Downloads
 
@@ -591,8 +543,6 @@ The web app finds the server through `VITE_API_URL`: `http://localhost:8080/` in
   * A restore opens the file (at most 8 MB, 500 files, 32 MB unpacked, no absolute, `..` or backslash names, no links; sizes are counted as the bytes come out, never believed from the ZIP's header), checks **every document by the rules of the route that would have saved it** (a missing required value is not a reason to refuse: a device keeps an API key that is not typed in yet), and with any problem refuses the whole restore naming the file and field (`errors`, never a value). **Each document is brought up to this version first** (`migrate`, the same function the start uses: see "Versions of stored documents"), so an old backup restores current-shaped; a document from a **newer** version refuses the whole restore, naming the file. The archive carries a `MANIFEST.json` (its format, when it was made, the version each file carried); a format newer than this version refuses, a backup without one (an earlier release's) restores as before, and the preview says when it was made and how many files are upgraded. A plugin or data source this device does not have is left out and counted. Without `apply` nothing is written and the answer is the summary: each file that is new or would change, by name and kind, and how many are the same. With it, the files are written (each atomically, by name through the configuration manager); if one fails the files written before it are put back, and **nothing is ever deleted**. See "Restoring a backup" under the Application Task for the notices.
   * The files are read while the device runs: each is whole, the set is not a point-in-time snapshot. A wrong passphrase counts against the sign-in throttle (429 after a few).
 
-The **Help** button at the right end of the toolbar (a question mark) slides a drawer out from the right with a short guide: the first steps, the pages, how a picture reaches the panel, play/stop/next, API keys and costs, keeping the device safe, what to do when something is wrong, and links to the documentation and the issue tracker. The page under it stays where it is.
-
 ## API Metering
 
 An API data source counts what it asks of its service (#440, `python/datasources/metering.py`), so a quota is something you can see before it runs out. It makes its HTTP client with `metered_client("<the descriptor's id>", ...)`, which counts every call it sends (a redirect's hops each count, and so do the OpenAI SDK's retries: each is a request the service sees). Per data source and per day it keeps counts only, never an address, a key, a query or a body:
@@ -603,18 +553,7 @@ An API data source counts what it asks of its service (#440, `python/datasources
 The counts are in memory behind a lock (a data source is called from several threads) and written to `state/api-usage.json` (versioned, last 31 days, not part of a backup) about once a minute and on quit, never per call (a Pi's SD card): a crash loses at most the last minute. `test_api_metering` fails for an API data source (features `api` and `internet`) that makes its client any other way. **Downloads through the shared pool count too**: the pool's client is a metered one that belongs to no data source, and `download_for` names the source each download is for (`metered_as`, a context variable), so a picture of the day, a feed or a comic is a call of its data source (a call made with no source named is not counted). Not built: a quota that stops calls (a budget guard), and the cost in money or tokens of the AI sources.
 
 ## System page and Telemetry
-The web app's **System** page (the left menu, #390) is where you see how the device is and what it is doing. There is no status button or activity panel in the toolbar any more. It shows:
-* **Device:** whether the display and the two layers came up (`GET /api/status`), and, under **Problems**, the latest few things that went wrong.
-* **Machine:** the operating system, Python, how long the machine has been up and, separately, how long the app has been running (a restart of the app moves only the second), processor load and memory (the whole machine's and this app's own) and the disk the storage is on (`GET /api/system`, every 10 s). Numbers and our own words only: no host name, address, user or path.
-* **Raspberry Pi** (only on one: the model name in `/proc/device-tree/model` says so): the model, the temperature, the clock and the firmware's power warnings (under-voltage, frequency capped, throttled, temperature limit: now, and since the start).
-* **Storage:** the files and bytes by area (settings, schedules, plugins, data sources, schemas, state) and by plugin and data source, with how much of each is *kept* (downloads, origin answers, lists: what can be fetched again).
-* **API usage** (#440): what each data source has asked of the internet: the API services (OpenAI, Google AI, OpenWeatherMap, Comic Vine, Thunderforest) and the downloads (the pictures of the day, feeds, comics, covers), for today, the last seven days and the month, in the device's days: the calls, how many failed, the bytes of the bodies sent and received, and the share of cache lookups that were answered without a download (hover for the bytes saved). Under it, the calls by the status the service answered (`200 × 40, 429 × 2`; a call that got no answer is `timeout`, `connect`, `tls` or `error`) and when the service last said "too many requests".
-
-The page's toolbar (as on the playlist page) has a stop / play and a next-track button for the playlist (see "Transport" above; the timer tasks keep running), then **Back up**, **Restore** and **Device password**, each of which opens a dialog. Beside the facts, two panels follow the device live:
-* **Playback (toolbar):** the playlist's buttons. The button follows the playlist layer's own `transport` events, and asks `GET /api/transport` when the page opens or the link comes back, so a page opened while playback is stopped shows it stopped.
-* **Now showing (panel):** what the panel shows, at its own size, with the layers it was composed of (background, blend, override, timer blend, priority, overlays). Click it for full size.
-* **Recently shown (panel):** the last few pages before the one on the panel, as thumbnails (click for full size).
-* **Activity (panel):** what the device reports, with a source filter and "Problems only".
+The web app's **System** page (#390; what it shows is in the Help drawer) reads `GET /api/status` and `GET /api/system` every 10 s, both numbers and our own words only (no host name, address, user or path), and follows the device live through the telemetry link. Its playback button follows the playlist layer's own `transport` events and asks `GET /api/transport` when the page opens or the link comes back, so a page opened while playback is stopped shows it stopped.
 
 The page follows a WebSocket (`/api/telemetry/ws?since=<seq>&run=<run>`), which reconnects on its own and resumes after the last event it had. `seq` starts again at every start of the device, so the link's first message, `hello`, names the run: a page that followed another run gets everything kept and starts over. The link starts once the page's first request has been answered (a WebSocket cannot ask for a sign-in), and after a sign-in the page loads again. Times are the device's, not the browser's. The other routes:
 * `GET /api/telemetry?since=<seq>`: the kept events, the last 200, newest last;
