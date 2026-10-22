@@ -144,7 +144,7 @@ from .storage_files import load_bytes, load_json as _internal_load, remove_file,
 # settings that moved from one data source to another (`upgrade_settings`, once per storage): (from, to, keys). The Weather's went to the
 # OpenWeatherMap API data source that asks the origin for it and the Weather Overlay; the OpenAI Image's key to the OpenAI provider its parts share.
 SETTINGS_MOVES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
-	("weather", "openweathermap", ("apiKey", "units", "currentCacheHours", "forecastCacheHours", "staleDays")),
+	("weather", "openweathermap", ("apiKey", "currentCacheHours", "forecastCacheHours", "staleDays")),
 	("openai-image", "openai", ("apiKey",)),
 )
 
@@ -607,7 +607,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 				basename = Path(schema_path).stem
 				settings_path = os.path.join(self.storage_settings, f"{basename}-settings.json")
 				settings = {}
-				with open(schema_path) as f:
+				with open(schema_path, encoding="utf-8") as f:
 					schema = json.load(f)
 					defx = schema.get("default", None)
 					if defx is not None:
@@ -618,7 +618,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 					# the document carries the `_schema` of the schema it came from
 					if isinstance(settings, dict) and isinstance(schema.get(SCHEMA_KEY), str):
 						settings = { SCHEMA_KEY: schema[SCHEMA_KEY], **settings }
-				with open(settings_path, 'w') as fx:
+				with open(settings_path, 'w', encoding="utf-8") as fx:
 					json.dump(settings, fx, indent=2)
 
 			logger.info(f"ResetStorage '{self.STORAGE_PATH}' all contents copied successfully.")
@@ -1087,7 +1087,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 				if os.path.isfile(info_file):
 					logger.debug(f"collect info: {info_file}")
 					try:
-						with open(info_file) as f:
+						with open(info_file, encoding="utf-8") as f:
 							item_info: ItemInfoDict = json.load(f)
 					except Exception as e:
 						logger.error(f"Cannot read descriptor '{info_file}' (folder '{item}'), skipping it: {e}")

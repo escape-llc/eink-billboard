@@ -5,6 +5,7 @@ from datetime import timedelta
 from typing import Any, cast
 
 
+from ..datasources.contracts.weather import IMPERIAL, METRIC
 from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager
 from ..datasources.overlay_text import fit_block
 from ..datasources.openweathermap.openweathermap import OpenWeatherMapApi
@@ -29,7 +30,7 @@ class TestViews(unittest.TestCase):
 		self.assertEqual([needs_of("now"), needs_of("today"), needs_of("outlook")], [{ "current" }, { "forecast" }, { "forecast" }])
 
 	def test_now_is_the_temperature_highlighted_then_the_sky(self):
-		lines, icon, title = view_lines("now", report())
+		lines, icon, title = view_lines("now", report(), METRIC)
 		self.assertEqual(len(lines), 1)
 		(temp, temp_role), (sky, sky_role) = lines[0]
 		self.assertRegex(temp, r"^-?\d+°$")
@@ -38,14 +39,19 @@ class TestViews(unittest.TestCase):
 		self.assertIsNotNone(icon)
 		self.assertEqual(title, temp + sky)
 
+	def test_the_temperature_is_in_the_devices_unit(self):
+		# the report is SI (14 °C now): the overlay shows it in the unit the device reads
+		self.assertEqual(view_lines("now", report(), METRIC)[0][0][0][0], "14°")
+		self.assertEqual(view_lines("now", report(), IMPERIAL)[0][0][0][0], "58°")
+
 	def test_today_is_the_range_and_the_chance_of_rain(self):
-		lines, icon, _ = view_lines("today", report())
+		lines, icon, _ = view_lines("today", report(), METRIC)
 		text = "".join(t for t, _ in lines[0])
 		self.assertRegex(text, r"^-?\d+° / -?\d+°  \d+%$")
 		self.assertIsNotNone(icon)
 
 	def test_the_outlook_is_three_days_a_line_each_starting_today(self):
-		lines, icon, _ = view_lines("outlook", report())
+		lines, icon, _ = view_lines("outlook", report(), METRIC)
 		self.assertEqual(len(lines), 3)
 		self.assertEqual(lines[0][0], ("Today", "text-secondary-1"))
 		self.assertEqual([line[0][0] for line in lines[1:]], ["Thu", "Fri"])
@@ -56,7 +62,7 @@ class TestViews(unittest.TestCase):
 		empty.current, empty.days = None, []
 		for view in ("now", "today", "outlook"):
 			with self.subTest(view=view), self.assertRaises(RuntimeError):
-				view_lines(view, empty)
+				view_lines(view, empty, METRIC)
 
 class TestFitBlock(unittest.TestCase):
 	def _font(self):
@@ -86,7 +92,7 @@ class Harness:
 		test.addCleanup(shutil.rmtree, folder, True)
 		self.cm = ConfigurationManager(storage_path=folder)
 		self.cm.hard_reset()
-		save_datasource_settings(self.cm, "openweathermap", { "apiKey": KEY, "units": "auto", "forecastCacheHours": 6, "currentCacheHours": 6, **(settings or {}) })
+		save_datasource_settings(self.cm, "openweathermap", { "apiKey": KEY, "forecastCacheHours": 6, "currentCacheHours": 6, **(settings or {}) })
 		self.weather = WeatherAsync("weather", "Weather")
 		self.sources = { "openweathermap": OpenWeatherMapApi("openweathermap", "OpenWeatherMap") } if sources is None else sources
 

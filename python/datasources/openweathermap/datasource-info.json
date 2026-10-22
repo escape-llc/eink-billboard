@@ -5,7 +5,7 @@
 	"class": "OpenWeatherMapApi",
 	"file": "openweathermap.py",
 	"module": "python.datasources.openweathermap.openweathermap",
-	"description": "A weather provider: the weather at the device's location from OpenWeatherMap, for the Weather pages, the Weather Overlay and the Weather Visualizer. The API key, the units and the kept answers they share.",
+	"description": "A weather provider: the weather at the device's location from OpenWeatherMap, for the Weather pages, the Weather Overlay and the Weather Visualizer. The API key and the kept answers they share (the units are the device's, in the System settings).",
 	"disabled": false,
 	"features": ["internet", "api-key", "api", "data-weather"],
 	"router": {
@@ -29,15 +29,6 @@
 					"description": "Your OpenWeatherMap key. The free plan is enough. A new key can take a couple of hours to start working. Test asks OpenWeatherMap whether it accepts the key.",
 					"test": { "url": "/api/datasource/openweathermap/test" },
 					"link": { "url": "https://home.openweathermap.org/users/sign_up", "label": "Get a free API key" }
-				},
-				{
-					"name": "units",
-					"type": "string",
-					"required": true,
-					"default": "auto",
-					"title": "Units",
-					"description": "auto: miles and Fahrenheit in the US timezones, kilometres and Celsius elsewhere.",
-					"enum": ["auto", "metric", "imperial"]
 				},
 				{
 					"name": "currentCacheHours",
@@ -78,7 +69,6 @@
 		},
 		"default": {
 			"apiKey": null,
-			"units": "auto",
 			"currentCacheHours": 0.5,
 			"forecastCacheHours": 6,
 			"staleDays": 30

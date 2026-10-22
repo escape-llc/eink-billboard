@@ -11,7 +11,7 @@ class ProviderContract(DataSource, DataSourceApi):
 	"""
 	The base of a capability's contract. `capability` is the feature its providers list; `noun` names it in a message ("No weather provider is set up");
 	`setting` is the system setting that names the device's provider of it (None: every use chooses one, as the AI parts are chosen); `tokens` are the fields a
-	prompt may use for its data (`tokensFrom: ["<capability>"]` resolves to them), with `prompt_fields` giving their values.
+	prompt may use for its data (`tokensFrom: ["<capability>"]` resolves to them), filled by a function of the contract's module from the answer.
 	"""
 	capability: ClassVar[str] = ""
 	noun: ClassVar[str] = ""
@@ -21,10 +21,6 @@ class ProviderContract(DataSource, DataSourceApi):
 	def configured(self, dsec: DataSourceExecutionContext) -> bool:
 		"""Whether its own settings are complete (a key is set where it needs one): never whether its last call worked. `dsec` is its own context."""
 		return True
-
-	def prompt_fields(self, data: Any) -> Mapping[str, str]:
-		"""The values of `tokens` for an answer of this provider: only what is known. A contract without tokens has none."""
-		return {}
 
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> Any:
 		# not abstract: `dsec.use(id, Contract)` and `dsec.provide(Contract)` take the class itself

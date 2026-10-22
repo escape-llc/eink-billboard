@@ -74,7 +74,7 @@ class TestOpenWeatherMapKey(WebApiTestBase):
 			self.assertNotIn(key, str(self.ask(key)))
 
 	def test_the_settings_need_the_key(self):
-		self.write_datasource_settings("openweathermap", { "apiKey": "good-key", "units": "auto" })
+		self.write_datasource_settings("openweathermap", { "apiKey": "good-key" })
 		doc = self.client.get("/api/datasources/openweathermap/settings").json()
 		resp = self.client.put("/api/datasources/openweathermap/settings", json={ **doc, "apiKey": None })
 		self.assertEqual(resp.status_code, 422)

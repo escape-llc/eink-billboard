@@ -11,6 +11,27 @@
 			"weatherProvider": {
 				"url": "/api/lookups/providers/data-weather"
 			},
+			"units": {
+				"items": [
+					{ "name": "Automatic (by time zone)", "value": "auto" },
+					{ "name": "Metric (°C, km/h)", "value": "metric" },
+					{ "name": "Imperial (°F, mph)", "value": "imperial" }
+				]
+			},
+			"temperatureUnit": {
+				"items": [
+					{ "name": "Celsius (°C)", "value": "celsius" },
+					{ "name": "Fahrenheit (°F)", "value": "fahrenheit" }
+				]
+			},
+			"speedUnit": {
+				"items": [
+					{ "name": "Kilometres per hour (km/h)", "value": "km/h" },
+					{ "name": "Metres per second (m/s)", "value": "m/s" },
+					{ "name": "Miles per hour (mph)", "value": "mph" },
+					{ "name": "Knots (kn)", "value": "kn" }
+				]
+			},
 			"timeFormat": {
 				"items": [
 					{"name": "12h", "value": "12h" },
@@ -55,6 +76,30 @@
 				"required": false
 			},
 			{
+				"name": "units",
+				"type": "string",
+				"title": "Units",
+				"description": "The units the weather is shown in. Automatic: miles and Fahrenheit in the US time zones, kilometres and Celsius elsewhere. The two below change one kind of measurement only.",
+				"lookup": "units",
+				"required": true
+			},
+			{
+				"name": "temperatureUnit",
+				"type": "string",
+				"title": "Temperature Unit",
+				"description": "Empty: as the Units say.",
+				"lookup": "temperatureUnit",
+				"required": false
+			},
+			{
+				"name": "speedUnit",
+				"type": "string",
+				"title": "Wind Speed Unit",
+				"description": "Empty: as the Units say.",
+				"lookup": "speedUnit",
+				"required": false
+			},
+			{
 				"name":"maxStrikes",
 				"type": "integer",
 				"title": "Failures Before a Track Stops Running",
@@ -89,6 +134,9 @@
 		"timeFormat": "24h",
 		"location": null,
 		"weatherProvider": null,
+		"units": "auto",
+		"temperatureUnit": null,
+		"speedUnit": null,
 		"maxStrikes": 3,
 		"strikeRetrySeconds": 60,
 		"strikeRetryMaxSeconds": 900

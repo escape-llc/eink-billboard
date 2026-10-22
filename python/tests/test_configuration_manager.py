@@ -146,11 +146,13 @@ class TestConfigurationManager(unittest.TestCase):
 			self.assertNotIn("owm-secret", "\n".join(logged.output), "the names only, never a value")
 			_, moved = cm.datasource_manager("openweathermap").open().get()
 			assert moved is not None
-			self.assertEqual({ k: moved[k] for k in ("apiKey", "units", "currentCacheHours", "forecastCacheHours", "staleDays") },
-				{ "apiKey": "owm-secret", "units": "imperial", "currentCacheHours": 1, "forecastCacheHours": 3, "staleDays": 9 })
+			self.assertEqual({ k: moved[k] for k in ("apiKey", "currentCacheHours", "forecastCacheHours", "staleDays") },
+				{ "apiKey": "owm-secret", "currentCacheHours": 1, "forecastCacheHours": 3, "staleDays": 9 })
+			# the units are the device's now, not a provider's: not moved
+			self.assertNotIn("units", moved)
 			# out of the old document (its schema no longer masks the key), what was not moved stays
 			with open(weather) as f:
-				self.assertEqual(json.load(f), { "_schema": "urn:inky:storage:schema:datasource:weather:1", "other": True })
+				self.assertEqual(json.load(f), { "_schema": "urn:inky:storage:schema:datasource:weather:1", "units": "imperial", "other": True })
 			# once: the old document holds nothing to move any more
 			self.assertEqual(cm.upgrade_settings(), [])
 

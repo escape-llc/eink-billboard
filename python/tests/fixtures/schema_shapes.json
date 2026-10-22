@@ -166,14 +166,6 @@
 			"apiKey": {
 				"type": "string"
 			},
-			"units": {
-				"type": "string",
-				"enum": [
-					"auto",
-					"metric",
-					"imperial"
-				]
-			},
 			"currentCacheHours": {
 				"type": "number"
 			},
@@ -387,6 +379,18 @@
 			},
 			"location": {
 				"type": "location"
+			},
+			"weatherProvider": {
+				"type": "string"
+			},
+			"units": {
+				"type": "string"
+			},
+			"temperatureUnit": {
+				"type": "string"
+			},
+			"speedUnit": {
+				"type": "string"
 			},
 			"maxStrikes": {
 				"type": "integer"

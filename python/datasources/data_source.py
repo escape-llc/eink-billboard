@@ -20,15 +20,6 @@ class DataSource:
 	def name(self) -> str:
 		return self._name
 
-@runtime_checkable
-class DataSourcePromptFields(Protocol):
-	"""
-	A data-only source whose data a prompt may talk about: `prompt_fields(data)` gives the value of each field for what the source answered, and its
-	descriptor's `tokens` lists the same names with a description of each (the form shows them, the server checks a text against them). Only what is
-	known is given: a field with no value is left out.
-	"""
-	def prompt_fields(self, data: Any) -> Mapping[str, str]: ...
-
 class DataSourceExecutionContext:
 	"""
 	Passed to all DataSource methods to provide context about the execution.
