@@ -5,7 +5,7 @@
 	"class": "OpenWeatherMapApi",
 	"file": "openweathermap.py",
 	"module": "python.datasources.openweathermap.openweathermap",
-	"description": "The weather at the device's location from OpenWeatherMap, for the Weather pages and the Weather Overlay: the API key, the units and the kept answers they share.",
+	"description": "A weather provider: the weather at the device's location from OpenWeatherMap, for the Weather pages, the Weather Overlay and the Weather Visualizer. The API key, the units and the kept answers they share.",
 	"disabled": false,
 	"features": ["internet", "api-key", "api", "data-weather"],
 	"router": {
@@ -14,21 +14,6 @@
 		"file": "api.py",
 		"module": "python.datasources.openweathermap.api"
 	},
-	"tokens": [
-		{"name": "place", "description": "The place the weather is for, as OpenWeatherMap names it (Seattle)."},
-		{"name": "condition", "description": "The sky and weather now, in words (light rain, clear sky)."},
-		{"name": "temp", "description": "The temperature now, with its unit (18°C)."},
-		{"name": "feels", "description": "What the temperature feels like now, with its unit."},
-		{"name": "humidity", "description": "The humidity now (64%)."},
-		{"name": "wind", "description": "The wind speed now, with its unit (12 km/h)."},
-		{"name": "high", "description": "Today's highest temperature, with its unit."},
-		{"name": "low", "description": "Today's lowest temperature, with its unit."},
-		{"name": "rain", "description": "Today's chance of rain (40%)."},
-		{"name": "sunrise", "description": "When the sun rises today, on the device's clock."},
-		{"name": "sunset", "description": "When the sun sets today, on the device's clock."},
-		{"name": "daypart", "description": "dawn, day, dusk or night, from the sun's times."},
-		{"name": "season", "description": "winter, spring, summer or autumn where the device is (the other way round south of the equator)."}
-	],
 	"settings": {
 		"_schema": "urn:inky:storage:schema:datasource:openweathermap:1",
 		"schema": {

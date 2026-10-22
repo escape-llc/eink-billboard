@@ -14,9 +14,8 @@ test("a data source's descriptor is a table of attributes, with what it requires
 	await expect(info).toBeVisible()
 	await expect(page.getByTestId("info-id")).toHaveText("weather-overlay")
 	await expect(page.getByTestId("info-enabled").getByRole("img", { name: "yes" })).toBeVisible()
-	// it asks an API source for the weather: it says so, and names it; it downloads nothing itself
-	await expect(page.getByTestId("info-uses")).toContainText("openweathermap")
-	// the capability it needs, which a provider supplies
+	// it asks for the weather by capability, which any weather provider supplies: it names no vendor, and downloads nothing itself
+	await expect(page.getByTestId("info-uses")).toHaveText("none")
 	await expect(page.getByTestId("info-requires")).toContainText("data-weather")
 	await expect(page.getByTestId("info-requires").locator(".p-tag", { hasText: "data-weather" })).toHaveAttribute("title", /Supplies the weather/)
 	const features = page.getByTestId("info-features")

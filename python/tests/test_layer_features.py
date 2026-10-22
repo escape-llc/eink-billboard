@@ -57,6 +57,8 @@ class TestApiDataSources(unittest.TestCase):
 		# by name (`uses`), or by feature: a source's own `schema` field chooses it (the Generated Image's text and image parts)
 		chosen = { f for s in SOURCES for lk in ((s.get("instanceSettings") or {}).get("schema", {}).get("lookups") or {}).values()
 			if isinstance(lk, dict) and lk.get("schema") == "data-sources" for f in lk.get("features") or [] }
+		# or by capability: a source requires what it supplies, and asks for whichever provider of it (`dsec.provide`)
+		chosen |= { c for s in SOURCES for c in s.get("requires") or [] }
 		used = { u for s in SOURCES for u in (s.get("uses") or []) } | { s["id"] for s in SOURCES if chosen & set(s.get("features") or []) }
 		for source in (s for s in SOURCES if is_api(s)):
 			with self.subTest(source["id"]):
@@ -132,12 +134,16 @@ class TestFeatureVocabulary(unittest.TestCase):
 				self.assertEqual([f for f in features if f not in VOCABULARY], [])
 				self.assertEqual(features, sorted(features, key=VOCABULARY.index), "listed in the vocabulary's order")
 
+	def test_every_capability_has_its_contract(self):
+		from ..datasources.contracts import CONTRACTS
+		self.assertEqual({ f for f in VOCABULARY if f.startswith("data-") }, set(CONTRACTS))
+
 	def test_api_client_is_what_asks_an_api_source(self):
 		api_ids = { s["id"] for s in SOURCES if is_api(s) }
 		for source in SOURCES:
 			lookups = ((source.get("instanceSettings") or {}).get("schema", {}).get("lookups") or {}).values()
 			chooses_parts = any(isinstance(lk, dict) and lk.get("schema") == "data-sources" and any(f.startswith("data-") for f in lk.get("features") or []) for lk in lookups)
-			asks = bool(set(source.get("uses") or []) & api_ids) or chooses_parts
+			asks = bool(set(source.get("uses") or []) & api_ids) or chooses_parts or bool(source.get("requires"))
 			with self.subTest(source["id"]):
 				self.assertEqual("api-client" in source["features"], asks, "`api-client` exactly when it uses an API source (or chooses AI parts)")
 				if asks:
@@ -164,7 +170,8 @@ def capability_problems(sources: list[dict]) -> list[str]:
 	"""
 	What breaks the rules of providers and data sources (#513), in words: a **provider** has `api` (data only, no layer: the other tests),
 	a **data source** has a `layer-*`; a capability is a `data-*` feature, supplied only by providers; a source names the capabilities it
-	needs in `requires`, each of which some provider supplies, and which it meets by choosing a provider (a `schema` field) or by one it `uses`.
+	needs in `requires`, each of which some provider supplies (it asks with `dsec.provide`, or a `schema` field chooses one); a prompt's `tokensFrom` names
+	capabilities.
 	"""
 	by_id = { s["id"]: s for s in sources }
 	providers = { c: [s["id"] for s in sources if is_api(s) and c in s.get("features", [])] for s in sources for c in capabilities(s.get("features") or []) }
@@ -179,8 +186,9 @@ def capability_problems(sources: list[dict]) -> list[str]:
 		problems += [f"{sid}: requires {c}, which is not a capability (data-*)" for c in requires if not c.startswith("data-")]
 		problems += [f"{sid}: requires {c}, which no provider supplies" for c in requires if c.startswith("data-") and not providers.get(c)]
 		problems += [f"{sid}: chooses a provider of {c} but does not require it" for c in sorted(chosen_capabilities(source) - set(requires))]
-		met = chosen_capabilities(source) | { c for u in source.get("uses") or [] for c in capabilities((by_id.get(u) or {}).get("features") or []) }
-		problems += [f"{sid}: requires {c} but neither chooses nor uses a provider of it" for c in requires if c.startswith("data-") and c not in met]
+		props = ((source.get("instanceSettings") or {}).get("schema") or {}).get("properties") or []
+		problems += [f"{sid}: {p['name']} takes its fields from {c}, which is not a capability" for p in props for c in p.get("tokensFrom") or [] if c not in VOCABULARY or not c.startswith("data-")]
+		problems += [f"{sid}: {p['name']} takes its fields from {c}, which it does not require" for p in props for c in p.get("tokensFrom") or [] if c.startswith("data-") and c not in requires]
 		problems += [f"{sid}: uses {u}, which is not a provider (api)" for u in source.get("uses") or []
 			if u in by_id and not is_api(by_id[u]) and u not in USED_THOUGH_NOT_A_PROVIDER]
 	return problems
@@ -206,6 +214,8 @@ class TestCapabilities(unittest.TestCase):
 			return capability_problems(sources)
 		def drop(source: dict, key: str, value: str):
 			source[key] = [v for v in source[key] if v != value]
+		def tokens_from(source: dict, value: list[str]):
+			next(p for p in source["instanceSettings"]["schema"]["properties"] if p.get("tokensFrom"))["tokensFrom"] = value
 		cases = [
 			("unknown feature", lambda s: s["openweathermap"]["features"].append("data-wether"), "openweathermap: unknown feature data-wether"),
 			("a page that is a provider", lambda s: s["weather"]["features"].append("api"), "weather: neither a provider"),
@@ -213,9 +223,32 @@ class TestCapabilities(unittest.TestCase):
 			("a requirement nobody supplies", lambda s: drop(s["openweathermap"], "features", "data-weather"), "weather: requires data-weather, which no provider supplies"),
 			("a requirement that is no capability", lambda s: s["weather"]["requires"].append("internet"), "weather: requires internet, which is not a capability"),
 			("a choice not required", lambda s: drop(s["ai-image"], "requires", "data-ai-text"), "ai-image: chooses a provider of data-ai-text but does not require it"),
-			("a requirement not met", lambda s: s["weather"].update(uses=[]), "weather: requires data-weather but neither chooses nor uses a provider of it"),
-			("a page used as a provider", lambda s: s["weather"]["uses"].append("rss"), "weather: uses rss, which is not a provider"),
+			("a page used as a provider", lambda s: s["weather"].update(uses=["rss"]), "weather: uses rss, which is not a provider"),
+			("prompt fields from a vendor", lambda s: tokens_from(s["weather-image"], ["openweathermap"]), "weather-image: weatherPrompt takes its fields from openweathermap, which is not a capability"),
+			("prompt fields not required", lambda s: drop(s["weather-image"], "requires", "data-weather"), "weather-image: weatherPrompt takes its fields from data-weather, which it does not require"),
 		]
 		for name, change, expected in cases:
 			with self.subTest(name):
 				self.assertTrue(any(p.startswith(expected) for p in broken(change)), f"expected {expected!r} in {broken(change)}")
+
+class TestProvidersAndContracts(unittest.TestCase):
+	"""A provider implements its capability's contract, and a data source reads only contracts: it imports no provider's module but one it `uses` (a vendor tie)."""
+	def test_every_provider_of_a_capability_implements_its_contract(self):
+		import importlib
+		from ..datasources.contracts import CONTRACTS
+		for source in (s for s in SOURCES if is_api(s)):
+			kind = getattr(importlib.import_module(source["module"]), source["class"])
+			for capability in capabilities(source["features"]):
+				with self.subTest(source["id"], capability=capability):
+					self.assertTrue(issubclass(kind, CONTRACTS[capability]), f"{source['class']} supplies {capability}: it implements {CONTRACTS[capability].__name__}")
+
+	def test_a_data_source_imports_no_providers_module_it_does_not_use(self):
+		import re
+		folders = { s["module"].split(".")[2]: s["id"] for s in SOURCES if is_api(s) }
+		for source in (s for s in SOURCES if not is_api(s)):
+			path = os.path.join(BASE, *source["module"].split(".")[1:]) + ".py"
+			with open(path, encoding="utf-8") as f:
+				imported = set(re.findall(r"^from \.\.(\w+)", f.read(), re.MULTILINE))
+			with self.subTest(source["id"]):
+				for folder in imported & set(folders):
+					self.assertIn(folders[folder], source.get("uses") or [], f"imports the {folders[folder]} provider's module: read its contract (`contracts/`), or say `uses`")

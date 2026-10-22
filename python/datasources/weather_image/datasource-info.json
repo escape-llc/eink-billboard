@@ -5,10 +5,9 @@
 	"class": "WeatherImageAsync",
 	"file": "weather_image.py",
 	"module": "python.datasources.weather_image.weather_image",
-	"description": "A picture of the weather where the device is, drawn by an AI image model from a prompt that talks about it ({temp}, {condition}, {daypart}...). A text model can rewrite the prompt first. The weather is OpenWeatherMap's (its key and units); the text and the picture are the Generated Image's parts, chosen separately.",
+	"description": "A picture of the weather where the device is, drawn by an AI image model from a prompt that talks about it ({temp}, {condition}, {daypart}...). A text model can rewrite the prompt first. The weather is the device's weather provider's (OpenWeatherMap: its key and units); the text and the picture are the Generated Image's parts, chosen separately.",
 	"describe": "Weather picture {weatherPrompt}",
 	"disabled": false,
-	"uses": ["openweathermap"],
 	"requires": ["data-weather", "data-ai-text", "data-ai-image"],
 	"features": ["paid-service", "api-client", "layer-background", "media-image"],
 	"settings": {
@@ -36,7 +35,7 @@
 					"title": "Prompt",
 					"description": "What to draw. The fields below stand for the weather where the device is; one that is not known drops out of the prompt.",
 					"maxLength": 1000,
-					"tokensFrom": ["openweathermap"]
+					"tokensFrom": ["data-weather"]
 				},
 				{
 					"name": "randomizePrompt",

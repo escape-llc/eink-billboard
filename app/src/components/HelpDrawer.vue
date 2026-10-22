@@ -10,7 +10,7 @@
 				<AccordionHeader>First steps</AccordionHeader>
 				<AccordionContent>
 					<ol>
-						<li><b>Settings, System:</b> set the device's <b>Location</b> and time zone. Weather, maps and the clock use them. The <i class="pi pi-wifi" aria-hidden="true"></i> button beside the map finds a rough position from the device's internet address; nothing is saved until you press Save.</li>
+						<li><b>Settings, System:</b> set the device's <b>Location</b> and time zone. Weather, maps and the clock use them. <b>Weather Provider</b> says where the weather comes from; left empty, it is the one that is set up (today, OpenWeatherMap with its key). The <i class="pi pi-wifi" aria-hidden="true"></i> button beside the map finds a rough position from the device's internet address; nothing is saved until you press Save.</li>
 						<li><b>Settings, Display:</b> choose the panel you have, and its orientation.</li>
 						<li><b>Playlist:</b> make a playlist and add <b>tracks</b>. A track is one page or picture and how long it stays. Save the playlist: nothing reaches the panel until it is saved.</li>
 						<li>If a track needs a key (weather, maps, comics, AI pictures), add it under <b>Settings, Data Sources</b>. Each key has a <b>Test</b> button and a link to where you get one.</li>
@@ -93,7 +93,7 @@
 						<dt>Generated Image</dt>
 						<dd>Drawn by an AI model from your prompt, which a text model can rewrite first so no two are alike. Its <b>Image Source</b> draws and its <b>Text Source</b> rewrites; each is OpenAI's or Google's, and they can be mixed, each with its own fields (model, quality). The keys are under <b>Settings, Data Sources</b>, OpenAI or Google AI (<b>Test</b> says which models the key may use; a Google key is an AI Studio key starting with <code>AQ.</code>). The newest models draw in the panel's shape. Paid by use: see API usage on the System page.</dd>
 						<dt>Weather Visualizer</dt>
-						<dd>A Generated Image whose prompt talks about the weather where the device is: fields such as <code>{temp}</code>, <code>{condition}</code>, <code>{daypart}</code> or <code>{season}</code> are filled from OpenWeatherMap, and the form lists the ones it knows. A field that is not known drops out and the picture is still drawn; write the prompt so it reads without any one of them.</dd>
+						<dd>A Generated Image whose prompt talks about the weather where the device is: fields such as <code>{temp}</code>, <code>{condition}</code>, <code>{daypart}</code> or <code>{season}</code> are filled from the weather provider (OpenWeatherMap), and the form lists the ones it knows. A field that is not known drops out and the picture is still drawn; write the prompt so it reads without any one of them.</dd>
 						<dt>Master Prompts</dt>
 						<dd>Settings, Master Prompts: the instructions the Generated Image gives its text model and the picture instructions it adds for the panel. <b>Restore default</b> puts one back in the form, <b>Restore defaults</b> all of them; nothing is saved until you save. <code v-pre>{{</code> and <code v-pre>}}</code> write a brace.</dd>
 					</dl>
@@ -106,7 +106,7 @@
 					<p>A page with text covers the overlays while it shows.</p>
 					<dl>
 						<dt>Weather</dt>
-						<dd>The weather at the device's <b>Location</b> (Settings, System) from OpenWeatherMap: <b>now</b>, the next day in three-hour steps (<b>hours</b>), the next five <b>days</b>, a page per view. The key, the units and how long answers are kept are in <b>Settings, Data Sources, OpenWeatherMap</b>, shared with the Weather Overlay. A free key will do; a new one can take a couple of hours to start working, and until then the page says it was refused. Units <b>auto</b> means miles and Fahrenheit in US time zones, kilometres and Celsius elsewhere.</dd>
+						<dd>The weather at the device's <b>Location</b> (Settings, System) from the weather provider, OpenWeatherMap: <b>now</b>, the next day in three-hour steps (<b>hours</b>), the next five <b>days</b>, a page per view. The key, the units and how long answers are kept are in <b>Settings, Data Sources, OpenWeatherMap</b>, shared with the Weather Overlay. A free key will do; a new one can take a couple of hours to start working, and until then the page says it was refused. Units <b>auto</b> means miles and Fahrenheit in US time zones, kilometres and Celsius elsewhere.</dd>
 						<dt>Calendar</dt>
 						<dd>The <b>month</b>, the coming <b>weeks</b> as continuous rows, or an <b>agenda</b> of the coming days, from the calendars in its settings (see Calendars).</dd>
 						<dt>RSS Feed</dt>
@@ -133,7 +133,7 @@
 						<dt>Today</dt>
 						<dd>The date (<b>long</b>, <b>full</b>, <b>short</b>, <b>numeric</b>, or a pattern of your own), the weekday highlighted.</dd>
 						<dt>Weather Overlay</dt>
-						<dd><b>now</b> (the temperature and the sky), <b>today</b> (the high, the low, the chance of rain) or <b>outlook</b> (the next three days). Uses the OpenWeatherMap settings.</dd>
+						<dd><b>now</b> (the temperature and the sky), <b>today</b> (the high, the low, the chance of rain) or <b>outlook</b> (the next three days). Uses the weather provider's settings (OpenWeatherMap).</dd>
 						<dt>Reminder Overlay</dt>
 						<dd>The events on now or starting within the task's window, nearest first, from the Calendar's calendars. Nothing in the window takes it down. A calendar edit shows once the Calendar's kept answer expires (15 minutes by default).</dd>
 					</dl>

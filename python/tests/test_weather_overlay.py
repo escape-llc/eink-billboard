@@ -117,7 +117,7 @@ class TestAsksTheWeather(unittest.IsolatedAsyncioTestCase):
 
 	async def test_without_the_api_data_source_it_says_so(self):
 		h = Harness(self, sources={})
-		with self.assertRaisesRegex(PermanentError, "Openweathermap data source is not available"):
+		with self.assertRaisesRegex(PermanentError, "No weather provider is installed"):
 			await WeatherOverlayAsync("weather-overlay", "Weather Overlay").open_async(h.context(), { "view": "now" })
 
 	async def test_the_api_data_sources_settings_problems_are_its(self):

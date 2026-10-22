@@ -1,5 +1,5 @@
 """
-The Weather Visualizer (`weather-image`): a prompt with fields for the weather, filled from OpenWeatherMap (which supplies the values and the list of fields), then
+The Weather Visualizer (`weather-image`): a prompt with fields for the weather, filled from the weather provider (the weather contract lists the fields, OpenWeatherMap supplies the values), then
 drawn as the Generated Image is. Against the fake internet's OpenWeatherMap and OpenAI: no key, no cost.
 """
 import json
@@ -11,7 +11,8 @@ from typing import Any, cast
 import httpx
 
 from ..datasources.data_source import DataSourceManager, DataSourcePromptFields
-from ..datasources.openweathermap.openweathermap import OpenWeatherMapApi, Report, Units, daypart, parse_current, parse_forecast, prompt_fields, season
+from ..datasources.contracts.weather import Report, Units, WeatherApi, daypart, prompt_fields, season
+from ..datasources.openweathermap.openweathermap import OpenWeatherMapApi, parse_current, parse_forecast
 from ..datasources.weather_image.weather_image import WeatherImageAsync, tidy
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
@@ -51,8 +52,8 @@ def full_report(**more) -> Report:
 	return report
 
 def tokens_of_descriptor() -> list[dict]:
-	cm = ConfigurationManager()
-	return cast(Any, next(i for i in cm.enum_datasources() if i["info"]["id"] == "openweathermap")["info"])["tokens"]
+	"""The fields the weather contract lists (`tokensFrom: ["data-weather"]` resolves to them), whichever provider fills them."""
+	return [dict(t) for t in WeatherApi.tokens]
 
 TASK = { "weatherPrompt": PROMPT, "randomizePrompt": False, "textSource": "openai-text", "imageSource": "openai-image" }
 
@@ -66,7 +67,7 @@ class TestTheFields(unittest.TestCase):
 		fields = source.prompt_fields(full_report(sunrise=NOW - timedelta(hours=6), sunset=NOW + timedelta(hours=6), latitude=47.6))
 		# every value is one of the listed fields, and a report that has it all gives them all
 		self.assertEqual(set(fields) - set(listed), set())
-		self.assertEqual(set(listed) - set(fields), set(), "a field the descriptor lists but the code never fills")
+		self.assertEqual(set(listed) - set(fields), set(), "a field the contract lists but the provider never fills")
 
 	def test_the_values_are_words_with_their_units(self):
 		fields = prompt_fields(full_report(sunrise=datetime(2026, 10, 7, 7, 5, tzinfo=ZONE), sunset=datetime(2026, 10, 7, 18, 40, tzinfo=ZONE), latitude=47.6))

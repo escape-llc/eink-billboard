@@ -1,7 +1,7 @@
 """The text part of a Generated Image on Google (`AiTextApi`): the task's `textModel` writes, through the Google AI provider (`dsec.use`), which holds the key."""
 from typing import Any, Mapping
 
-from ..ai.parts import AiTextApi
+from ..contracts.ai import AiTextApi
 from ..data_source import DataSourceExecutionContext
 from ..google_api.google_api import GoogleApi
 from ..google_api.models import DEFAULT_TEXT_MODEL

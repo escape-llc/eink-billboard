@@ -40,7 +40,7 @@
 	</div>
 </template>
 <script setup lang="ts">
-import { missingUses } from "./DataSourceUses"
+import { missingProviders, missingUses } from "./DataSourceUses"
 import { apiJson, joinUrl } from "./ApiClient"
 //import { InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Message, Select } from 'primevue';
 import Form from "@primevue/forms/form"
@@ -205,6 +205,7 @@ function formProperties(schema: SchemaType|undefined, owner: Owner|undefined) :a
 					if(target) {
 						fx.children = formProperties(target.schema?.schema as SchemaType|undefined, target.owner)
 						fx.usesMissing = missingUses(target.uses, dataSources.value)
+						fx.providersMissing = missingProviders(target.requires, dataSources.value)
 					}
 				}
 			}
@@ -250,7 +251,7 @@ function lookupSchema(schema: SchemaType, lookup:string): LookupValue[] {
 					return plugins.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings), owner: { kind: "plugin", id: px.id } }))
 				}
 				else if(lku.schema === "data-sources") {
-					return dataSources.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings), uses: px.uses, features: px.features, keepsList: px.keepsList === true, owner: { kind: "datasource", id: px.id } }))
+					return dataSources.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings), uses: px.uses, requires: px.requires, features: px.features, keepsList: px.keepsList === true, owner: { kind: "datasource", id: px.id } }))
 				}
 				else if(lku.schema === "displays") {
 					return displays.value.filter(px => schemaFilterFeatures(px.features, lku.features)).map(px => ({ name: px.name, value: px.id, schema: toRaw(px.instanceSettings), features: px.features, owner: { kind: "display", id: px.id } }))
@@ -426,6 +427,7 @@ const handleFormFieldEvent = (data:any) => {
 			const chosen = data.selected?.schema?.schema as SchemaType|undefined
 			field.children = formProperties(chosen, data.selected?.owner)
 			field.usesMissing = missingUses(data.selected?.uses, dataSources.value)
+			field.providersMissing = missingProviders(data.selected?.requires, dataSources.value)
 			// the new fields register with the form when they render: a value set before then is dropped (setFieldValue ignores an unknown field),
 			// so each default is also where a new field reads its first value, and is set again once the fields are there.
 			// Every default of the new choice applies (not the previous choice's value of a field of the same name), and a default that chooses

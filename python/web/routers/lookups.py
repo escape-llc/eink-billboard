@@ -2,8 +2,14 @@
 import zoneinfo
 from datetime import date, datetime
 from functools import lru_cache
+from typing import Annotated, cast
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from ...datasources.contracts import CONTRACTS
+from ...model.configuration_manager import ConfigurationManager
+from ..deps import get_cm
+from ..errors import ApiError
 
 router = APIRouter(prefix="/lookups")
 
@@ -42,3 +48,13 @@ def list_timezones():
 @router.get('/locale')
 def list_locales():
 	return LOCALES
+
+@router.get('/providers/{capability}')
+def list_providers(capability: str, cm: Annotated[ConfigurationManager, Depends(get_cm)]):
+	"""The providers of a capability (#513) that are enabled, for the device's choice of one (`weatherProvider`): a capability of our own list, else a 404."""
+	known = next((c for c in CONTRACTS if c == capability), None)
+	if known is None:
+		raise ApiError(404, "No such capability.", "lookups")
+	items = [cast(dict, x["info"]) for x in cm.enum_datasources()]
+	return [{ "name": str(i.get("name") or i.get("id")), "value": str(i.get("id")) } for i in items
+		if known in (i.get("features") or []) and "api" in (i.get("features") or []) and not i.get("disabled")]

@@ -63,6 +63,36 @@ class DataSourceExecutionContext:
 		if not isinstance(source, kind):
 			raise PermanentError(f"The {source_id.capitalize()} data source is not available. It is needed here: enable it, or choose another source.")
 		return source, self.context_for(source)
+	def provide[T: "DataSource"](self, kind: type[T]) -> tuple[T, "DataSourceExecutionContext"]:
+		"""
+		A provider of a capability (#513): `kind` is its contract (`WeatherApi`), and any loaded data source that implements it may answer. The one chosen,
+		in order: the device's provider of it (the system setting the contract names), when it is set up (`configured`); the only one that is set up;
+		the device's provider, set up or not (its own error says what to set); the only one there is (likewise). Otherwise a `PermanentError` that names
+		the capability. Set up means its settings are complete, never that its last call worked: a passing failure does not switch providers.
+		"""
+		# imported here: plugin_base and configuration_manager import this module, and the contracts are data sources
+		from ..plugins.plugin_base import PermanentError
+		from ..model.configuration_manager import SettingsConfigurationManager
+		from .contracts.provider import ProviderContract
+		if not issubclass(kind, ProviderContract):
+			raise TypeError(f"{kind.__name__} is not a contract")
+		providers = sorted((s for s in self._isp.required(DataSourceManager).sources.values() if isinstance(s, kind)), key=lambda s: s.id)
+		chosen: str|None = None
+		scm = self._isp.get_service(SettingsConfigurationManager)
+		if kind.setting is not None and scm is not None:
+			_, system = scm.open("system").get()
+			value = (system or {}).get(kind.setting)
+			chosen = value if isinstance(value, str) else None
+		named = [p for p in providers if p.id == chosen]
+		ready = [p for p in providers if isinstance(p, ProviderContract) and p.configured(self.context_for(p))]
+		for candidates in ([p for p in named if p in ready], ready, named, providers):
+			if len(candidates) == 1:
+				return candidates[0], self.context_for(candidates[0])
+		if not providers:
+			raise PermanentError(f"No {kind.noun} provider is installed. Enable one in the Data Sources settings.")
+		if not ready:
+			raise PermanentError(f"No {kind.noun} provider is set up. Set one up in its settings: {', '.join(p.name for p in providers)}.")
+		raise PermanentError(f"Several {kind.noun} providers are set up. Choose the device's {kind.noun} provider in the System settings.")
 	def context_for(self, source: "DataSource") -> "DataSourceExecutionContext":
 		"""
 		A context for asking another data source for its data (the Weather Overlay asks the Weather): the same services, time and size, with the other's own

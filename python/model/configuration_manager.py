@@ -1151,21 +1151,19 @@ class ConfigurationManager(ConfigurationObjectFactory):
 	@staticmethod
 	def _resolve_tokens(items: list[CollectInfoDict]) -> None:
 		"""
-		A property that says `tokensFrom: [ids]` may use the fields those data-only sources list (their descriptor's `tokens`): they are copied into the
-		property's own `tokens`, so the form (which shows them) and the server (which checks a text against them) read one list, supplied by the data behind it.
+		A property that says `tokensFrom: [capabilities]` may use the fields those capabilities' contracts list (`tokens` of `WeatherApi`, #513), whichever
+		provider supplies the values: they are copied into the property's own `tokens`, so the form (which shows them) and the server (which checks a text
+		against them) read one list.
 		"""
-		supplied: dict[str, list] = {}
-		for item in items:
-			info = cast(dict, item["info"])
-			if isinstance(info.get("tokens"), list):
-				supplied[str(info.get("id"))] = info["tokens"]
+		# imported here: the contracts are data sources, which import this module
+		from ..datasources.contracts import tokens_of
 		for item in items:
 			schema = (cast(dict, item["info"]).get("instanceSettings") or {}).get("schema") or {}
 			for prop in schema.get("properties") or []:
 				if isinstance(prop, dict) and isinstance(prop.get("tokensFrom"), list):
 					merged: dict[str, Any] = {}
-					for source_id in prop["tokensFrom"]:
-						for token in supplied.get(str(source_id), []):
+					for capability in prop["tokensFrom"]:
+						for token in tokens_of(str(capability)):
 							if isinstance(token, dict) and isinstance(token.get("name"), str):
 								merged.setdefault(token["name"], copy.deepcopy(token))
 					prop["tokens"] = list(merged.values())

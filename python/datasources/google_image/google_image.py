@@ -9,7 +9,7 @@ from PIL import Image
 
 from ...model.configuration_manager import ConfigurationManager
 from ...plugins.plugin_base import PermanentError
-from ..ai.parts import AiImageApi
+from ..contracts.ai import AiImageApi
 from ..ai.prompt import master_prompts, with_canvas
 from ..data_source import DataSourceExecutionContext
 from ..google_api.google_api import GoogleApi, checked_model

@@ -862,6 +862,15 @@ class TestLookups(WebApiTestBase):
 		self.assertIn("America/New_York", {x["value"] for x in tz})
 		self.assertEqual({x["value"] for x in self.client.get("/api/lookups/locale").json()}, {"en-US", "es-ES", "fr-FR", "de-DE"})
 
+	def test_the_providers_of_a_capability(self):
+		# the device's choice of weather provider lists the providers of `data-weather`, and only a capability of our own list is asked about
+		self.assertEqual(self.client.get("/api/lookups/providers/data-weather").json(), [{ "name": "OpenWeatherMap", "value": "openweathermap" }])
+		self.assertEqual({x["value"] for x in self.client.get("/api/lookups/providers/data-ai-image").json()}, { "openai-image", "google-image" })
+		resp = self.client.get("/api/lookups/providers/..%2Fsettings")
+		self.assertEqual(resp.status_code, 404)
+		self.assertNotIn("settings", resp.json()["message"])
+		self.assertEqual(self.client.get("/api/lookups/providers/layer-overlay").status_code, 404)
+
 	def test_plugin_contributed_router(self):
 		resp = self.client.get("/api/datasource/newspaper/lookups/newspaperSlug")
 		self.assertEqual(resp.status_code, 200)
