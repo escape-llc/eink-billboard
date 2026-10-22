@@ -220,7 +220,7 @@ class TestCapabilities(unittest.TestCase):
 			("unknown feature", lambda s: s["openweathermap"]["features"].append("data-wether"), "openweathermap: unknown feature data-wether"),
 			("a page that is a provider", lambda s: s["weather"]["features"].append("api"), "weather: neither a provider"),
 			("a capability on a page", lambda s: s["weather"]["features"].append("data-weather"), "weather: supplies ['data-weather'] but is not a provider"),
-			("a requirement nobody supplies", lambda s: drop(s["openweathermap"], "features", "data-weather"), "weather: requires data-weather, which no provider supplies"),
+			("a requirement nobody supplies", lambda s: [drop(s[p], "features", "data-weather") for p in ("openweathermap", "open-meteo")], "weather: requires data-weather, which no provider supplies"),
 			("a requirement that is no capability", lambda s: s["weather"]["requires"].append("internet"), "weather: requires internet, which is not a capability"),
 			("a choice not required", lambda s: drop(s["ai-image"], "requires", "data-ai-text"), "ai-image: chooses a provider of data-ai-text but does not require it"),
 			("a page used as a provider", lambda s: s["weather"].update(uses=["rss"]), "weather: uses rss, which is not a provider"),

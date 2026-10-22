@@ -57,7 +57,7 @@ class TestConfigurationManager(unittest.TestCase):
 		list = cm.enum_datasources()
 		self.assertIsNotNone(list)
 		by_id = { px['info']['id']: px['info'] for px in list }
-		self.assertEqual(set(by_id), { 'ai-image', 'calendar', 'calendar-pages', 'clock', 'comic', 'countdown', 'google-ai', 'google-image', 'google-text', 'image-folder', 'image-url', 'newspaper', 'openai', 'openai-image', 'openai-text', 'openweathermap', 'rss', 'today', 'weather', 'weather-overlay', 'reminder-overlay', 'apod', 'wpotd', 'year_progress', 'comic-vine', 'comicvine', 'weather-image', 'thunderforest', 'thunderforest-map' })
+		self.assertEqual(set(by_id), { 'ai-image', 'calendar', 'calendar-pages', 'clock', 'open-meteo', 'comic', 'countdown', 'google-ai', 'google-image', 'google-text', 'image-folder', 'image-url', 'newspaper', 'openai', 'openai-image', 'openai-text', 'openweathermap', 'rss', 'today', 'weather', 'weather-overlay', 'reminder-overlay', 'apod', 'wpotd', 'year_progress', 'comic-vine', 'comicvine', 'weather-image', 'thunderforest', 'thunderforest-map' })
 		self.assertEqual(by_id['clock']['class'], 'ClockAsync')
 		self.assertEqual(by_id['comic']['class'], 'ComicFeedAsync')
 		self.assertEqual(by_id['today']['class'], 'TodayAsync')
@@ -79,7 +79,7 @@ class TestConfigurationManager(unittest.TestCase):
 		infos = cm.enum_datasources()
 		datasources = cm.load_datasources(infos)
 		self.assertIsNotNone(datasources)
-		self.assertEqual(len(datasources), 29)
+		self.assertEqual(len(datasources), 30)
 		datasource = datasources.get('comic', None)
 		self.assertIsNotNone(datasource, 'datasource comic failed')
 		if datasource is not None:

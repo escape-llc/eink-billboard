@@ -239,6 +239,6 @@
 			</div>
 		{% endif %}
 	</div>
-	<div class="wx-credit">Weather data: OpenWeatherMap</div>
+	{% if credit %}<div class="wx-credit">{{ credit }}</div>{% endif %}
 </div>
 {% endblock %}

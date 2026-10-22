@@ -151,6 +151,17 @@
 			}
 		}
 	},
+	"urn:inky:storage:schema:datasource:open-meteo": {
+		"version": 1,
+		"properties": {
+			"cacheHours": {
+				"type": "number"
+			},
+			"staleDays": {
+				"type": "integer"
+			}
+		}
+	},
 	"urn:inky:storage:schema:datasource:openai": {
 		"version": 1,
 		"properties": {
