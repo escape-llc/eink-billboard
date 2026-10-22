@@ -13,7 +13,7 @@
 						<li><b>Settings, System:</b> set the device's <b>Location</b> and time zone. Weather, maps and the clock use them. <b>Weather Provider</b> says where the weather comes from; left empty, it is the one that is set up (today, OpenWeatherMap with its key). <b>Units</b> are the weather's: Automatic means miles and Fahrenheit in US time zones, kilometres and Celsius elsewhere, and the temperature and the wind speed can each be given a unit of their own (Celsius with miles per hour, say). The <i class="pi pi-wifi" aria-hidden="true"></i> button beside the map finds a rough position from the device's internet address; nothing is saved until you press Save.</li>
 						<li><b>Settings, Display:</b> choose the panel you have, and its orientation.</li>
 						<li><b>Playlist:</b> make a playlist and add <b>tracks</b>. A track is one page or picture and how long it stays. Save the playlist: nothing reaches the panel until it is saved.</li>
-						<li>If a track needs a key (weather, maps, comics, AI pictures), add it under <b>Settings, Data Sources</b>. Each key has a <b>Test</b> button and a link to where you get one.</li>
+						<li>If a track needs a key (weather, maps, comics, AI pictures), add it under <b>Settings, Providers</b>. Each key has a <b>Test</b> button and a link to where you get one.</li>
 					</ol>
 				</AccordionContent>
 			</AccordionPanel>
@@ -29,7 +29,7 @@
 						<dt><i class="pi pi-desktop" aria-hidden="true"></i> System</dt>
 						<dd>How the device is: whether its parts started and the latest problems, the machine (load, memory, how long it and the app have been up), a Raspberry Pi's temperature and power warnings, the storage by plugin and data source, and the <b>API usage</b> of each service. On the right, live: <b>Now showing</b> (what the panel shows, with the layers it is made of; click for full size), <b>Recently shown</b> and <b>Activity</b> (filter it by source, or show only problems). The toolbar has play, stop and next, and Back up, Restore and the device password.</dd>
 						<dt><i class="pi pi-globe" aria-hidden="true"></i> Settings</dt>
-						<dd>The device (System, Display, Theme, Devices such as buttons) and the plugins and data sources, each with its own settings and keys.</dd>
+						<dd>The device (System, Display, Theme, Devices such as buttons), the plugins, the data sources (what makes a page or an overlay) and the providers (where their data comes from, with the keys), each with its own settings.</dd>
 					</dl>
 				</AccordionContent>
 			</AccordionPanel>
@@ -57,9 +57,26 @@
 			<AccordionPanel value="keys">
 				<AccordionHeader>API keys and costs</AccordionHeader>
 				<AccordionContent>
-					<p>Some sources need a key from their service: OpenWeatherMap, Comic Vine, Thunderforest (maps), OpenAI and Google (generated pictures). Most have a free plan; generated pictures are paid by use. Keys are kept on the device, are never shown again (a field shows only stars), and are sent only to their own service.</p>
+					<p>Some providers need a key from their service (<b>Settings, Providers</b>): OpenWeatherMap, Comic Vine, Thunderforest (maps), OpenAI and Google AI (generated pictures). Most have a free plan; generated pictures are paid by use. Keys are kept on the device, are never shown again (a field shows only stars), and are sent only to their own service.</p>
 					<p>Downloads are kept for a while (see each data source's <b>Keep</b> settings), so a free plan's quota goes a long way. The System page shows how much each source keeps, and under <b>API usage</b> how many calls each service has been asked for (today, this week, this month), how many failed, and how much the cache spared. Check it against your plan's quota.</p>
 					<p>Under each source, the calls by the service's answer: <code>200</code> is fine, <code>401</code> a key refused, <code>429</code> too many requests (and when it last said so); <code>timeout</code>, <code>connect</code> or <code>tls</code> means the service was not reached. Only counts are kept, never an address or a key.</p>
+				</AccordionContent>
+			</AccordionPanel>
+
+			<AccordionPanel value="providers">
+				<AccordionHeader>Providers: where the data comes from</AccordionHeader>
+				<AccordionContent>
+					<p>A provider fetches data and draws nothing; the data sources that make pages and overlays ask it. Each is in <b>Settings, Providers</b> with its key and how long its answers are kept, shared by every page and overlay that uses it. A data source that needs a kind of data (the weather, calendar events) takes it from the device's provider of that kind: <b>Weather Provider</b> and <b>Calendar Provider</b> in <b>Settings, System</b>, or, left empty, the one that is set up. A provider that is not set up yet says so there.</p>
+					<dl>
+						<dt>OpenWeatherMap</dt>
+						<dd>The weather, for the Weather pages, the Weather Overlay and the Weather Visualizer. A free key will do; a new one can take a couple of hours to start working, and until then the pages say it was refused.</dd>
+						<dt>Calendar Sources</dt>
+						<dd>Calendar events, for the Calendar pages and the Reminder Overlay: iCal links, CalDAV servers, Google and Microsoft accounts, and holidays (see Calendars).</dd>
+						<dt>OpenAI, Google AI</dt>
+						<dd>Text and pictures for the Generated Image and the Weather Visualizer: each holds its key and the models it may use, and its text and image parts are chosen in a task.</dd>
+						<dt>Comic Vine, Thunderforest</dt>
+						<dd>The comic covers and the maps, each for its own data source, with a free key.</dd>
+					</dl>
 				</AccordionContent>
 			</AccordionPanel>
 
@@ -91,9 +108,9 @@
 						<dt>NASA Picture of the Day</dt>
 						<dd>NASA's Astronomy Picture of the Day: today's (or the latest picture when today's is a video), a day you choose, or a random day since 1995. No key needed.</dd>
 						<dt>Generated Image</dt>
-						<dd>Drawn by an AI model from your prompt, which a text model can rewrite first so no two are alike. Its <b>Image Source</b> draws and its <b>Text Source</b> rewrites; each is OpenAI's or Google's, and they can be mixed, each with its own fields (model, quality). The keys are under <b>Settings, Data Sources</b>, OpenAI or Google AI (<b>Test</b> says which models the key may use; a Google key is an AI Studio key starting with <code>AQ.</code>). The newest models draw in the panel's shape. Paid by use: see API usage on the System page.</dd>
+						<dd>Drawn by an AI model from your prompt, which a text model can rewrite first so no two are alike. Its <b>Image Source</b> draws and its <b>Text Source</b> rewrites; each is OpenAI's or Google's, and they can be mixed, each with its own fields (model, quality). The keys are under <b>Settings, Providers</b>, OpenAI or Google AI (<b>Test</b> says which models the key may use; a Google key is an AI Studio key starting with <code>AQ.</code>). The newest models draw in the panel's shape. Paid by use: see API usage on the System page.</dd>
 						<dt>Weather Visualizer</dt>
-						<dd>A Generated Image whose prompt talks about the weather where the device is: fields such as <code>{temp}</code>, <code>{condition}</code>, <code>{daypart}</code> or <code>{season}</code> are filled from the weather provider (OpenWeatherMap), and the form lists the ones it knows. A field that is not known drops out and the picture is still drawn; write the prompt so it reads without any one of them.</dd>
+						<dd>A Generated Image whose prompt talks about the weather where the device is: fields such as <code>{temp}</code>, <code>{condition}</code>, <code>{daypart}</code> or <code>{season}</code> are filled from the device's weather provider, and the form lists the ones it knows. Needs a weather provider and an AI provider. A field that is not known drops out and the picture is still drawn; write the prompt so it reads without any one of them.</dd>
 						<dt>Master Prompts</dt>
 						<dd>Settings, Master Prompts: the instructions the Generated Image gives its text model and the picture instructions it adds for the panel. <b>Restore default</b> puts one back in the form, <b>Restore defaults</b> all of them; nothing is saved until you save. <code v-pre>{{</code> and <code v-pre>}}</code> write a brace.</dd>
 					</dl>
@@ -106,19 +123,19 @@
 					<p>A page with text covers the overlays while it shows.</p>
 					<dl>
 						<dt>Weather</dt>
-						<dd>The weather at the device's <b>Location</b> (Settings, System) from the weather provider, OpenWeatherMap: <b>now</b>, the next day in three-hour steps (<b>hours</b>), the next five <b>days</b>, a page per view. The key and how long answers are kept are in <b>Settings, Data Sources, OpenWeatherMap</b>, shared with the Weather Overlay; the units are in <b>Settings, System</b>. A free key will do; a new one can take a couple of hours to start working, and until then the page says it was refused.</dd>
+						<dd>The weather at the device's <b>Location</b> (Settings, System), from the device's weather provider: <b>now</b>, the next day in three-hour steps (<b>hours</b>), the next five <b>days</b>, a page per view. Needs a weather provider (see Providers); the units are in <b>Settings, System</b>.</dd>
 						<dt>Calendar</dt>
-						<dd>The <b>month</b>, the coming <b>weeks</b> as continuous rows, or an <b>agenda</b> of the coming days, from the calendars of the Calendar Sources (see Calendars). Whether weeks start on Monday or Sunday, and the week numbers, are its own settings (<b>Settings, Data Sources, Calendar</b>).</dd>
+						<dd>The <b>month</b>, the coming <b>weeks</b> as continuous rows, or an <b>agenda</b> of the coming days, from the device's calendar provider, the Calendar Sources (see Calendars). Whether weeks start on Monday or Sunday, and the week numbers, are its own settings (<b>Settings, Data Sources, Calendar</b>).</dd>
 						<dt>RSS Feed</dt>
 						<dd>A feed's stories, one page each, newest first. List feeds (a name and an address) in its settings and pick one by name; <b>Include Images</b> adds a story's picture.</dd>
 						<dt>Comic</dt>
 						<dd>The latest strips of a web comic (XKCD, SMBC, Dinosaur Comics, ...), with the title and caption when <b>Show Caption</b> is on.</dd>
 						<dt>Comic Vine Covers</dt>
-						<dd>The covers of a comic series, in a random order. The free key is in the Comic Vine settings; <b>Test</b> on the series says which one the search matches (the first match is used). Comic Vine limits requests an hour.</dd>
+						<dd>The covers of a comic series, in a random order. The free key is in <b>Settings, Providers, Comic Vine</b>; <b>Test</b> on the series says which one the search matches (the first match is used). Comic Vine limits requests an hour.</dd>
 						<dt>Newspaper Picture of the Day</dt>
 						<dd>Today's front page of the newspaper you choose.</dd>
 						<dt>Thunderforest Map</dt>
-						<dd>A map of a place (kept in its settings, chosen on the map picker) or of the device's location, in a <b>style</b> (<b>transport</b> shows the bus and rail lines; not live transit) and a <b>zoom</b>. The free key is in the Thunderforest settings; a map is kept for a week, since the free plan has a monthly quota.</dd>
+						<dd>A map of a place (kept in its settings, chosen on the map picker) or of the device's location, in a <b>style</b> (<b>transport</b> shows the bus and rail lines; not live transit) and a <b>zoom</b>. The free key is in <b>Settings, Providers, Thunderforest</b>; a map is kept for a week, since the free plan has a monthly quota.</dd>
 						<dt>Clock, Countdown, Year Progress</dt>
 						<dd>A clock face, the days to a date you choose, and how far through the year it is. Also usable as a Priority Update.</dd>
 					</dl>
@@ -133,9 +150,9 @@
 						<dt>Today</dt>
 						<dd>The date (<b>long</b>, <b>full</b>, <b>short</b>, <b>numeric</b>, or a pattern of your own), the weekday highlighted.</dd>
 						<dt>Weather Overlay</dt>
-						<dd><b>now</b> (the temperature and the sky), <b>today</b> (the high, the low, the chance of rain) or <b>outlook</b> (the next three days). Uses the weather provider's settings (OpenWeatherMap).</dd>
+						<dd><b>now</b> (the temperature and the sky), <b>today</b> (the high, the low, the chance of rain) or <b>outlook</b> (the next three days). Needs a weather provider (see Providers).</dd>
 						<dt>Reminder Overlay</dt>
-						<dd>The events on now or starting within the task's window, nearest first, from the calendars of the Calendar Sources. Nothing in the window takes it down. A calendar edit shows once the kept answer expires (15 minutes by default).</dd>
+						<dd>The events on now or starting within the task's window, nearest first, from the device's calendar provider (the Calendar Sources). Nothing in the window takes it down. A calendar edit shows once the kept answer expires (15 minutes by default).</dd>
 					</dl>
 				</AccordionContent>
 			</AccordionPanel>
@@ -143,7 +160,7 @@
 			<AccordionPanel value="calendar">
 				<AccordionHeader>Calendars</AccordionHeader>
 				<AccordionContent>
-					<p>The calendars are listed in <b>Settings, Data Sources, Calendar Sources</b>, which every calendar page and Reminder Overlay reads (<b>Calendar Provider</b> in Settings, System says which, when there is more than one); a track or overlay chooses which to show (none chosen: all that are enabled) and its views: the <b>month</b>, the coming <b>weeks</b> as continuous rows, an <b>agenda</b> of the coming days.</p>
+					<p>The calendars are listed in <b>Settings, Providers, Calendar Sources</b>, which every calendar page and Reminder Overlay reads (<b>Calendar Provider</b> in Settings, System says which, when there is more than one); a track or overlay chooses which to show (none chosen: all that are enabled) and its views: the <b>month</b>, the coming <b>weeks</b> as continuous rows, an <b>agenda</b> of the coming days.</p>
 					<ul>
 						<li><b>An iCal link</b> (<code>https</code> or <code>webcal</code>): most calendar apps publish one. Google's "Secret address in iCal format" is a password: treat it as one. A link that needs a sign-in can use a user name and password, or a token.</li>
 						<li><b>A CalDAV server</b> (Nextcloud, Fastmail, iCloud with an app password).</li>

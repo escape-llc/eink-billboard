@@ -8,6 +8,7 @@
 			<Tab value="6">Devices</Tab>
 			<Tab value="3">Plugins</Tab>
 			<Tab value="4">Data Sources</Tab>
+			<Tab value="7">Providers</Tab>
 		</TabList>
 		<TabPanels>
 			<TabPanel value="0">
@@ -165,7 +166,7 @@
 					@submit="submitForm"
 					>
 					<template #tb-center>
-						<Select size="small" :options="dataSources" optionLabel="id" v-model="selectedDatasource" style="width:20rem">
+						<Select size="small" :options="pageSources" optionLabel="id" v-model="selectedDatasource" style="width:20rem">
 							<template #value="slotProps">
 								<div v-if="slotProps.value">{{ slotProps.value.id }} ({{ slotProps.value.version }})</div>
 							</template>
@@ -179,6 +180,36 @@
 					</template>
 					<template #header-end>
 						<ItemInfo v-if="selectedDatasource" :item="selectedDatasource" kind="datasource" />
+					</template>
+				</SettingsForm>
+			</TabPanel>
+			<TabPanel value="7">
+				<!-- the providers (#513): data only, for the data sources that draw it; their keys and kept answers are here -->
+				<SettingsForm
+					:title="`Provider Settings`"
+					:baseUrl="API_URL"
+					:settingsUrl="provider.url.value"
+					:owner="provider.selected.value ? { kind: 'datasource', id: provider.selected.value.id } : undefined"
+					:settings="provider.settings.value"
+					:schema="provider.schema.value"
+					class="form"
+					@submit="submitForm"
+					>
+					<template #tb-center>
+						<Select size="small" :options="providerSources" optionLabel="id" v-model="provider.selected.value" style="width:20rem">
+							<template #value="slotProps">
+								<div v-if="slotProps.value">{{ slotProps.value.id }} ({{ slotProps.value.version }})</div>
+							</template>
+							<template #option="slotProps">
+								<div class="flex flex-column">
+									<div>{{ slotProps.option.id }} ({{ slotProps.option.version }})</div>
+									<div style="max-width:17rem">{{ slotProps.option.description }}</div>
+								</div>
+							</template>
+						</Select>
+					</template>
+					<template #header-end>
+						<ItemInfo v-if="provider.selected.value" :item="provider.selected.value" kind="provider" :usedBy="usedBy(provider.selected.value)" />
 					</template>
 				</SettingsForm>
 			</TabPanel>
@@ -281,6 +312,18 @@ const settingsDatasource = ref<any>(undefined)
 const settingsDatasourceUrl = computed(() => {
 	return selectedDatasource.value ? `${API_URL}api/datasources/${selectedDatasource.value.id}/settings` : ""
 })
+
+// a provider (`api`) supplies data and draws nothing: it has a tab of its own, and the Data Sources tab lists what draws
+const isProvider = (item: any): boolean => (item?.features ?? []).includes("api")
+const pageSources = computed(() => (dataSources.value as any[]).filter(d => !isProvider(d)))
+const providerSources = computed(() => (dataSources.value as any[]).filter(isProvider))
+/** The data sources that rely on a provider: they require what it supplies, or use it by its id. */
+function usedBy(item: any): string[] {
+	const supplies = (item?.features ?? []).filter((f: string) => f.startsWith("data-"))
+	return (dataSources.value as any[])
+		.filter(d => d.id !== item?.id && ((d.requires ?? []).some((c: string) => supplies.includes(c)) || (d.uses ?? []).includes(item?.id)))
+		.map(d => d.id)
+}
 
 provide("settingsPluginsList", plugins)
 provide("settingsDataSourcesList", dataSources)
@@ -388,6 +431,27 @@ watch(selectedPlugin, (nv) => {
 		}
 	}
 })
+/** The state of a tab that edits one item's settings at a time: the item chosen, its settings schema and document, and where they are. */
+function itemSettings(kind: "plugins" | "datasources") {
+	const selected = ref<any>(undefined)
+	const schema = ref<any>(undefined)
+	const settings = ref<any>(undefined)
+	const url = computed(() => selected.value ? `${API_URL}api/${kind}/${selected.value.id}/settings` : "")
+	watch(selected, (nv) => {
+		if(!nv) return
+		if(hasSettings(nv)) {
+			schema.value = nv.settings
+			fetchSettings(url.value, settings, nv)
+		}
+		else {
+			schema.value = undefined
+			settings.value = undefined
+		}
+	})
+	return { selected, schema, settings, url }
+}
+const provider = itemSettings("datasources")
+
 watch(selectedDatasource, (nv) => {
 	if(nv) {
 		if(hasSettings(nv)) {

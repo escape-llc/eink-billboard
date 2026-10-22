@@ -16,7 +16,7 @@ test.beforeEach(async ({ page }) => stubMapTiles(page))
 
 async function openKeyForm(page: Page) {
 	await page.goto("/#/settings")
-	await page.getByRole("tab", { name: "Data Sources" }).click()
+	await page.getByRole("tab", { name: "Providers" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
 	await page.getByRole("option", { name: "openai", exact: true }).click()
 	return page.getByRole("tabpanel").locator("input[type=password]")

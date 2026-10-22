@@ -34,7 +34,7 @@ export interface ItemDef {
 	/** data sources only: its list outlasts a visit, and the plugin that shows it keeps it */
 	keepsList?: boolean
 }
-const props = defineProps<{ item: ItemDef, kind: "plugin" | "datasource" }>()
+const props = defineProps<{ item: ItemDef, kind: "plugin" | "datasource" | "provider", usedBy?: string[] }>()
 
 /** What each feature word means, as a tooltip: the words are the vocabulary a plugin and a data source agree on. */
 const FEATURE_HELP: Record<string, string> = {
@@ -68,13 +68,19 @@ const rows = computed<Row[]>(() => {
 		{ label: "Description", kind: "text", value: item.description ?? "" },
 		{ label: "Features", kind: "tags", tags: item.features ?? [] },
 	]
-	if(props.kind === "datasource") {
+	if(props.kind === "provider") {
+		// what it supplies (its capabilities), what it uses (a key holder), and who relies on it
+		list.push({ label: "Supplies", kind: "tags", tags: (item.features ?? []).filter(f => f.startsWith("data-")) })
+		list.push({ label: "Uses", kind: "tags", tags: item.uses ?? [] })
+		list.push({ label: "Used by", kind: "tags", tags: props.usedBy ?? [] })
+	}
+	else if(props.kind === "datasource") {
 		list.push({ label: "Requires", kind: "tags", tags: item.requires ?? [] })
 		list.push({ label: "Uses", kind: "tags", tags: item.uses ?? [] })
 		list.push({ label: "Keeps its list", kind: "flag", value: item.keepsList === true })
 	}
-	// how a use of it reads in the playlist editor, with the task's fields in braces
-	list.push({ label: "Shown as", kind: "text", value: item.describe ?? "" })
+	// how a use of it reads in the playlist editor, with the task's fields in braces (a provider is never a track)
+	if(props.kind !== "provider") list.push({ label: "Shown as", kind: "text", value: item.describe ?? "" })
 	return list
 })
 </script>
