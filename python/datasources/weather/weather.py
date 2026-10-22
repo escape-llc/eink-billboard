@@ -1,6 +1,6 @@
 """
-The weather as a slide show: one page per chosen view (now, the next hours, the next days). The data comes from the OpenWeatherMap API data
-source (`dsec.use`), whose key, units and kept answers every page and overlay share; this source only draws.
+The weather as a slide show: one page per chosen view (now, the next hours, the next days). The data comes from the device's weather provider
+(`dsec.provide(WeatherApi)`), whose settings and kept answers every page and overlay share; this source only draws.
 """
 import asyncio
 from dataclasses import dataclass
@@ -11,11 +11,9 @@ from ...model.configuration_manager import ConfigurationManager, SettingsConfigu
 from ...model.theme import ThemeInputs, current_inputs
 from ...plugins.plugin_base import RenderSession
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
-from ..openweathermap.openweathermap import OpenWeatherMapApi, Report, Units
+from ..contracts.weather import Report, Units, WeatherApi
 from .icons import icon_svg, stat_svg
 
-# the API data source it asks: its descriptor's id, never a value from a request
-OPENWEATHERMAP_ID = "openweathermap"
 VIEWS = ("current", "hours", "days")
 FONT_SCALES = { "x-small": 0.7, "small": 0.85, "normal": 1.0, "large": 1.2, "x-large": 1.45 }
 
@@ -42,7 +40,7 @@ def _degrees(value: float|None) -> str:
 	return "" if value is None else f"{round(value)}°"
 
 def _percent(chance: float|None) -> str:
-	"""The chance of rain as OpenWeatherMap gives it (0 to 1). 0% is said too: a dry hour is information, and a blank reads as missing."""
+	"""The chance of rain as the report gives it (0 to 1). 0% is said too: a dry hour is information, and a blank reads as missing."""
 	return "" if chance is None else f"{round(max(0.0, min(chance, 1.0)) * 100)}%"
 
 # the table of the hours and of the days: a row for each figure (the page draws one column per hour or day, a row per item in a tall page)
@@ -96,7 +94,7 @@ class WeatherAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		views = chosen_views(params)
 		# only what the chosen pages need: the free plan counts calls
 		needs = (["current"] if "current" in views else []) + (["forecast"] if "hours" in views or "days" in views else [])
-		api, api_dsec = dsec.use(OPENWEATHERMAP_ID, OpenWeatherMapApi)
+		api, api_dsec = dsec.provide(WeatherApi)
 		report = await api.open_async(api_dsec, { "needs": needs })
 		return [Page(view, report) for view in views]
 

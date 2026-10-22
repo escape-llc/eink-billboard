@@ -106,6 +106,7 @@
 				severity="error" size="small" variant="simple">{{ errorMessage }}</Message>
 		</slot>
 		<Message v-if="field.lookupError" severity="warn" size="small" variant="simple">{{ field.lookupError }}</Message>
+		<Message v-if="field.providersMissing?.length" severity="warn" size="small" variant="simple" data-testid="providers-missing">This needs a {{ field.providersMissing.join(", ") }} provider, and none is available: it will fail until one is enabled.</Message>
 		<Message v-if="field.usesMissing?.length" severity="warn" size="small" variant="simple" data-testid="uses-missing">This needs the {{ field.usesMissing.join(", ") }} data source, which is not available: it will fail until it is.</Message>
 		<Message v-if="showHelp && field.description" severity="secondary" size="small" variant="simple" class="field-help">{{ field.description }}</Message>
 		<!-- the fields the text may use: always shown (not only with the help), since the text is wrong without them -->

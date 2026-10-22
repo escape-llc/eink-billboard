@@ -128,3 +128,21 @@ test("leaving with unsaved edits asks first; Stay keeps them, Discard leaves", a
 	await expect(page).toHaveURL(/#\/schedule/)
 	watch.expectNone()
 })
+
+test("the weather provider is chosen from the providers of the weather, and empty means the one that is set up", async ({ page, request }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/settings")
+	await expect(page.locator("#weatherProvider")).toBeVisible()
+	expect((await system(request)).weatherProvider).toBeNull()
+	await page.locator("#weatherProvider").click()
+	const options = page.getByRole("listbox")
+	await expect(options.getByRole("option")).toHaveText(["OpenWeatherMap"])
+	await options.getByRole("option").filter({ hasText: "OpenWeatherMap" }).click()
+	await saveButton(page).click()
+	await expect(page.getByText("Settings saved successfully")).toBeVisible()
+	expect((await system(request)).weatherProvider).toBe("openweathermap")
+	// back to empty for the tests after this one
+	const doc = await system(request)
+	expect((await request.put("/api/settings/system", { data: { ...doc, weatherProvider: null } })).ok()).toBe(true)
+	watch.expectNone()
+})

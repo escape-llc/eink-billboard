@@ -320,7 +320,7 @@ class TestTheApiDataSource(unittest.IsolatedAsyncioTestCase):
 	async def test_without_it_the_weather_says_so(self):
 		context = make_context(cm=self.cm)
 		context.provider.required(DataSourceManager).sources = {}
-		with self.assertRaisesRegex(PermanentError, "Openweathermap data source is not available"):
+		with self.assertRaisesRegex(PermanentError, "No weather provider is installed"):
 			await WeatherAsync("weather", "Weather").open_async(context, { "views": ["current"] })
 
 	def asked(self) -> list[str]:

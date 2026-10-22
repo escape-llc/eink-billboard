@@ -1,11 +1,11 @@
 """
-OpenWeatherMap as an API data source (`DataSourceApi`): the weather at the device's location, now and forecast, and nothing drawn.
+OpenWeatherMap as a weather provider (`WeatherApi`, `data-weather`): the weather at the device's location, now and forecast, and nothing drawn.
 
-The sources that show the weather (the Weather pages, the Weather Overlay) ask it with `dsec.use`: the key, the units and the kept answers are its
-settings and files, so a page and an overlay of the same hours make one call, and the free plan's calls are for new answers only.
+The sources that show the weather (the Weather pages, the Weather Overlay, the Weather Visualizer) ask for a weather provider with `dsec.provide(WeatherApi)`:
+the key, the units and the kept answers are this provider's settings and files, so a page and an overlay of the same hours make one call, and the free
+plan's calls are for new answers only.
 """
 from collections import Counter
-from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, tzinfo
 import logging
 import re
@@ -18,19 +18,12 @@ from ...plugins.plugin_base import PermanentError
 from ...task.async_http_worker_pool import AsyncHttpWorkerPool
 from ..metering import metered_client
 from ..response_cache import cached
-from ..data_source import DataSource, DataSourceApi, DataSourceExecutionContext
+from ..data_source import DataSourceExecutionContext
+from ..contracts.weather import DAYS_SHOWN, HOURS_SHOWN, NEEDS, Day, Point, Report, Units, WeatherApi, device_now, units_for
 
 # the free plan's endpoints: the weather now, and the forecast in steps of three hours for five days
 API = "https://api.openweathermap.org/data/2.5"
-# what can be asked for (`needs`): the weather now, the forecast (the next hours and days)
-NEEDS = ("current", "forecast")
-# the hours page shows the next day in steps of three hours; the days page the days the forecast reaches
-HOURS_SHOWN = 8
-DAYS_SHOWN = 5
 MAX_BYTES = 1024 * 1024
-# timezones that read in miles and degrees Fahrenheit when the units are left to the device
-IMPERIAL_ZONES = ("America/New_York", "America/Chicago", "America/Denver", "America/Phoenix", "America/Los_Angeles", "America/Anchorage", "America/Detroit",
-	"America/Boise", "America/Indiana/", "America/Kentucky/", "America/Menominee", "America/North_Dakota/", "Pacific/Honolulu", "US/", "Pacific/Guam")
 
 class HideKey(logging.Filter):
 	"""OpenWeatherMap takes the key in the address, and the HTTP client logs addresses: the key is hidden in what it logs."""
@@ -47,69 +40,6 @@ class HideKey(logging.Filter):
 
 for _name in ("httpx", "httpcore"):
 	logging.getLogger(_name).addFilter(HideKey())
-
-@dataclass(frozen=True)
-class Units:
-	system: str   # "metric" or "imperial", as OpenWeatherMap names them
-	@property
-	def temp(self) -> str:
-		return "°F" if self.system == "imperial" else "°C"
-	@property
-	def speed(self) -> str:
-		return "mph" if self.system == "imperial" else "km/h"
-	def wind(self, value: float) -> int:
-		"""OpenWeatherMap gives metres per second for metric and miles per hour for imperial."""
-		return round(value if self.system == "imperial" else value * 3.6)
-
-def units_for(setting: object, timezone_name: object) -> Units:
-	"""`metric` or `imperial` as chosen; anything else (auto) follows the device's timezone: the US reads in miles and Fahrenheit."""
-	if setting in ("metric", "imperial"):
-		return Units(str(setting))
-	zone = str(timezone_name or "")
-	return Units("imperial" if any(zone == z or (z.endswith("/") and zone.startswith(z)) for z in IMPERIAL_ZONES) else "metric")
-
-@dataclass(frozen=True)
-class Point:
-	"""The weather at an instant (now, or one step of the forecast)."""
-	when: datetime
-	temp: float
-	feels: float|None
-	icon: str
-	text: str
-	humidity: int|None
-	wind: float|None
-	rain: float|None   # the chance of rain, 0..1
-	low: float|None = None
-	high: float|None = None
-
-@dataclass(frozen=True)
-class Day:
-	day: date
-	low: float
-	high: float
-	icon: str
-	text: str
-	rain: float|None
-	humidity: int|None = None
-	wind: float|None = None
-
-@dataclass
-class Report:
-	place: str
-	units: Units
-	twelve_hour: bool
-	now: datetime
-	current: Point|None = None
-	sunrise: datetime|None = None
-	sunset: datetime|None = None
-	hours: list[Point] = field(default_factory=list)
-	days: list[Day] = field(default_factory=list)
-	# where it was asked for (the season depends on the hemisphere)
-	latitude: float|None = None
-
-def device_now(timestamp: datetime) -> datetime:
-	"""The slot's time where the display is: the schedule's timestamp carries the system zone (naive means local)."""
-	return timestamp if timestamp.tzinfo is not None else timestamp.astimezone()
 
 def _number(value: Any) -> float|None:
 	return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
@@ -207,63 +137,23 @@ async def fetch(client: httpx.AsyncClient, path: str, latitude: float, longitude
 		raise RuntimeError("OpenWeatherMap's answer is not what was expected.")
 	return data
 
-# the parts of a day, from the sun: the twilight on either side of sunrise and sunset is dawn and dusk
-TWILIGHT = timedelta(minutes=45)
-SEASONS = ("winter", "spring", "summer", "autumn")
+def has_key(settings: Mapping[str, Any]|None) -> bool:
+	key = (settings or {}).get("apiKey")
+	return isinstance(key, str) and bool(key.strip())
 
-def daypart(now: datetime, sunrise: datetime|None, sunset: datetime|None) -> str|None:
-	"""`dawn`, `day`, `dusk` or `night`, or None when the sun's times are not known."""
-	if sunrise is None or sunset is None:
-		return None
-	if abs(now - sunrise) <= TWILIGHT:
-		return "dawn"
-	if abs(now - sunset) <= TWILIGHT:
-		return "dusk"
-	return "day" if sunrise < now < sunset else "night"
-
-def season(day: date, latitude: float|None) -> str|None:
-	"""The meteorological season (whole months) where the display is: the other way round south of the equator."""
-	if latitude is None:
-		return None
-	north = SEASONS[(day.month % 12) // 3]
-	return north if latitude >= 0 else SEASONS[(SEASONS.index(north) + 2) % 4]
-
-def _clock(moment: datetime|None, twelve_hour: bool) -> str|None:
-	if moment is None:
-		return None
-	return f"{moment.hour % 12 or 12}:{moment.minute:02d} {'am' if moment.hour < 12 else 'pm'}" if twelve_hour else f"{moment.hour:02d}:{moment.minute:02d}"
-
-def prompt_fields(report: Report) -> dict[str, str]:
+class OpenWeatherMapApi(WeatherApi):
 	"""
-	What a prompt may say about this report (the names are the descriptor's `tokens`): only what is known, so a value that is missing leaves its field out.
-	Units are the report's; a temperature is rounded to a degree.
-	"""
-	units = report.units
-	fields: dict[str, str|None] = { "place": report.place or None, "sunrise": _clock(report.sunrise, report.twelve_hour), "sunset": _clock(report.sunset, report.twelve_hour),
-		"daypart": daypart(report.now, report.sunrise, report.sunset), "season": season(report.now.date(), report.latitude) }
-	now = report.current
-	if now is not None:
-		fields.update({ "condition": now.text.lower() or None, "temp": f"{round(now.temp)}{units.temp}",
-			"feels": None if now.feels is None else f"{round(now.feels)}{units.temp}", "humidity": None if now.humidity is None else f"{now.humidity}%",
-			"wind": None if now.wind is None else f"{units.wind(now.wind)} {units.speed}" })
-	today = next((d for d in report.days if d.day == report.now.date()), None)
-	if today is not None:
-		fields.update({ "high": f"{round(today.high)}{units.temp}", "low": f"{round(today.low)}{units.temp}", "rain": None if today.rain is None else f"{round(today.rain * 100)}%" })
-	return { name: value for name, value in fields.items() if value }
-
-class OpenWeatherMapApi(DataSource, DataSourceApi):
-	"""
-	`open_async(dsec, { "needs": [...] })` answers a `Report` of the weather at the device's location: `needs` is `current` (the weather now) and/or
-	`forecast` (the next hours and days); only those are asked. Every answer comes through this source's kept answers (one kept time per kind, its
-	settings). A missing location or key is a PermanentError naming the settings to fix.
+	The weather contract (`WeatherApi`) from OpenWeatherMap's free plan. Every answer comes through this source's kept answers (one kept time per kind,
+	its settings). A missing location or key is a PermanentError naming the settings to fix.
 	"""
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
 
-	def prompt_fields(self, data: Any) -> Mapping[str, str]:
-		"""The values of the fields a prompt may use (`tokens` in the descriptor) for a `Report` this source answered."""
-		return prompt_fields(data)
+	def configured(self, dsec: DataSourceExecutionContext) -> bool:
+		"""Set up when its key is set (whether OpenWeatherMap accepts it is the slot's to find out)."""
+		_, settings = dsec.provider.required(DatasourceConfigurationManager).open().get()
+		return has_key(settings)
 
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> Report:
 		needs = { n for n in (params.get("needs") or ()) if n in NEEDS }
@@ -277,7 +167,7 @@ class OpenWeatherMapApi(DataSource, DataSourceApi):
 		_, settings = dscm.open().get()
 		settings = settings or {}
 		key = settings.get("apiKey")
-		if not isinstance(key, str) or not key.strip():
+		if not has_key(settings) or not isinstance(key, str):
 			raise PermanentError("The OpenWeatherMap API key is not set. Add it in the OpenWeatherMap settings.")
 		now = device_now(dsec.timestamp)
 		zone = now.tzinfo or now.astimezone().tzinfo

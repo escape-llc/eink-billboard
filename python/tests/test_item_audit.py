@@ -143,6 +143,9 @@ class TestUses(unittest.TestCase):
 			asks = ".use(" in code or ".context_for(" in code or "ai.generate import" in code
 			# a source that chooses its parts (a `schema` field: the Generated Image's text and image sources) asks what the task chose, which no descriptor can name
 			self.assertEqual(asks, bool(info.get("uses")) or bool(choices(info)), f"{id_}: `uses` in the descriptor must match whether the code asks another data source")
+			# a source that asks for whichever provider of a capability (`dsec.provide`) requires it; one that only chooses (the parts) need not provide
+			chosen = { f for features in choices(info).values() for f in features }
+			self.assertEqual(".provide(" in code, bool(set(info.get("requires") or []) - chosen), f"{id_}: `requires` in the descriptor must match whether the code asks for a provider")
 
 	def test_a_source_and_the_parts_it_can_choose_share_no_field_name(self):
 		# every level's fields are in the one task content: a name in two levels would be one value for both

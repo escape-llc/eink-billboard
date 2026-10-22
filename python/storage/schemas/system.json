@@ -8,6 +8,9 @@
 			"locale": {
 				"url": "/api/lookups/locale"
 			},
+			"weatherProvider": {
+				"url": "/api/lookups/providers/data-weather"
+			},
 			"timeFormat": {
 				"items": [
 					{"name": "12h", "value": "12h" },
@@ -44,6 +47,14 @@
 				"required": false
 			},
 			{
+				"name": "weatherProvider",
+				"type": "string",
+				"title": "Weather Provider",
+				"description": "Where the Weather pages, the Weather Overlay and the Weather Visualizer get the weather. Empty: the one that is set up (has its key), when there is only one.",
+				"lookup": "weatherProvider",
+				"required": false
+			},
+			{
 				"name":"maxStrikes",
 				"type": "integer",
 				"title": "Failures Before a Track Stops Running",
@@ -77,6 +88,7 @@
 		"locale": "en-US",
 		"timeFormat": "24h",
 		"location": null,
+		"weatherProvider": null,
 		"maxStrikes": 3,
 		"strikeRetrySeconds": 60,
 		"strikeRetryMaxSeconds": 900

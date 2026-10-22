@@ -1,7 +1,7 @@
 """The text part of a Generated Image on OpenAI (`AiTextApi`): the task's `textModel` writes, through the OpenAI provider (`dsec.use`), which holds the key."""
 from typing import Any, Mapping
 
-from ..ai.parts import AiTextApi
+from ..contracts.ai import AiTextApi
 from ..data_source import DataSourceExecutionContext
 from ..openai_api.models import DEFAULT_TEXT_MODEL
 from ..openai_api.openai_api import OpenAIApi

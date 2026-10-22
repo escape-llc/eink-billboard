@@ -5,10 +5,9 @@
 	"class": "WeatherOverlayAsync",
 	"file": "weather_overlay.py",
 	"module": "python.datasources.weather_overlay.weather_overlay",
-	"description": "The weather for an overlay zone: now, today's range, or the next three days, as outlined text. It uses the OpenWeatherMap settings (API key, units) and shares their kept answers: no settings of its own.",
+	"description": "The weather for an overlay zone: now, today's range, or the next three days, as outlined text. It asks the device's weather provider (OpenWeatherMap: its key and units) and shares its kept answers: no settings of its own.",
 	"describe": "Weather {view}",
 	"disabled": false,
-	"uses": ["openweathermap"],
 	"requires": ["data-weather"],
 	"features": ["api-client", "layer-overlay", "media-image"],
 	"settings": {
@@ -30,7 +29,7 @@
 					"required": true,
 					"default": "now",
 					"title": "View",
-					"description": "now: the temperature and the sky. today: the high, the low and the chance of rain. outlook: the next three days, a line each. The API key and units are in the OpenWeatherMap settings.",
+					"description": "now: the temperature and the sky. today: the high, the low and the chance of rain. outlook: the next three days, a line each. The key and units are the weather provider's settings.",
 					"enum": ["now", "today", "outlook"]
 				},
 				{

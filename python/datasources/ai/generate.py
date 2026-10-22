@@ -8,7 +8,7 @@ from ...model.configuration_manager import ConfigurationManager
 from ...plugins.plugin_base import PermanentError
 from ...utils.image_utils import blurred_margin
 from ..data_source import DataSourceExecutionContext, MediaRenderResult, target_dimensions
-from .parts import AiImageApi, AiTextApi
+from ..contracts.ai import AiImageApi, AiTextApi
 from .prompt import master_prompts, rewrite_request
 
 def chosen(params: Mapping[str, Any], name: str, what: str) -> str:

@@ -9,7 +9,7 @@ from PIL import Image
 
 from ...model.configuration_manager import ConfigurationManager
 from ...plugins.plugin_base import PermanentError
-from ..ai.parts import AiImageApi
+from ..contracts.ai import AiImageApi
 from ..ai.prompt import master_prompts, with_canvas
 from ..data_source import DataSourceExecutionContext
 from ..openai_api.models import DEFAULT_IMAGE_MODEL, MODERATIONS, family_of, is_retired, quality_for, size_for
