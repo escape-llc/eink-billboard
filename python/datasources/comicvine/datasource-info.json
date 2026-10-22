@@ -6,6 +6,7 @@
 	"file": "comicvine.py",
 	"module": "python.datasources.comicvine.comicvine",
 	"description": "Comic Vine, the comic book database, for the Comic Vine Covers: the API key and the answers it keeps, shared by every task.",
+	"credit": { "text": "Data and covers from Comic Vine", "url": "https://comicvine.gamespot.com/" },
 	"disabled": false,
 	"features": ["internet", "api-key", "api"],
 	"router": {

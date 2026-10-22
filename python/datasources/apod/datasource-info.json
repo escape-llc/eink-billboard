@@ -6,6 +6,7 @@
 	"file": "apod.py",
 	"module": "python.datasources.apod.apod",
 	"description": "NASA's Astronomy Picture of the Day: today's, a day you choose, or a random day. A day with a video instead of a picture is passed over (today, random) or reported (a chosen day). The picture is fitted to the screen with a blurred margin. No key is needed.",
+	"credit": { "text": "Astronomy Picture of the Day, NASA", "license": "Each picture's own: NASA's are public domain, others are their authors', as the day's page says", "url": "https://apod.nasa.gov/apod/" },
 	"describe": "NASA picture of the day",
 	"disabled": false,
 	"features": ["internet", "layer-background", "media-image"],

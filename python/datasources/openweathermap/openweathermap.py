@@ -21,8 +21,10 @@ from ..response_cache import cached
 from ..data_source import DataSourceExecutionContext
 from ..contracts.weather import DAYS_SHOWN, HOURS_SHOWN, NEEDS, Day, Point, Report, WeatherApi, device_now
 
+# the credit its terms ask for next to its data: the Weather pages draw it (the descriptor's `credit`, which the Credits page lists, says the same)
+CREDIT = "Weather data: OpenWeatherMap"
 # the free plan's endpoints: the weather now, and the forecast in steps of three hours for five days
-API = "https://api.openweathermap.org/data/2.5"
+API ="https://api.openweathermap.org/data/2.5"
 MAX_BYTES = 1024 * 1024
 
 class HideKey(logging.Filter):
@@ -172,7 +174,7 @@ class OpenWeatherMapApi(WeatherApi):
 		now = device_now(dsec.timestamp)
 		zone = now.tzinfo or now.astimezone().tzinfo
 		assert zone is not None
-		report = Report("", system.get("timeFormat") == "12h", now, credit="Weather data: OpenWeatherMap")
+		report = Report("", system.get("timeFormat") == "12h", now, credit=CREDIT)
 		latitude, longitude = float(where["latitude"]), float(where["longitude"])
 		report.latitude = latitude
 		# a metered client of its own (#440): every answer that is not kept is a call against the key's quota

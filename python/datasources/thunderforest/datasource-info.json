@@ -6,6 +6,7 @@
 	"file": "thunderforest.py",
 	"module": "python.datasources.thunderforest.thunderforest",
 	"description": "Thunderforest, the OpenStreetMap map maker, for the Thunderforest Map: the API key and the maps it keeps, shared by every task.",
+	"credit": { "text": "Maps © www.thunderforest.com, Data © www.osm.org/copyright", "license": "Map data ODbL, © OpenStreetMap contributors", "url": "https://www.thunderforest.com/" },
 	"disabled": false,
 	"features": ["internet", "api-key", "api"],
 	"router": {

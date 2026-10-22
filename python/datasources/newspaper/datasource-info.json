@@ -6,6 +6,7 @@
 	"file": "newspaper.py",
 	"module": "python.datasources.newspaper.newspaper",
 	"description": "A Newspaper PotD downloader.",
+	"credit": { "text": "Today's Front Pages, Freedom Forum", "license": "Each front page is its newspaper's", "url": "https://www.freedomforum.org/todaysfrontpages/" },
 	"describe": "Newspaper {slug}",
 	"disabled": false,
 	"features": ["internet", "layer-foreground", "media-image"],

@@ -6,6 +6,7 @@
 	"file": "openweathermap.py",
 	"module": "python.datasources.openweathermap.openweathermap",
 	"description": "A weather provider: the weather at the device's location from OpenWeatherMap, for the Weather pages, the Weather Overlay and the Weather Visualizer. The API key and the kept answers they share (the units are the device's, in the System settings).",
+	"credit": { "text": "Weather data: OpenWeatherMap", "license": "CC BY-SA 4.0", "url": "https://openweathermap.org/" },
 	"disabled": false,
 	"features": ["internet", "api-key", "api", "data-weather"],
 	"router": {

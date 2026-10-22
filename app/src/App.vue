@@ -54,6 +54,12 @@ const items = ref([
 //			disabled: () => appStore.currentStateAppConfig !== "initialized",
 			to: "/settings",
 		},
+		{
+			label:"Credits",
+			icon: "pi pi-heart",
+			class: "p-0 m-0",
+			to: "/credits",
+		},
 	]
 )
 </script>
