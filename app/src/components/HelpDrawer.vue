@@ -10,7 +10,7 @@
 				<AccordionHeader>First steps</AccordionHeader>
 				<AccordionContent>
 					<ol>
-						<li><b>Settings, System:</b> set the device's <b>Location</b> and time zone. Weather, maps and the clock use them. <b>Weather Provider</b> says where the weather comes from; left empty, it is the one that is set up (today, OpenWeatherMap with its key). <b>Units</b> are the weather's: Automatic means miles and Fahrenheit in US time zones, kilometres and Celsius elsewhere, and the temperature and the wind speed can each be given a unit of their own (Celsius with miles per hour, say). The <i class="pi pi-wifi" aria-hidden="true"></i> button beside the map finds a rough position from the device's internet address; nothing is saved until you press Save.</li>
+						<li><b>Settings, System:</b> set the device's <b>Location</b> and time zone. Weather, maps and the clock use them. <b>Weather Provider</b> says where the weather comes from; left empty, it is the one that is set up (Open-Meteo, which needs no key; with OpenWeatherMap's key set too, choose one). <b>Units</b> are the weather's: Automatic means miles and Fahrenheit in US time zones, kilometres and Celsius elsewhere, and the temperature and the wind speed can each be given a unit of their own (Celsius with miles per hour, say). The <i class="pi pi-wifi" aria-hidden="true"></i> button beside the map finds a rough position from the device's internet address; nothing is saved until you press Save.</li>
 						<li><b>Settings, Display:</b> choose the panel you have, and its orientation.</li>
 						<li><b>Playlist:</b> make a playlist and add <b>tracks</b>. A track is one page or picture and how long it stays. Save the playlist: nothing reaches the panel until it is saved.</li>
 						<li>The weather works without a key (from Open-Meteo). If a track needs a key (maps, comics, AI pictures, or OpenWeatherMap's weather), add it under <b>Settings, Providers</b>. Each key has a <b>Test</b> button and a link to where you get one.</li>
@@ -69,7 +69,7 @@
 					<p>A provider fetches data and draws nothing; the data sources that make pages and overlays ask it. Each is in <b>Settings, Providers</b> with its key and how long its answers are kept, shared by every page and overlay that uses it. A data source that needs a kind of data (the weather, calendar events) takes it from the device's provider of that kind: <b>Weather Provider</b> and <b>Calendar Provider</b> in <b>Settings, System</b>, or, left empty, the one that is set up. A provider that is not set up yet says so there.</p>
 					<dl>
 						<dt>Open-Meteo</dt>
-						<dd>The weather, with no key: free for non-commercial use such as this, and set up as installed, so a new device has weather at once. Its data is CC BY 4.0; the Weather pages say "Weather data by Open-Meteo.com". No place name: the page's heading is its title, or "Weather".</dd>
+						<dd>The weather, with no key: free for non-commercial use such as this, and set up as installed, so a new device has weather at once. Its credit is on the Weather pages and under Credits. No place name: the page's heading is its title, or "Weather".</dd>
 						<dt>OpenWeatherMap</dt>
 						<dd>The weather too, with a key: when both are set up, choose one as <b>Weather Provider</b> in <b>Settings, System</b>. A free key will do; a new one can take a couple of hours to start working, and until then the pages say it was refused.</dd>
 						<dt>Calendar Sources</dt>
@@ -243,6 +243,7 @@
 				<AccordionHeader>More</AccordionHeader>
 				<AccordionContent>
 					<ul class="links">
+						<li><RouterLink to="/credits" @click="emit('update:visible', false)">Credits</RouterLink>: whose data, pictures, fonts and software the device uses, in one list.</li>
 						<li><a href="https://github.com/escape-llc/eink-billboard#readme" target="_blank" rel="noopener noreferrer">Documentation (the readme)</a></li>
 						<li><a href="https://github.com/escape-llc/eink-billboard/issues" target="_blank" rel="noopener noreferrer">Report a problem or ask for something</a></li>
 						<li><a href="https://github.com/escape-llc/eink-billboard/discussions" target="_blank" rel="noopener noreferrer">Discussions</a></li>
@@ -255,6 +256,7 @@
 <script setup lang="ts">
 /** The Help drawer: a short guide, opened from the toolbar's help button. It slides out over the page, so the page under it keeps its place. */
 import { Accordion, AccordionContent, AccordionHeader, AccordionPanel, Drawer } from "primevue"
+import { RouterLink } from "vue-router"
 
 defineProps<{ visible: boolean }>()
 const emit = defineEmits<{ (e: "update:visible", value: boolean): void }>()

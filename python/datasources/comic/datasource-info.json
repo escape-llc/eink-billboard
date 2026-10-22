@@ -6,6 +6,7 @@
 	"file": "comic_feed.py",
 	"module": "python.datasources.comic.comic_feed",
 	"description": "A comic downloader.",
+	"credit": { "text": "Each comic is its author's, read from its own site's feed", "license": "The authors' own terms" },
 	"describe": "Comic {comic}",
 	"disabled": false,
 	"keepsList": true,

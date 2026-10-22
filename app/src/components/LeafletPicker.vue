@@ -41,7 +41,8 @@
 			@ready="onMapReady"
 			:use-global-leaflet="false"
 		>
-			<l-tile-layer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" layer-type="base" name="OpenStreetMap"></l-tile-layer>
+			<!-- the tile policy asks for the attribution on the map itself; the Credits page lists it too -->
+			<l-tile-layer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" layer-type="base" name="OpenStreetMap" attribution="&copy; <a href=&quot;https://www.openstreetmap.org/copyright&quot;>OpenStreetMap</a> contributors"></l-tile-layer>
 			<l-marker v-if="markerPosition" :lat-lng="markerPosition" draggable @dragend="onMarkerDrag" />
 		</l-map>
 	</div>

@@ -6,6 +6,7 @@
 	"file": "wpotd.py",
 	"module": "python.datasources.wpotd.wpotd",
 	"description": "A Wikipedia PotD downloader.",
+	"credit": { "text": "Picture of the Day, Wikimedia Commons", "license": "Each picture is its author's, under the licence on its Commons page", "url": "https://commons.wikimedia.org/wiki/Commons:Picture_of_the_day" },
 	"describe": "Wikipedia picture of the day",
 	"disabled": false,
 	"features": ["internet", "layer-background", "media-image"],

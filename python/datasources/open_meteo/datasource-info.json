@@ -5,7 +5,8 @@
 	"class": "OpenMeteoApi",
 	"file": "open_meteo.py",
 	"module": "python.datasources.open_meteo.open_meteo",
-	"description": "A weather provider with no key: the weather at the device's location from Open-Meteo, for the Weather pages, the Weather Overlay and the Weather Visualizer. Free for non-commercial use; its data is CC BY 4.0, and the pages credit it.",
+	"description": "A weather provider with no key: the weather at the device's location from Open-Meteo, for the Weather pages, the Weather Overlay and the Weather Visualizer. Free for non-commercial use.",
+	"credit": { "text": "Weather data by Open-Meteo.com", "license": "CC BY 4.0; free for non-commercial use", "url": "https://open-meteo.com/" },
 	"disabled": false,
 	"features": ["internet", "api", "data-weather"],
 	"settings": {
