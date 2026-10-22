@@ -10,7 +10,7 @@ import math
 import re
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Mapping
 
 from ..model.configuration_manager import ConfigurationObject, HASH_KEY, ID_KEY
 from ..model.schema_versions import SCHEMA_KEY
@@ -361,11 +361,29 @@ def settings_lookup_items(lookup: Any, settings: dict|None) -> list[dict]:
 		if isinstance(item, dict) and isinstance(item.get(value_key), str) and item.get(value_key) != ""
 	]
 
+def from_source(name: str, datasources: Mapping[str, Any], system: Mapping[str, Any]|None = None) -> str|None:
+	"""
+	The data source a `settings` lookup's `from` names (#513): an id of ours, or a capability (`data-calendar`): the device's provider of it (the system
+	setting its contract names, when that is an installed provider of it), else the only installed one, else none. The same choice `dsec.provide` makes
+	at run time, less "set up", which only the running provider can say. `datasources` are the descriptors by id; what is returned is one of their ids.
+	"""
+	if not name.startswith("data-"):
+		return name if name in datasources else None
+	# imported here: the contracts are data sources, which import the configuration manager
+	from ..datasources.contracts import CONTRACTS
+	providers = sorted(str(i) for i, d in datasources.items()
+		if name in (d["info"].get("features") or []) and "api" in (d["info"].get("features") or []) and not d["info"].get("disabled"))
+	contract = CONTRACTS.get(name)
+	chosen = (system or {}).get(contract.setting) if contract is not None and contract.setting else None
+	if chosen in providers:
+		return str(chosen)
+	return providers[0] if len(providers) == 1 else None
+
 def resolve_settings_lookups(lookups: dict, settings: dict|None, settings_from: Callable[[str], dict|None]|None = None) -> dict:
 	"""
 	The lookups with every `settings` lookup turned into a closed `items` lookup of the stored choices (validation then checks membership).
-	A lookup with `"from": "<data source id>"` chooses from the list another data source keeps (the Reminder Overlay's calendars are the Calendar's): `settings_from(id)` gives those settings,
-	and without it the list is empty.
+	A lookup with `"from": "<data source id or capability>"` chooses from the list another data source keeps (the Reminder Overlay's calendars are the calendar
+	provider's): `settings_from(name)` gives those settings (see `from_source`), and without it the list is empty.
 	"""
 	def items(lk: dict) -> dict:
 		own = lk.get("from")
@@ -468,12 +486,12 @@ def content_with_defaults(plugins: dict, datasources: dict, plugin_name: Any, co
 	return { **content, **{ name: copy.deepcopy(value) for name, value in wanted.items() if name not in hidden } }
 
 def plugin_content_errors(plugins: dict, datasources: dict, plugin_name: Any, content: dict, path: list,
-		settings_of: Callable[[str, str], dict|None]|None = None) -> list[dict]:
+		settings_of: Callable[[str, str], dict|None]|None = None, system: Mapping[str, Any]|None = None) -> list[dict]:
 	"""
 	The plugin exists and `content` follows its settings and its chosen data sources' (at any depth: a source's own choice of others, see `chosen_sources`);
 	`path` is where `plugin_name` and `content` live in the item (`["task"]` for a timer task, none for a track). Paths are flat (`["content", "<field>"]`):
 	every level's fields live in the one `content`. `settings_of(kind, id)` gives the stored settings of a `"plugin"` or `"datasource"`, which the
-	`settings` lookups of its instance fields choose from.
+	`settings` lookups of its instance fields choose from; `system` (the system settings) names the device's providers, which a lookup `from` a capability reads.
 	"""
 	plugin = plugins.get(plugin_name)
 	if plugin is None:
@@ -481,8 +499,10 @@ def plugin_content_errors(plugins: dict, datasources: dict, plugin_name: Any, co
 	def resolved(kind: str, item: dict, lookups: dict) -> dict:
 		if not settings_of:
 			return lookups
-		return resolve_settings_lookups(lookups, settings_of(kind, item["info"].get("id")),
-			(lambda other: settings_of("datasource", other) if other in datasources else None) if kind == "datasource" else None)
+		def other_settings(other: str) -> dict|None:
+			source = from_source(other, datasources, system)
+			return settings_of("datasource", source) if source is not None else None
+		return resolve_settings_lookups(lookups, settings_of(kind, item["info"].get("id")), other_settings if kind == "datasource" else None)
 	errors: list[dict] = []
 	def check(props: list[dict], lookups: dict, depth: int, seen: frozenset) -> None:
 		# the values the chosen sources give (`dataSource.keepsList`) are what a predicate may read, as on the form

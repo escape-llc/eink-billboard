@@ -1,8 +1,8 @@
 """
 The next events of the calendars for an overlay zone (#158): what is coming up, as outlined text (python/datasources/overlay_text.py).
 
-It has no calendar list, no settings and no cache of its own: it asks the Calendar data source for its events (`events_async`, through `dsec.context_for(calendar)`),
-so the calendars, the accounts and the kept answers are the Calendar's, and a Calendar page and this overlay of the same days make one read. Each run asks nobody
+It has no calendar list, no settings and no cache of its own: it asks the device's calendar provider for its events (`dsec.provide(CalendarApi)`, the Calendar
+Sources), so the calendars, the accounts and the kept answers are the provider's, and a Calendar page and this overlay of the same days make one read. Each run asks nobody
 else and starts nothing: the overlay task's own trigger decides when it runs, and the events in the window are picked from what is kept. Nothing in the window is
 nothing to show: the overlay is taken off, so an old reminder is never left up.
 """
@@ -14,13 +14,10 @@ from typing import Any, Mapping
 from ...model.configuration_manager import SettingsConfigurationManager, StaticConfigurationManager
 from ...model.theme import current_inputs
 from ...plugins.plugin_base import PermanentError
-from ..calendar.calendar import CalendarAsync, device_now
-from ..calendar.sources import Event
+from ..contracts.calendar import CalendarApi, Event, device_now
 from ..data_source import DataSource, DataSourceExecutionContext, MediaItemAsync, MediaRenderAsync, MediaRenderResult
 from ..overlay_text import Run, lines_that_fit, outline_factor, overlay_margin, render_overlay, zone_valign
 
-# the data source it asks: the Calendar's id (its descriptor's), never a value from a request
-CALENDAR_ID = "calendar"
 DEFAULT_WINDOW_MINUTES = 60
 MAX_WINDOW_MINUTES = 7 * 24 * 60
 TITLE_CHARS = 30
@@ -61,18 +58,19 @@ def event_lines(events: list[Event], now: datetime, twelve_hour: bool) -> list[l
 	return [[(when_text(e, now, twelve_hour), "text-secondary-1"), (f"  {title_text(e)}", "text-primary")] for e in events]
 
 class ReminderOverlayAsync(DataSource, MediaItemAsync, MediaRenderAsync):
-	"""The next events as an overlay: it asks the Calendar data source, whose calendars and kept answers it shares."""
+	"""The next events as an overlay: it asks the device's calendar provider, whose calendars and kept answers it shares."""
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
 
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> Any:
 		minutes = window_minutes(params)
-		calendar, calendar_dsec = dsec.use(CALENDAR_ID, CalendarAsync)
+		provider, provider_dsec = dsec.provide(CalendarApi)
 		now = device_now(dsec.timestamp)
-		# the Calendar reads whole days (kept for its `cacheHours`); the window is picked from them
-		slot = await calendar.events_async(calendar_dsec, now, now + timedelta(minutes=minutes), params)
-		return [e for e in upcoming(slot.events, now, minutes, params.get("allDay") is True)]
+		# the provider reads whole days (kept for its `cacheHours`); the window is picked from them
+		answer = await provider.open_async(provider_dsec, { "start": now, "end": now + timedelta(minutes=minutes),
+			"calendars": params.get("calendars"), "holidaySets": params.get("holidaySets") })
+		return [e for e in upcoming(answer.events, now, minutes, params.get("allDay") is True)]
 
 	async def render_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any], state: Any) -> MediaRenderResult | None:
 		if not isinstance(state, list):

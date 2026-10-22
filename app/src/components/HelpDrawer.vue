@@ -108,7 +108,7 @@
 						<dt>Weather</dt>
 						<dd>The weather at the device's <b>Location</b> (Settings, System) from the weather provider, OpenWeatherMap: <b>now</b>, the next day in three-hour steps (<b>hours</b>), the next five <b>days</b>, a page per view. The key and how long answers are kept are in <b>Settings, Data Sources, OpenWeatherMap</b>, shared with the Weather Overlay; the units are in <b>Settings, System</b>. A free key will do; a new one can take a couple of hours to start working, and until then the page says it was refused.</dd>
 						<dt>Calendar</dt>
-						<dd>The <b>month</b>, the coming <b>weeks</b> as continuous rows, or an <b>agenda</b> of the coming days, from the calendars in its settings (see Calendars).</dd>
+						<dd>The <b>month</b>, the coming <b>weeks</b> as continuous rows, or an <b>agenda</b> of the coming days, from the calendars of the Calendar Sources (see Calendars). Whether weeks start on Monday or Sunday, and the week numbers, are its own settings (<b>Settings, Data Sources, Calendar</b>).</dd>
 						<dt>RSS Feed</dt>
 						<dd>A feed's stories, one page each, newest first. List feeds (a name and an address) in its settings and pick one by name; <b>Include Images</b> adds a story's picture.</dd>
 						<dt>Comic</dt>
@@ -135,7 +135,7 @@
 						<dt>Weather Overlay</dt>
 						<dd><b>now</b> (the temperature and the sky), <b>today</b> (the high, the low, the chance of rain) or <b>outlook</b> (the next three days). Uses the weather provider's settings (OpenWeatherMap).</dd>
 						<dt>Reminder Overlay</dt>
-						<dd>The events on now or starting within the task's window, nearest first, from the Calendar's calendars. Nothing in the window takes it down. A calendar edit shows once the Calendar's kept answer expires (15 minutes by default).</dd>
+						<dd>The events on now or starting within the task's window, nearest first, from the calendars of the Calendar Sources. Nothing in the window takes it down. A calendar edit shows once the kept answer expires (15 minutes by default).</dd>
 					</dl>
 				</AccordionContent>
 			</AccordionPanel>
@@ -143,7 +143,7 @@
 			<AccordionPanel value="calendar">
 				<AccordionHeader>Calendars</AccordionHeader>
 				<AccordionContent>
-					<p>The calendars are listed in <b>Settings, Data Sources, Calendar</b>; a track or overlay chooses which to show (none chosen: all that are enabled) and its views: the <b>month</b>, the coming <b>weeks</b> as continuous rows, an <b>agenda</b> of the coming days.</p>
+					<p>The calendars are listed in <b>Settings, Data Sources, Calendar Sources</b>, which every calendar page and Reminder Overlay reads (<b>Calendar Provider</b> in Settings, System says which, when there is more than one); a track or overlay chooses which to show (none chosen: all that are enabled) and its views: the <b>month</b>, the coming <b>weeks</b> as continuous rows, an <b>agenda</b> of the coming days.</p>
 					<ul>
 						<li><b>An iCal link</b> (<code>https</code> or <code>webcal</code>): most calendar apps publish one. Google's "Secret address in iCal format" is a password: treat it as one. A link that needs a sign-in can use a user name and password, or a token.</li>
 						<li><b>A CalDAV server</b> (Nextcloud, Fastmail, iCloud with an app password).</li>

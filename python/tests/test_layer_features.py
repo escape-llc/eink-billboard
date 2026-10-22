@@ -119,7 +119,7 @@ class TestPluginsAndSourcesAgree(unittest.TestCase):
 # (The Data Source settings tab explains each in a tooltip: app/src/components/ItemInfo.vue.)
 VOCABULARY = (
 	"internet", "filesystem", "api-key", "paid-service",
-	"api", "api-client", "ai-provider", "data-weather", "data-ai-text", "data-ai-image",
+	"api", "api-client", "ai-provider", "data-weather", "data-calendar", "data-ai-text", "data-ai-image",
 	"layer-background", "layer-foreground", "layer-priority", "layer-overlay",
 	"media-image", "media-list",
 )
@@ -158,8 +158,8 @@ class TestFeatureVocabulary(unittest.TestCase):
 				# somewhere to show it and what it shows come together
 				self.assertEqual(bool(layers(source["features"])), bool(media(source["features"])))
 
-# `calendar` draws its pages and is also asked for its events by the Reminder Overlay (`uses`): both a page and a provider, until it is split (#513)
-USED_THOUGH_NOT_A_PROVIDER = { "calendar" }
+# only a provider is used by id (`uses`): none is excepted since the calendar was split into a provider and its pages (#513)
+USED_THOUGH_NOT_A_PROVIDER: set[str] = set()
 
 def chosen_capabilities(source: dict) -> set[str]:
 	"""The capabilities a source's own `schema` fields choose a provider of (the Generated Image's text and image parts)."""

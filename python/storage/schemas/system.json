@@ -11,6 +11,9 @@
 			"weatherProvider": {
 				"url": "/api/lookups/providers/data-weather"
 			},
+			"calendarProvider": {
+				"url": "/api/lookups/providers/data-calendar"
+			},
 			"units": {
 				"items": [
 					{ "name": "Automatic (by time zone)", "value": "auto" },
@@ -76,6 +79,14 @@
 				"required": false
 			},
 			{
+				"name": "calendarProvider",
+				"type": "string",
+				"title": "Calendar Provider",
+				"description": "Where the Calendar pages and the Reminder Overlay get their events. Empty: the one that is set up (has a calendar or a holiday set), when there is only one.",
+				"lookup": "calendarProvider",
+				"required": false
+			},
+			{
 				"name": "units",
 				"type": "string",
 				"title": "Units",
@@ -134,6 +145,7 @@
 		"timeFormat": "24h",
 		"location": null,
 		"weatherProvider": null,
+		"calendarProvider": null,
 		"units": "auto",
 		"temperatureUnit": null,
 		"speedUnit": null,

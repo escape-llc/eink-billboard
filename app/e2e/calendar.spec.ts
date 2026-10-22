@@ -4,7 +4,7 @@ import { expect, test, type Page } from "@playwright/test"
 import { OPEN } from "./servers"
 import { saveButton, stubMapTiles, watchProblems } from "./support"
 
-// The Calendar data source keeps its calendars and holiday sets in its settings (rows with secrets and fields shown per choice), and a track
+// The Calendar Sources (the calendar provider) keeps its calendars and holiday sets in its settings (rows with secrets and fields shown per choice), and a track
 // chooses some of them by name (a multi-select). These tests edit the settings on the open server, so the file is put back afterwards.
 test.describe.configure({ mode: "serial" })
 const FILE = path.join(OPEN.storage, "datasources", "calendar", "settings.json")
@@ -23,7 +23,7 @@ async function openCalendarSettings(page: Page) {
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Data Sources" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
-	await page.getByRole("option", { name: /^calendar/ }).click()
+	await page.getByRole("option", { name: "calendar", exact: true }).click()
 	await expect(page.getByRole("textbox", { name: "Name 1", exact: true }).first()).toHaveValue("Family")
 }
 const calendars = (page: Page) => page.getByRole("group", { name: "Calendars" })
@@ -118,7 +118,7 @@ test("a track picks views and calendars from the settings, and the agenda's days
 	await expect(page.getByText("Playlist saved")).toBeVisible()
 	const items = JSON.parse(fs.readFileSync(path.join(OPEN.storage, "schedules", "playlist.json"), "utf8")).items
 	const track = items.find((x: { title: string }) => x.title === "Calendar")
-	expect(track.content).toMatchObject({ dataSource: "calendar", views: ["month", "agenda"], calendars: ["Work"], agendaDays: 7 })
+	expect(track.content).toMatchObject({ dataSource: "calendar-pages", views: ["month", "agenda"], calendars: ["Work"], agendaDays: 7 })
 	fs.writeFileSync(path.join(OPEN.storage, "schedules", "playlist.json"), JSON.stringify({ ...JSON.parse(fs.readFileSync(path.join(OPEN.storage, "schedules", "playlist.json"), "utf8")), items: items.filter((x: { title: string }) => x.title !== "Calendar") }, null, "\t"))
 	watch.expectNone()
 })

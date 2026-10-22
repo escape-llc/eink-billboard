@@ -11,21 +11,23 @@ from unittest.mock import patch
 import httpx
 from PIL import Image
 
-from ..datasources.calendar import calendar as calendar_module
-from ..datasources.calendar.calendar import CalendarAsync, Layout, Page, Slot, agenda_params, chosen_views, month_params, month_weeks, page_params, query_range, ran_out_note, rolling_weeks, weeks_params
-from ..datasources.calendar.sources import Event, NotACalendar, auth_headers, caldav_calendars, events_between, holiday_events, last_day, parse_calendar, safe_color, web_url
+from ..datasources.calendar.calendar import CalendarSources, ran_out_note
+from ..datasources.calendar_pages import calendar_pages as calendar_module
+from ..datasources.calendar_pages.calendar_pages import CalendarPagesAsync, Layout, Page, Slot, agenda_params, chosen_views, month_params, month_weeks, page_params, query_range, rolling_weeks, weeks_params
+from ..datasources.contracts.calendar import CalendarApi, Event
+from ..datasources.calendar.sources import NotACalendar, auth_headers, caldav_calendars, events_between, holiday_events, last_day, parse_calendar, safe_color, web_url
 from ..datasources.data_source import DataSourceExecutionContext
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
 from ..plugins.plugin_base import PermanentError
-from ..task.async_http_worker_pool import AsyncHttpWorkerPool, client_var
+from ..task.async_http_worker_pool import AsyncHttpWorkerPool
 from ..utils import url_guard
 from ..web.documents import plugin_content_errors
 from ..utils.image_utils import chrome_command
 from ..web.deps import get_time_of_day
 from .fake_internet import FakeInternet, fixture_text
 from .test_datasource_fixes import STATIC, FakeDatasourceSettings, FakeRenderSession, _Cob
-from .utils import test_output_path_for, save_datasource_settings
+from .utils import test_output_path_for, save_datasource_settings, use_transport
 from .test_web_api import WebApiTestBase
 
 # the display is on the US west coast in October (daylight time); "now" is Wednesday 7 October 2026, noon
@@ -53,6 +55,15 @@ class FakeSettings:
 	def open(self, name: str):
 		return _Cob(self.docs.get(name))
 
+class Context(DataSourceExecutionContext):
+	"""
+	The pages' context in these tests: one settings document (a fake) serves the pages and their provider, the Calendar Sources, which is the one
+	`provide` answers (how a provider is chosen is `test_provide`'s).
+	"""
+	def provide(self, kind):
+		assert kind is CalendarApi
+		return CalendarSources("calendar", "Calendar Sources"), self
+
 def make_context(calendars: list|None = None, holidays: list|None = None, orientation: str = "landscape", time_format: str = "24h", now: datetime = NOW, **more) -> DataSourceExecutionContext:
 	root = ServiceContainer()
 	settings = { "calendars": CALENDARS if calendars is None else calendars, "holidays": HOLIDAYS if holidays is None else holidays, "cacheHours": 0, **more }
@@ -61,7 +72,7 @@ def make_context(calendars: list|None = None, holidays: list|None = None, orient
 	root.add_service(StaticConfigurationManager, StaticConfigurationManager(STATIC))
 	# where the data sources' own folders are (their page templates): the source root
 	root.add_service(ConfigurationManager, ConfigurationManager())
-	return DataSourceExecutionContext(root, (800, 480), now)
+	return Context(root, (800, 480), now)
 
 def family() -> Any:
 	return parse_calendar(fixture_text("calendar-family.ics").encode())
@@ -315,13 +326,13 @@ class TestGrid(unittest.TestCase):
 class TestOpen(unittest.IsolatedAsyncioTestCase):
 	def setUp(self):
 		self.fake = FakeInternet()
-		client_var.set(httpx.AsyncClient(transport=self.fake))
+		use_transport(self, self.fake)
 
 	def asked(self) -> list[str]:
 		return sorted(f"{r.method} {r.url}" for r in self.fake.requests)
 
 	async def test_both_views_are_two_pages_of_one_read(self):
-		pages = await CalendarAsync("calendar", "Calendar").open_async(make_context(), { "views": ["agenda", "month"], "calendars": ["Family"] })
+		pages = await CalendarPagesAsync("calendar-pages", "Calendar").open_async(make_context(), { "views": ["agenda", "month"], "calendars": ["Family"] })
 		self.assertEqual([p.view for p in pages], ["month", "agenda"])
 		self.assertIs(pages[0].slot, pages[1].slot, "the events are read once for the slot")
 		self.assertEqual(self.asked(), ["GET https://calendar.example.test/family.ics"], "webcal read as https, once")
@@ -329,82 +340,82 @@ class TestOpen(unittest.IsolatedAsyncioTestCase):
 		self.assertIn("Columbus Day", [e.title for e in pages[0].slot.events], "all holiday sets when none is chosen")
 
 	async def test_the_week_start_and_week_numbers_come_from_the_data_sources_settings(self):
-		ds = CalendarAsync("calendar", "Calendar")
+		ds = CalendarPagesAsync("calendar-pages", "Calendar")
 		[page] = await ds.open_async(make_context([], [], weekStart="sunday", weekNumbers=True), { "weekStart": "monday" })
 		self.assertEqual((page.slot.week_start, page.slot.week_numbers), ("sunday", True), "a task's own value is not read")
 		[page] = await ds.open_async(make_context([], []), {})
 		self.assertEqual((page.slot.week_start, page.slot.week_numbers), ("monday", False))
 
 	async def test_three_views_are_three_pages(self):
-		pages = await CalendarAsync("calendar", "Calendar").open_async(make_context(), { "views": ["agenda", "weeks", "month"], "calendars": ["Family"] })
+		pages = await CalendarPagesAsync("calendar-pages", "Calendar").open_async(make_context(), { "views": ["agenda", "weeks", "month"], "calendars": ["Family"] })
 		self.assertEqual([p.view for p in pages], ["month", "weeks", "agenda"])
 
 	async def test_one_view_is_one_page_and_none_is_the_month(self):
-		ds = CalendarAsync("calendar", "Calendar")
+		ds = CalendarPagesAsync("calendar-pages", "Calendar")
 		self.assertEqual([p.view for p in await ds.open_async(make_context(), { "views": ["agenda"], "calendars": ["Family"] })], ["agenda"])
 		self.assertEqual([p.view for p in await ds.open_async(make_context(), { "views": [], "calendars": ["Family"] })], ["month"])
 
 	async def test_no_calendars_is_an_empty_month_not_a_failure(self):
-		pages = await CalendarAsync("calendar", "Calendar").open_async(make_context([], []), {})
+		pages = await CalendarPagesAsync("calendar-pages", "Calendar").open_async(make_context([], []), {})
 		self.assertEqual(([p.view for p in pages], pages[0].slot.events, pages[0].slot.notes), (["month"], [], []))
 		self.assertEqual(self.fake.requests, [])
 
 	async def test_none_chosen_is_every_enabled_calendar(self):
-		pages = await CalendarAsync("calendar", "Calendar").open_async(make_context([FAMILY, CALENDARS[1], CALENDARS[-1]], []), {})
+		pages = await CalendarPagesAsync("calendar-pages", "Calendar").open_async(make_context([FAMILY, CALENDARS[1], CALENDARS[-1]], []), {})
 		self.assertEqual(self.asked(), ["GET https://calendar.example.test/family.ics", "REPORT https://dav.example.test/cal/work/"], "the disabled one is not read")
 		self.assertEqual({ e.calendar for e in pages[0].slot.events }, { "Family", "Work" })
 
 	async def test_caldav_is_one_report_for_the_range_shown(self):
-		await CalendarAsync("calendar", "Calendar").open_async(make_context(), { "calendars": ["Work"] })
+		await CalendarPagesAsync("calendar-pages", "Calendar").open_async(make_context(), { "calendars": ["Work"] })
 		[report] = self.fake.requests
 		self.assertIn(b'start="20260928T070000Z" end="20261102T070000Z"', report.content)
 
 	async def test_a_calendar_behind_a_sign_in_gets_it(self):
-		pages = await CalendarAsync("calendar", "Calendar").open_async(make_context(), { "calendars": ["Private"] })
+		pages = await CalendarPagesAsync("calendar-pages", "Calendar").open_async(make_context(), { "calendars": ["Private"] })
 		self.assertIn("Dentist", [e.title for e in pages[0].slot.events])
 		self.assertEqual(self.fake.requests[0].headers["Authorization"], "Basic dXNlcjpwYXNz")
 
 	async def test_a_name_that_is_not_in_the_settings_is_permanent(self):
-		with self.assertRaisesRegex(PermanentError, "'Gone' is not in the Calendar settings"):
-			await CalendarAsync("calendar", "Calendar").open_async(make_context(), { "calendars": ["Family", "Gone"] })
+		with self.assertRaisesRegex(PermanentError, "'Gone' is not in the Calendar Sources settings"):
+			await CalendarPagesAsync("calendar-pages", "Calendar").open_async(make_context(), { "calendars": ["Family", "Gone"] })
 		with self.assertRaisesRegex(PermanentError, "holiday set 'Gone'"):
-			await CalendarAsync("calendar", "Calendar").open_async(make_context(), { "holidaySets": ["Gone"] })
+			await CalendarPagesAsync("calendar-pages", "Calendar").open_async(make_context(), { "holidaySets": ["Gone"] })
 		self.assertEqual(self.fake.requests, [])
 
 	async def test_a_calendar_that_fails_is_named_in_the_footer_and_the_rest_show(self):
 		with self.assertLogs("python.datasources.calendar.calendar", "WARNING") as logged:
-			pages = await CalendarAsync("calendar", "Calendar").open_async(make_context(), { "calendars": ["Family", "Sign-in page", "Locked"] })
+			pages = await CalendarPagesAsync("calendar-pages", "Calendar").open_async(make_context(), { "calendars": ["Family", "Sign-in page", "Locked"] })
 		self.assertEqual(pages[0].slot.notes, ["Sign-in page could not be loaded: the answer is not a calendar", "The calendar 'Locked' needs a username and password."])
 		self.assertIn("Dentist", [e.title for e in pages[0].slot.events])
 		self.assertNotIn("calendar.example.test", "\n".join(logged.output), "the log names the calendar, never its address")
 
 	async def test_when_every_calendar_fails_the_slot_fails(self):
 		with self.assertRaisesRegex(RuntimeError, "No calendar could be loaded") as raised:
-			await CalendarAsync("calendar", "Calendar").open_async(make_context(), { "calendars": ["Sign-in page"] })
+			await CalendarPagesAsync("calendar-pages", "Calendar").open_async(make_context(), { "calendars": ["Sign-in page"] })
 		self.assertNotIsInstance(raised.exception, PermanentError, "a server can come back")
 		with self.assertRaisesRegex(PermanentError, "needs a username and password"):
-			await CalendarAsync("calendar", "Calendar").open_async(make_context(), { "calendars": ["Locked"] })
+			await CalendarPagesAsync("calendar-pages", "Calendar").open_async(make_context(), { "calendars": ["Locked"] })
 
 	async def test_a_server_error_is_told_without_the_address(self):
-		client_var.set(httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(401))))
+		use_transport(self, httpx.MockTransport(lambda r: httpx.Response(401)))
 		secret = { **FAMILY, "url": "https://calendar.example.test/private-abc123/basic.ics" }
 		with self.assertRaises(RuntimeError) as raised:
-			await CalendarAsync("calendar", "Calendar").open_async(make_context([secret], []), {})
+			await CalendarPagesAsync("calendar-pages", "Calendar").open_async(make_context([secret], []), {})
 		self.assertIn("the server answered 401 (it needs a sign-in)", str(raised.exception))
 		self.assertNotIn("abc123", str(raised.exception))
 
 	async def test_a_calendar_that_ran_out_says_so(self):
-		pages = await CalendarAsync("calendar", "Calendar").open_async(make_context(), { "calendars": ["Season", "Old season"] })
+		pages = await CalendarPagesAsync("calendar-pages", "Calendar").open_async(make_context(), { "calendars": ["Season", "Old season"] })
 		self.assertEqual(pages[0].slot.notes, ["Old season ended on 24 May 2026"], "the season still has matches past the month shown")
-		later = await CalendarAsync("calendar", "Calendar").open_async(make_context(now=datetime(2027, 5, 20, 12, tzinfo=ZONE)), { "calendars": ["Season"] })
+		later = await CalendarPagesAsync("calendar-pages", "Calendar").open_async(make_context(now=datetime(2027, 5, 20, 12, tzinfo=ZONE)), { "calendars": ["Season"] })
 		self.assertEqual(later[0].slot.notes, ["Season has no events after 30 May 2027"])
 
 class TestRender(unittest.IsolatedAsyncioTestCase):
 	def setUp(self):
-		client_var.set(httpx.AsyncClient(transport=FakeInternet()))
+		use_transport(self, FakeInternet())
 
 	async def render(self, params: dict, orientation: str = "landscape", time_format: str = "24h"):
-		ds = CalendarAsync("calendar", "Calendar")
+		ds = CalendarPagesAsync("calendar-pages", "Calendar")
 		pages = await ds.open_async(make_context(orientation=orientation), params)
 		results = []
 		with patch.object(calendar_module, "RenderSession", FakeRenderSession):
@@ -434,7 +445,7 @@ class TestRender(unittest.IsolatedAsyncioTestCase):
 		self.assertEqual((result.title, session.params["heading"]), ("Our month", "Our month"))
 
 	async def test_anything_but_a_page_is_nothing_to_show(self):
-		self.assertIsNone(await CalendarAsync("calendar", "Calendar").render_async(make_context(), {}, None))
+		self.assertIsNone(await CalendarPagesAsync("calendar-pages", "Calendar").render_async(make_context(), {}, None))
 
 	async def test_page_params_carry_the_notes(self):
 		page = Page("month", Slot(TODAY, ZONE, [], ["A note"]))
@@ -446,11 +457,11 @@ CHROME = chrome_command()
 class TestRealPage(unittest.IsolatedAsyncioTestCase):
 	"""The pages as Chromium draws them: busy and empty, both views, both orientations. The images are in .test-output/calendar for a look."""
 	def setUp(self):
-		client_var.set(httpx.AsyncClient(transport=FakeInternet()))
+		use_transport(self, FakeInternet())
 
 	async def test_pages_are_drawn_at_the_display_size(self):
 		folder = Path(test_output_path_for("calendar"))
-		ds = CalendarAsync("calendar", "Calendar")
+		ds = CalendarPagesAsync("calendar-pages", "Calendar")
 		for orientation, size in (("landscape", (800, 480)), ("portrait", (480, 800))):
 			for name, calendars, chosen, numbers in (("busy", None, ["Family", "Work", "Sign-in page"], True), ("empty", [], [], False)):
 				params = { "views": ["month", "weeks", "agenda"], "calendars": chosen, "agendaDays": 7, "weeksAhead": 4, "fontSize": "normal" }
@@ -553,7 +564,7 @@ class TestCalendarRoutes(WebApiTestBase):
 
 	def test_another_data_source_chooses_from_the_calendars_list(self):
 		# the Reminder Overlay's `calendars` are the Calendar's: its lookup is read from the Calendar's settings (`from`), and a task is checked against them
-		self.write_datasource_settings("calendar", { "weekStart": "monday", "cacheHours": 0.25, "staleDays": 30, "calendars": [FAMILY], "holidays": [] })
+		self.write_datasource_settings("calendar", { "cacheHours": 0.25, "staleDays": 30, "calendars": [FAMILY], "holidays": [] })
 		resp = self.client.get("/api/datasources/reminder-overlay/lookups/calendar")
 		self.assertEqual((resp.status_code, resp.json()), (200, [{ "name": "Family", "value": "Family" }]))
 		self.assertEqual(self.client.get("/api/datasources/reminder-overlay/lookups/nothing").status_code, 404)
@@ -567,7 +578,7 @@ class TestCalendarRoutes(WebApiTestBase):
 		self.assertIn(["task", "content", "calendars", "0"], [e["path"] for e in errors])
 
 	def test_the_settings_keep_a_row_password_and_check_the_rows(self):
-		self.write_datasource_settings("calendar", { "weekStart": "monday", "cacheHours": 0.25, "staleDays": 30, "calendars": [{ "name": "Private", "source": "ical", "url": "https://calendar.example.test/private.ics", "auth": "basic", "username": "user", "password": "pass" }], "holidays": [] })
+		self.write_datasource_settings("calendar", { "cacheHours": 0.25, "staleDays": 30, "calendars": [{ "name": "Private", "source": "ical", "url": "https://calendar.example.test/private.ics", "auth": "basic", "username": "user", "password": "pass" }], "holidays": [] })
 		doc = self.client.get("/api/datasources/calendar/settings").json()
 		self.assertEqual(doc["calendars"][0]["password"], "********")
 		doc["calendars"][0]["color"] = "blue"
@@ -592,7 +603,7 @@ def kept_context(dscm: DatasourceConfigurationManager, now: datetime = NOW) -> D
 	root.add_service(StaticConfigurationManager, StaticConfigurationManager(STATIC))
 	# where the data sources' own folders are (their page templates): the source root
 	root.add_service(ConfigurationManager, ConfigurationManager())
-	return DataSourceExecutionContext(root, (800, 480), now)
+	return Context(root, (800, 480), now)
 
 def calendar_settings(**more) -> DatasourceConfigurationManager:
 	"""The data source's own folder in a private storage, its settings written (`cacheHours` as a test asks)."""
@@ -600,19 +611,19 @@ def calendar_settings(**more) -> DatasourceConfigurationManager:
 	atexit.register(shutil.rmtree, folder, True)
 	cm = ConfigurationManager(storage_path=folder)
 	cm.hard_reset()
-	save_datasource_settings(cm, "calendar", { "weekStart": "monday", "weekNumbers": False, "cacheHours": 0.25, "staleDays": 30, "calendars": [FAMILY], "holidays": [], "accounts": [], **more })
+	save_datasource_settings(cm, "calendar", { "cacheHours": 0.25, "staleDays": 30, "calendars": [FAMILY], "holidays": [], "accounts": [], **more })
 	return cm.datasource_manager("calendar")
 
 class TestKept(unittest.IsolatedAsyncioTestCase):
 	"""What a calendar answered is kept for the settings' `cacheHours`, shared by every page, task and overlay that shows its events."""
 	def setUp(self):
 		self.fake = FakeInternet()
-		client_var.set(httpx.AsyncClient(transport=self.fake))
+		use_transport(self, self.fake)
 
 	async def events(self, dscm, now=NOW, params=None, start=None, end=None):
 		start = start or at(7)
-		slot = await CalendarAsync("calendar", "Calendar").events_async(kept_context(dscm, now), start, end or start + timedelta(days=3), params or {})
-		return slot.events
+		answer = await CalendarSources("calendar", "Calendar Sources").open_async(kept_context(dscm, now), { **(params or {}), "start": start, "end": end or start + timedelta(days=3) })
+		return answer.events
 
 	async def test_a_second_read_in_the_time_asks_nobody_and_gives_the_same_events(self):
 		dscm = calendar_settings()
@@ -637,11 +648,11 @@ class TestKept(unittest.IsolatedAsyncioTestCase):
 
 	async def test_the_pages_and_the_events_share_one_answer_and_a_failed_refresh_uses_the_old_one(self):
 		dscm = calendar_settings()
-		ds = CalendarAsync("calendar", "Calendar")
+		ds = CalendarPagesAsync("calendar-pages", "Calendar")
 		await ds.open_async(kept_context(dscm), { "views": ["agenda"] })
 		self.assertEqual(len(self.fake.requests), 1)
 		self.assertEqual(len(await self.events(dscm, start=at(7), end=at(14))), len(await self.events(dscm, start=at(7), end=at(14))))
-		client_var.set(httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(503))))
+		use_transport(self, httpx.MockTransport(lambda r: httpx.Response(503)))
 		old = await ds.open_async(kept_context(dscm, NOW + timedelta(hours=1)), { "views": ["agenda"] })
 		self.assertTrue(old[0].slot.events, "the origin did not answer: the kept answer is used")
 

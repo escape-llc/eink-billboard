@@ -383,6 +383,11 @@ class TestDescriptorRules(unittest.TestCase):
 						with self.subTest(f"{where}/lookups/{lname}"):
 							# `from` names another data source whose list is chosen from (the Reminder Overlay's calendars are the Calendar's)
 							other = lk.get("from")
+							if other is not None and str(other).startswith("data-"):
+								# a capability: the list is its provider's (the only one installed here; the device's choice when there are more)
+								providers = [i for i, d in by_id.items() if other in (d.get("features") or []) and "api" in (d.get("features") or [])]
+								self.assertEqual(len(providers), 1, "`from` a capability: one provider of it supplies the list")
+								other = providers[0]
 							if other is not None:
 								self.assertIn(other, by_id, "`from` names a descriptor")
 								self.assertNotEqual(other, info.get("id"))

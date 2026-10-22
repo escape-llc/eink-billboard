@@ -6,9 +6,9 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Body
 
-from ...task.async_http_worker_pool import AsyncHttpWorkerPool, tls_context
 from ...utils.url_guard import UrlRefused, fetch_checked
 from ...web.deps import CM, TOD
+from ..metering import metered_client
 from .accounts import SESSIONS, AccountError, TokenStore, account_names, find_account, finish_google, poll_microsoft, start
 from .calendar import device_now
 from .sources import HEADERS, MAX_CALENDAR_BYTES, NotACalendar, country_names, events_between, last_day, parse_calendar, web_url
@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 # mounted under /api by the web application
 calendar_router = APIRouter(prefix="/datasource/calendar")
 
+# the provider's declared id: what its calls are counted under
+CALENDAR_ID = "calendar"
 TIMEOUT = httpx.Timeout(15.0)
 SOON_DAYS = 30
 
@@ -32,7 +34,7 @@ async def _test(value: Any, now: datetime) -> dict:
 	"""
 	if not isinstance(value, str) or not value.strip():
 		return { "ok": False, "message": "Enter an address first." }
-	async with httpx.AsyncClient(timeout=TIMEOUT, transport=AsyncHttpWorkerPool.default_transport, verify=tls_context()) as client:
+	async with metered_client(CALENDAR_ID, timeout=TIMEOUT) as client:
 		try:
 			body = await fetch_checked(client, web_url(value.strip()), HEADERS, MAX_CALENDAR_BYTES)
 			cal = parse_calendar(body)
@@ -86,7 +88,7 @@ def _refused(problem: AccountError) -> dict:
 	return { "done": True, "ok": False, "message": str(problem) }
 
 async def _client_run(step) -> dict:
-	async with httpx.AsyncClient(timeout=TIMEOUT, transport=AsyncHttpWorkerPool.default_transport, verify=tls_context()) as client:
+	async with metered_client(CALENDAR_ID, timeout=TIMEOUT) as client:
 		try:
 			return await step(client)
 		except AccountError as problem:
