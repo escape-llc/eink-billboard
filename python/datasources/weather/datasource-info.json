@@ -9,6 +9,7 @@
 	"describe": "Weather {views}",
 	"disabled": false,
 	"uses": ["openweathermap"],
+	"requires": ["data-weather"],
 	"features": ["api-client", "layer-foreground", "media-list"],
 	"settings": {
 		"_schema": "urn:inky:storage:schema:datasource:weather:1",

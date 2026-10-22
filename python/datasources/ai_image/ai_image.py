@@ -1,6 +1,6 @@
 """
 A Generated Image: a prompt, optionally rewritten by a text part, drawn by an image part. The task chooses each part (`textSource`, `imageSource`:
-data sources with the `ai-text` and `ai-image` features), so the text of one provider can go with the picture of another (GPT text, a Google picture).
+data sources with the `data-ai-text` and `data-ai-image` features), so the text of one provider can go with the picture of another (GPT text, a Google picture).
 The parts are API data sources (data only); this is the one that renders. Their fields are in the same task content; their providers hold the keys.
 """
 from typing import Any, Mapping

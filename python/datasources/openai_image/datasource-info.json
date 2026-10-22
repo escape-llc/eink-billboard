@@ -8,7 +8,7 @@
 	"description": "OpenAI draws the picture of a Generated Image. The key is in the OpenAI settings.",
 	"disabled": false,
 	"uses": ["openai"],
-	"features": ["api", "api-client", "ai-image"],
+	"features": ["api", "api-client", "data-ai-image"],
 	"instanceSettings": {
 		"schema": {
 			"lookups": {

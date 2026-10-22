@@ -9,6 +9,7 @@
 	"describe": "Weather picture {weatherPrompt}",
 	"disabled": false,
 	"uses": ["openweathermap"],
+	"requires": ["data-weather", "data-ai-text", "data-ai-image"],
 	"features": ["paid-service", "api-client", "layer-background", "media-image"],
 	"settings": {
 		"_schema": "urn:inky:storage:schema:datasource:weather-image:1",
@@ -21,8 +22,8 @@
 	"instanceSettings": {
 		"schema": {
 			"lookups": {
-				"textSource": { "schema": "data-sources", "features": ["ai-text"] },
-				"imageSource": { "schema": "data-sources", "features": ["ai-image"] }
+				"textSource": { "schema": "data-sources", "features": ["data-ai-text"] },
+				"imageSource": { "schema": "data-sources", "features": ["data-ai-image"] }
 			},
 			"properties": [
 				{

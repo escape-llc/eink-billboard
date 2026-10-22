@@ -29,6 +29,8 @@ export interface ItemDef {
 	features?: string[]
 	/** data sources only: the other data sources it asks for their data */
 	uses?: string[]
+	/** data sources only: the capabilities (`data-*` features) it needs, which any provider of them supplies */
+	requires?: string[]
 	/** data sources only: its list outlasts a visit, and the plugin that shows it keeps it */
 	keepsList?: boolean
 }
@@ -43,8 +45,9 @@ const FEATURE_HELP: Record<string, string> = {
 	"api-key": "Needs an API key, which is set in its settings.",
 	"paid-service": "Each use is paid for with the provider.",
 	"ai-provider": "An AI provider: it holds the key and the model list its text and image parts use.",
-	"ai-text": "An AI text part: writes text for a generator.",
-	"ai-image": "An AI image part: draws a picture for a generator.",
+	"data-weather": "Supplies the weather: any page or overlay that needs a weather provider can use it.",
+	"data-ai-text": "An AI text part: writes text for a generator.",
+	"data-ai-image": "An AI image part: draws a picture for a generator.",
 	"layer-background": "Can be shown as the playlist's background page.",
 	"layer-foreground": "Can be shown over the background, as a page of its own that nothing hides.",
 	"layer-priority": "Can be shown for a while over everything (a Priority Update).",
@@ -65,6 +68,7 @@ const rows = computed<Row[]>(() => {
 		{ label: "Features", kind: "tags", tags: item.features ?? [] },
 	]
 	if(props.kind === "datasource") {
+		list.push({ label: "Requires", kind: "tags", tags: item.requires ?? [] })
 		list.push({ label: "Uses", kind: "tags", tags: item.uses ?? [] })
 		list.push({ label: "Keeps its list", kind: "flag", value: item.keepsList === true })
 	}
