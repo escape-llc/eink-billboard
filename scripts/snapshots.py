@@ -1,10 +1,18 @@
 """
-Snapshots of master: a tag named after the merge commit's time for every image GitHub published, and the cleanup that keeps them few (#504).
+Snapshots of master: a tag named after the merge commit's time for every image GitHub published, and the cleanup that keeps them few; and the
+promotion of a snapshot to a release (#504).
 
     python -m scripts.snapshots make --commit <full sha> --digest sha256:<image digest>
     python -m scripts.snapshots prune [--keep 5] [--days 7] [--apply]
+    python -m scripts.snapshots release-check --tag vX.Y.Z        (no token: reads pyproject.toml and app/package.json)
+    python -m scripts.snapshots promote --tag vX.Y.Z --commit <full sha>
 
-Run by `.github/workflows/image.yaml` after the master image is published, with `GITHUB_TOKEN` and `GITHUB_REPOSITORY` from the job.
+`make` and `prune` are run by `.github/workflows/image.yaml` after the master image is published, `release-check` and `promote` by
+`.github/workflows/release.yml` when a person pushes a release tag (RELEASING.md); `GITHUB_TOKEN` and `GITHUB_REPOSITORY` come from the job.
+
+A release is promoted, never built: `promote` puts the commit's snapshot image (`sha-<commit>`) under the release's name and `latest`, the very
+manifest, so stable runs the bytes insider ran. It fails when the commit has no image (a commit that is not a snapshot, or one removed already).
+`release-check` fails unless the tag is `v` and a version (`v0.1.0`, `v1.2.0-rc.1`) and both version fields say that version.
 
 A snapshot is a git tag of 14 digits, the commit's committer time in UTC (`20261022143005`, no `v`), and the same name on the commit's image in
 ghcr.io (the very manifest, put under a second tag, so its digest and its attestation are unchanged). A device on the insider channel goes to the
@@ -26,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import os
 import re
@@ -42,6 +51,8 @@ REGISTRY = "ghcr.io"
 
 SNAPSHOT = re.compile(r"^[0-9]{14}$")
 RELEASE = re.compile(r"^v[0-9A-Za-z._-]{1,100}$")
+# what a person may name a release: v and a version (semver, with an optional pre-release)
+RELEASE_NAME = re.compile(r"^v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.]+)?)$")
 COMMIT_TAG = re.compile(r"^sha-([0-9a-f]{40})$")
 ATTESTATION_TAG = re.compile(r"^sha256-([0-9a-f]{64})$")
 STAMP = "%Y%m%d%H%M%S"
@@ -323,6 +334,41 @@ def prune(http: Http, repo: Repo, keep: int, days: float, apply: bool, now: date
 		if status >= 300 and status != 422:
 			raise RuntimeError(f"removing the tag {name} answered {status}")
 
+def release_problems(tag: str, python_version: str, app_version: str) -> list[str]:
+	"""What is wrong with releasing `tag` when pyproject.toml and app/package.json say these versions (nothing: it may be released)."""
+	match = RELEASE_NAME.match(tag)
+	if match is None:
+		return [f"a release is named v and a version, like v0.1.0 (not {tag})"]
+	version = match.group(1)
+	problems = []
+	if python_version != version:
+		problems.append(f"pyproject.toml says {python_version}, the tag {version}")
+	if app_version != version:
+		problems.append(f"app/package.json says {app_version}, the tag {version}")
+	return problems
+
+def release_check(tag: str, root: str) -> list[str]:
+	import tomllib
+	with open(os.path.join(root, "pyproject.toml"), "rb") as f:
+		python_version = str(tomllib.load(f)["project"]["version"])
+	with open(os.path.join(root, "app", "package.json"), encoding="utf-8") as f:
+		app_version = str(json.load(f)["version"])
+	return release_problems(tag, python_version, app_version)
+
+def promote(http: Http, repo: Repo, tag: str, commit: str) -> None:
+	"""The commit's snapshot image under the release's name and `latest`: the same manifest, not a new build."""
+	if RELEASE_NAME.match(tag) is None or not re.match(r"^[0-9a-f]{40}$", commit):
+		raise ValueError("a release name (v0.1.0) and a full commit are needed")
+	try:
+		raw, kind = http.manifest(repo.image, f"sha-{commit}")
+	except RuntimeError as error:
+		raise RuntimeError(f"commit {commit[:7]} has no image to promote (it is not a snapshot, or its image was removed): release a newer snapshot") from error
+	digest = "sha256:" + hashlib.sha256(raw).hexdigest()
+	for name in (tag, "latest"):
+		http.put_manifest(repo.image, name, raw, kind)
+	say(f"Release {tag}: commit {commit[:7]}, image {digest}")
+	report(f"Release `{tag}`: the image of commit `{commit[:7]}` (`{digest}`), also `latest`.")
+
 def main(argv: list[str]) -> int:
 	parser = argparse.ArgumentParser(prog="python -m scripts.snapshots", description="Snapshots of master and their cleanup (#504).")
 	commands = parser.add_subparsers(dest="command", required=True)
@@ -333,7 +379,20 @@ def main(argv: list[str]) -> int:
 	pruning.add_argument("--keep", type=int, default=5)
 	pruning.add_argument("--days", type=float, default=7)
 	pruning.add_argument("--apply", action="store_true", help="remove them (without it: only say what would go)")
+	checking = commands.add_parser("release-check", help="whether a release tag and the version fields agree")
+	checking.add_argument("--tag", required=True)
+	promoting = commands.add_parser("promote", help="name a commit's snapshot image after a release")
+	promoting.add_argument("--tag", required=True)
+	promoting.add_argument("--commit", required=True)
 	args = parser.parse_args(argv)
+	if args.command == "release-check":
+		problems = release_check(args.tag, os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")))
+		for problem in problems:
+			say(problem)
+			report(f"- {problem}")
+		if not problems:
+			report(f"The versions say {args.tag.removeprefix('v')}.")
+		return 1 if problems else 0
 	token = os.environ.get("GITHUB_TOKEN", "")
 	slug = os.environ.get("GITHUB_REPOSITORY", "")
 	if not token or "/" not in slug:
@@ -343,6 +402,8 @@ def main(argv: list[str]) -> int:
 	repo = repo_of(http, slug)
 	if args.command == "make":
 		make(http, repo, args.commit, args.digest)
+	elif args.command == "promote":
+		promote(http, repo, args.tag, args.commit)
 	else:
 		if args.keep < 1:
 			say("--keep is at least 1: the newest snapshot is always kept")

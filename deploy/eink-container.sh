@@ -232,13 +232,10 @@ same_commit() {
 	[ -n "$1" ] && [ "$1" != unknown ] && [ "${full#"$1"}" != "$full" ]
 }
 
-# the tag GitHub published this checkout's image under: the release tag when the clone is exactly on one, else its commit (sha-<the full commit>)
+# the tag GitHub published this checkout's image under: its commit's (sha-<the full commit>), for a snapshot and a release alike (a release is a snapshot's
+# image under another name, and the commit's name is there before the release's)
 published_tag() {
-	local tag full
-	if tag=$(git -C "$HERE" describe --tags --exact-match 2>/dev/null) && [[ "$tag" =~ ^v[0-9A-Za-z._-]{1,100}$ ]]; then
-		echo "$tag"
-		return 0
-	fi
+	local full
 	full=$(git -C "$HERE" rev-parse HEAD 2>/dev/null) || return 1
 	echo "sha-$full"
 }

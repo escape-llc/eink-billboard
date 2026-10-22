@@ -143,13 +143,13 @@ check "the app's image is $C" [ "$(label "$APP" eink.commit)" = "$C" ]
 check "the previous image is $B" [ "$(label "$PREV" eink.commit)" = "$B" ]
 check "no image of $A is left" [ -z "$(podman images -q --filter "label=eink.commit=$A")" ]
 
-echo "== a release tag is downloaded by its name"
+echo "== a release is downloaded by its commit (its image is the snapshot's, there before the release's name)"
 commit D
 D=$(short)
 git -C "$CLONE" tag v9.9.9-test
-check "published v9.9.9-test" publish v9.9.9-test "$D"
+check "published $D" publish "sha-$(full)" "$D"
 out=$(kit get 2>&1)
-check "it asked for the tag" grep -q "(v9.9.9-test)" <<< "$out"
+check "it asked for the commit" grep -q "(sha-$(full))" <<< "$out"
 check "the app's image is $D" [ "$(label "$APP" eink.commit)" = "$D" ]
 
 echo "== an image that says it is another commit is refused, and nothing is built"

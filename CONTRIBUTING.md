@@ -8,4 +8,5 @@ instructions already written into the repo, which a human contributor should fol
 - **[WORKFLOW.md](WORKFLOW.md)**: how a real change gets from idea to merged: issue, branch, local checks, PR, CI green, review replies, squash-merge, close, sync,
   summary. Includes the per-issue checklist.
 - **[SESSION_SUMMARIES.md](SESSION_SUMMARIES.md)**: how a piece of work is written up afterwards in Discussions, including the friction, so the next session has a real record.
+- **[RELEASING.md](RELEASING.md)**: how a snapshot of `master` becomes a release the stable channel follows; read only when the maintainer asks for a release.
 - **[readme.md](readme.md)**: the architecture (display layers, compositor, tasks, storage) and the web API conventions.
