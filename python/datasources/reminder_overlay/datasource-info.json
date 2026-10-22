@@ -5,11 +5,11 @@
 	"class": "ReminderOverlayAsync",
 	"file": "reminder_overlay.py",
 	"module": "python.datasources.reminder_overlay.reminder_overlay",
-	"description": "The next events of the calendars for an overlay zone, as outlined text: what is on now and what starts within the window. It uses the Calendar's calendars and shares its kept answers: no settings of its own. Nothing in the window takes the overlay off.",
+	"description": "The next events of the calendars for an overlay zone, as outlined text: what is on now and what starts within the window. It uses the device's calendar provider (the Calendar Sources) and shares its kept answers: no settings of its own. Nothing in the window takes the overlay off.",
 	"describe": "Reminders {windowMinutes} min",
 	"disabled": false,
-	"uses": ["calendar"],
-	"features": ["layer-overlay", "media-image"],
+	"requires": ["data-calendar"],
+	"features": ["api-client", "layer-overlay", "media-image"],
 	"settings": {
 		"_schema": "urn:inky:storage:schema:datasource:reminder-overlay:1",
 		"schema": {
@@ -23,7 +23,7 @@
 			"lookups": {
 				"calendar": {
 					"settings": "calendars",
-					"from": "calendar",
+					"from": "data-calendar",
 					"value": "name"
 				}
 			},
@@ -45,7 +45,7 @@
 					"default": [],
 					"title": "Calendars",
 					"lookup": "calendar",
-					"description": "Which calendars to show. None chosen: all that are enabled. Add calendars in the Calendar data source settings.",
+					"description": "Which calendars to show. None chosen: all that are enabled. Add calendars in the Calendar Sources settings.",
 					"items": {
 						"type": "string"
 					}

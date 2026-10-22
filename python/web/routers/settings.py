@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from ...model.configuration_manager import CollectInfoDict
 from ..deps import CM
-from ..documents import get_document, instance_properties, load_schema_lookups, load_schema_properties, put_document, secret_fields, settings_choices, settings_lookup_items
+from ..documents import from_source, get_document, instance_properties, load_schema_lookups, load_schema_properties, put_document, secret_fields, settings_choices, settings_lookup_items
 from ..errors import ApiError
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ def _settings_lookup_choices(item: CollectInfoDict, lookup_name: str, stored: di
 	_, lookups = instance_properties(cast(dict, item))
 	for declared, definition in [*lookups.items(), *_settings_lookups(item).items()]:
 		if declared == lookup_name and isinstance(definition, dict) and "settings" in definition:
-			# `from` names another data source whose list this one chooses from (its id is our descriptor's, and must be one of the data sources)
+			# `from` names another data source whose list this one chooses from, or a capability whose provider's (`from_source`: an id of ours, or none)
 			other = definition.get("from")
 			return settings_lookup_items(definition, stored if other is None else (stored_of(str(other)) if stored_of else None))
 	raise ApiError(404, "Unknown lookup.", None)
@@ -155,5 +155,9 @@ def get_datasource_lookup(datasource_id: str, lookup: str, cm: CM):
 	sources = cm.enum_datasources()
 	declared, item = _find_item(sources, datasource_id, "datasource")
 	_, stored = cm.datasource_manager(declared).open().get()
-	known = { d["info"].get("id") for d in sources }
-	return _settings_lookup_choices(item, lookup, stored, lambda other: cm.datasource_manager(other).open().get()[1] if other in known else None)
+	by_id = { str(d["info"].get("id")): d for d in sources }
+	_, system = cm.settings_manager().open("system").get()
+	def stored_of(other: str) -> dict|None:
+		source = from_source(other, by_id, system)
+		return cm.datasource_manager(source).open().get()[1] if source is not None else None
+	return _settings_lookup_choices(item, lookup, stored, stored_of)

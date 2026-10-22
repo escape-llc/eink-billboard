@@ -46,6 +46,7 @@ const FEATURE_HELP: Record<string, string> = {
 	"paid-service": "Each use is paid for with the provider.",
 	"ai-provider": "An AI provider: it holds the key and the model list its text and image parts use.",
 	"data-weather": "Supplies the weather: any page or overlay that needs a weather provider can use it.",
+	"data-calendar": "Supplies calendar events: any page or overlay that needs a calendar provider can use it.",
 	"data-ai-text": "An AI text part: writes text for a generator.",
 	"data-ai-image": "An AI image part: draws a picture for a generator.",
 	"layer-background": "Can be shown as the playlist's background page.",

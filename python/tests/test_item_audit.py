@@ -166,7 +166,7 @@ class TestUses(unittest.TestCase):
 								self.assertEqual({ p["name"] for p in properties(a) } & { p["name"] for p in properties(b) }, set())
 
 # a list source whose list is made fresh every slot (a view of now), so it is not kept; every other list is shown item by item until it is used up, then fetched again
-NOT_KEPT = { "calendar": "its pages are views of now", "weather": "its pages are views of now" }
+NOT_KEPT = { "calendar-pages": "its pages are views of now", "weather": "its pages are views of now" }
 
 class TestKeptLists(unittest.TestCase):
 	def test_every_list_source_is_kept_unless_it_is_a_view_of_now(self):

@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Mapping
 
 from ..data_source import DataSourceExecutionContext
-from .provider import ProviderContract
+from .provider import ProviderContract, device_now  # noqa: F401 (a consumer's time: one definition)
 
 # what can be asked for (`needs`): the weather now, the forecast (the next hours and days)
 NEEDS = ("current", "forecast")
@@ -109,10 +109,6 @@ class Report:
 	days: list[Day] = field(default_factory=list)
 	# where it was asked for (the season depends on the hemisphere)
 	latitude: float|None = None
-
-def device_now(timestamp: datetime) -> datetime:
-	"""The slot's time where the display is: the schedule's timestamp carries the system zone (naive means local)."""
-	return timestamp if timestamp.tzinfo is not None else timestamp.astimezone()
 
 # the parts of a day, from the sun: the twilight on either side of sunrise and sunset is dawn and dusk
 TWILIGHT = timedelta(minutes=45)

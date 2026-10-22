@@ -4,10 +4,10 @@ import unittest
 from datetime import datetime, timedelta
 from typing import Any, cast
 
-import httpx
 
-from ..datasources.calendar.calendar import CalendarAsync
-from ..datasources.calendar.sources import Event
+from ..datasources.calendar.calendar import CalendarSources
+from ..datasources.calendar_pages.calendar_pages import CalendarPagesAsync
+from ..datasources.contracts.calendar import Event
 from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager
 from ..datasources.overlay_text import lines_that_fit
 from ..datasources.reminder_overlay.reminder_overlay import ReminderOverlayAsync, clock, event_lines, title_text, upcoming, when_text, window_minutes
@@ -15,12 +15,11 @@ from ..model.configuration_manager import ConfigurationManager, DatasourceConfig
 from ..model.service_container import ServiceContainer
 from ..model.theme import current_inputs
 from ..plugins.plugin_base import PermanentError
-from ..task.async_http_worker_pool import client_var
 from .fake_internet import FakeInternet
 from .test_calendar import CALENDARS, NOW, FakeSettings, at
 from .test_datasource_fixes import STATIC
 from .test_theme import CHROME, HAVE_CHROME
-from .utils import save_datasource_settings, save_image, test_output_path_for
+from .utils import save_datasource_settings, save_image, test_output_path_for, use_transport
 
 def event(start: datetime, minutes: int = 30, title: str = "Meeting", all_day: bool = False) -> Event:
 	return Event(start, start + timedelta(minutes=minutes), all_day, title, "", "Family", None)
@@ -57,16 +56,16 @@ class TestWords(unittest.TestCase):
 		self.assertEqual(line, [("09:30", "text-secondary-1"), ("  Dentist", "text-primary")])
 
 class Harness:
-	"""A storage with the Calendar settings, and the context the Reminder Overlay gets: its own folder, with the Calendar found by the DataSourceManager."""
+	"""A storage with the Calendar Sources' settings, and the context the Reminder Overlay gets: its own folder, with the calendar provider found by the DataSourceManager."""
 	def __init__(self, test: unittest.TestCase, sources: dict|None = None, settings: dict|None = None):
 		self.fake = FakeInternet()
-		client_var.set(httpx.AsyncClient(transport=self.fake))
+		use_transport(test, self.fake)
 		folder = tempfile.mkdtemp(prefix="eink-reminder-test-")
 		test.addCleanup(shutil.rmtree, folder, True)
 		self.cm = ConfigurationManager(storage_path=folder)
 		self.cm.hard_reset()
-		save_datasource_settings(self.cm, "calendar", { "weekStart": "monday", "weekNumbers": False, "cacheHours": 0.25, "staleDays": 30, "calendars": CALENDARS, "holidays": [], "accounts": [], **(settings or {}) })
-		self.calendar = CalendarAsync("calendar", "Calendar")
+		save_datasource_settings(self.cm, "calendar", { "cacheHours": 0.25, "staleDays": 30, "calendars": CALENDARS, "holidays": [], "accounts": [], **(settings or {}) })
+		self.calendar = CalendarSources("calendar", "Calendar Sources")
 		self.sources = { "calendar": self.calendar } if sources is None else sources
 
 	def context(self, now=NOW, own="reminder-overlay") -> DataSourceExecutionContext:
@@ -95,16 +94,16 @@ class TestAsksTheCalendar(unittest.IsolatedAsyncioTestCase):
 
 	async def test_the_overlay_and_the_calendars_pages_share_one_read(self):
 		h = Harness(self)
-		await h.calendar.open_async(h.context(BEFORE_DENTIST, own="calendar"), { "views": ["agenda"], "calendars": ["Family"] })
+		await CalendarPagesAsync("calendar-pages", "Calendar").open_async(h.context(BEFORE_DENTIST, own="calendar-pages"), { "views": ["agenda"], "calendars": ["Family"] })
 		first = h.asked()
 		overlay = ReminderOverlayAsync("reminder-overlay", "Reminder Overlay")
 		await overlay.open_async(h.context(BEFORE_DENTIST + timedelta(minutes=5)), { "calendars": ["Family"], "windowMinutes": 60 })
 		await overlay.open_async(h.context(BEFORE_DENTIST + timedelta(minutes=10)), { "calendars": ["Family"], "windowMinutes": 30 })
-		self.assertEqual(h.asked(), first, "the overlay's runs asked nobody: the Calendar kept its answer")
+		self.assertEqual(h.asked(), first, "the overlay's runs asked nobody: the calendar provider kept its answer")
 
 	async def test_without_the_calendar_it_says_so(self):
 		h = Harness(self, sources={})
-		with self.assertRaisesRegex(PermanentError, "Calendar data source is not available"):
+		with self.assertRaisesRegex(PermanentError, "No calendar provider is installed"):
 			await ReminderOverlayAsync("reminder-overlay", "Reminder Overlay").open_async(h.context(), {})
 
 	async def test_no_calendars_is_nothing_to_show(self):

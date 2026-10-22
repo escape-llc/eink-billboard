@@ -5,7 +5,7 @@ import os
 import tempfile
 import time
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, cast
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
@@ -14,15 +14,16 @@ import httpx
 
 from ..datasources.calendar.accounts import (AccountError, TokenStore, access_token, finish_google, poll_microsoft, read_account_calendar,
 	read_google, read_microsoft, start)
-from ..datasources.calendar.calendar import CalendarAsync
+from ..datasources.calendar.calendar import CalendarSources
 from ..datasources.data_source import DataSourceExecutionContext
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
 from ..plugins.plugin_base import PermanentError
-from ..task.async_http_worker_pool import AsyncHttpWorkerPool, client_var
+from ..task.async_http_worker_pool import AsyncHttpWorkerPool
 from .test_calendar import NOW, ZONE, FakeSettings, at
 from .test_datasource_fixes import STATIC, _Cob
 from .test_web_api import WebApiTestBase
+from .utils import use_transport
 
 GOOGLE = { "name": "Home", "provider": "google", "clientId": "g-client", "clientSecret": "g-secret" }
 MICROSOFT = { "name": "Work", "provider": "microsoft", "clientId": "m-client", "tenant": "common" }
@@ -264,9 +265,9 @@ class TestSlot(TokenStoreCase):
 		root.add_service(SettingsConfigurationManager, cast(Any, FakeSettings()))
 		root.add_service(StaticConfigurationManager, StaticConfigurationManager(STATIC))
 		fake = FakeProviders()
-		client_var.set(httpx.AsyncClient(transport=fake))
-		pages = await CalendarAsync("calendar", "Calendar").open_async(DataSourceExecutionContext(root, (800, 480), NOW), {})
-		self.assertEqual({ (e.calendar, e.title) for e in pages[0].slot.events }, { ("Mine", "Dentist"), ("Mine", "School holiday"), ("Job", "Standup"), ("Job", "Offsite") })
+		use_transport(self, fake)
+		answer = await CalendarSources("calendar", "Calendar Sources").open_async(DataSourceExecutionContext(root, (800, 480), NOW), { "start": NOW, "end": NOW + timedelta(days=31) })
+		self.assertEqual({ (e.calendar, e.title) for e in answer.events }, { ("Mine", "Dentist"), ("Mine", "School holiday"), ("Job", "Standup"), ("Job", "Offsite") })
 		self.assertIn("/v1.0/me/calendars/AAMk-1/calendarView", [r.url.path for r in fake.requests])
 
 class TestConnectRoutes(WebApiTestBase):

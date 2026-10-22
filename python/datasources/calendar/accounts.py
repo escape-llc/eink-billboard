@@ -309,7 +309,7 @@ async def access_token(client: httpx.AsyncClient, account: Mapping[str, Any], st
 	name = str(account.get("name"))
 	record = store.get(name, client_id)
 	if record is None:
-		raise PermanentError(f"The account '{name}' is not connected: use Connect in the Calendar settings.")
+		raise PermanentError(f"The account '{name}' is not connected: use Connect in the Calendar Sources settings.")
 	if record.get("access_token") and float(record.get("expires_at") or 0) - EARLY_SECONDS > time.time():
 		return str(record["access_token"])
 	if provider == "google":
@@ -324,7 +324,7 @@ async def access_token(client: httpx.AsyncClient, account: Mapping[str, Any], st
 		store.put(name, _record(provider, client_id, body, record))
 		return str(body["access_token"])
 	if body.get("error") in ("invalid_grant", "invalid_client", "unauthorized_client", "interaction_required"):
-		raise PermanentError(f"Sign in to the account '{name}' again: use Connect in the Calendar settings.")
+		raise PermanentError(f"Sign in to the account '{name}' again: use Connect in the Calendar Sources settings.")
 	raise RuntimeError(f"The account '{name}' could not be refreshed ({_code(body, status)}).")
 
 async def _get_json(client: httpx.AsyncClient, url: str, token: str, params: Mapping[str, str]|None = None, headers: Mapping[str, str]|None = None) -> dict:
@@ -415,7 +415,7 @@ async def read_account_calendar(client: httpx.AsyncClient, entry: Mapping[str, A
 	name = str(entry.get("name"))
 	account = find_account(settings, entry.get("account"))
 	if account is None:
-		raise PermanentError(f"The calendar '{name}' names no account in the Calendar settings.")
+		raise PermanentError(f"The calendar '{name}' names no account in the Calendar Sources settings.")
 	if account.get("provider") != entry.get("source"):
 		raise PermanentError(f"The calendar '{name}' is {entry.get('source')}, but its account '{account.get('name')}' is {account.get('provider')}.")
 	token = await access_token(client, account, store)

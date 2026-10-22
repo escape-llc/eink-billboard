@@ -1,12 +1,11 @@
 """
-Reading events for the Calendar data source: iCal files (a link, `webcal` read as `https`), CalDAV servers (one REPORT with a time range)
+Reading events for the Calendar Sources (the calendar provider): iCal files (a link, `webcal` read as `https`), CalDAV servers (one REPORT with a time range)
 and holidays (the `holidays` package). Everything comes out as `Event`s in the device zone, recurrences expanded.
 
 Messages raised from here are ours: they never hold an address, a secret or exception text.
 """
 import base64
 import re
-from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone, tzinfo
 from typing import Any, Iterable, Mapping
 from xml.etree import ElementTree
@@ -18,6 +17,7 @@ import recurring_ical_events
 
 from ...plugins.plugin_base import PermanentError
 from ...utils.url_guard import stream_checked
+from ..contracts.calendar import Event
 
 # a calendar file is text: a big family calendar with years of history is a few megabytes
 MAX_CALENDAR_BYTES = 5 * 1024 * 1024
@@ -27,24 +27,6 @@ TITLE_CHARS = 120
 MAX_OCCURRENCES = 20000
 _COLOR = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 _SPACE = re.compile(r"\s+")
-
-@dataclass(frozen=True)
-class Event:
-	"""One occurrence, in the device zone. `end` is exclusive; an all-day event starts and ends at midnight."""
-	start: datetime
-	end: datetime
-	all_day: bool
-	title: str
-	location: str
-	calendar: str
-	color: str|None
-	holiday: bool = False
-
-	def days(self) -> list[date]:
-		"""The days the event shows on (an event ending at midnight does not show on the day it ends)."""
-		first = self.start.date()
-		last = (self.end - timedelta(microseconds=1)).date() if self.end > self.start else first
-		return [first + timedelta(days=n) for n in range((last - first).days + 1)]
 
 def event_to_json(event: Event) -> dict[str, Any]:
 	"""An event as what a kept answer holds (JSON): the moments carry their offset."""

@@ -4,7 +4,7 @@ export function missingUses(uses: string[]|undefined, available: { id: string }[
 }
 
 /** What a capability (`data-*`) is called in a message; the others read as their feature word. */
-const CAPABILITY_NOUNS: Record<string, string> = { "data-weather": "weather", "data-ai-text": "AI text", "data-ai-image": "AI image" }
+const CAPABILITY_NOUNS: Record<string, string> = { "data-weather": "weather", "data-calendar": "calendar", "data-ai-text": "AI text", "data-ai-image": "AI image" }
 
 /**
  * The capabilities a chosen source requires (`requires` in its descriptor) that no provider on the device supplies (a provider is `api` and lists the

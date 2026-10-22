@@ -167,13 +167,15 @@ def _item_validator(cm, kind: Kind = TASKS):
 		"""The stored settings of a plugin or data source, which its `settings` lookups choose from (ids here are the descriptors' own)."""
 		manager = cm.plugin_manager(ident) if owner == "plugin" else cm.datasource_manager(ident)
 		return manager.open().get()[1]
+	# the device's providers, which a lookup `from` a capability reads (`from_source`)
+	_, system = cm.settings_manager().open("system").get()
 	if kind is TASKS:
 		def validate_task(item: dict) -> list[dict]:
 			task = item.get("task") or {}
-			return plugin_content_errors(plugins, datasources, task.get("plugin_name"), task.get("content") or {}, ["task"], settings_of)
+			return plugin_content_errors(plugins, datasources, task.get("plugin_name"), task.get("content") or {}, ["task"], settings_of, system)
 		return validate_task
 	def validate_track(item: dict) -> list[dict]:
-		return plugin_content_errors(plugins, datasources, item.get("plugin_name"), item.get("content") or {}, [], settings_of)
+		return plugin_content_errors(plugins, datasources, item.get("plugin_name"), item.get("content") or {}, [], settings_of, system)
 	return validate_track
 
 def _store(cm, kind: Kind = TASKS) -> ScheduleStore:

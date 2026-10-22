@@ -1,6 +1,4 @@
 {
-	"weekStart": "monday",
-	"weekNumbers": false,
 	"calendars": [
 		{
 			"name": "Family",

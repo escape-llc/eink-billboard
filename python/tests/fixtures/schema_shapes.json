@@ -16,16 +16,6 @@
 	"urn:inky:storage:schema:datasource:calendar": {
 		"version": 1,
 		"properties": {
-			"weekStart": {
-				"type": "string",
-				"enum": [
-					"monday",
-					"sunday"
-				]
-			},
-			"weekNumbers": {
-				"type": "boolean"
-			},
 			"cacheHours": {
 				"type": "number"
 			},
@@ -40,6 +30,21 @@
 			},
 			"holidays": {
 				"type": "array"
+			}
+		}
+	},
+	"urn:inky:storage:schema:datasource:calendar-pages": {
+		"version": 1,
+		"properties": {
+			"weekStart": {
+				"type": "string",
+				"enum": [
+					"monday",
+					"sunday"
+				]
+			},
+			"weekNumbers": {
+				"type": "boolean"
 			}
 		}
 	},
@@ -381,6 +386,9 @@
 				"type": "location"
 			},
 			"weatherProvider": {
+				"type": "string"
+			},
+			"calendarProvider": {
 				"type": "string"
 			},
 			"units": {
