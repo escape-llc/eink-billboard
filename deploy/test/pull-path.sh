@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The pull path of deploy/eink-container.sh (#310), end to end, with no Pi and no GitHub: in a Debian Bookworm container (the Pi's Podman 4.3), a registry of its
 # own on localhost:5000 stands in for ghcr.io, small images labelled as GitHub labels them stand in for its builds, and a `podman build` shim makes a "build"
-# in a second. The real script then gets, falls back, keeps the previous image, tidies the older ones and rolls back.
+# in a second. The real script then gets, refuses what it cannot download (it never builds unless asked), keeps the previous image, tidies the older ones and
+# rolls back; and "update" follows its channel (#504) over a repository of its own standing in for GitHub's, with snapshot tags and a release.
 #
 #   podman run --rm --privileged -v "$PWD:/src:ro" docker.io/library/debian:bookworm bash /src/deploy/test/pull-path.sh
 #   (Git Bash on Windows: MSYS_NO_PATHCONV=1, and "$(pwd -W)" for the folder)
@@ -117,11 +118,18 @@ echo "== the same commit again: nothing to do"
 out=$(kit get 2>&1)
 check "it says the image is already this checkout's" grep -q "already this checkout's" <<< "$out"
 
-echo "== a commit with nothing published is built here, and the one before is kept"
+echo "== a commit with nothing published is refused, not built"
 commit B
 B=$(short)
 out=$(kit get 2>&1)
+check "it fails" [ $? -ne 0 ]
 check "it says there is nothing to download" grep -q "no image to download" <<< "$out"
+check "it says what to do instead" grep -q "update --insider" <<< "$out"
+check "nothing was built" [ "$(builds)" -eq 0 ]
+check "the app's image is still $A" [ "$(label "$APP" eink.commit)" = "$A" ]
+
+echo "== EINK_PULL=0 builds it here, and the one before is kept"
+EINK_PULL=0 kit get >/dev/null 2>&1
 check "it built once" [ "$(builds)" -eq 1 ]
 check "the app's image is $B, built here" [ "$(label "$APP" eink.commit)/$(label "$APP" eink.built-by)" = "$B/local" ]
 check "the previous image is $A" [ "$(label "$PREV" eink.commit)" = "$A" ]
@@ -144,13 +152,14 @@ out=$(kit get 2>&1)
 check "it asked for the tag" grep -q "(v9.9.9-test)" <<< "$out"
 check "the app's image is $D" [ "$(label "$APP" eink.commit)" = "$D" ]
 
-echo "== an image that says it is another commit is refused, and built here"
+echo "== an image that says it is another commit is refused, and nothing is built"
 commit E
-E=$(short)
 check "published sha-E labelled $A" publish "sha-$(full)" "$A"
+before=$(builds)
 out=$(kit get 2>&1)
 check "it says the image is another commit" grep -q "says it is commit $A" <<< "$out"
-check "the app's image is $E, built here" [ "$(label "$APP" eink.commit)/$(label "$APP" eink.built-by)" = "$E/local" ]
+check "nothing was built" [ "$(builds)" -eq "$before" ]
+check "the app's image is still $D" [ "$(label "$APP" eink.commit)" = "$D" ]
 
 echo "== EINK_PULL=0 builds even when there is a download"
 commit F
@@ -161,19 +170,18 @@ out=$(EINK_PULL=0 kit get 2>&1)
 check "it built" [ "$(builds)" -eq $((before + 1)) ]
 check "the app's image is $F, built here" [ "$(label "$APP" eink.commit)/$(label "$APP" eink.built-by)" = "$F/local" ]
 
-echo "== a download that stops moving is given up, and built here"
+echo "== a download that stops moving is given up, and nothing is built"
 # a port that takes the connection and never answers: the network that went away halfway
 nc -lk 127.0.0.1 5001 >/dev/null 2>&1 &
 sink=$!
 commit G
-G=$(short)
 before=$(builds)
 out=$(KIT_REGISTRY=localhost:5001/eink-billboard EINK_PULL_TICK=1 EINK_PULL_STALL=4 kit get 2>&1)
 kill "$sink" 2>/dev/null
 check "it said how it was going, in plain lines" grep -q "MB written so far" <<< "$out"
 check "it said the download stopped moving" grep -q "stopped moving" <<< "$out"
-check "it built instead" [ "$(builds)" -eq $((before + 1)) ]
-check "the app's image is $G, built here" [ "$(label "$APP" eink.commit)/$(label "$APP" eink.built-by)" = "$G/local" ]
+check "nothing was built" [ "$(builds)" -eq "$before" ]
+check "the app's image is still $F" [ "$(label "$APP" eink.commit)" = "$F" ]
 check "no download is left running" no_pull_left
 
 echo "== rollback swaps the app's image and the previous one (the start after it fails here: there is no app in these images)"
@@ -186,6 +194,84 @@ check "the previous image is $now" [ "$(label "$PREV" eink.commit)" = "$now" ]
 check "no swap name is left" bash -c "! podman image exists '$APP-swap'"
 out=$(printf 'no\n' | script -qec "cd $CLONE && deploy/eink-container.sh rollback" /dev/null 2>&1)
 check "anything but yes changes nothing" [ "$(label "$APP" eink.commit)" = "$was" ]
+
+echo "== channels: the clone's repository stands in for GitHub's, a second clone makes the commits and the tags"
+ORIGIN=/home/pi/origin.git
+WORK=/home/pi/work
+CHANNEL_FILE=/home/pi/.config/eink-billboard/channel
+git clone -q --bare "$CLONE" "$ORIGIN"
+git -C "$CLONE" remote add origin "$ORIGIN"
+git -C "$CLONE" fetch -q origin
+git clone -q "$ORIGIN" "$WORK"
+git -C "$WORK" config user.email test@example.invalid
+git -C "$WORK" config user.name test
+at() { git -C "$CLONE" rev-parse HEAD; }
+on_branch() { git -C "$CLONE" symbolic-ref -q HEAD >/dev/null; }
+# a change on master as GitHub's workflow makes it: the commit, its snapshot tag ($1), and its image (unless $2 is "none")
+snapshot() {
+	git -C "$WORK" commit -q --allow-empty -m "change $1"
+	git -C "$WORK" tag "$1"
+	git -C "$WORK" push -q origin master "$1"
+	[ "${2:-}" = none ] || publish "sha-$(git -C "$WORK" rev-parse HEAD)" "$(git -C "$WORK" rev-parse --short=7 HEAD)"
+}
+# a person at the keyboard answers $1
+answer() { local reply=$1; shift; printf '%s\n' "$reply" | script -qec "cd $CLONE && EINK_REGISTRY=$REGISTRY EINK_REGISTRY_TLS_VERIFY=false PATH=$SHIM:\$PATH deploy/eink-container.sh $*" /dev/null 2>&1; }
+
+rm -f "$CHANNEL_FILE"
+was=$(at)
+out=$(kit update 2>&1)
+check "a Pi on master with no channel follows insider, and with no snapshot yet it says so" grep -q "no version to download yet" <<< "$out"
+check "nothing moved" bash -c "[ '$(at)' = '$was' ]"
+check "it is still on its branch" on_branch
+
+check "a snapshot is published" snapshot 20261022100000
+H=$(git -C "$WORK" rev-parse HEAD)
+out=$(kit update 2>&1)
+check "update goes to the newest snapshot" [ "$(at)" = "$H" ]
+check "it says the channel" grep -q "Channel: insider" <<< "$out"
+check "it downloaded the snapshot's image" [ "$(label "$APP" eink.commit)/$(label "$APP" eink.built-by)" = "${H::7}/github" ]
+check "the channel is kept" [ "$(cat "$CHANNEL_FILE")" = insider ]
+
+check "a newer snapshot is published" snapshot 20261022110000
+I=$(git -C "$WORK" rev-parse HEAD)
+kit update >/dev/null 2>&1
+check "update goes to it" [ "$(at)" = "$I" ]
+
+out=$(kit update --stable 2>&1)
+check "the release is older: without a person to say yes, nothing moves" grep -q "needs a yes" <<< "$out"
+check "still on the newest snapshot" [ "$(at)" = "$I" ]
+out=$(answer yes update --stable)
+check "with a yes, stable goes back to the release" [ "$(git -C "$CLONE" describe --tags --exact-match)" = v9.9.9-test ]
+check "it downloaded the release's image" [ "$(label "$APP" eink.commit)" = "$D" ]
+check "the channel is stable" [ "$(cat "$CHANNEL_FILE")" = stable ]
+
+kit update 20261022100000 >/dev/null 2>&1
+check "a snapshot named is gone to (forward, no question)" [ "$(at)" = "$H" ]
+check "and kept: the channel is pinned" [ "$(cat "$CHANNEL_FILE")" = pinned ]
+check "a newer snapshot is published" snapshot 20261022120000
+out=$(kit update 2>&1)
+check "a pinned Pi stays where it is" [ "$(at)" = "$H" ]
+check "and says how to follow a channel again" grep -q "which stays" <<< "$out"
+
+git -C "$WORK" push -q origin :refs/tags/20261022120000
+kit update --master >/dev/null 2>&1
+check "--master is insider" [ "$(cat "$CHANNEL_FILE")" = insider ]
+check "a snapshot GitHub removed is gone from the clone too" bash -c "! git -C '$CLONE' rev-parse -q --verify refs/tags/20261022120000 >/dev/null"
+check "so the newest left is used" [ "$(at)" = "$I" ]
+
+check "a snapshot without an image" snapshot 20261022130000 none
+J=$(git -C "$WORK" rev-parse HEAD)
+before=$(builds)
+out=$(kit update 2>&1)
+check "the clone goes to it" [ "$(at)" = "$J" ]
+check "nothing is built" [ "$(builds)" -eq "$before" ]
+check "the app keeps its image" [ "$(label "$APP" eink.commit)" = "${I::7}" ]
+check "and it says what to do" grep -q "update --insider" <<< "$out"
+
+out=$(kit update --bogus 2>&1)
+check "an unknown option is refused by name" grep -q "no option '--bogus'" <<< "$out"
+out=$(kit update no-such-thing 2>&1)
+check "an unknown name is refused" grep -q "no release, snapshot or branch 'no-such-thing'" <<< "$out"
 
 echo
 echo "$passed passed, $failed failed"

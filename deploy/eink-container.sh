@@ -2,9 +2,12 @@
 # eInk Billboard in a Podman container on a Raspberry Pi 4 or 5, built from this checkout.
 # Everything needed to build it, run it and find out why it does not work. Run it as yourself (not with sudo), from anywhere:
 #
-#   deploy/eink-container.sh update [TAG]        bring it up to date: fetch the latest code, get its image, start it (data kept); TAG switches to that release
-#   deploy/eink-container.sh get                 get the image of this checkout: download the one GitHub made (a few minutes), or build it when there is none
-#   deploy/eink-container.sh build               build the image from this checkout as it is (15 to 20 minutes the first time, a few after a change)
+#   deploy/eink-container.sh update              bring it up to date on its channel: the newest version of it, its image downloaded, started (data kept)
+#   deploy/eink-container.sh update --stable     follow the releases from now on (the default for a new Pi; the newest snapshot while there is no release)
+#   deploy/eink-container.sh update --insider    follow the snapshots from now on: every change, a few minutes after it is made (--master is the same)
+#   deploy/eink-container.sh update TAG          go to that release or snapshot and stay there (until --stable or --insider)
+#   deploy/eink-container.sh get                 download the image GitHub made for this checkout (a few minutes); it says what to do when there is none
+#   deploy/eink-container.sh build               build the image here instead, from this checkout as it is (15 to 20 minutes the first time, a few after a change)
 #   deploy/eink-container.sh rollback            go back to the image that ran before the last update or build, and start it (again: forward); asks first
 #   deploy/eink-container.sh start               start the app (or start it again), with the panel's devices, on port 8080 of every address of the Pi
 #   deploy/eink-container.sh stop                stop it (the settings, schedules and password are kept)
@@ -27,7 +30,7 @@
 #   EINK_API_TOKEN     a token for scripts; it also counts as setting the device up (no setup code then)
 #   EINK_NAME, EINK_IMAGE, EINK_VOLUME   the container (eink), the image (localhost/eink-device), the data volume (eink-data)
 #   EINK_REGISTRY      where the images GitHub made are downloaded from (ghcr.io/escape-llc/eink-billboard)
-#   EINK_PULL          0: never download, always build here
+#   EINK_PULL          0: never download: get builds here instead
 #
 # What the Pi needs: Raspberry Pi OS 64-bit, Podman (sudo apt install podman), SPI on (and I2C for an Inky panel: sudo raspi-config, Interface Options),
 # and your user in the spi, i2c and gpio groups. "check" says which of these is missing and how to fix it.
@@ -46,6 +49,8 @@ PORT=${EINK_PORT:-8080}
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 SCRIPT="deploy/eink-container.sh"
 LOG_DIR=${XDG_CACHE_HOME:-$HOME/.cache}/eink-billboard
+# the channel "update" follows (#504): stable (the newest release), insider (the newest snapshot), pinned (a tag that stays) or branch (development)
+CHANNEL_FILE=${XDG_CONFIG_HOME:-$HOME/.config}/eink-billboard/channel
 # the panel's devices: SPI (both chip selects), I2C bus 1 (where an Inky says what it is) and the 40-pin header's GPIO chip. That is gpiochip0 on a Pi 4,
 # and on a Pi 5 with a current kernel, where gpiochip4 is only a link to it: Podman does not pass a link in, and it is not needed.
 DEVICES=(/dev/spidev0.0 /dev/spidev0.1 /dev/i2c-1 /dev/gpiochip0)
@@ -303,9 +308,8 @@ pull_plainly() {
 	return "$status"
 }
 
-# download the image GitHub made for this checkout and give it the app's name; fails, changing nothing, when there is none, it is not this checkout's, or EINK_PULL=0
+# download the image GitHub made for this checkout and give it the app's name; fails, changing nothing, when there is none or it is not this checkout's
 pull_image() {
-	[ "${EINK_PULL:-1}" != 0 ] || { say "EINK_PULL=0: not downloading, building here."; return 1; }
 	local tag ref made
 	tag=$(published_tag) || return 1
 	ref="$REGISTRY:$tag"
@@ -314,40 +318,46 @@ pull_image() {
 	pull_plainly "$ref"
 	pulled=$?
 	if [ "$pulled" -eq 124 ]; then
-		warn "the download stopped moving (nothing was written for $((PULL_STALL_SECONDS / 60)) minutes; is the Pi's internet slow or gone?): building it here instead. 'update' again tries the download again."
+		warn "the download stopped moving (nothing was written for $((PULL_STALL_SECONDS / 60)) minutes; is the Pi's internet slow or gone?). Run it again: it starts the download again."
 		return 1
 	elif [ "$pulled" -ne 0 ]; then
-		warn "there is no image to download for this version (GitHub may still be making it, a few minutes after a change, or there is none for this kind of machine): building it here instead. What Podman said is in $LOG_DIR/pull.log."
+		warn "there is no image to download for this version: GitHub makes one a few minutes after a change reaches master, and none for a branch of your own. What Podman said is in $LOG_DIR/pull.log."
 		return 1
 	fi
 	# the image says which commit it is: it must be this checkout's, or the app and the clone would disagree
 	made=$(image_commit "$ref")
 	if ! same_commit "$made"; then
-		warn "the downloaded image says it is commit $made, not this checkout's ($(git -C "$HERE" rev-parse --short HEAD)): building it here instead."
+		warn "the downloaded image says it is commit $made, not this checkout's ($(git -C "$HERE" rev-parse --short HEAD)), so it is not used."
 		# "untag IMAGE NAME" removes that one name; "untag IMAGE" alone removes every name the image has (the app's too)
 		podman untag "$ref" "$ref" >/dev/null 2>&1
 		return 1
 	fi
 	keep_previous
-	podman tag "$ref" "$IMAGE" || { warn "the downloaded image could not be named $IMAGE: building it here instead."; return 1; }
+	podman tag "$ref" "$IMAGE" || { warn "the downloaded image could not be named $IMAGE."; return 1; }
 	# one name only: when the next image takes the app's name, this one is left with none, and goes
 	podman untag "$ref" "$ref" >/dev/null 2>&1
 	say "Downloaded $IMAGE (commit $made, made by GitHub)."
 	return 0
 }
 
-# the image of this checkout: downloaded when GitHub made it, else built here
+# the image of this checkout, downloaded: nobody should wait for a build, so one is made here only when asked for (build, or EINK_PULL=0)
 cmd_get() {
 	if same_commit "$(image_commit)" && podman image exists "$IMAGE"; then
 		say "The image is already this checkout's (commit $(image_commit), made by $(image_maker))."
 		return 0
+	fi
+	if [ "${EINK_PULL:-1}" = 0 ]; then
+		say "EINK_PULL=0: not downloading, building here."
+		cmd_build
+		return
 	fi
 	if pull_image; then
 		tidy_images
 		[ "${IN_UPDATE:-0}" = 1 ] || say "Start it with:  $SCRIPT start"
 		return 0
 	fi
-	cmd_build
+	fail "the app was not changed: it still has the image it had (commit $(image_commit)).
+       '$SCRIPT update --insider' goes to the newest version GitHub has made an image of; '$SCRIPT build' builds this one here instead (15 to 20 minutes)."
 }
 
 # go back to the image that ran before (and "rollback" again goes forward): the two swap names, then the app starts on it
@@ -366,34 +376,104 @@ cmd_rollback() {
 	cmd_start
 }
 
-# fetch the latest code, build it, start it: the one command for "bring it up to date" ($1, optional: a branch or tag to switch to)
+# the newest release (v..., by version) and the newest snapshot (14 digits: its commit's time in UTC) among the clone's tags; nothing when there is none
+# (the same two rules are in deploy/bootstrap.sh, for a Pi's first clone)
+newest_release() { git -C "$HERE" tag -l 'v*' --sort=-v:refname | grep -E '^v[0-9A-Za-z._-]{1,100}$' | head -n 1; }
+newest_snapshot() { git -C "$HERE" tag -l '[0-9]*' | grep -E '^[0-9]{14}$' | sort | tail -n 1; }
+
+# the channel "update" follows: the one it saved; on a Pi set up before channels, what the clone follows now (master: insider; another branch: that
+# branch; a tag: that tag), so nothing moves to another kind of version on its own
+channel() {
+	local saved
+	saved=$(cat "$CHANNEL_FILE" 2>/dev/null)
+	case "$saved" in stable|insider|pinned|branch) echo "$saved"; return 0 ;; esac
+	if git -C "$HERE" symbolic-ref -q HEAD >/dev/null; then
+		if [ "$(git -C "$HERE" symbolic-ref -q --short HEAD)" = master ]; then echo insider; else echo branch; fi
+	else
+		echo pinned
+	fi
+}
+
+# what the clone is on, for people: its tag (a release or a snapshot) and commit, or its branch and commit
+version_name() {
+	local tag branch short
+	short=$(git -C "$HERE" rev-parse --short HEAD 2>/dev/null || echo unknown)
+	if tag=$(git -C "$HERE" describe --tags --exact-match 2>/dev/null); then echo "$tag (commit $short)"
+	elif branch=$(git -C "$HERE" symbolic-ref -q --short HEAD); then echo "branch $branch (commit $short)"
+	else echo "commit $short"; fi
+}
+
+# fetch the latest code and go to the version the channel names, get its image, start it: the one command for "bring it up to date"
+# ($1, optional: --stable or --insider to change the channel, a tag to go to and stay on, or a branch to follow, for development)
 cmd_update() {
-	local want=${1:-}
+	local want="" follow=""
+	[ $# -le 1 ] || fail "update takes one of: --stable, --insider, or the name of a release or snapshot."
+	case "${1:-}" in
+		"") ;;
+		--stable) follow=stable ;;
+		--insider|--master) follow=insider ;;
+		-*) fail "there is no option '$1' for update: --stable (the releases), --insider (every change; --master is the same), or the name of a release or snapshot." ;;
+		*) want=$1 ;;
+	esac
 	command -v git >/dev/null || fail "git is not installed. Install it with:  sudo apt install -y git"
 	git -C "$HERE" rev-parse --git-dir >/dev/null 2>&1 || fail "$HERE is not a git clone, so it cannot be updated. Run the setup command again, it makes one."
 	git -C "$HERE" diff --quiet && git -C "$HERE" diff --cached --quiet \
 		|| fail "the clone in $HERE has changes of its own, and updating would mix them in. Undo them (git -C $HERE stash), then run it again."
 
 	section "Getting the latest code"
-	local before branch
+	local before target="" branch
 	before=$(git -C "$HERE" rev-parse --short HEAD)
-	git -C "$HERE" fetch --tags --prune origin || fail "the latest code could not be fetched: is the Pi on the internet?"
+	# the snapshots GitHub removed go from here too, so the newest one here is one GitHub still has an image of
+	git -C "$HERE" fetch -q --tags --prune --prune-tags origin || fail "the latest code could not be fetched: is the Pi on the internet?"
 	if [ -n "$want" ]; then
-		git -C "$HERE" rev-parse -q --verify "origin/$want^{commit}" >/dev/null 2>&1 || git -C "$HERE" rev-parse -q --verify "refs/tags/$want^{commit}" >/dev/null 2>&1 \
-			|| fail "there is no branch or tag '$want'. The branches and tags there are:  git -C $HERE branch -r; git -C $HERE tag"
-		git -C "$HERE" checkout -q "$want" || fail "could not switch to '$want'."
+		if git -C "$HERE" rev-parse -q --verify "refs/tags/$want^{commit}" >/dev/null 2>&1; then
+			follow=pinned
+			target=$want
+		elif git -C "$HERE" rev-parse -q --verify "refs/remotes/origin/$want^{commit}" >/dev/null 2>&1; then
+			follow=branch
+			git -C "$HERE" checkout -q "$want" || fail "could not switch to '$want'."
+		else
+			fail "there is no release, snapshot or branch '$want'. The releases and snapshots:  git -C $HERE tag   (or '$SCRIPT update --stable' for the newest release)"
+		fi
 	fi
-	if branch=$(git -C "$HERE" symbolic-ref -q --short HEAD); then
-		git -C "$HERE" rev-parse -q --verify "origin/$branch" >/dev/null \
-			|| fail "the branch '$branch' is not in the repository the clone came from, so there is nothing to update it from. Go back to the usual one:  $SCRIPT update master"
+	[ -n "$follow" ] || follow=$(channel)
+	case "$follow" in
+		stable)
+			target=$(newest_release)
+			if [ -z "$target" ]; then
+				target=$(newest_snapshot)
+				[ -z "$target" ] || say "There is no release yet: the newest snapshot ($target) is used until there is one."
+			fi ;;
+		insider) target=$(newest_snapshot) ;;
+		pinned) [ -n "$target" ] || target=$(git -C "$HERE" describe --tags --exact-match 2>/dev/null || true) ;;
+	esac
+	case "$follow" in
+		stable|insider) [ -n "$target" ] || fail "GitHub has made no version to download yet (it makes one a few minutes after each change). Try again in a few minutes. Nothing was changed." ;;
+	esac
+
+	if [ "$follow" = branch ]; then
+		branch=$(git -C "$HERE" symbolic-ref -q --short HEAD) || fail "the clone is on no branch: '$SCRIPT update --stable' or '--insider' gives it a channel."
+		git -C "$HERE" rev-parse -q --verify "refs/remotes/origin/$branch" >/dev/null \
+			|| fail "the branch '$branch' is not in the repository the clone came from, so there is nothing to update it from. Choose a channel:  $SCRIPT update --insider"
 		# a branch moves on: take what is new (only forward; a clone with commits of its own is not touched)
 		git -C "$HERE" merge -q --ff-only "origin/$branch" 2>/dev/null \
 			|| fail "the clone cannot simply move forward to the latest '$branch' (it has commits of its own). Nothing was changed."
-		say "On $branch, now at commit $(git -C "$HERE" rev-parse --short HEAD) (was $before)."
-	else
-		# a tag stays where it is: a newer release is chosen by name, "update v1.2"
-		say "On $(git -C "$HERE" describe --tags --exact-match 2>/dev/null || echo "commit $before"), which does not move. For another release:  $SCRIPT update <tag>"
+		warn "the branch $branch is followed as it is, for development: GitHub makes images of master's snapshots only, so a version with none is built here with '$SCRIPT build'."
+	elif [ -n "$target" ] && [ "$(git -C "$HERE" rev-parse "refs/tags/$target^{commit}")" != "$(git -C "$HERE" rev-parse HEAD)" ]; then
+		# going back to an older version: settings the newer one saved in a newer shape are only named by the older one, and left as they are
+		if git -C "$HERE" merge-base --is-ancestor "refs/tags/$target" HEAD 2>/dev/null; then
+			confirm "This goes back from $(version_name) to the older $target. Your data is kept; settings the newer version saved in a newer shape are named by the older one (log, System page) and left as they are." "yes"
+		fi
+		git -C "$HERE" checkout -q "refs/tags/$target" || fail "could not switch to $target."
 	fi
+	mkdir -p "$(dirname "$CHANNEL_FILE")"
+	printf '%s\n' "$follow" > "$CHANNEL_FILE"
+	case "$follow" in
+		stable) say "Channel: stable (the releases). On $(version_name), was commit $before." ;;
+		insider) say "Channel: insider (every change). On $(version_name), was commit $before." ;;
+		pinned) say "On $(version_name), which stays: '$SCRIPT update --stable' or '--insider' follows a channel again." ;;
+		branch) say "Following $(version_name), was commit $before." ;;
+	esac
 
 	if same_commit "$(image_commit)" && podman image exists "$IMAGE"; then
 		if running; then
@@ -552,6 +632,7 @@ cmd_check() {
 	done
 
 	section "the app"
+	info "the code: $(version_name), on the $(channel) channel ('$SCRIPT update --stable' or '--insider' changes it)"
 	if podman image exists "$IMAGE"; then
 		local built
 		built=$(image_commit)
@@ -570,7 +651,7 @@ cmd_check() {
 			info "this checkout is at commit $checkout, the image at $built: to run the checkout, '$SCRIPT update'"
 		fi
 	else
-		problem "no image yet:  $SCRIPT build"
+		problem "no image yet:  $SCRIPT update"
 	fi
 	if ! running; then
 		if exists; then
