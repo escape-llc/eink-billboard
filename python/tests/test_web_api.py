@@ -458,11 +458,11 @@ class TestChoicesInsideChoices(unittest.TestCase):
 			{ "name": "rewrite", "type": "boolean", "default": True },
 			{ "name": "textSource", "type": "schema", "required": True, "default": "text-a", "lookup": "text", "visibleIf": { "field": "rewrite", "const": True } },
 			{ "name": "imageSource", "type": "schema", "required": True, "default": "image-a", "lookup": "image" },
-		], { "text": { "schema": "data-sources", "features": ["ai-text"] }, "image": { "schema": "data-sources", "features": ["ai-image"] } }, ["layer-background"])
+		], { "text": { "schema": "data-sources", "features": ["data-ai-text"] }, "image": { "schema": "data-sources", "features": ["data-ai-image"] } }, ["layer-background"])
 		master["info"].update(id="master", name="Master")
-		image_a = _content_item([{ "name": "imageModel", "type": "string", "required": True, "default": "m-1" }, { "name": "quality", "type": "string", "enum": ["low", "high"], "default": "low" }], features=["api", "ai-image"])
+		image_a = _content_item([{ "name": "imageModel", "type": "string", "required": True, "default": "m-1" }, { "name": "quality", "type": "string", "enum": ["low", "high"], "default": "low" }], features=["api", "data-ai-image"])
 		image_a["info"].update(id="image-a", name="Image A")
-		text_a = _content_item([{ "name": "textModel", "type": "string", "required": True, "default": "t-1" }], features=["api", "ai-text"])
+		text_a = _content_item([{ "name": "textModel", "type": "string", "required": True, "default": "t-1" }], features=["api", "data-ai-text"])
 		text_a["info"].update(id="text-a", name="Text A")
 		return { "master": master, "image-a": image_a, "text-a": text_a }
 

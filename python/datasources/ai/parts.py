@@ -12,7 +12,7 @@ from ..data_source import DataSource, DataSourceApi, DataSourceExecutionContext
 class AiTextApi(DataSource, DataSourceApi):
 	"""
 	`open_async(dsec, params)`: `params` is the task's content with `instructions` (what the text is for) and `input` (the text to work on) added;
-	the answer is the text the model wrote (a `str`). Its own fields (`textModel`) are in the content. A feature `ai-text` in its descriptor.
+	the answer is the text the model wrote (a `str`). Its own fields (`textModel`) are in the content. A feature `data-ai-text` in its descriptor.
 	"""
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> str:
 		# not abstract: `dsec.use(id, AiTextApi)` takes the class itself
@@ -22,7 +22,7 @@ class AiImageApi(DataSource, DataSourceApi):
 	"""
 	`open_async(dsec, params)`: `params` is the task's content with `prompt`, `width` and `height` (the picture the panel shows, as the viewer
 	sees it) added; the answer is the picture (an RGB `Image`), whatever its shape (the Generated Image fits it). Its own fields (`imageModel`,
-	`quality`, ...) are in the content. A feature `ai-image` in its descriptor.
+	`quality`, ...) are in the content. A feature `data-ai-image` in its descriptor.
 	"""
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> Image.Image:
 		raise NotImplementedError

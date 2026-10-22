@@ -8,12 +8,13 @@
 	"description": "A picture drawn by an AI image model from your prompt, which an AI text model can rewrite first. Choose the text and the image source separately: the text of one provider can go with the picture of another. The keys are in each provider's settings.",
 	"describe": "AI image {prompt}",
 	"disabled": false,
+	"requires": ["data-ai-text", "data-ai-image"],
 	"features": ["paid-service", "api-client", "layer-background", "media-image"],
 	"instanceSettings": {
 		"schema": {
 			"lookups": {
-				"textSource": { "schema": "data-sources", "features": ["ai-text"] },
-				"imageSource": { "schema": "data-sources", "features": ["ai-image"] }
+				"textSource": { "schema": "data-sources", "features": ["data-ai-text"] },
+				"imageSource": { "schema": "data-sources", "features": ["data-ai-image"] }
 			},
 			"properties": [
 				{

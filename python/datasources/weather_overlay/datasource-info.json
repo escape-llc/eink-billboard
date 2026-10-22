@@ -9,6 +9,7 @@
 	"describe": "Weather {view}",
 	"disabled": false,
 	"uses": ["openweathermap"],
+	"requires": ["data-weather"],
 	"features": ["api-client", "layer-overlay", "media-image"],
 	"settings": {
 		"_schema": "urn:inky:storage:schema:datasource:weather-overlay:1",

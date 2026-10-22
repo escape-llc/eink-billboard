@@ -26,6 +26,10 @@ def layers(features: list[str]) -> set[str]:
 def media(features: list[str]) -> set[str]:
 	return {f for f in features if f.startswith("media-")}
 
+def capabilities(features: list[str]) -> set[str]:
+	"""What a provider supplies (`data-weather`, `data-ai-text`): a source that needs one says so in `requires`, and any provider of it will do."""
+	return {f for f in features if f.startswith("data-")}
+
 def is_api(source: dict) -> bool:
 	"""An API data source (`DataSourceApi`): data for other sources, drawn by none of its own."""
 	return "api" in (source.get("features") or [])
@@ -113,7 +117,7 @@ class TestPluginsAndSourcesAgree(unittest.TestCase):
 # (The Data Source settings tab explains each in a tooltip: app/src/components/ItemInfo.vue.)
 VOCABULARY = (
 	"internet", "filesystem", "api-key", "paid-service",
-	"api", "api-client", "ai-provider", "ai-text", "ai-image",
+	"api", "api-client", "ai-provider", "data-weather", "data-ai-text", "data-ai-image",
 	"layer-background", "layer-foreground", "layer-priority", "layer-overlay",
 	"media-image", "media-list",
 )
@@ -132,7 +136,7 @@ class TestFeatureVocabulary(unittest.TestCase):
 		api_ids = { s["id"] for s in SOURCES if is_api(s) }
 		for source in SOURCES:
 			lookups = ((source.get("instanceSettings") or {}).get("schema", {}).get("lookups") or {}).values()
-			chooses_parts = any(isinstance(lk, dict) and lk.get("schema") == "data-sources" and any(f.startswith("ai-") for f in lk.get("features") or []) for lk in lookups)
+			chooses_parts = any(isinstance(lk, dict) and lk.get("schema") == "data-sources" and any(f.startswith("data-") for f in lk.get("features") or []) for lk in lookups)
 			asks = bool(set(source.get("uses") or []) & api_ids) or chooses_parts
 			with self.subTest(source["id"]):
 				self.assertEqual("api-client" in source["features"], asks, "`api-client` exactly when it uses an API source (or chooses AI parts)")
@@ -143,7 +147,75 @@ class TestFeatureVocabulary(unittest.TestCase):
 		for source in SOURCES:
 			features = set(source["features"])
 			with self.subTest(source["id"]):
-				if features & {"ai-provider", "ai-text", "ai-image", "api-key"}:
-					self.assertIn("api", features, "a key, a provider or an AI part is a data-only API source")
+				if features & {"ai-provider", "api-key"} or capabilities(source["features"]):
+					self.assertIn("api", features, "a key, a provider or a capability is a data-only API source")
 				# somewhere to show it and what it shows come together
 				self.assertEqual(bool(layers(source["features"])), bool(media(source["features"])))
+
+# `calendar` draws its pages and is also asked for its events by the Reminder Overlay (`uses`): both a page and a provider, until it is split (#513)
+USED_THOUGH_NOT_A_PROVIDER = { "calendar" }
+
+def chosen_capabilities(source: dict) -> set[str]:
+	"""The capabilities a source's own `schema` fields choose a provider of (the Generated Image's text and image parts)."""
+	lookups = ((source.get("instanceSettings") or {}).get("schema", {}).get("lookups") or {}).values()
+	return { f for lk in lookups if isinstance(lk, dict) and lk.get("schema") == "data-sources" for f in capabilities(lk.get("features") or []) }
+
+def capability_problems(sources: list[dict]) -> list[str]:
+	"""
+	What breaks the rules of providers and data sources (#513), in words: a **provider** has `api` (data only, no layer: the other tests),
+	a **data source** has a `layer-*`; a capability is a `data-*` feature, supplied only by providers; a source names the capabilities it
+	needs in `requires`, each of which some provider supplies, and which it meets by choosing a provider (a `schema` field) or by one it `uses`.
+	"""
+	by_id = { s["id"]: s for s in sources }
+	providers = { c: [s["id"] for s in sources if is_api(s) and c in s.get("features", [])] for s in sources for c in capabilities(s.get("features") or []) }
+	problems: list[str] = []
+	for source in sources:
+		sid, features, requires = source["id"], source.get("features") or [], source.get("requires") or []
+		problems += [f"{sid}: unknown feature {f}" for f in features if f not in VOCABULARY]
+		if is_api(source) == bool(layers(features)):
+			problems.append(f"{sid}: neither a provider (api) nor a data source (layer-*), or both")
+		if capabilities(features) and not is_api(source):
+			problems.append(f"{sid}: supplies {sorted(capabilities(features))} but is not a provider (api)")
+		problems += [f"{sid}: requires {c}, which is not a capability (data-*)" for c in requires if not c.startswith("data-")]
+		problems += [f"{sid}: requires {c}, which no provider supplies" for c in requires if c.startswith("data-") and not providers.get(c)]
+		problems += [f"{sid}: chooses a provider of {c} but does not require it" for c in sorted(chosen_capabilities(source) - set(requires))]
+		met = chosen_capabilities(source) | { c for u in source.get("uses") or [] for c in capabilities((by_id.get(u) or {}).get("features") or []) }
+		problems += [f"{sid}: requires {c} but neither chooses nor uses a provider of it" for c in requires if c.startswith("data-") and c not in met]
+		problems += [f"{sid}: uses {u}, which is not a provider (api)" for u in source.get("uses") or []
+			if u in by_id and not is_api(by_id[u]) and u not in USED_THOUGH_NOT_A_PROVIDER]
+	return problems
+
+class TestCapabilities(unittest.TestCase):
+	"""Providers supply capabilities (`data-*`), data sources require them (#513): every rule holds for the descriptors, and each one catches a broken descriptor."""
+	def test_the_descriptors_keep_every_rule(self):
+		self.assertEqual(capability_problems(SOURCES), [])
+
+	def test_the_weather_and_generators_require_what_they_ask_for(self):
+		by_id = { s["id"]: s for s in SOURCES }
+		self.assertIn("data-weather", by_id["openweathermap"]["features"])
+		for sid in ("weather", "weather-overlay", "weather-image"):
+			self.assertIn("data-weather", by_id[sid]["requires"])
+		for sid in ("ai-image", "weather-image"):
+			self.assertTrue({"data-ai-text", "data-ai-image"} <= set(by_id[sid]["requires"]))
+
+	def test_a_broken_descriptor_fails_each_rule(self):
+		import copy
+		def broken(change) -> list[str]:
+			sources = copy.deepcopy(SOURCES)
+			change({ s["id"]: s for s in sources })
+			return capability_problems(sources)
+		def drop(source: dict, key: str, value: str):
+			source[key] = [v for v in source[key] if v != value]
+		cases = [
+			("unknown feature", lambda s: s["openweathermap"]["features"].append("data-wether"), "openweathermap: unknown feature data-wether"),
+			("a page that is a provider", lambda s: s["weather"]["features"].append("api"), "weather: neither a provider"),
+			("a capability on a page", lambda s: s["weather"]["features"].append("data-weather"), "weather: supplies ['data-weather'] but is not a provider"),
+			("a requirement nobody supplies", lambda s: drop(s["openweathermap"], "features", "data-weather"), "weather: requires data-weather, which no provider supplies"),
+			("a requirement that is no capability", lambda s: s["weather"]["requires"].append("internet"), "weather: requires internet, which is not a capability"),
+			("a choice not required", lambda s: drop(s["ai-image"], "requires", "data-ai-text"), "ai-image: chooses a provider of data-ai-text but does not require it"),
+			("a requirement not met", lambda s: s["weather"].update(uses=[]), "weather: requires data-weather but neither chooses nor uses a provider of it"),
+			("a page used as a provider", lambda s: s["weather"]["uses"].append("rss"), "weather: uses rss, which is not a provider"),
+		]
+		for name, change, expected in cases:
+			with self.subTest(name):
+				self.assertTrue(any(p.startswith(expected) for p in broken(change)), f"expected {expected!r} in {broken(change)}")

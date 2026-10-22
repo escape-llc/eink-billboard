@@ -7,7 +7,7 @@
 	"module": "python.datasources.openweathermap.openweathermap",
 	"description": "The weather at the device's location from OpenWeatherMap, for the Weather pages and the Weather Overlay: the API key, the units and the kept answers they share.",
 	"disabled": false,
-	"features": ["internet", "api-key", "api"],
+	"features": ["internet", "api-key", "api", "data-weather"],
 	"router": {
 		"id": "openweathermap-router",
 		"class": "openweathermap_router",

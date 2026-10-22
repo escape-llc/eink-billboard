@@ -4,7 +4,7 @@ import { stubMapTiles, watchProblems } from "./support"
 // The Plugins and the Data Sources tabs show a descriptor the same way: one attribute to a row, label then value.
 test.beforeEach(async ({ page }) => stubMapTiles(page))
 
-test("a data source's descriptor is a table of attributes, with what it uses and what it can do", async ({ page }) => {
+test("a data source's descriptor is a table of attributes, with what it requires, what it uses and what it can do", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Data Sources" }).click()
@@ -16,6 +16,9 @@ test("a data source's descriptor is a table of attributes, with what it uses and
 	await expect(page.getByTestId("info-enabled").getByRole("img", { name: "yes" })).toBeVisible()
 	// it asks an API source for the weather: it says so, and names it; it downloads nothing itself
 	await expect(page.getByTestId("info-uses")).toContainText("openweathermap")
+	// the capability it needs, which a provider supplies
+	await expect(page.getByTestId("info-requires")).toContainText("data-weather")
+	await expect(page.getByTestId("info-requires").locator(".p-tag", { hasText: "data-weather" })).toHaveAttribute("title", /Supplies the weather/)
 	const features = page.getByTestId("info-features")
 	await expect(features).toContainText("api-client")
 	await expect(features).toContainText("layer-overlay")
@@ -24,7 +27,7 @@ test("a data source's descriptor is a table of attributes, with what it uses and
 	await expect(page.getByTestId("info-shown-as")).toContainText("{")
 	// the labels are a column of their own: attributes are rows
 	const labels = await info.locator("dt").allTextContents()
-	expect(labels).toEqual(["Name", "Id", "Version", "Enabled", "Description", "Features", "Uses", "Keeps its list", "Shown as"])
+	expect(labels).toEqual(["Name", "Id", "Version", "Enabled", "Description", "Features", "Requires", "Uses", "Keeps its list", "Shown as"])
 	watch.expectNone()
 })
 
