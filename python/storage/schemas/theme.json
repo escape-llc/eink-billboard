@@ -12,9 +12,13 @@
 			"font": {
 				"items": [
 					{"name": "Jost", "value": "Jost" },
-					{"name": "Napoli", "value": "Napoli" },
+					{"name": "Atkinson Hyperlegible", "value": "Atkinson Hyperlegible" },
+					{"name": "Lexend", "value": "Lexend" },
+					{"name": "League Spartan", "value": "League Spartan" },
+					{"name": "Literata (serif)", "value": "Literata" },
+					{"name": "Bitter (slab serif)", "value": "Bitter" },
 					{"name": "Dogica (pixel)", "value": "Dogica" },
-					{"name": "DS-Digital (segments)", "value": "DS-Digital" }
+					{"name": "DSEG7 (segments)", "value": "DSEG7" }
 				]
 			},
 			"theme": {

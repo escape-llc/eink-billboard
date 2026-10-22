@@ -10,7 +10,7 @@ import shutil
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Mapping, Protocol, ReadOnly, TypedDict, cast
+from typing import Any, Callable, Mapping, NotRequired, Protocol, ReadOnly, TypedDict, cast
 from PIL import ImageFont
 
 from ..datasources.data_source import DataSource
@@ -400,29 +400,44 @@ class SettingsConfigurationManager:
 		"""Returns the path to the JSON file for this settings."""
 		return os.path.join(self.ROOT_PATH, f"{settings}-settings.json")
 
-FONT_FAMILIES = {
-	"Dogica": [{
-		"font-weight": "normal",
-		"file": "dogicapixel.ttf"
-	},{
-		"font-weight": "bold",
-		"file": "dogicapixelbold.ttf"
-	}],
-	"Jost": [{
-		"font-weight": "normal",
-		"file": "Jost.ttf"
-	},{
-		"font-weight": "bold",
-		"file": "Jost-SemiBold.ttf"
-	}],
-	"Napoli": [{
-		"font-weight": "normal",
-		"file": "Napoli.ttf"
-	}],
-	"DS-Digital": [{
-		"font-weight": "normal",
-		"file": os.path.join("DS-DIGI", "DS-DIGI.TTF")
-	}]
+# The fonts we ship, by family: every one is under the SIL Open Font License, with its licence beside it in its folder (static/fonts/<folder>/OFL.txt).
+# A variant names its file; a variable font (one file for every weight) gives the weight PIL draws it at (`wght`): a page's @font-face says
+# `font-weight`, and Chromium sets the same axis from it.
+# "font-weight" is a CSS name, so the type is spelled the functional way
+FontVariant = TypedDict("FontVariant", { "font-weight": str, "file": str, "wght": NotRequired[int] })
+FONT_FAMILIES: dict[str, list[FontVariant]] = {
+	"Jost": [
+		{ "font-weight": "normal", "file": os.path.join("Jost", "Jost.ttf") },
+		{ "font-weight": "bold", "file": os.path.join("Jost", "Jost-SemiBold.ttf") },
+	],
+	"Atkinson Hyperlegible": [
+		{ "font-weight": "normal", "file": os.path.join("AtkinsonHyperlegible", "AtkinsonHyperlegible-Regular.ttf") },
+		{ "font-weight": "bold", "file": os.path.join("AtkinsonHyperlegible", "AtkinsonHyperlegible-Bold.ttf") },
+	],
+	"Lexend": [
+		{ "font-weight": "normal", "file": os.path.join("Lexend", "Lexend-Variable.ttf"), "wght": 400 },
+		{ "font-weight": "bold", "file": os.path.join("Lexend", "Lexend-Variable.ttf"), "wght": 700 },
+	],
+	"League Spartan": [
+		{ "font-weight": "normal", "file": os.path.join("LeagueSpartan", "LeagueSpartan-Variable.ttf"), "wght": 400 },
+		{ "font-weight": "bold", "file": os.path.join("LeagueSpartan", "LeagueSpartan-Variable.ttf"), "wght": 700 },
+	],
+	"Literata": [
+		{ "font-weight": "normal", "file": os.path.join("Literata", "Literata-Variable.ttf"), "wght": 400 },
+		{ "font-weight": "bold", "file": os.path.join("Literata", "Literata-Variable.ttf"), "wght": 700 },
+	],
+	"Bitter": [
+		{ "font-weight": "normal", "file": os.path.join("Bitter", "Bitter-Variable.ttf"), "wght": 400 },
+		{ "font-weight": "bold", "file": os.path.join("Bitter", "Bitter-Variable.ttf"), "wght": 700 },
+	],
+	"Dogica": [
+		{ "font-weight": "normal", "file": os.path.join("Dogica", "dogicapixel.ttf") },
+		{ "font-weight": "bold", "file": os.path.join("Dogica", "dogicapixelbold.ttf") },
+	],
+	"DSEG7": [
+		{ "font-weight": "normal", "file": os.path.join("DSEG7", "DSEG7Classic-Regular.ttf") },
+		{ "font-weight": "bold", "file": os.path.join("DSEG7", "DSEG7Classic-Bold.ttf") },
+	],
 }
 class StaticConfigurationManager:
 	"""
@@ -467,7 +482,11 @@ class StaticConfigurationManager:
 
 			if font_entry:
 				font_path = os.path.join(self.ROOT_PATH, "fonts", font_entry["file"])
-				return ImageFont.truetype(font_path, font_size)
+				font = ImageFont.truetype(font_path, font_size)
+				if "wght" in font_entry:
+					# a variable font: its weight axis at the variant's weight, every other axis at its default
+					font.set_variation_by_axes([float(font_entry["wght"]) if axis.get("name") in (b"Weight", "Weight") else float(axis.get("default") or 0) for axis in font.get_variation_axes()])
+				return font
 		raise ValueError(f"Font not found: font_name={font_name}, font_weight={font_weight}")
 
 class ConfigurationManager(ConfigurationObjectFactory):

@@ -7,13 +7,6 @@ from ..model.configuration_manager import StaticConfigurationManager
 
 logger = logging.getLogger(__name__)
 
-FONTS = {
-	"ds-gigi": "DS-DIGI.TTF",
-	"napoli": "Napoli.ttf",
-	"jost": "Jost.ttf",
-	"jost-semibold": "Jost-SemiBold.ttf"
-}
-
 def get_wifi_name():
 	try:
 		output = subprocess.check_output(['iwgetid', '-r']).decode('utf-8').strip()

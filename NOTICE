@@ -8,4 +8,7 @@ This product includes parts by others, under their own terms:
 * The Waveshare e-Paper drivers in python/display/waveshare_epd/, copyright Waveshare, under the MIT licence in each file's header
   (where they came from and what was changed: python/display/waveshare_epd/VENDORED.md).
 * Material Symbols (the @material-symbols/svg-400 package, glyphs bundled into the web app), copyright Google, under the Apache License 2.0.
-* The fonts in python/static/fonts/, each under its author's terms.
+* The fonts in python/static/fonts/, each in a folder of its own with its licence (OFL.txt), all under the SIL Open Font License 1.1:
+  Jost (The Jost Project Authors), Atkinson Hyperlegible (Braille Institute of America), Lexend (The Lexend Project Authors),
+  League Spartan (The League Spartan Project Authors), Literata (The Literata Project Authors), Bitter (The Bitter Project Authors),
+  Dogica Pixel (Roberto Mocci) and DSEG7 Classic (keshikan). Each is shipped unmodified, under its own name.

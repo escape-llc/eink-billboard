@@ -236,9 +236,9 @@ const previewFontHeading = ref<string|null>(null)
 const previewFontOverlay = ref<string|null>(null)
 const previewFontScale = ref(1)
 // the families the device ships, loaded under names of their own so they cannot be mistaken for a font of the computer
-const FONTS = [["Jost", ["normal", "bold"]], ["Napoli", ["normal"]], ["Dogica", ["normal", "bold"]], ["DS-Digital", ["normal"]]] as const
+const FONTS = ["Jost", "Atkinson Hyperlegible", "Lexend", "League Spartan", "Literata", "Bitter", "Dogica", "DSEG7"].map(family => [family, ["normal", "bold"]] as const)
 const fontFaces = FONTS.flatMap(([family, weights]) => weights.map(weight =>
-	`@font-face { font-family: "eink-${family}"; font-weight: ${weight}; src: url("${API_URL}api/fonts/${family}?weight=${weight}") format("truetype"); }`)).join(" ")
+	`@font-face { font-family: "eink-${family}"; font-weight: ${weight}; src: url("${API_URL}api/fonts/${encodeURIComponent(family)}?weight=${weight}") format("truetype"); }`)).join(" ")
 const fontStack = (family: string) => `"eink-${family}", sans-serif`
 // the palette: the roles are the CSS classes of themes.css (text-primary, bg-secondary-1-accent, ...), computed by the server from the form's values
 const PALETTE_COLUMNS = [{ key: "primary", title: "Primary" }, { key: "secondary-1", title: "Secondary 1" }, { key: "secondary-2", title: "Secondary 2" }]
