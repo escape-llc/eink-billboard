@@ -869,7 +869,14 @@ class TestLookups(WebApiTestBase):
 
 	def test_the_providers_of_a_capability(self):
 		# the device's choice of weather provider lists the providers of `data-weather`, and only a capability of our own list is asked about
-		self.assertEqual(self.client.get("/api/lookups/providers/data-weather").json(), [{ "name": "OpenWeatherMap", "value": "openweathermap" }])
+		# not set up (no key yet): it is listed, and says so; with a key it is set up
+		self.assertEqual(self.client.get("/api/lookups/providers/data-weather").json(), [{ "name": "OpenWeatherMap (not set up)", "value": "openweathermap", "ready": False }])
+		self.write_datasource_settings("openweathermap", { "apiKey": "k-123" })
+		self.assertEqual(self.client.get("/api/lookups/providers/data-weather").json(), [{ "name": "OpenWeatherMap", "value": "openweathermap", "ready": True }])
+		# the calendar provider is set up once it has a calendar or a holiday set
+		self.assertEqual([x["ready"] for x in self.client.get("/api/lookups/providers/data-calendar").json()], [False])
+		self.write_datasource_settings("calendar", { "calendars": [], "holidays": [{ "name": "US", "country": "US" }] })
+		self.assertEqual(self.client.get("/api/lookups/providers/data-calendar").json(), [{ "name": "Calendar Sources", "value": "calendar", "ready": True }])
 		self.assertEqual({x["value"] for x in self.client.get("/api/lookups/providers/data-ai-image").json()}, { "openai-image", "google-image" })
 		resp = self.client.get("/api/lookups/providers/..%2Fsettings")
 		self.assertEqual(resp.status_code, 404)

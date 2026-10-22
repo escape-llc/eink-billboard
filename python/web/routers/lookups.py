@@ -2,16 +2,21 @@
 import zoneinfo
 from datetime import date, datetime
 from functools import lru_cache
-from typing import Annotated, cast
+import logging
+from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
 from ...datasources.contracts import CONTRACTS
-from ...model.configuration_manager import ConfigurationManager
+from ...datasources.contracts.provider import ProviderContract
+from ...datasources.data_source import DataSourceExecutionContext
+from ...model.configuration_manager import CollectInfoDict, ConfigurationManager
+from ...model.service_container import ServiceContainer
 from ..deps import get_cm
 from ..errors import ApiError
 
 router = APIRouter(prefix="/lookups")
+logger = logging.getLogger(__name__)
 
 MAJOR_REGIONS = {
 	"Africa", "America", "Antarctica", "Asia", "Atlantic",
@@ -49,12 +54,32 @@ def list_timezones():
 def list_locales():
 	return LOCALES
 
+def _set_up(cm: ConfigurationManager, item: CollectInfoDict) -> bool:
+	"""Whether a provider says it is set up (`configured`, its own settings complete). One that cannot be made or asked is not."""
+	try:
+		source = cm.create_datasource(item)
+		if not isinstance(source, ProviderContract):
+			return False
+		root = ServiceContainer()
+		root.add_service(ConfigurationManager, cm)
+		dsec = DataSourceExecutionContext(root, (1, 1), datetime.now().astimezone())
+		return source.configured(dsec.context_for(source))
+	except Exception as e:
+		logger.warning(f"Could not ask '{item['info'].get('id')}' whether it is set up ({type(e).__name__}).")
+		return False
+
 @router.get('/providers/{capability}')
 def list_providers(capability: str, cm: Annotated[ConfigurationManager, Depends(get_cm)]):
-	"""The providers of a capability (#513) that are enabled, for the device's choice of one (`weatherProvider`): a capability of our own list, else a 404."""
+	"""
+	The providers of a capability (#513) that are enabled, for the device's choice of one (`weatherProvider`): a capability of our own list, else a 404.
+	One that is not set up says so in its name (choosing it is harmless: the device then takes one that is), and `ready` says it for a script.
+	"""
 	known = next((c for c in CONTRACTS if c == capability), None)
 	if known is None:
 		raise ApiError(404, "No such capability.", "lookups")
-	items = [cast(dict, x["info"]) for x in cm.enum_datasources()]
-	return [{ "name": str(i.get("name") or i.get("id")), "value": str(i.get("id")) } for i in items
-		if known in (i.get("features") or []) and "api" in (i.get("features") or []) and not i.get("disabled")]
+	providers = [x for x in cm.enum_datasources() if known in (x["info"].get("features") or []) and "api" in (x["info"].get("features") or []) and not x["info"].get("disabled")]
+	answer = []
+	for item in providers:
+		name, ready = str(item["info"].get("name") or item["info"].get("id")), _set_up(cm, item)
+		answer.append({ "name": name if ready else f"{name} (not set up)", "value": str(item["info"].get("id")), "ready": ready })
+	return answer

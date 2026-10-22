@@ -21,7 +21,7 @@ test.afterEach(async ({ request }) => {
 
 async function openCalendarSettings(page: Page) {
 	await page.goto("/#/settings")
-	await page.getByRole("tab", { name: "Data Sources" }).click()
+	await page.getByRole("tab", { name: "Providers" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
 	await page.getByRole("option", { name: "calendar", exact: true }).click()
 	await expect(page.getByRole("textbox", { name: "Name 1", exact: true }).first()).toHaveValue("Family")

@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => stubMapTiles(page))
 test("the Comic Vine settings link to where an API key is got, and the key is a password", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/settings")
-	await page.getByRole("tab", { name: "Data Sources" }).click()
+	await page.getByRole("tab", { name: "Providers" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
 	await page.getByRole("option", { name: "comicvine", exact: true }).click()
 	const link = page.getByRole("link", { name: "Get a free API key" })

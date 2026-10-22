@@ -73,11 +73,11 @@ test.describe("every page renders from the seeded storage, without errors", () =
 	})
 })
 
-test("the plugin and datasource selectors show names, not [object Object]", async ({ page }) => {
+test("the provider and data source selectors show names, not [object Object]", async ({ page }) => {
 	await stubMapTiles(page)
 	const watch = watchProblems(page)
 	await page.goto("/#/settings")
-	await page.getByRole("tab", { name: "Data Sources" }).click()
+	await page.getByRole("tab", { name: "Providers" }).click()
 	const select = page.getByRole("tabpanel").locator(".p-select").first()
 	await select.click()
 	// options are identified by their name, not by the string form of the object

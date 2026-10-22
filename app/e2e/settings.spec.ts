@@ -129,14 +129,15 @@ test("leaving with unsaved edits asks first; Stay keeps them, Discard leaves", a
 	watch.expectNone()
 })
 
-test("the weather provider is chosen from the providers of the weather, and empty means the one that is set up", async ({ page, request }) => {
+test("the weather provider is chosen from the providers of the weather, which say whether they are set up", async ({ page, request }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/settings")
 	await expect(page.locator("#weatherProvider")).toBeVisible()
 	expect((await system(request)).weatherProvider).toBeNull()
 	await page.locator("#weatherProvider").click()
 	const options = page.getByRole("listbox")
-	await expect(options.getByRole("option")).toHaveText(["OpenWeatherMap"])
+	// the test storage has no OpenWeatherMap key: it is offered, and says it is not set up (choosing it is harmless)
+	await expect(options.getByRole("option")).toHaveText(["OpenWeatherMap (not set up)"])
 	await options.getByRole("option").filter({ hasText: "OpenWeatherMap" }).click()
 	await saveButton(page).click()
 	await expect(page.getByText("Settings saved successfully")).toBeVisible()
