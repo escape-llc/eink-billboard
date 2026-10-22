@@ -34,9 +34,9 @@ flowchart TD
     B --> C{"Go ahead?"}
     C -- no --> X["Nothing changed"]
     C -- yes --> D["sudo: install Podman and git,<br/>turn on SPI and I2C,<br/>add you to spi, i2c, gpio"]
-    D --> E["Clone (or update) ~/eink-billboard"]
+    D --> E["Clone (or update) ~/eink-billboard,<br/>on the newest release (or snapshot)"]
     E --> F["Which display? none / Inky / Waveshare + model"]
-    F --> G["Download the app<br/>(or build it when there is no download)"]
+    F --> G["Download the app GitHub made"]
     G --> H{"SPI, I2C or groups<br/>just changed?"}
     H -- yes --> R["Restart the Pi,<br/>run the same command again"]
     R --> A
@@ -72,7 +72,15 @@ After you sign in, the web app opens the playlist page, since a new device has n
 ~/eink-billboard/deploy/eink-container.sh update
 ```
 
-It fetches the latest code into `~/eink-billboard`, downloads the app GitHub made from that code (or builds it on the Pi when there is none yet) and restarts the app, keeping your settings, playlists and password; when there is nothing new it says so and leaves the app running. (Running the setup command again does the same, and also re-checks the Pi.)
+It goes to the newest version of the Pi's **channel**, downloads the app GitHub made of it and restarts the app, keeping your settings, playlists and password; when there is nothing new it says so and leaves the app running. Nothing is built on the Pi. (Running the setup command again does the same, and also re-checks the Pi.)
+
+| Channel | What it follows | Choose it with |
+|---|---|---|
+| **stable** (a new Pi's) | the releases (`v0.1.0`), made when the maintainer says a version is ready; the newest snapshot while there is no release | `update --stable` |
+| **insider** | the snapshots: every change to `master`, a few minutes after it is made, named after its time (`20261022143005`); only the few newest are kept | `update --insider` (or `--master`) |
+| one version | a release or snapshot by its name, and stays there | `update 20261022143005` |
+
+The channel is remembered (`~/.config/eink-billboard/channel`); a Pi with no channel saved follows what its clone follows (`master`: insider). Going back to an older version (insider to stable, say) asks first.
 
 ## On your network
 
@@ -115,8 +123,8 @@ Every command first checks the basics (Linux, not root, Podman and curl installe
 | Command | What it does |
 |---|---|
 | `help` | Lists the commands and settings. |
-| `update` | **Brings it up to date:** fetches the latest code into the clone, gets its image (`get`) and starts it (your data is kept); the image that ran before is kept for `rollback`, and older ones are removed. When nothing is new and the app already runs it, it says so and does nothing. Refuses when the clone has changes of your own. `update TAG` switches to a release by its tag, once there are releases; a plain `update` on a release stays on it. |
-| `get` | **Gets the image of the clone's code**: downloads the one GitHub made for that exact commit (`ghcr.io/escape-llc/eink-billboard:sha-<commit>`, or `:<tag>` when the clone is on a release tag), checks that its label names the clone's commit, and names it `localhost/eink-device`; a few minutes. When there is none (GitHub makes it a few minutes after a change reaches `master`; there is none for a branch of your own or a machine that is not 64-bit ARM), it says so and builds instead (`build`). `EINK_PULL=0` always builds. While it downloads it prints a plain line every 30 seconds (`... 2 min 30 s, 640 MB written so far`) instead of Podman's progress bars, which redraw the screen and stand still while a layer is unpacked; Podman's own words go to `~/.cache/eink-billboard/pull.log`. When nothing has been written for 5 minutes, the download is stopped and the image is built instead (`update` again tries the download again); Ctrl+C stops the download too. |
+| `update` | **Brings it up to date on its channel:** fetches the latest code into the clone, goes to the channel's newest version (above), gets its image (`get`) and starts it (your data is kept); the image that ran before is kept for `rollback`, and older ones are removed. When nothing is new and the app already runs it, it says so and does nothing. Refuses when the clone has changes of your own. `update --stable` and `update --insider` (or `--master`) change the channel; `update NAME` goes to that release or snapshot and stays; going back to an older version asks you to type `yes`. `update BRANCH` follows a branch of `master`'s repository as it is, for development (it has no images: `build`). |
+| `get` | **Gets the image of the clone's code**: downloads the one GitHub made for that exact commit (`ghcr.io/escape-llc/eink-billboard:sha-<commit>`, or `:<tag>` when the clone is on a release tag), checks that its label names the clone's commit, and names it `localhost/eink-device`; a few minutes. When there is none (GitHub makes it a few minutes after a change reaches `master`, and removes the images of all but the few newest snapshots; there is none for a branch of your own or a machine that is not 64-bit ARM), it says so and what to do (`update --insider` for the newest version GitHub has made, or `build`), and **builds nothing**: the app keeps the image it had. `EINK_PULL=0` builds instead of downloading. While it downloads it prints a plain line every 30 seconds (`... 2 min 30 s, 640 MB written so far`) instead of Podman's progress bars, which redraw the screen and stand still while a layer is unpacked; Podman's own words go to `~/.cache/eink-billboard/pull.log`. When nothing has been written for 5 minutes, the download is stopped (`update` again tries it again); Ctrl+C stops the download too. |
 | `build` | Builds the app's image (`localhost/eink-device`) from the clone as it is, without pulling anything (`update` pulls). It looks at the internet only to say so when the clone is behind (`WARNING: the clone is 3 commit(s) behind`, with the command to use): 15 to 20 minutes the first time, a few minutes after an update. Removes unused images and the leftovers of failed builds first (`podman system prune --external`, then every unused image older than three days, because the layers of each build otherwise pile up; the running app and its data are kept), then checks for about 6 GB of free space, so a full disk is found in seconds; records the commit it was built from, and writes everything to `~/.cache/eink-billboard/build.log`; on failure it shows the end of that log and says what it was: Podman failing to start a step (`slirp4netns failed` is usually Podman out of room, not the network: try `podman system prune -f --external`, then `podman system migrate`, or `EINK_BUILD_NETWORK=host build`), a full disk, or a download that did not answer. |
 | `start` | Starts the app (or replaces the running one; the data is kept) on port 8080 of every address of the Pi. Passes in the panel's devices that exist (`/dev/spidev0.0`, `/dev/spidev0.1`, `/dev/i2c-1`, `/dev/gpiochip0`) with your `spi`, `i2c` and `gpio` groups, warns when a group is missing, refuses a port that is already in use, waits up to 90 seconds for the app to answer (showing its last log lines if it stops), then prints the setup code. Also `restart`. |
 | `stop` | Stops and removes the container. The settings, playlists and password are kept, in the volume `eink-data`. |
@@ -161,7 +169,9 @@ The setup (`deploy/bootstrap.sh`) can be run again at any time; these change how
 | `--yes` | Asks nothing: goes ahead, and the display is `EINK_DISPLAY` (or the last choice, or none) |
 | `--help` | Its description |
 | `EINK_DISPLAY` | The display without asking: `mock`, `inky`, or `waveshare:MODEL` (e.g. `waveshare:epd7in3e`) |
-| `EINK_REF` | The branch or tag to install (`master`) |
+| `--stable`, `--insider` | The channel to follow (the default: stable, or the one the Pi has; `--master` is insider) |
+| `EINK_CHANNEL` | The same, `stable` or `insider` |
+| `EINK_REF` | A branch or tag to install instead of a channel's newest version |
 | `EINK_DIR` | Where the app is cloned (`~/eink-billboard`) |
 | `EINK_REPO` | The repository to clone |
 

@@ -8,12 +8,14 @@
 #
 # What it does on the Pi itself (everything else, Python, the browser that draws the pages, the panel drivers, is inside the container):
 #   installs Podman and git; turns on SPI and I2C (the panel's connections); adds you to the spi, i2c and gpio groups;
-#   clones the app to ~/eink-billboard; asks which display you have; downloads the app (or builds it, 15 to 20 minutes, when
-#   there is no download for that version);
+#   clones the app to ~/eink-billboard, on the newest release (or with --insider the newest snapshot: every change, a few minutes after it);
+#   asks which display you have; downloads the app (GitHub makes the image: nothing is built on the Pi);
 #   starts it on port 8080; makes it start when the Pi starts; prints the address and the setup code.
 #
 # Options:     --yes      do not ask (the display is EINK_DISPLAY, or mock)       --dry-run   say what it would do, change nothing
-# Settings:    EINK_REF      the branch or tag to install (master)
+#              --stable   the releases (the default)                              --insider   every change (--master is the same)
+# Settings:    EINK_CHANNEL  stable or insider, as the options (a Pi that has one keeps it)
+#              EINK_REF      a branch or tag to install instead of a channel's newest version
 #              EINK_DIR      where the app is cloned (~/eink-billboard)
 #              EINK_DISPLAY  the display without asking: mock, inky, or waveshare:MODEL (e.g. waveshare:epd7in3e)
 #              EINK_REPO     the repository (https://github.com/escape-llc/eink-billboard)
@@ -25,7 +27,8 @@ main() {
 	set -o pipefail
 
 	local REPO=${EINK_REPO:-https://github.com/escape-llc/eink-billboard}
-	local REF=${EINK_REF:-master}
+	local REF=${EINK_REF:-}
+	local CHANNEL=${EINK_CHANNEL:-}
 	local DIR=${EINK_DIR:-$HOME/eink-billboard}
 	local STATE_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/eink-billboard
 	local YES=0 DRY=0 FROM_CLONE=0 NEEDS_REBOOT=0 arg
@@ -35,6 +38,8 @@ main() {
 			--dry-run) DRY=1 ;;
 			--from-clone) FROM_CLONE=1 ;;
 			--needs-reboot) NEEDS_REBOOT=1 ;;
+			--stable) CHANNEL=stable ;;
+			--insider|--master) CHANNEL=insider ;;
 			# written out here, not read from this file: piped from curl, there is no file to read
 			--help|-h) cat <<'EOF'
 eInk Billboard setup for a Raspberry Pi 4 or 5 (Raspberry Pi OS 64-bit). Run it as your own user:
@@ -42,21 +47,27 @@ eInk Billboard setup for a Raspberry Pi 4 or 5 (Raspberry Pi OS 64-bit). Run it 
   curl -fsSL https://raw.githubusercontent.com/escape-llc/eink-billboard/master/deploy/bootstrap.sh | bash
 
 It says what it will do and asks once, then: installs Podman and git, turns on SPI and I2C, adds you to the spi, i2c and gpio
-groups, clones the app to ~/eink-billboard, asks which display you have, downloads the app (or builds it, 15 to 20 minutes),
+groups, clones the app to ~/eink-billboard, asks which display you have, downloads the app (a few minutes),
 starts it on port 8080, makes it start when the Pi starts, and prints the address and the setup code.
 Run it again at any time: it continues after a restart it asked for, and later it updates the app.
 
 Options (after "| bash -s --"):  --dry-run  say what it would do, change nothing     --yes  ask nothing     --help  this text
-Settings:  EINK_DISPLAY  mock, inky or waveshare:MODEL      EINK_REF  branch or tag (master)
-           EINK_DIR      where to clone (~/eink-billboard)  EINK_REPO the repository
+                                 --stable   the releases (the default)               --insider  every change (--master too)
+Settings:  EINK_DISPLAY  mock, inky or waveshare:MODEL      EINK_CHANNEL  stable or insider
+           EINK_DIR      where to clone (~/eink-billboard)  EINK_REF      a branch or tag instead of a channel
+           EINK_REPO     the repository
 Afterwards:  ~/eink-billboard/deploy/eink-container.sh help      (update: ~/eink-billboard/deploy/eink-container.sh update)
 EOF
 				return 0 ;;
-			*) printf 'eink-billboard bootstrap: unknown option %s (--yes, --dry-run, --help)\n' "$arg" >&2; return 2 ;;
+			*) printf 'eink-billboard bootstrap: unknown option %s (--yes, --dry-run, --stable, --insider, --help)\n' "$arg" >&2; return 2 ;;
 		esac
 	done
 
 	say() { printf '%s\n' "$*"; }
+	case "$CHANNEL" in
+		""|stable|insider) ;;
+		*) printf 'eink-billboard bootstrap: EINK_CHANNEL is stable or insider (it is %s)\n' "$CHANNEL" >&2; return 2 ;;
+	esac
 	# the copy in the clone does not repeat what the downloaded one already said about this computer
 	first() { [ "$FROM_CLONE" -eq 1 ] || "$@"; }
 	step() { printf '\n==> %s\n' "$*"; }
@@ -138,9 +149,10 @@ EOF
 		[ "$need_spi" -eq 0 ] || say "  - turn on SPI (the panel's data connection)"
 		[ "$need_i2c" -eq 0 ] || say "  - turn on I2C (how an Inky panel says what it is)"
 		[ ${#groups_missing[@]} -eq 0 ] || say "  - add you to the group(s) ${groups_missing[*]} (so the app may use the panel)"
-		say "  - get the app into $DIR (from $REPO, $REF)"
+		if [ -n "$REF" ]; then say "  - get the app into $DIR (from $REPO, $REF)"
+		else say "  - get the app into $DIR (from $REPO, the newest version of the ${CHANNEL:-stable} channel)"; fi
 		say "  - ask which display you have"
-		say "  - download the app (or build it, 15 to 20 minutes, when there is no download) and start it on port 8080"
+		say "  - download the app and start it on port 8080"
 		say "  - make it start when the Pi starts"
 		[ "$DRY" -eq 0 ] || say "(--dry-run: nothing will be changed)"
 		say ""
@@ -168,18 +180,47 @@ EOF
 
 	# ---- the app's code ---------------------------------------------------------------------------------------------------------------------------
 	if [ "$FROM_CLONE" -eq 0 ]; then
-		step "Getting the app ($REF)"
+		step "Getting the app${REF:+ ($REF)}"
+		local fresh=0
 		if [ -d "$DIR/.git" ]; then
 			git -C "$DIR" diff --quiet && git -C "$DIR" diff --cached --quiet \
 				|| fail "$DIR has changes of your own; this would not overwrite them. Move them away (git -C $DIR stash) and run this again."
-			run git -C "$DIR" fetch --tags origin || fail "the app could not be updated: is the Pi on the internet?"
-			run git -C "$DIR" checkout -q "$REF" || fail "there is no branch or tag '$REF'."
-			# a branch moves forward; a tag stays where it is
-			if git -C "$DIR" symbolic-ref -q HEAD >/dev/null; then run git -C "$DIR" merge -q --ff-only "origin/$REF" || fail "$DIR cannot be brought up to date (it has commits of its own)."; fi
+			# the snapshots GitHub removed go from here too, so the newest one here is one GitHub still has an image of
+			run git -C "$DIR" fetch -q --tags --prune --prune-tags origin || fail "the app could not be updated: is the Pi on the internet?"
 		elif [ -e "$DIR" ]; then
 			fail "$DIR is there but is not the app. Move it away, or choose another folder: EINK_DIR=~/somewhere ..."
 		else
-			run git clone -q --branch "$REF" "$REPO" "$DIR" || fail "the app could not be downloaded from $REPO."
+			run git clone -q --branch "${REF:-master}" "$REPO" "$DIR" || fail "the app could not be downloaded from $REPO."
+			fresh=1
+		fi
+		if [ -n "$REF" ]; then
+			run git -C "$DIR" checkout -q "$REF" || fail "there is no branch or tag '$REF'."
+			# a branch moves forward; a tag stays where it is
+			if git -C "$DIR" symbolic-ref -q HEAD >/dev/null 2>&1; then run git -C "$DIR" merge -q --ff-only "origin/$REF" || fail "$DIR cannot be brought up to date (it has commits of its own)."; fi
+		elif [ "$DRY" -eq 1 ] && [ ! -d "$DIR/.git" ]; then
+			say "    would go to the newest version of the ${CHANNEL:-stable} channel"
+		else
+			# the channel: the one asked for, else the one this Pi has, else (a Pi set up before channels) insider when it follows master; a new Pi: stable
+			[ -n "$CHANNEL" ] || CHANNEL=$(cat "$STATE_DIR/channel" 2>/dev/null || true)
+			case "$CHANNEL" in
+				stable|insider) ;;
+				pinned|branch) CHANNEL="" ;;
+				*)
+					CHANNEL=stable
+					if [ "$fresh" -eq 0 ] && [ "$(git -C "$DIR" symbolic-ref -q --short HEAD 2>/dev/null)" = master ]; then CHANNEL=insider; fi ;;
+			esac
+			if [ -n "$CHANNEL" ]; then
+				# the same two rules as eink-container.sh's newest_release and newest_snapshot
+				local target=""
+				[ "$CHANNEL" = insider ] || target=$(git -C "$DIR" tag -l 'v*' --sort=-v:refname | grep -E '^v[0-9A-Za-z._-]{1,100}$' | head -n 1)
+				[ -n "$target" ] || target=$(git -C "$DIR" tag -l '[0-9]*' | grep -E '^[0-9]{14}$' | sort | tail -n 1)
+				[ -n "$target" ] || fail "GitHub has made no version to download yet (it makes one a few minutes after each change). Run this again in a few minutes."
+				run git -C "$DIR" checkout -q "refs/tags/$target" || fail "could not switch to $target."
+				if [ "$DRY" -eq 0 ]; then mkdir -p "$STATE_DIR"; printf '%s\n' "$CHANNEL" > "$STATE_DIR/channel"; fi
+				say "The $CHANNEL channel: $target"
+			else
+				say "This Pi stays on the version it has ('deploy/eink-container.sh update --stable' or '--insider' follows a channel again)."
+			fi
 		fi
 		if [ "$DRY" -eq 1 ]; then say "(--dry-run: the rest is done by $DIR/deploy/bootstrap.sh, which a real run continues with)"; return 0; fi
 		# the rest is done by the copy that came with the app, so the steps always match the app being installed
@@ -239,7 +280,7 @@ EOF
 	say "Display: $kind${model:+ $model}"
 
 	# ---- the app's image ---------------------------------------------------------------------------------------------------------------------------
-	step "Getting the app (a download of a few minutes; a build of 15 to 20 when there is none for this version)"
+	step "Getting the app (a download of a few minutes)"
 	"$KIT" get || exit 1
 
 	if [ "$reboot" -eq 1 ]; then
