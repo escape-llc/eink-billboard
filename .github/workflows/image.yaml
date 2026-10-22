@@ -4,6 +4,8 @@ name: Device image
 # ghcr.io/escape-llc/eink-billboard. Every push to master publishes `sha-<commit>` (what `deploy/eink-container.sh update` asks for: the clone's own commit)
 # and `edge`; a release tag `v...` also publishes `<tag>` and `latest`. A pull request that touches the image builds it without publishing (a fork's has no
 # right to, and nothing it builds is kept).
+# Every image published from master is then a snapshot (#504, the `snapshot` job): the commit's committer time in UTC (`20261022143005`) as a git tag and
+# as a second name of the same image, and the snapshots and images not kept are removed (`scripts/snapshots.py`).
 on:
   push:
     branches: [ "master" ]
@@ -24,6 +26,8 @@ jobs:
   image:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     permissions:
       contents: read
       packages: write
@@ -110,3 +114,38 @@ jobs:
           tick=$'\x60'
           for name in "${names[@]}"; do printf -- '- %s%s%s\n' "$tick" "$name" "$tick"; done
         } >> "$GITHUB_STEP_SUMMARY"
+
+  # A snapshot of every image published from master, and the cleanup that keeps them few: the newest always, at most KEEP_SNAPSHOTS in all, the others only
+  # for KEEP_DAYS; releases are never removed. Lean on purpose while the project changes quickly; change the two numbers when that changes.
+  # PRUNE stays "dry-run" (the summary lists what would go) until one real run has been read; "apply" removes.
+  snapshot:
+    needs: image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.image.outputs.digest != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      packages: write
+    env:
+      KEEP_SNAPSHOTS: "5"
+      KEEP_DAYS: "7"
+      PRUNE: dry-run
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+
+    - name: Name the image and the commit
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        DIGEST: ${{ needs.image.outputs.digest }}
+      run: python3 -m scripts.snapshots make --commit "$GITHUB_SHA" --digest "$DIGEST" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Remove the snapshots and images not kept
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        args=(prune --keep "$KEEP_SNAPSHOTS" --days "$KEEP_DAYS")
+        if [ "$PRUNE" = apply ]; then args+=(--apply); fi
+        python3 -m scripts.snapshots "${args[@]}" >> "$GITHUB_STEP_SUMMARY"
