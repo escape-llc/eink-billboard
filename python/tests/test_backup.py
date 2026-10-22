@@ -188,7 +188,7 @@ class TestWhatABackupHolds(unittest.TestCase):
 class TestStorageSide(unittest.TestCase):
 	def setUp(self):
 		self.cm = temp_configuration_manager(self)
-		put(self.cm.datasource_manager("openweathermap").open(), { "apiKey": KEY, "units": "metric" })
+		put(self.cm.datasource_manager("openweathermap").open(), { "apiKey": KEY })
 		# what must stay out
 		put(self.cm.state_file("refresh"), { "last": 1 })
 		put(self.cm.datasource_manager("openweathermap").file("cache-0123abcd"), { "answer": 1 })
@@ -218,7 +218,7 @@ class TestStorageSide(unittest.TestCase):
 		self.assertNotIn("settings/theme-settings.json", self.cm.backup_files())
 
 	def test_a_restore_writes_by_name_and_nothing_is_deleted(self):
-		documents = { "settings/theme-settings.json": { "scheme": "monochrome" }, "datasources/openweathermap/settings.json": { "apiKey": "other", "units": "imperial" } }
+		documents = { "settings/theme-settings.json": { "scheme": "monochrome" }, "datasources/openweathermap/settings.json": { "apiKey": "other" } }
 		extra = self.cm.plugin_manager("slide-show").file("list-aaaa")
 		written = self.cm.write_backup(documents)
 		self.assertEqual(sorted(written), sorted(documents))
@@ -270,7 +270,7 @@ class BackupApiBase(WebApiTestBase):
 		super().setUp()
 		self.application = StubApplication()
 		self.app.state.root_container.add_service(Application, self.application)
-		put(self.cm.datasource_manager("openweathermap").open(), { "apiKey": KEY, "units": "metric" })
+		put(self.cm.datasource_manager("openweathermap").open(), { "apiKey": KEY })
 
 	def backup(self, passphrase: str = PASSPHRASE, confirm: str|None = None):
 		return self.client.post("/api/backup", json={ "passphrase": passphrase, "confirm": passphrase if confirm is None else confirm })
@@ -490,7 +490,7 @@ class TestRestoreMigrates(BackupApiBase):
 
 	def test_a_backup_carries_a_manifest_that_the_preview_reads_and_is_not_a_file_left_out(self):
 		# (the device stamps every stored document at start; the helper that wrote this one did not)
-		put(self.cm.datasource_manager("openweathermap").open(), { "_schema": "urn:inky:storage:schema:datasource:openweathermap:1", "apiKey": KEY, "units": "metric" })
+		put(self.cm.datasource_manager("openweathermap").open(), { "_schema": "urn:inky:storage:schema:datasource:openweathermap:1", "apiKey": KEY })
 		blob = self.make()
 		files = unseal(blob, PASSPHRASE)
 		manifest = json.loads(files["MANIFEST.json"])

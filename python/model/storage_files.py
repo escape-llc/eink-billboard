@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 def load_json(file_path: str) -> dict|None:
 	if os.path.isfile(file_path):
 		try:
-			with open(file_path, 'r') as fx:
+			with open(file_path, 'r', encoding='utf-8') as fx:
 				data = json.load(fx)
 				return data
 		except Exception as e:

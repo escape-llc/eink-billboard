@@ -146,3 +146,22 @@ test("the weather provider is chosen from the providers of the weather, and empt
 	expect((await request.put("/api/settings/system", { data: { ...doc, weatherProvider: null } })).ok()).toBe(true)
 	watch.expectNone()
 })
+
+test("the units are the device's: a master choice, and a kind of measurement may have its own", async ({ page, request }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/settings")
+	await expect(page.locator("#speedUnit")).toBeVisible()
+	expect((await system(request)).units).toBe("auto")
+	await page.locator("#units").click()
+	await page.getByRole("listbox").getByRole("option").filter({ hasText: "Metric (°C, km/h)" }).click()
+	await page.locator("#speedUnit").click()
+	await expect(page.getByRole("listbox").getByRole("option")).toHaveText(["Kilometres per hour (km/h)", "Metres per second (m/s)", "Miles per hour (mph)", "Knots (kn)"])
+	await page.getByRole("listbox").getByRole("option").filter({ hasText: "Miles per hour" }).click()
+	await saveButton(page).click()
+	await expect(page.getByText("Settings saved successfully")).toBeVisible()
+	const saved = await system(request)
+	expect([saved.units, saved.temperatureUnit, saved.speedUnit]).toEqual(["metric", null, "mph"])
+	// back as it was for the tests after this one
+	expect((await request.put("/api/settings/system", { data: { ...saved, units: "auto", speedUnit: null } })).ok()).toBe(true)
+	watch.expectNone()
+})

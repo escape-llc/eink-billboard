@@ -17,7 +17,8 @@ from PIL import Image
 
 from ..datasources.data_source import DataSourceApi, DataSourceExecutionContext, DataSourceManager
 from ..datasources.openweathermap import openweathermap as owm_module
-from ..datasources.openweathermap.openweathermap import HideKey, OpenWeatherMapApi, Report, Units, api_error, parse_current, parse_forecast, units_for
+from ..datasources.contracts.weather import IMPERIAL, METRIC, Report, Units, units_of
+from ..datasources.openweathermap.openweathermap import HideKey, OpenWeatherMapApi, api_error, parse_current, parse_forecast
 from ..datasources.weather import weather as weather_module
 from ..datasources.weather.icons import icon_svg
 from ..datasources.weather.weather import Page, WeatherAsync, chosen_views, page_params
@@ -51,7 +52,7 @@ def weather_settings(settings: dict|None = None) -> ConfigurationManager:
 	atexit.register(shutil.rmtree, folder, True)
 	cm = ConfigurationManager(storage_path=folder)
 	cm.hard_reset()
-	save_datasource_settings(cm, API_ID, { "apiKey": KEY, "units": "auto", "forecastCacheHours": 0, "currentCacheHours": 0, **(settings or {}) })
+	save_datasource_settings(cm, API_ID, { "apiKey": KEY, "forecastCacheHours": 0, "currentCacheHours": 0, **(settings or {}) })
 	return cm
 
 def make_context(settings: dict|None = None, orientation: str = "landscape", cm: ConfigurationManager|None = None, now: datetime = NOW, own: str = "weather", **system) -> DataSourceExecutionContext:
@@ -67,7 +68,7 @@ def make_context(settings: dict|None = None, orientation: str = "landscape", cm:
 
 def report(**more) -> Report:
 	import json
-	r = Report("", Units("metric"), False, NOW, **more)
+	r = Report("", False, NOW, **more)
 	parse_current(json.loads(fixture_text("weather-current.json")), r, ZONE)
 	parse_forecast(json.loads(fixture_text("weather-forecast.json")), r, ZONE)
 	return r
@@ -80,16 +81,24 @@ class TestChoices(unittest.TestCase):
 		self.assertEqual(chosen_views({ "views": ["bogus", "hours"] }), ["hours"])
 
 	def test_units_follow_the_choice_then_the_timezone(self):
-		self.assertEqual(units_for("metric", "America/New_York").system, "metric")
-		self.assertEqual(units_for("imperial", "Europe/Paris").system, "imperial")
+		self.assertEqual(units_of({ "units": "metric", "timezoneName": "America/New_York" }), METRIC)
+		self.assertEqual(units_of({ "units": "imperial", "timezoneName": "Europe/Paris" }), IMPERIAL)
 		for zone in ("America/Los_Angeles", "America/Indiana/Knox", "Pacific/Honolulu"):
-			self.assertEqual(units_for("auto", zone).system, "imperial", zone)
+			self.assertEqual(units_of({ "units": "auto", "timezoneName": zone }), IMPERIAL, zone)
 		for zone in ("Europe/London", "America/Toronto", "Asia/Tokyo", None):
-			self.assertEqual(units_for("auto", zone).system, "metric", zone)
+			self.assertEqual(units_of({ "units": "auto", "timezoneName": zone }), METRIC, zone)
+		self.assertEqual(units_of(None), METRIC)
 
-	def test_wind_is_converted_for_metric_only(self):
-		self.assertEqual(Units("metric").wind(10), 36)
-		self.assertEqual(Units("imperial").wind(10), 10)
+	def test_each_kind_may_have_a_unit_of_its_own(self):
+		# mixed: Celsius with miles per hour, or Fahrenheit with knots; an unknown or empty override follows the master choice
+		self.assertEqual(units_of({ "units": "metric", "speedUnit": "mph" }), Units("celsius", "mph"))
+		self.assertEqual(units_of({ "units": "metric", "temperatureUnit": "fahrenheit", "speedUnit": "kn" }), Units("fahrenheit", "kn"))
+		self.assertEqual(units_of({ "units": "imperial", "temperatureUnit": None, "speedUnit": "furlongs" }), IMPERIAL)
+
+	def test_a_report_is_si_and_the_units_convert_it(self):
+		self.assertEqual((METRIC.wind(10), IMPERIAL.wind(10), Units("celsius", "m/s").wind(10), Units("celsius", "kn").wind(10)), (36, 22, 10, 19))
+		self.assertEqual((METRIC.degrees(100), IMPERIAL.degrees(100), IMPERIAL.degrees(-40)), (100, 212, -40))
+		self.assertEqual((IMPERIAL.temp, IMPERIAL.speed, Units("celsius", "kn").speed), ("°F", "mph", "kn"))
 
 class TestParsing(unittest.TestCase):
 	def test_the_current_weather(self):
@@ -116,9 +125,9 @@ class TestParsing(unittest.TestCase):
 
 	def test_an_answer_without_weather_is_not_one(self):
 		with self.assertRaises(RuntimeError):
-			parse_current({ "cod": 200 }, Report("", Units("metric"), False, NOW), ZONE)
+			parse_current({ "cod": 200 }, Report("", False, NOW), ZONE)
 		with self.assertRaises(RuntimeError):
-			parse_forecast({ "list": [] }, Report("", Units("metric"), False, NOW), ZONE)
+			parse_forecast({ "list": [] }, Report("", False, NOW), ZONE)
 
 class TestPages(unittest.TestCase):
 	def test_now_in_metric_and_24_hours(self):
@@ -129,18 +138,24 @@ class TestPages(unittest.TestCase):
 
 	def test_the_hours_in_12_hour_clock_and_imperial(self):
 		r = report()
-		r.units, r.twelve_hour = Units("imperial"), True
-		p = page_params(Page("hours", r), { "title": "Home" })
+		r.twelve_hour = True
+		p = page_params(Page("hours", r, IMPERIAL), { "title": "Home" })
 		self.assertEqual(p["heading"], "Home")
 		self.assertEqual(p["hours"][0]["label"], "11 AM")
-		self.assertEqual(page_params(Page("current", r), {})["wind"], "4 mph")
-		self.assertEqual(page_params(Page("current", r), {})["sunset"], "6:09 PM")
+		now = page_params(Page("current", r, IMPERIAL), {})
+		# the report's 3.6 m/s and 14 °C, read in miles per hour and Fahrenheit
+		self.assertEqual((now["wind"], now["temp"], now["unit"]), ("8 mph", "58°", "°F"))
+		self.assertEqual(now["sunset"], "6:09 PM")
+
+	def test_mixed_units_on_a_page(self):
+		now = page_params(Page("current", report(), Units("celsius", "mph")), {})
+		self.assertEqual((now["temp"], now["unit"], now["wind"]), ("14°", "°C", "8 mph"))
 
 	def test_the_hours_start_at_the_step_that_covers_now(self):
 		import json
 		data = json.loads(fixture_text("weather-forecast.json"))
 		def first(hour: int, minute: int) -> str:
-			r = Report("", Units("metric"), False, NOW.replace(hour=hour, minute=minute))
+			r = Report("", False, NOW.replace(hour=hour, minute=minute))
 			parse_forecast(data, r, ZONE)
 			return page_params(Page("hours", r), {})["hours"][0]["label"]
 		# the steps are at 11:00, 14:00, 17:00: half past two is in the 14:00 step, and the minute before a step is still in the one before
@@ -313,7 +328,7 @@ class TestTheApiDataSource(unittest.IsolatedAsyncioTestCase):
 		self.assertEqual(report.days, [])
 
 	async def test_its_settings_problems_are_the_askers(self):
-		save_datasource_settings(self.cm, API_ID, { "apiKey": None, "units": "auto", "forecastCacheHours": 6, "currentCacheHours": 6 })
+		save_datasource_settings(self.cm, API_ID, { "apiKey": None, "forecastCacheHours": 6, "currentCacheHours": 6 })
 		with self.assertRaisesRegex(PermanentError, "OpenWeatherMap settings"):
 			await WeatherAsync("weather", "Weather").open_async(make_context(cm=self.cm), { "views": ["current"] })
 
@@ -343,10 +358,17 @@ class TestOpen(unittest.IsolatedAsyncioTestCase):
 		self.assertEqual([p.view for p in pages], ["current", "hours", "days"])
 		self.assertEqual(sorted(self.asked()[1:]), ["forecast", "weather"])
 
-	async def test_the_request_names_the_place_and_the_units(self):
+	async def test_the_request_names_the_place_and_asks_in_si_whatever_the_device_reads(self):
+		# the device reads imperial (its timezone), but a report is SI: the units are applied when it is shown
 		await WeatherAsync("weather", "Weather").open_async(make_context(), { "views": ["current"] })
 		query = self.fake.requests[0].url.params
-		self.assertEqual((query["lat"], query["lon"], query["units"], query["appid"]), ("47.6100", "-122.3300", "imperial", KEY))
+		self.assertEqual((query["lat"], query["lon"], query["units"], query["appid"]), ("47.6100", "-122.3300", "metric", KEY))
+
+	async def test_the_pages_carry_the_devices_units(self):
+		pages = await WeatherAsync("weather", "Weather").open_async(make_context(units="metric", speedUnit="kn"), { "views": ["current"] })
+		self.assertEqual(pages[0].units, Units("celsius", "kn"))
+		pages = await WeatherAsync("weather", "Weather").open_async(make_context(), { "views": ["current"] })
+		self.assertEqual(pages[0].units, IMPERIAL)
 
 	async def test_no_location_is_for_the_user_to_fix(self):
 		with self.assertRaises(PermanentError) as caught:
@@ -393,7 +415,7 @@ class TestKeyIsNotLogged(unittest.IsolatedAsyncioTestCase):
 		with self.assertLogs("httpx", level="INFO") as logged:
 			# any other key is refused (a 401), which is also logged
 			with self.assertRaises(PermanentError):
-				await owm_module.fetch(client, "weather", 47.61, -122.33, Units("metric"), "super-secret-key")
+				await owm_module.fetch(client, "weather", 47.61, -122.33, "super-secret-key")
 		text = "\n".join(logged.output)
 		self.assertIn("appid=***", text)
 		self.assertNotIn("super-secret-key", text)

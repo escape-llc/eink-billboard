@@ -83,7 +83,7 @@ def log_level(dev: bool, text: str|None) -> int:
 
 def configure_logging(dev: bool = True) -> None:
 	logfile = os.path.join(os.path.dirname(__file__), 'config', 'logging.yaml')
-	with open(logfile, 'r') as f:
+	with open(logfile, 'r', encoding='utf-8') as f:
 		logging.config.dictConfig(yaml.safe_load(f.read()))
 	# production logs what a person reads (the setup code is not lost in file events and timer ticks); --dev, or EINK_LOG_LEVEL, for the rest
 	logging.getLogger().setLevel(log_level(dev, os.environ.get(LOG_LEVEL_ENV)))

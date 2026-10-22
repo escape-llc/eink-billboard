@@ -14,13 +14,13 @@ from ...plugins.plugin_base import PermanentError
 from ..data_source import DataSource, DataSourceExecutionContext, MediaItemAsync, MediaRenderAsync, MediaRenderResult
 from ..overlay_text import OverlayIcon, Run, outline_factor, overlay_margin, render_overlay, zone_valign
 from ..weather.icons import ICON_WEIGHT, icon_body
-from ..contracts.weather import Report, WeatherApi
+from ..contracts.weather import Report, Units, WeatherApi, device_units
 
 VIEWS = ("now", "today", "outlook")
 OUTLOOK_DAYS = 3
 
-def _degrees(value: float|None) -> str:
-	return "" if value is None else f"{round(value)}°"
+def _degrees(value: float|None, units: Units) -> str:
+	return "" if value is None else f"{round(units.degrees(value))}°"
 
 def _percent(chance: float|None) -> str:
 	return "" if chance is None else f"{round(max(0.0, min(chance, 1.0)) * 100)}%"
@@ -37,26 +37,26 @@ def needs_of(view: str) -> set[str]:
 	"""Only the answer the view shows: the free plan counts calls (the Weather keeps each answer for its own time)."""
 	return { "current" } if view == "now" else { "forecast" }
 
-def view_lines(view: str, report: Report) -> tuple[list[list[Run]], str|None, str]:
+def view_lines(view: str, report: Report, units: Units) -> tuple[list[list[Run]], str|None, str]:
 	"""The lines of a view (runs of text and role), the icon code before them (or None), and the title for the telemetry. A report without what the view needs is an error."""
 	if view == "now":
 		now = report.current
 		if now is None:
 			raise RuntimeError("The weather now is not in the report")
 		text = now.text[:1].upper() + now.text[1:]
-		return [[(_degrees(now.temp), "text-secondary-1"), (f" {text}", "text-primary")]], now.icon, f"{_degrees(now.temp)} {text}"
+		return [[(_degrees(now.temp, units), "text-secondary-1"), (f" {text}", "text-primary")]], now.icon, f"{_degrees(now.temp, units)} {text}"
 	if not report.days:
 		raise RuntimeError("The forecast has no days")
 	if view == "today":
 		day = report.days[0]
-		runs: list[Run] = [(_degrees(day.high), "text-secondary-1"), (f" / {_degrees(day.low)}", "text-primary")]
+		runs: list[Run] = [(_degrees(day.high, units), "text-secondary-1"), (f" / {_degrees(day.low, units)}", "text-primary")]
 		if day.rain is not None:
 			runs.append((f"  {_percent(day.rain)}", "text-secondary-2"))
 		return [runs], day.icon, "".join(text for text, _ in runs)
 	lines: list[list[Run]] = []
 	for day in report.days[:OUTLOOK_DAYS]:
 		label = "Today" if day.day == report.now.date() else day.day.strftime("%a")
-		lines.append([(label, "text-secondary-1"), (f" {_degrees(day.high)} / {_degrees(day.low)}", "text-primary")])
+		lines.append([(label, "text-secondary-1"), (f" {_degrees(day.high, units)} / {_degrees(day.low, units)}", "text-primary")])
 	return lines, None, " · ".join("".join(text for text, _ in line) for line in lines)
 
 class WeatherOverlayAsync(DataSource, MediaItemAsync, MediaRenderAsync):
@@ -68,13 +68,13 @@ class WeatherOverlayAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> Any:
 		view = chosen_view(params)
 		api, api_dsec = dsec.provide(WeatherApi)
-		return (view, await api.open_async(api_dsec, { "needs": sorted(needs_of(view)) }))
+		return (view, await api.open_async(api_dsec, { "needs": sorted(needs_of(view)) }), device_units(dsec))
 
 	async def render_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any], state: Any) -> MediaRenderResult | None:
-		if not (isinstance(state, tuple) and len(state) == 2 and isinstance(state[1], Report)):
+		if not (isinstance(state, tuple) and len(state) == 3 and isinstance(state[1], Report) and isinstance(state[2], Units)):
 			return None
-		view, report = state
-		lines, code, title = view_lines(view, report)
+		view, report, units = state
+		lines, code, title = view_lines(view, report, units)
 		icon = OverlayIcon(icon_body(code), ICON_WEIGHT) if code is not None and params.get("showIcon", True) is not False else None
 		scm = dsec.provider.required(SettingsConfigurationManager)
 		stm = dsec.provider.required(StaticConfigurationManager)

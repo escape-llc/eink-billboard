@@ -1,6 +1,6 @@
 """
 The weather as a slide show: one page per chosen view (now, the next hours, the next days). The data comes from the device's weather provider
-(`dsec.provide(WeatherApi)`), whose settings and kept answers every page and overlay share; this source only draws.
+(`dsec.provide(WeatherApi)`), whose settings and kept answers every page and overlay share; this source only draws, in the device's units.
 """
 import asyncio
 from dataclasses import dataclass
@@ -11,7 +11,7 @@ from ...model.configuration_manager import ConfigurationManager, SettingsConfigu
 from ...model.theme import ThemeInputs, current_inputs
 from ...plugins.plugin_base import RenderSession
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
-from ..contracts.weather import Report, Units, WeatherApi
+from ..contracts.weather import METRIC, Report, Units, WeatherApi, device_units
 from .icons import icon_svg, stat_svg
 
 VIEWS = ("current", "hours", "days")
@@ -21,6 +21,8 @@ FONT_SCALES = { "x-small": 0.7, "small": 0.85, "normal": 1.0, "large": 1.2, "x-l
 class Page:
 	view: str
 	report: Report
+	# the device's units, read when the pages were made (the report is SI)
+	units: Units = METRIC
 
 def chosen_views(params: Mapping[str, Any]) -> list[str]:
 	"""The views in page order (now, hours, days); none chosen reads as the weather now."""
@@ -36,8 +38,8 @@ def _time_of_day(when: datetime|None, twelve_hour: bool) -> str:
 		return ""
 	return f"{when.hour % 12 or 12}:{when.minute:02d} {'AM' if when.hour < 12 else 'PM'}" if twelve_hour else f"{when.hour:02d}:{when.minute:02d}"
 
-def _degrees(value: float|None) -> str:
-	return "" if value is None else f"{round(value)}°"
+def _degrees(value: float|None, units: Units) -> str:
+	return "" if value is None else f"{round(units.degrees(value))}°"
 
 def _percent(chance: float|None) -> str:
 	"""The chance of rain as the report gives it (0 to 1). 0% is said too: a dry hour is information, and a blank reads as missing."""
@@ -61,22 +63,22 @@ def _wind(value: float|None, units: Units) -> str:
 
 def page_params(page: Page, params: Mapping[str, Any]) -> dict:
 	"""What the template draws for a page: text and drawings ready to place (the template decides nothing about units or clocks)."""
-	r, units = page.report, page.report.units
+	r, units = page.report, page.units
 	body: dict[str, Any] = {}
 	if page.view == "current" and r.current is not None:
 		c = r.current
-		body = { "temp": _degrees(c.temp), "feels": _degrees(c.feels), "text": c.text, "icon": icon_svg(c.icon),
+		body = { "temp": _degrees(c.temp, units), "feels": _degrees(c.feels, units), "text": c.text, "icon": icon_svg(c.icon),
 			"humidity": "" if c.humidity is None else f"{c.humidity}%", "wind": "" if c.wind is None else f"{units.wind(c.wind)} {units.speed}",
 			"sunrise": _time_of_day(r.sunrise, r.twelve_hour), "sunset": _time_of_day(r.sunset, r.twelve_hour) }
 	elif page.view == "hours":
-		items = [{ "label": _clock(p.when, r.twelve_hour), "icon": icon_svg(p.icon), "temp": _degrees(p.temp),
+		items = [{ "label": _clock(p.when, r.twelve_hour), "icon": icon_svg(p.icon), "temp": _degrees(p.temp, units),
 			"rain": _percent(p.rain), "humidity": _humidity(p.humidity), "wind": _wind(p.wind, units), "text": p.text,
 			# the weekday is said above the time of the first column of each day; every other day wears the colors the other way round (`alt`), so a change of day shows
 			"new_day": n > 0 and p.when.date() != r.hours[n - 1].when.date(), "day": p.when.strftime("%a") if n == 0 or p.when.date() != r.hours[n - 1].when.date() else "",
 			"alt": (p.when.date() - r.hours[0].when.date()).days % 2 == 1 } for n, p in enumerate(r.hours)]
 		body = { "hours": items, "items": items, "rows": _rows(HOUR_ROWS, items) }
 	elif page.view == "days":
-		items = [{ "label": "Today" if d.day == r.now.date() else d.day.strftime("%a"), "icon": icon_svg(d.icon), "temp": "", "high": _degrees(d.high), "low": _degrees(d.low),
+		items = [{ "label": "Today" if d.day == r.now.date() else d.day.strftime("%a"), "icon": icon_svg(d.icon), "temp": "", "high": _degrees(d.high, units), "low": _degrees(d.low, units),
 			"rain": _percent(d.rain), "humidity": _humidity(d.humidity), "wind": _wind(d.wind, units), "text": d.text } for d in r.days]
 		body = { "days": items, "items": items, "rows": _rows(DAY_ROWS, items) }
 	heading = params.get("title") or r.place or "Weather"
@@ -96,7 +98,8 @@ class WeatherAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		needs = (["current"] if "current" in views else []) + (["forecast"] if "hours" in views or "days" in views else [])
 		api, api_dsec = dsec.provide(WeatherApi)
 		report = await api.open_async(api_dsec, { "needs": needs })
-		return [Page(view, report) for view in views]
+		units = device_units(dsec)
+		return [Page(view, report, units) for view in views]
 
 	async def render_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any], state: Any) -> MediaRenderResult | None:
 		if not isinstance(state, Page):

@@ -2,7 +2,7 @@
 OpenWeatherMap as a weather provider (`WeatherApi`, `data-weather`): the weather at the device's location, now and forecast, and nothing drawn.
 
 The sources that show the weather (the Weather pages, the Weather Overlay, the Weather Visualizer) ask for a weather provider with `dsec.provide(WeatherApi)`:
-the key, the units and the kept answers are this provider's settings and files, so a page and an overlay of the same hours make one call, and the free
+the key and the kept answers are this provider's settings and files (it answers in SI: the units shown are the device's), so a page and an overlay of the same hours make one call, and the free
 plan's calls are for new answers only.
 """
 from collections import Counter
@@ -19,7 +19,7 @@ from ...task.async_http_worker_pool import AsyncHttpWorkerPool
 from ..metering import metered_client
 from ..response_cache import cached
 from ..data_source import DataSourceExecutionContext
-from ..contracts.weather import DAYS_SHOWN, HOURS_SHOWN, NEEDS, Day, Point, Report, Units, WeatherApi, device_now, units_for
+from ..contracts.weather import DAYS_SHOWN, HOURS_SHOWN, NEEDS, Day, Point, Report, WeatherApi, device_now
 
 # the free plan's endpoints: the weather now, and the forecast in steps of three hours for five days
 API = "https://api.openweathermap.org/data/2.5"
@@ -108,7 +108,7 @@ async def check_key(key: str) -> dict[str, Any]:
 	"""
 	async with metered_client("openweathermap", timeout=httpx.Timeout(10.0)) as client:
 		try:
-			await fetch(client, "weather", 0.0, 0.0, units_for("metric", None), key)
+			await fetch(client, "weather", 0.0, 0.0, key)
 		except PermanentError:
 			return { "ok": False, "message": "OpenWeatherMap refused this key. A new key can take a couple of hours to start working." }
 		except RuntimeError as problem:
@@ -119,10 +119,10 @@ async def check_key(key: str) -> dict[str, Any]:
 # one kept time for each kind of answer, a setting of the data source each: the API path, the setting and its default (hours)
 CACHE_TIMES = { "weather": ("currentCacheHours", 0.5), "forecast": ("forecastCacheHours", 6.0) }
 
-async def fetch(client: httpx.AsyncClient, path: str, latitude: float, longitude: float, units: Units, key: str) -> Mapping[str, Any]:
-	"""One call of the API. Failures say what happened and never what was asked: the address holds the key."""
+async def fetch(client: httpx.AsyncClient, path: str, latitude: float, longitude: float, key: str) -> Mapping[str, Any]:
+	"""One call of the API, in `metric` (Celsius, metres per second: the report's SI). Failures say what happened and never what was asked: the address holds the key."""
 	try:
-		response = await client.get(f"{API}/{path}", params={ "lat": f"{latitude:.4f}", "lon": f"{longitude:.4f}", "units": units.system, "appid": key }, timeout=20.0)
+		response = await client.get(f"{API}/{path}", params={ "lat": f"{latitude:.4f}", "lon": f"{longitude:.4f}", "units": "metric", "appid": key }, timeout=20.0)
 	except httpx.HTTPError as ex:
 		raise RuntimeError(f"OpenWeatherMap could not be reached ({type(ex).__name__}).") from None
 	if response.status_code != 200:
@@ -172,7 +172,7 @@ class OpenWeatherMapApi(WeatherApi):
 		now = device_now(dsec.timestamp)
 		zone = now.tzinfo or now.astimezone().tzinfo
 		assert zone is not None
-		report = Report("", units_for(settings.get("units"), system.get("timezoneName")), system.get("timeFormat") == "12h", now)
+		report = Report("", system.get("timeFormat") == "12h", now)
 		latitude, longitude = float(where["latitude"]), float(where["longitude"])
 		report.latitude = latitude
 		# a metered client of its own (#440): every answer that is not kept is a call against the key's quota
@@ -180,9 +180,9 @@ class OpenWeatherMapApi(WeatherApi):
 			def answer(path: str):
 				"""The API's answer for this place: kept for the time the settings give that kind of answer (it is the same for every task), so the free plan's calls are for new answers only."""
 				# the key is not part of what is kept or what it is called: an answer is the same whoever asks
-				name = f"{path}|{latitude:.4f}|{longitude:.4f}|{report.units.system}"
+				name = f"{path}|{latitude:.4f}|{longitude:.4f}|metric"
 				setting, default = CACHE_TIMES[path]
-				return cached(dscm, settings, name, dsec.timestamp, lambda: fetch(client, path, latitude, longitude, report.units, key.strip()), default, setting)
+				return cached(dscm, settings, name, dsec.timestamp, lambda: fetch(client, path, latitude, longitude, key.strip()), default, setting)
 			if "current" in needs:
 				parse_current(await answer("weather"), report, zone)
 			if "forecast" in needs:

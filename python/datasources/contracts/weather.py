@@ -1,6 +1,9 @@
 """
 The weather contract (`data-weather`): what a weather provider answers and what the Weather pages, the Weather Overlay and the Weather Visualizer draw from.
 A provider implements `WeatherApi`; a consumer asks `dsec.provide(WeatherApi)` and imports nothing else of the provider's.
+
+**A report is in SI units** (degrees Celsius, metres per second), whichever provider made it: the units a person reads are the device's (`units_of`, the
+system settings: a master choice and an override for each kind of measurement), applied by whoever shows the report, so no provider knows them.
 """
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
@@ -18,25 +21,52 @@ DAYS_SHOWN = 5
 IMPERIAL_ZONES = ("America/New_York", "America/Chicago", "America/Denver", "America/Phoenix", "America/Los_Angeles", "America/Anchorage", "America/Detroit",
 	"America/Boise", "America/Indiana/", "America/Kentucky/", "America/Menominee", "America/North_Dakota/", "Pacific/Honolulu", "US/", "Pacific/Guam")
 
+# the units of each kind of measurement, as the system settings name them: the label shown, and how to get there from SI
+TEMPERATURES = { "celsius": "°C", "fahrenheit": "°F" }
+SPEEDS = { "km/h": 3.6, "m/s": 1.0, "mph": 3600 / 1609.344, "kn": 3600 / 1852 }
+
 @dataclass(frozen=True)
 class Units:
-	system: str   # "metric" or "imperial"
+	"""The units a person reads, one per kind of measurement (mixed is fine: Celsius with miles per hour). A report's values are SI: these convert them."""
+	temperature: str = "celsius"
+	wind_speed: str = "km/h"
 	@property
 	def temp(self) -> str:
-		return "°F" if self.system == "imperial" else "°C"
+		return TEMPERATURES.get(self.temperature, "°C")
 	@property
 	def speed(self) -> str:
-		return "mph" if self.system == "imperial" else "km/h"
-	def wind(self, value: float) -> int:
-		"""A report's wind is in metres per second for metric and miles per hour for imperial."""
-		return round(value if self.system == "imperial" else value * 3.6)
+		return self.wind_speed if self.wind_speed in SPEEDS else "km/h"
+	def degrees(self, celsius: float) -> float:
+		"""A temperature of a report (Celsius) in the chosen unit."""
+		return celsius * 9 / 5 + 32 if self.temperature == "fahrenheit" else celsius
+	def wind(self, metres_per_second: float) -> int:
+		"""A wind speed of a report (metres per second) in the chosen unit, to the nearest whole one."""
+		return round(metres_per_second * SPEEDS.get(self.wind_speed, 3.6))
 
-def units_for(setting: object, timezone_name: object) -> Units:
-	"""`metric` or `imperial` as chosen; anything else (auto) follows the device's timezone: the US reads in miles and Fahrenheit."""
-	if setting in ("metric", "imperial"):
-		return Units(str(setting))
-	zone = str(timezone_name or "")
-	return Units("imperial" if any(zone == z or (z.endswith("/") and zone.startswith(z)) for z in IMPERIAL_ZONES) else "metric")
+METRIC = Units("celsius", "km/h")
+IMPERIAL = Units("fahrenheit", "mph")
+
+def units_of(system: Mapping[str, Any]|None) -> Units:
+	"""
+	The device's units, from the system settings: `units` is the master choice (`metric`, `imperial`, or `auto`: the US timezones read in miles and
+	Fahrenheit, the rest metric), and `temperatureUnit` and `speedUnit`, when set, override it for their kind.
+	"""
+	system = system or {}
+	setting = system.get("units")
+	if setting not in ("metric", "imperial"):
+		zone = str(system.get("timezoneName") or "")
+		setting = "imperial" if any(zone == z or (z.endswith("/") and zone.startswith(z)) for z in IMPERIAL_ZONES) else "metric"
+	base = IMPERIAL if setting == "imperial" else METRIC
+	temperature, speed = system.get("temperatureUnit"), system.get("speedUnit")
+	return Units(temperature if temperature in TEMPERATURES else base.temperature, speed if speed in SPEEDS else base.wind_speed)
+
+def device_units(dsec: DataSourceExecutionContext) -> Units:
+	"""The device's units for a slot (read on every call: a change of the setting shows on the next page)."""
+	# imported here: configuration_manager imports the data sources
+	from ...model.configuration_manager import SettingsConfigurationManager
+	scm = dsec.provider.get_service(SettingsConfigurationManager)
+	system = scm.open("system").get()[1] if scm is not None else None
+	return units_of(system)
 
 @dataclass(frozen=True)
 class Point:
@@ -66,11 +96,10 @@ class Day:
 @dataclass
 class Report:
 	"""
-	The weather at the device's location. `icon` codes are OpenWeatherMap's (`01d` to `50n`: the condition group and day or night), which the icons and
-	the overlay read: another provider maps its own codes to them.
+	The weather at the device's location, in SI units (temperatures in Celsius, wind in metres per second, the chance of rain 0 to 1). `icon` codes are
+	OpenWeatherMap's (`01d` to `50n`: the condition group and day or night), which the icons and the overlay read: another provider maps its own codes to them.
 	"""
 	place: str
-	units: Units
 	twelve_hour: bool
 	now: datetime
 	current: Point|None = None
@@ -128,22 +157,21 @@ TOKENS: tuple[Mapping[str, str], ...] = (
 	{ "name": "season", "description": "winter, spring, summer or autumn where the device is (the other way round south of the equator)." },
 )
 
-def prompt_fields(report: Report) -> dict[str, str]:
+def prompt_fields(report: Report, units: Units) -> dict[str, str]:
 	"""
 	What a prompt may say about this report (the names are `TOKENS`): only what is known, so a value that is missing leaves its field out.
-	Units are the report's; a temperature is rounded to a degree. The same for every provider: it reads only the report.
+	In the device's units; a temperature is rounded to a degree. The same for every provider: it reads only the report.
 	"""
-	units = report.units
 	fields: dict[str, str|None] = { "place": report.place or None, "sunrise": _clock(report.sunrise, report.twelve_hour), "sunset": _clock(report.sunset, report.twelve_hour),
 		"daypart": daypart(report.now, report.sunrise, report.sunset), "season": season(report.now.date(), report.latitude) }
 	now = report.current
 	if now is not None:
-		fields.update({ "condition": now.text.lower() or None, "temp": f"{round(now.temp)}{units.temp}",
-			"feels": None if now.feels is None else f"{round(now.feels)}{units.temp}", "humidity": None if now.humidity is None else f"{now.humidity}%",
+		fields.update({ "condition": now.text.lower() or None, "temp": f"{round(units.degrees(now.temp))}{units.temp}",
+			"feels": None if now.feels is None else f"{round(units.degrees(now.feels))}{units.temp}", "humidity": None if now.humidity is None else f"{now.humidity}%",
 			"wind": None if now.wind is None else f"{units.wind(now.wind)} {units.speed}" })
 	today = next((d for d in report.days if d.day == report.now.date()), None)
 	if today is not None:
-		fields.update({ "high": f"{round(today.high)}{units.temp}", "low": f"{round(today.low)}{units.temp}", "rain": None if today.rain is None else f"{round(today.rain * 100)}%" })
+		fields.update({ "high": f"{round(units.degrees(today.high))}{units.temp}", "low": f"{round(units.degrees(today.low))}{units.temp}", "rain": None if today.rain is None else f"{round(today.rain * 100)}%" })
 	return { name: value for name, value in fields.items() if value }
 
 class WeatherApi(ProviderContract):
@@ -156,9 +184,6 @@ class WeatherApi(ProviderContract):
 	noun = "weather"
 	setting = "weatherProvider"
 	tokens = TOKENS
-
-	def prompt_fields(self, data: Any) -> Mapping[str, str]:
-		return prompt_fields(data) if isinstance(data, Report) else {}
 
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> Report:
 		raise NotImplementedError

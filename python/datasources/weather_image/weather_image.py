@@ -14,7 +14,7 @@ from ...plugins.plugin_base import PermanentError
 from ...utils.prompt_tokens import fill_tokens
 from ..ai.generate import check_parts, generate
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult
-from ..contracts.weather import WeatherApi
+from ..contracts.weather import WeatherApi, device_units, prompt_fields
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +29,9 @@ async def weather_fields(dsec: DataSourceExecutionContext) -> dict[str, str]:
 	only the forecast could not be had.
 	"""
 	api, api_dsec = dsec.provide(WeatherApi)
+	units = device_units(dsec)
 	try:
-		return dict(api.prompt_fields(await api.open_async(api_dsec, { "needs": ["current", "forecast"] })))
+		return prompt_fields(await api.open_async(api_dsec, { "needs": ["current", "forecast"] }), units)
 	except PermanentError:
 		raise
 	except Exception as e:
@@ -38,7 +39,7 @@ async def weather_fields(dsec: DataSourceExecutionContext) -> dict[str, str]:
 	fields: dict[str, str] = {}
 	for need in ("current", "forecast"):
 		try:
-			fields.update(api.prompt_fields(await api.open_async(api_dsec, { "needs": [need] })))
+			fields.update(prompt_fields(await api.open_async(api_dsec, { "needs": [need] }), units))
 		except PermanentError:
 			raise
 		except Exception:

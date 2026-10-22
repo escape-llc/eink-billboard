@@ -10,8 +10,8 @@ from typing import Any, cast
 
 import httpx
 
-from ..datasources.data_source import DataSourceManager, DataSourcePromptFields
-from ..datasources.contracts.weather import Report, Units, WeatherApi, daypart, prompt_fields, season
+from ..datasources.data_source import DataSourceManager
+from ..datasources.contracts.weather import IMPERIAL, METRIC, Report, WeatherApi, daypart, prompt_fields, season
 from ..datasources.openweathermap.openweathermap import OpenWeatherMapApi, parse_current, parse_forecast
 from ..datasources.weather_image.weather_image import WeatherImageAsync, tidy
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
@@ -29,7 +29,7 @@ PROMPT = "A cozy poster of {place} at {daypart} in {season}: {condition}, {temp}
 
 def storage(weather_key: str|None = KEY) -> ConfigurationManager:
 	"""Metric, so the values read the same wherever the tests run; nothing is kept (most tests count calls)."""
-	cm = weather_settings({ "units": "metric", "apiKey": weather_key })
+	cm = weather_settings({ "apiKey": weather_key })
 	save_datasource_settings(cm, "openai", { "apiKey": "sk-good", "modelsCacheHours": 24, "staleDays": 30 })
 	return cm
 
@@ -40,7 +40,8 @@ def context(cm: ConfigurationManager, orientation: str = "landscape", **system) 
 	root.add_service(DatasourceConfigurationManager, cm.datasource_manager("weather-image"))
 	root.add_service(DataSourceManager, DataSourceManager({ **sources(), "openweathermap": OpenWeatherMapApi("openweathermap", "OpenWeatherMap"),
 		"weather-image": WeatherImageAsync("weather-image", "Weather Visualizer") }))
-	root.add_service(SettingsConfigurationManager, cast(Any, FakeSettings(orientation, **system)))
+	# metric, so the values read the same wherever the tests run (the units are the device's)
+	root.add_service(SettingsConfigurationManager, cast(Any, FakeSettings(orientation, **{ "units": "metric", **system })))
 	root.add_service(StaticConfigurationManager, StaticConfigurationManager(STATIC))
 	return DataSourceExecutionContext(root, (800, 480), NOW)
 
@@ -58,33 +59,31 @@ def tokens_of_descriptor() -> list[dict]:
 TASK = { "weatherPrompt": PROMPT, "randomizePrompt": False, "textSource": "openai-text", "imageSource": "openai-image" }
 
 class TestTheFields(unittest.TestCase):
-	def test_the_source_that_supplies_the_values_lists_the_fields(self):
-		source = OpenWeatherMapApi("openweathermap", "OpenWeatherMap")
-		self.assertIsInstance(source, DataSourcePromptFields)
+	def test_the_contract_lists_the_fields_and_fills_every_one(self):
 		listed = [t["name"] for t in tokens_of_descriptor()]
 		self.assertTrue(all(t["description"] for t in tokens_of_descriptor()))
 		self.assertEqual(len(listed), len(set(listed)))
-		fields = source.prompt_fields(full_report(sunrise=NOW - timedelta(hours=6), sunset=NOW + timedelta(hours=6), latitude=47.6))
+		fields = prompt_fields(full_report(sunrise=NOW - timedelta(hours=6), sunset=NOW + timedelta(hours=6), latitude=47.6), METRIC)
 		# every value is one of the listed fields, and a report that has it all gives them all
 		self.assertEqual(set(fields) - set(listed), set())
-		self.assertEqual(set(listed) - set(fields), set(), "a field the contract lists but the provider never fills")
+		self.assertEqual(set(listed) - set(fields), set(), "a field the contract lists but never fills")
 
 	def test_the_values_are_words_with_their_units(self):
-		fields = prompt_fields(full_report(sunrise=datetime(2026, 10, 7, 7, 5, tzinfo=ZONE), sunset=datetime(2026, 10, 7, 18, 40, tzinfo=ZONE), latitude=47.6))
+		fields = prompt_fields(full_report(sunrise=datetime(2026, 10, 7, 7, 5, tzinfo=ZONE), sunset=datetime(2026, 10, 7, 18, 40, tzinfo=ZONE), latitude=47.6), METRIC)
 		self.assertEqual((fields["place"], fields["condition"], fields["temp"], fields["season"], fields["daypart"]), ("Seattle", "scattered clouds", "14°C", "autumn", "day"))
 		self.assertEqual((fields["sunrise"], fields["sunset"]), ("07:05", "18:40"))
 		self.assertTrue(fields["humidity"].endswith("%") and fields["wind"].endswith("km/h"))
-		american = prompt_fields(full_report(sunrise=datetime(2026, 10, 7, 7, 5, tzinfo=ZONE), sunset=datetime(2026, 10, 7, 18, 40, tzinfo=ZONE), latitude=47.6, units=Units("imperial"), twelve_hour=True))
+		american = prompt_fields(full_report(sunrise=datetime(2026, 10, 7, 7, 5, tzinfo=ZONE), sunset=datetime(2026, 10, 7, 18, 40, tzinfo=ZONE), latitude=47.6, twelve_hour=True), IMPERIAL)
 		self.assertEqual((american["sunrise"], american["sunset"]), ("7:05 am", "6:40 pm"))
-		self.assertTrue(american["temp"].endswith("°F") and american["wind"].endswith("mph"))
+		self.assertEqual((american["temp"], american["wind"]), ("58°F", "8 mph"))
 
 	def test_what_is_not_known_is_left_out(self):
-		bare = Report("", Units("metric"), False, NOW)
-		self.assertEqual(prompt_fields(bare), {})
+		bare = Report("", False, NOW)
+		self.assertEqual(prompt_fields(bare, METRIC), {})
 		parse_current(json.loads(fixture_text("weather-current.json")), bare, ZONE)
-		self.assertEqual(set(prompt_fields(bare)), { "place", "condition", "temp", "feels", "humidity", "wind", "sunrise", "sunset", "daypart" })
+		self.assertEqual(set(prompt_fields(bare, METRIC)), { "place", "condition", "temp", "feels", "humidity", "wind", "sunrise", "sunset", "daypart" })
 		parse_forecast(json.loads(fixture_text("weather-forecast.json")), bare, ZONE)
-		self.assertTrue({ "high", "low" } <= set(prompt_fields(bare)))
+		self.assertTrue({ "high", "low" } <= set(prompt_fields(bare, METRIC)))
 
 	def test_the_part_of_the_day_and_the_season(self):
 		rise, sset = datetime(2026, 6, 1, 5, 0, tzinfo=ZONE), datetime(2026, 6, 1, 21, 0, tzinfo=ZONE)

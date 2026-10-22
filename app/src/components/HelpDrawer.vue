@@ -10,7 +10,7 @@
 				<AccordionHeader>First steps</AccordionHeader>
 				<AccordionContent>
 					<ol>
-						<li><b>Settings, System:</b> set the device's <b>Location</b> and time zone. Weather, maps and the clock use them. <b>Weather Provider</b> says where the weather comes from; left empty, it is the one that is set up (today, OpenWeatherMap with its key). The <i class="pi pi-wifi" aria-hidden="true"></i> button beside the map finds a rough position from the device's internet address; nothing is saved until you press Save.</li>
+						<li><b>Settings, System:</b> set the device's <b>Location</b> and time zone. Weather, maps and the clock use them. <b>Weather Provider</b> says where the weather comes from; left empty, it is the one that is set up (today, OpenWeatherMap with its key). <b>Units</b> are the weather's: Automatic means miles and Fahrenheit in US time zones, kilometres and Celsius elsewhere, and the temperature and the wind speed can each be given a unit of their own (Celsius with miles per hour, say). The <i class="pi pi-wifi" aria-hidden="true"></i> button beside the map finds a rough position from the device's internet address; nothing is saved until you press Save.</li>
 						<li><b>Settings, Display:</b> choose the panel you have, and its orientation.</li>
 						<li><b>Playlist:</b> make a playlist and add <b>tracks</b>. A track is one page or picture and how long it stays. Save the playlist: nothing reaches the panel until it is saved.</li>
 						<li>If a track needs a key (weather, maps, comics, AI pictures), add it under <b>Settings, Data Sources</b>. Each key has a <b>Test</b> button and a link to where you get one.</li>
@@ -106,7 +106,7 @@
 					<p>A page with text covers the overlays while it shows.</p>
 					<dl>
 						<dt>Weather</dt>
-						<dd>The weather at the device's <b>Location</b> (Settings, System) from the weather provider, OpenWeatherMap: <b>now</b>, the next day in three-hour steps (<b>hours</b>), the next five <b>days</b>, a page per view. The key, the units and how long answers are kept are in <b>Settings, Data Sources, OpenWeatherMap</b>, shared with the Weather Overlay. A free key will do; a new one can take a couple of hours to start working, and until then the page says it was refused. Units <b>auto</b> means miles and Fahrenheit in US time zones, kilometres and Celsius elsewhere.</dd>
+						<dd>The weather at the device's <b>Location</b> (Settings, System) from the weather provider, OpenWeatherMap: <b>now</b>, the next day in three-hour steps (<b>hours</b>), the next five <b>days</b>, a page per view. The key and how long answers are kept are in <b>Settings, Data Sources, OpenWeatherMap</b>, shared with the Weather Overlay; the units are in <b>Settings, System</b>. A free key will do; a new one can take a couple of hours to start working, and until then the page says it was refused.</dd>
 						<dt>Calendar</dt>
 						<dd>The <b>month</b>, the coming <b>weeks</b> as continuous rows, or an <b>agenda</b> of the coming days, from the calendars in its settings (see Calendars).</dd>
 						<dt>RSS Feed</dt>

@@ -53,6 +53,27 @@ class TestStorageAccess(unittest.TestCase):
 		self.maxDiff = None
 		self.assertEqual(offenders, {}, "These modules touch files themselves: use the configuration manager (or add the file to OTHER if it is not the storage).")
 
+	def test_a_text_file_is_opened_as_utf_8(self):
+		"""
+		A file opened as text names its encoding: the default is the platform's (cp1252 on Windows), so a schema's `°C` read back as `Â°C` there while a Pi,
+		whose default is UTF-8, was fine. A binary open (`b` in the mode) has none.
+		"""
+		offenders = []
+		for folder, dirs, files in os.walk(PYTHON):
+			dirs[:] = [d for d in dirs if d not in ("tests", "__pycache__", ".storage", "static", "storage", "waveshare_epd")]
+			for file in (f for f in files if f.endswith(".py")):
+				full = os.path.join(folder, file)
+				with open(full, encoding="utf-8") as f:
+					tree = ast.parse(f.read())
+				for node in ast.walk(tree):
+					if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "open"):
+						continue
+					mode = node.args[1] if len(node.args) > 1 else next((k.value for k in node.keywords if k.arg == "mode"), None)
+					binary = isinstance(mode, ast.Constant) and "b" in str(mode.value)
+					if not binary and not any(k.arg == "encoding" for k in node.keywords):
+						offenders.append(f"{os.path.relpath(full, PYTHON)}:{node.lineno}")
+		self.assertEqual(offenders, [], "open(..., encoding=\"utf-8\") for a text file")
+
 class TestNames(unittest.TestCase):
 	def test_a_name_is_never_a_path(self):
 		with tempfile.TemporaryDirectory() as tmp:
