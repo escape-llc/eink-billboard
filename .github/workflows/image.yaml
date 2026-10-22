@@ -117,7 +117,7 @@ jobs:
 
   # A snapshot of every image published from master, and the cleanup that keeps them few: the newest always, at most KEEP_SNAPSHOTS in all, the others only
   # for KEEP_DAYS; releases are never removed. Lean on purpose while the project changes quickly; change the two numbers when that changes.
-  # PRUNE stays "dry-run" (the summary lists what would go) until one real run has been read; "apply" removes.
+  # PRUNE "apply" removes them; "dry-run" only lists in the summary what would go (the first run was read that way, #504).
   snapshot:
     needs: image
     if: github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.image.outputs.digest != ''
@@ -129,7 +129,7 @@ jobs:
     env:
       KEEP_SNAPSHOTS: "5"
       KEEP_DAYS: "7"
-      PRUNE: dry-run
+      PRUNE: apply
     steps:
     - name: Checkout code
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
