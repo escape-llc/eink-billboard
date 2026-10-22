@@ -1,12 +1,14 @@
 import contextlib
 import io
 import json
+import os
+import tomllib
 import unittest
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from scripts import snapshots
-from scripts.snapshots import Http, Repo, Version, manifest_children, next_link, plan_versions, snapshot_name, snapshot_time, snapshots_to_keep
+from scripts.snapshots import Http, Repo, Version, manifest_children, next_link, plan_versions, release_check, release_problems, snapshot_name, snapshot_time, snapshots_to_keep
 
 NOW = datetime(2026, 10, 22, 12, 0, 0, tzinfo=timezone.utc)
 OLD = NOW - timedelta(days=30)
@@ -133,6 +135,7 @@ class FakeHttp(Http):
 		self.tree = tree
 		self.sent: list[tuple[str, str]] = []
 		self.tagged: list[tuple[str, bytes]] = []
+		self.missing: set[str] = set()
 
 	def api(self, method: str, path: str, body: dict[str, Any]|None = None) -> tuple[int, Any, dict[str, str]]:
 		self.sent.append((method, path))
@@ -157,6 +160,8 @@ class FakeHttp(Http):
 		return self.versions
 
 	def manifest(self, repository: str, reference: str) -> tuple[bytes, str]:
+		if reference in self.missing:
+			raise RuntimeError(f"the manifest {reference} answered 404")
 		return json.dumps({ "manifests": [{ "mediaType": MANIFEST, "digest": d } for d in self.tree.get(reference, [])] }).encode(), INDEX
 
 	def put_manifest(self, repository: str, tag: str, raw: bytes, kind: str) -> None:
@@ -204,6 +209,45 @@ class TestCommands(unittest.TestCase):
 			snapshots.make(http, REPO, commit(9), digest(9))
 		with self.assertRaises(ValueError):
 			snapshots.make(http, REPO, "abc", digest(9))
+
+class TestReleases(unittest.TestCase):
+	"""A release is v and a version that both version fields say, and it is the snapshot's image under another name, never a new build."""
+	def test_the_name_and_the_versions_must_agree(self):
+		self.assertEqual(release_problems("v0.1.0", "0.1.0", "0.1.0"), [])
+		self.assertEqual(release_problems("v1.2.0-rc.1", "1.2.0-rc.1", "1.2.0-rc.1"), [])
+		self.assertEqual(len(release_problems("v0.2.0", "0.1.0", "0.2.0")), 1)
+		self.assertEqual(len(release_problems("v0.2.0", "0.1.0", "0.1.0")), 2)
+		for name in ["0.1.0", "v0.1", "v0.1.0.1", "20261022143005", "vnext", "v0.1.0-"]:
+			self.assertNotEqual(release_problems(name, "0.1.0", "0.1.0"), [], name)
+
+	def test_the_repository_says_one_version(self):
+		root = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+		with open(os.path.join(root, "pyproject.toml"), "rb") as f:
+			python_version = tomllib.load(f)["project"]["version"]
+		with open(os.path.join(root, "app", "package.json"), encoding="utf-8") as f:
+			app_version = json.load(f)["version"]
+		self.assertEqual(python_version, app_version, "pyproject.toml and app/package.json must say the same version (RELEASING.md)")
+		self.assertEqual(release_check(f"v{python_version}", root), [])
+
+	def setUp(self):
+		quiet = contextlib.redirect_stdout(io.StringIO())
+		quiet.__enter__()
+		self.addCleanup(quiet.__exit__, None, None, None)
+
+	def test_promote_names_the_commits_image_after_the_release_and_latest(self):
+		http = FakeHttp({}, [], {})
+		snapshots.promote(http, REPO, "v0.1.0", commit(9))
+		self.assertEqual([tag for tag, _ in http.tagged], ["v0.1.0", "latest"])
+		self.assertEqual(len({raw for _, raw in http.tagged}), 1)
+
+	def test_promote_refuses_a_commit_without_an_image(self):
+		http = FakeHttp({}, [], {})
+		http.missing.add(f"sha-{commit(9)}")
+		with self.assertRaises(RuntimeError):
+			snapshots.promote(http, REPO, "v0.1.0", commit(9))
+		self.assertEqual(http.tagged, [])
+		with self.assertRaises(ValueError):
+			snapshots.promote(http, REPO, "20261022143005", commit(9))
 
 if __name__ == "__main__":
 	unittest.main()

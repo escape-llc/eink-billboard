@@ -1,0 +1,52 @@
+name: Release
+
+# A release is made by a person (RELEASING.md, #504): they push a tag `vX.Y.Z` on a snapshot of master, and this promotes it. Nothing is built:
+# the snapshot's image (`sha-<commit>`, made when the commit reached master) gets the release's name and `latest`, so the stable channel runs the
+# very image the insider channel ran. It refuses a tag that is not on master, whose version fields say another version, or whose commit has no image.
+on:
+  push:
+    tags: [ "v*" ]
+
+permissions: {}
+
+# one release at a time, none cancelled
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      packages: write
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # the whole history, to check the tag is on master; the token is not left in .git/config
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: The tag is a version, on master, and the version fields agree
+      # every value comes from the environment, never from an expression in the script (a tag name is text someone chose)
+      id: commit
+      run: |
+        commit=$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")
+        git merge-base --is-ancestor "$commit" origin/master || { echo "::error::$GITHUB_REF_NAME is not on master: a release is a snapshot of master"; exit 1; }
+        python3 -m scripts.snapshots release-check --tag "$GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"
+        echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+    - name: Promote the snapshot's image
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        COMMIT: ${{ steps.commit.outputs.commit }}
+      run: python3 -m scripts.snapshots promote --tag "$GITHUB_REF_NAME" --commit "$COMMIT" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: The GitHub release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+      # the notes are GitHub's list of the pull requests since the release before; RELEASING.md's announcement says it in prose
+      run: gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes

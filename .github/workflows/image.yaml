@@ -2,14 +2,13 @@ name: Device image
 
 # The image a Raspberry Pi downloads instead of building (#310): the `app-device` target, built natively on GitHub's arm64 runners and published to
 # ghcr.io/escape-llc/eink-billboard. Every push to master publishes `sha-<commit>` (what `deploy/eink-container.sh update` asks for: the clone's own commit)
-# and `edge`; a release tag `v...` also publishes `<tag>` and `latest`. A pull request that touches the image builds it without publishing (a fork's has no
-# right to, and nothing it builds is kept).
+# and `edge`. A release is not built here: `release.yml` gives a snapshot's image the release's name. A pull request that touches the image builds it without
+# publishing (a fork's has no right to, and nothing it builds is kept).
 # Every image published from master is then a snapshot (#504, the `snapshot` job): the commit's committer time in UTC (`20261022143005`) as a git tag and
 # as a second name of the same image, and the snapshots and images not kept are removed (`scripts/snapshots.py`).
 on:
   push:
     branches: [ "master" ]
-    tags: [ "v*" ]
   pull_request:
     branches: [ "master" ]
     paths: [ "Dockerfile", ".dockerignore", ".github/workflows/image.yaml", "pyproject.toml", "uv.lock", "app/package.json", "app/package-lock.json" ]
@@ -47,13 +46,7 @@ jobs:
         image="ghcr.io/${GITHUB_REPOSITORY,,}"
         short="${GITHUB_SHA::7}"
         tags="$image:sha-$GITHUB_SHA"
-        if [ "$GITHUB_REF_TYPE" = tag ]; then
-          if ! [[ "$GITHUB_REF_NAME" =~ ^v[0-9A-Za-z._-]{1,100}$ ]]; then
-            echo "::error::a release tag is v followed by letters, digits, dots, dashes or underscores"
-            exit 1
-          fi
-          tags="$tags,$image:$GITHUB_REF_NAME,$image:latest"
-        elif [ "$GITHUB_EVENT_NAME" = push ]; then
+        if [ "$GITHUB_EVENT_NAME" = push ]; then
           tags="$tags,$image:edge"
         fi
         {
@@ -71,7 +64,7 @@ jobs:
     - name: Make a builder that can keep a cache in the registry
       run: docker buildx create --use --name eink
 
-    - name: Build (and publish, on master or a tag)
+    - name: Build (and publish, on master)
       id: build
       env:
         IMAGE: ${{ steps.names.outputs.image }}
