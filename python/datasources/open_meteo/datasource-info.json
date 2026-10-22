@@ -1,0 +1,44 @@
+{
+	"id": "open-meteo",
+	"name": "Open-Meteo",
+	"version": "0.0.1",
+	"class": "OpenMeteoApi",
+	"file": "open_meteo.py",
+	"module": "python.datasources.open_meteo.open_meteo",
+	"description": "A weather provider with no key: the weather at the device's location from Open-Meteo, for the Weather pages, the Weather Overlay and the Weather Visualizer. Free for non-commercial use; its data is CC BY 4.0, and the pages credit it.",
+	"disabled": false,
+	"features": ["internet", "api", "data-weather"],
+	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:open-meteo:1",
+		"schema": {
+			"properties": [
+				{
+					"name": "cacheHours",
+					"type": "number",
+					"required": true,
+					"default": 0.5,
+					"minimum": 0,
+					"maximum": 24,
+					"step": 0.25,
+					"minFractionDigits": 0,
+					"maxFractionDigits": 2,
+					"title": "Keep the Weather (hours)",
+					"description": "How long what Open-Meteo answered (the weather now and the forecast, one call) is kept and shared by every page, overlay and task. The free plan allows 10,000 calls a day. 0: ask every time."
+				},
+				{
+					"name": "staleDays",
+					"type": "integer",
+					"required": true,
+					"default": 30,
+					"minimum": 0,
+					"title": "Forget Unused Answers After (days)",
+					"description": "A kept answer nobody has used for this many days (a place you moved away from) is removed. 0: never."
+				}
+			]
+		},
+		"default": {
+			"cacheHours": 0.5,
+			"staleDays": 30
+		}
+	}
+}

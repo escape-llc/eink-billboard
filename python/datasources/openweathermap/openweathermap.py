@@ -172,7 +172,7 @@ class OpenWeatherMapApi(WeatherApi):
 		now = device_now(dsec.timestamp)
 		zone = now.tzinfo or now.astimezone().tzinfo
 		assert zone is not None
-		report = Report("", system.get("timeFormat") == "12h", now)
+		report = Report("", system.get("timeFormat") == "12h", now, credit="Weather data: OpenWeatherMap")
 		latitude, longitude = float(where["latitude"]), float(where["longitude"])
 		report.latitude = latitude
 		# a metered client of its own (#440): every answer that is not kept is a call against the key's quota

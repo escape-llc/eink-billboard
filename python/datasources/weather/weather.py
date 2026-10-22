@@ -82,7 +82,8 @@ def page_params(page: Page, params: Mapping[str, Any]) -> dict:
 			"rain": _percent(d.rain), "humidity": _humidity(d.humidity), "wind": _wind(d.wind, units), "text": d.text } for d in r.days]
 		body = { "days": items, "items": items, "rows": _rows(DAY_ROWS, items) }
 	heading = params.get("title") or r.place or "Weather"
-	return { "view": page.view, "heading": heading, "unit": units.temp, "font_scale": FONT_SCALES.get(str(params.get("fontSize")), 1.0), "settings": params, **body }
+	# the provider's credit (its terms ask for it next to its data), whichever provider it is
+	return { "view": page.view, "heading": heading, "credit": r.credit, "unit": units.temp, "font_scale": FONT_SCALES.get(str(params.get("fontSize")), 1.0), "settings": params, **body }
 
 def generate_image(stm: StaticConfigurationManager, render_dir: str, dimensions, template_params: dict, theme: ThemeInputs|None = None) -> MediaRenderResult | None:
 	"""Blocking (runs Chromium). `dimensions` is the target size (see target_dimensions)."""

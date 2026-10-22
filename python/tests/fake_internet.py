@@ -226,6 +226,17 @@ def _weather(request: httpx.Request) -> httpx.Response | None:
 		return httpx.Response(401, json={ "cod": 401, "message": "Invalid API key" })
 	return httpx.Response(200, text=fixture_text(name), headers={ "Content-Type": "application/json" })
 
+# Open-Meteo: no key; one forecast (current, hourly, daily) for the tests' day, asked in SI with Unix times, as the provider asks (anything else is a 400, as the real service says of a bad parameter)
+def _open_meteo(request: httpx.Request) -> httpx.Response | None:
+	if request.url.host != "api.open-meteo.com":
+		return None
+	if request.url.path != "/v1/forecast":
+		return httpx.Response(404, json={ "error": True, "reason": "Not Found" })
+	params = request.url.params
+	if params.get("timeformat") != "unixtime" or params.get("wind_speed_unit") != "ms" or not params.get("latitude") or not params.get("longitude"):
+		return httpx.Response(400, json={ "error": True, "reason": "Expected unixtime, metres per second and a place" })
+	return httpx.Response(200, text=fixture_text("open-meteo-forecast.json"), headers={ "Content-Type": "application/json" })
+
 # ipapi.co: the caller's rough position (the Location field's button): always the same place
 def _ip_location(request: httpx.Request) -> httpx.Response | None:
 	if request.url.host != "ipapi.co":
@@ -397,7 +408,7 @@ def _comicvine(request: httpx.Request) -> httpx.Response | None:
 		return httpx.Response(200, json={ "error": "OK", "status_code": 1, "number_of_total_results": COMICVINE_ISSUES, "results": results })
 	return httpx.Response(404, text="Not found")
 
-ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _apod, _apod_image, _rss_feed, _rss_image, _picture_at_an_address, _calendar, _caldav, _weather, _thunderforest, _ip_location, _openai, _google, _comicvine]
+ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _apod, _apod_image, _rss_feed, _rss_image, _picture_at_an_address, _calendar, _caldav, _weather, _open_meteo, _thunderforest, _ip_location, _openai, _google, _comicvine]
 
 def install() -> FakeInternet | None:
 	"""Make every `AsyncHttpWorkerPool` talk to the fake (unless EINK_TEST_LIVE is set)."""

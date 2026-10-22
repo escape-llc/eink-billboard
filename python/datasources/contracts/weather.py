@@ -109,6 +109,8 @@ class Report:
 	days: list[Day] = field(default_factory=list)
 	# where it was asked for (the season depends on the hemisphere)
 	latitude: float|None = None
+	# the provider's credit, which its terms ask to be shown with its data (the Weather pages' footer; an overlay has no room, and is a fragment over another page)
+	credit: str = ""
 
 # the parts of a day, from the sun: the twilight on either side of sunrise and sunset is dawn and dusk
 TWILIGHT = timedelta(minutes=45)
