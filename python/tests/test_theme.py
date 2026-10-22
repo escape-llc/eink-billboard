@@ -88,18 +88,18 @@ class TestTypography(unittest.TestCase):
 			self.assertEqual(inputs_from({ "theme": "analogous", "hue": 10, "saturation": 50, "lightness": 50 }).font_body, "Jost")
 
 	def test_choices_are_read_and_the_heading_follows_the_body_when_unset(self):
-		inputs = inputs_from({ "fontBody": "Napoli", "fontHeading": None, "fontScale": 1.25 })
-		self.assertEqual((inputs.font_body, inputs.font_heading, inputs.font_scale), ("Napoli", "Napoli", 1.25))
+		inputs = inputs_from({ "fontBody": "League Spartan", "fontHeading": None, "fontScale": 1.25 })
+		self.assertEqual((inputs.font_body, inputs.font_heading, inputs.font_scale), ("League Spartan", "League Spartan", 1.25))
 		inputs = inputs_from({ "fontBody": "Jost", "fontHeading": "Dogica", "fontScale": 0.8 })
 		self.assertEqual((inputs.font_body, inputs.font_heading, inputs.font_scale), ("Jost", "Dogica", 0.8))
 
 	def test_the_overlays_share_one_font_and_it_follows_the_heading_when_unset(self):
-		self.assertEqual(inputs_from({ "fontBody": "Jost", "fontHeading": "Napoli" }).font_overlay, "Napoli")
-		self.assertEqual(inputs_from({ "fontBody": "Napoli" }).font_overlay, "Napoli")
+		self.assertEqual(inputs_from({ "fontBody": "Jost", "fontHeading": "League Spartan" }).font_overlay, "League Spartan")
+		self.assertEqual(inputs_from({ "fontBody": "League Spartan" }).font_overlay, "League Spartan")
 		self.assertEqual(inputs_from({ "fontBody": "Jost", "fontOverlay": "Dogica" }).font_overlay, "Dogica")
 		self.assertEqual(inputs_from({ "fontBody": "Jost", "fontOverlay": "../x" }).font_overlay, "Jost")
 		self.assertIn("--font-overlay: Dogica;", css_vars(inputs_from({ "fontOverlay": "Dogica" })))
-		self.assertEqual(current_typography(FakeSettings({ "fontOverlay": "DS-Digital" })).overlay, "DS-Digital")  # type: ignore[arg-type]
+		self.assertEqual(current_typography(FakeSettings({ "fontOverlay": "DSEG7" })).overlay, "DSEG7")  # type: ignore[arg-type]
 
 	def test_only_the_fonts_we_ship_and_sizes_in_range_are_used(self):
 		inputs = inputs_from({ "fontBody": "../../etc/passwd", "fontHeading": "Comic Sans", "fontScale": 9 })
@@ -108,15 +108,15 @@ class TestTypography(unittest.TestCase):
 		self.assertEqual(inputs_from({ "fontScale": True }).font_scale, 1.0)
 
 	def test_the_css_gets_the_variables_without_quotes(self):
-		text = css_vars(inputs_from({ "fontBody": "DS-Digital", "fontHeading": "Napoli", "fontScale": 1.2 }))
-		self.assertIn("--font-body: DS-Digital;", text)
-		self.assertIn("--font-heading: Napoli;", text)
+		text = css_vars(inputs_from({ "fontBody": "DSEG7", "fontHeading": "League Spartan", "fontScale": 1.2 }))
+		self.assertIn("--font-body: DSEG7;", text)
+		self.assertIn("--font-heading: League Spartan;", text)
 		self.assertIn("--font-scale: 1.2;", text)
 		self.assertNotIn('"', text)
 
 	def test_pil_code_reads_the_same_choice_each_time(self):
-		scm = FakeSettings({ "fontBody": "Napoli", "fontScale": 1.2 })
-		self.assertEqual(current_typography(cast(Any, scm)).body, "Napoli")
+		scm = FakeSettings({ "fontBody": "League Spartan", "fontScale": 1.2 })
+		self.assertEqual(current_typography(cast(Any, scm)).body, "League Spartan")
 		scm.settings = { "fontBody": "Jost", "fontScale": 1.0 }
 		self.assertEqual((current_typography(cast(Any, scm)).body, current_typography(cast(Any, scm)).scale), ("Jost", 1.0))
 		self.assertEqual(current_typography(None).body, "Jost")
@@ -219,7 +219,7 @@ class TestFontsInChromium(unittest.TestCase):
 
 	def test_font_and_scale_change_the_page(self):
 		base = self._page()
-		self.assertNotEqual(base, self._page(fontBody="Napoli"))
+		self.assertNotEqual(base, self._page(fontBody="League Spartan"))
 		self.assertNotEqual(base, self._page(fontHeading="Dogica"))
 		self.assertNotEqual(base, self._page(fontScale=1.4))
 		self.assertEqual(base, self._page(fontBody="Jost", fontScale=1.0))

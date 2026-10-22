@@ -686,7 +686,7 @@ class TestPaletteRoute(WebApiTestBase):
 class TestFontsRoute(WebApiTestBase):
 	"""The theme preview loads the shipped fonts; the file comes from our table, never from the URL."""
 	def test_a_shipped_font_is_served(self):
-		for family, weight in (("Jost", "normal"), ("Jost", "bold"), ("DS-Digital", "normal"), ("Dogica", "bold")):
+		for family, weight in (("Jost", "normal"), ("Jost", "bold"), ("DSEG7", "normal"), ("Atkinson Hyperlegible", "bold"), ("Literata", "bold"), ("Dogica", "bold")):
 			with self.subTest(family=family, weight=weight):
 				resp = self.client.get(f"/api/fonts/{family}", params={ "weight": weight })
 				self.assertEqual(resp.status_code, 200)
@@ -698,7 +698,7 @@ class TestFontsRoute(WebApiTestBase):
 			with self.subTest(family=family):
 				self.assertEqual(self.client.get(f"/api/fonts/{family}").status_code, 404)
 		# an unknown weight is the family's first face
-		self.assertEqual(self.client.get("/api/fonts/Napoli", params={ "weight": "../../x" }).status_code, 200)
+		self.assertEqual(self.client.get("/api/fonts/Bitter", params={ "weight": "../../x" }).status_code, 200)
 
 class TestNonFiniteNumbers(WebApiTestBase):
 	"""Starlette's JSON parser accepts NaN, Infinity and 1e999; a stored NaN made every later GET a 500 (JSONResponse refuses it)."""

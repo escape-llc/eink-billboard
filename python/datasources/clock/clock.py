@@ -103,8 +103,11 @@ class Clock:
 		image = Image.new("RGBA", dimensions, secondary_color+(255,))
 		text = Image.new("RGBA", dimensions, (0, 0, 0, 0))
 
-		font_size = w * 0.36
-		fnt = stm.get_font("DS-Digital", font_size)
+		# sized by measuring the widest time ("88:88", the ghost drawn behind it) at a reference size: 90% of the width, at most 60% of the height
+		reference = 100
+		width_at_reference = stm.get_font("DSEG7", reference).getlength("88:88")
+		font_size = max(1, int(min(w * 0.9 / width_at_reference, h * 0.6 / reference) * reference))
+		fnt = stm.get_font("DSEG7", font_size)
 		text_draw = ImageDraw.Draw(text)
 
 		# time text
@@ -119,7 +122,7 @@ class Clock:
 		bg = Image.new("RGBA", dimensions, primary_color+(255,))
 		dim = min(w,h)
 		font_size = dim*0.05
-		fnt = stm.get_font("Napoli", font_size)
+		fnt = stm.get_font("League Spartan", font_size, "bold")
 		canvas = Image.new("RGBA", dimensions, (0, 0, 0, 0))
 		image_draw = ImageDraw.Draw(canvas)
 

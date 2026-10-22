@@ -76,7 +76,7 @@ class TestFitLine(unittest.TestCase):
 		return lambda px: stm.get_font(family, px, "bold")
 
 	def test_the_line_and_its_outline_fit_the_box(self):
-		for family in ("Jost", "Napoli", "Dogica", "DS-Digital"):
+		for family in ("Jost", "League Spartan", "Dogica", "DSEG7"):
 			with self.subTest(family=family):
 				font = self._font(family)
 				placed = fit_line("Friday, October 9, 2026", (200, 40), font, 1.0, False)
@@ -163,7 +163,7 @@ class TestRender(unittest.TestCase):
 
 	def test_the_theme_chooses_the_font_and_the_text_fits_the_zone(self):
 		pages = set()
-		for family in ("Jost", "Napoli", "Dogica", "DS-Digital"):
+		for family in ("Jost", "League Spartan", "Dogica", "DSEG7"):
 			with self.subTest(font=family):
 				image = self._render({ "format": "full" }, size=(150, 40), theme={ **THEME, "fontOverlay": family }).image
 				box = _ink(image)

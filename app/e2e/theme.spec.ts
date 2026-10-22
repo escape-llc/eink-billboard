@@ -26,9 +26,9 @@ test("the theme tab has a selector for each font and a swatch for every color of
 	await page.getByRole("tab", { name: "Theme" }).click()
 	// the fonts are chosen from the ones the device ships
 	await page.getByRole("tabpanel").locator(".p-select").filter({ hasText: "Jost" }).first().click()
-	await expect(page.getByRole("option")).toHaveText(["Jost", "Napoli", "Dogica (pixel)", "DS-Digital (segments)"])
-	await page.getByRole("option", { name: "Napoli" }).click()
-	await expect(page.getByTestId("type-sample")).toHaveCSS("font-family", /eink-Napoli/)
+	await expect(page.getByRole("option")).toHaveText(["Jost", "Atkinson Hyperlegible", "Lexend", "League Spartan", "Literata (serif)", "Bitter (slab serif)", "Dogica (pixel)", "DSEG7 (segments)"])
+	await page.getByRole("option", { name: "Atkinson Hyperlegible" }).click()
+	await expect(page.getByTestId("type-sample")).toHaveCSS("font-family", /eink-Atkinson Hyperlegible/)
 	// 5 tones of 3 colors
 	const swatches = page.getByTestId("palette").locator(".swatch")
 	await expect(swatches).toHaveCount(15)
