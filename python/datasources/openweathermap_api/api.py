@@ -10,6 +10,7 @@ from fastapi import APIRouter, Body
 
 from ...web.deps import CM
 from ...web.documents import SECRET_MASK
+from ...web.openapi import test_route
 from .openweathermap_api import check_key
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ def _saved_key(cm: CM) -> str|None:
 	key = (settings or {}).get("apiKey")
 	return key if isinstance(key, str) else None
 
-@openweathermap_router.post('/test')
+@openweathermap_router.post('/test', **test_route())
 def test_key(cm: CM, body: dict[str, Any] = Body(...)):
 	"""Ask OpenWeatherMap with the key typed (or the saved one, when the field shows the mask): `{ ok, message }`. Never kept."""
 	value = body.get("value")

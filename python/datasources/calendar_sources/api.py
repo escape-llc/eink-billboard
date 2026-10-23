@@ -8,6 +8,7 @@ from fastapi import APIRouter, Body
 
 from ...utils.url_guard import UrlRefused, fetch_checked
 from ...web.deps import CM, TOD
+from ...web.openapi import Choice, answers, row_step_route, test_route
 from ..metering import metered_client
 from .accounts import SESSIONS, AccountError, TokenStore, account_names, find_account, finish_google, poll_microsoft, start
 from .calendar_sources import device_now
@@ -66,12 +67,12 @@ async def _test(value: Any, now: datetime) -> dict:
 		message += f". Nothing repeats: it has no events after {_when(last)}, and then needs a new address."
 	return { "ok": True, "message": message }
 
-@calendar_router.post('/test')
+@calendar_router.post('/test', **test_route())
 def test_calendar(tod: TOD, body: dict[str, Any] = Body(...)):
 	# a plain `def`: it runs in the thread pool, where there is no event loop to be in the way of asyncio.run
 	return asyncio.run(_test(body.get("value"), device_now(tod.current_time())))
 
-@calendar_router.get('/lookups/countries')
+@calendar_router.get('/lookups/countries', **answers(list[Choice]))
 def countries():
 	return country_names()
 
@@ -96,7 +97,7 @@ async def _client_run(step) -> dict:
 			logger.warning(f"A connect step failed ({type(failed).__name__}).")
 			return _refused(AccountError(f"Could not reach the provider ({type(failed).__name__}). Try again."))
 
-@calendar_router.post('/connect/start')
+@calendar_router.post('/connect/start', **row_step_route())
 def connect_start(cm: CM, body: dict[str, Any] = Body(...)):
 	"""Start signing in the account named `key` (as saved). Always 200: `{ session, message, link?, code?, input?, poll? }` or `{ done, ok: false, message }`."""
 	settings, _ = _stored(cm)
@@ -107,7 +108,7 @@ def connect_start(cm: CM, body: dict[str, Any] = Body(...)):
 		return { "done": False, "ok": True, **await start(client, account) }
 	return asyncio.run(_client_run(step))
 
-@calendar_router.post('/connect/continue')
+@calendar_router.post('/connect/continue', **row_step_route())
 def connect_continue(cm: CM, body: dict[str, Any] = Body(...)):
 	"""Google's second step: `value` is the address the browser was sent to."""
 	settings, store = _stored(cm)
@@ -119,7 +120,7 @@ def connect_continue(cm: CM, body: dict[str, Any] = Body(...)):
 		return await finish_google(client, body.get("session"), body.get("value"), account, store, account_names(settings))
 	return asyncio.run(_client_run(step))
 
-@calendar_router.post('/connect/poll')
+@calendar_router.post('/connect/poll', **row_step_route())
 def connect_poll(cm: CM, body: dict[str, Any] = Body(...)):
 	"""Microsoft's waiting step: `{ done: false, poll }` until the sign-in is finished."""
 	settings, store = _stored(cm)

@@ -19,10 +19,12 @@
 import { computed, onBeforeUnmount, ref } from "vue"
 import { Button, InputText, Message } from "primevue"
 import { apiPost, joinUrl } from "./ApiClient"
+import type { components } from "../api/schema"
 import type { RowActionDef } from "./FormDefs"
 
 const props = defineProps<{ action: RowActionDef, baseUrl: string, rowKey: unknown, label: string }>()
-type Answer = { done?: boolean, ok?: boolean, message?: string, session?: string, link?: string, code?: string, input?: string, poll?: number }
+/** A row action step's answer (`RowStep`: every descriptor's `items.action.url` declares it, test_openapi_document checks) */
+type Answer = components["schemas"]["RowStep"]
 const busy = ref(false)
 const step = ref<Answer|null>(null)
 const result = ref<{ ok: boolean, message: string }|null>(null)

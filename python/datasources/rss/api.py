@@ -4,6 +4,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Body
+from ...web.openapi import test_route
 
 from ...task.async_http_worker_pool import AsyncHttpWorkerPool, tls_context
 from ...utils.url_guard import UrlRefused, fetch_checked
@@ -45,7 +46,7 @@ async def _test(value: Any) -> dict:
 	count = len(stories)
 	return { "ok": True, "message": f"{count} {'story' if count == 1 else 'stories'}" + (f", from “{title}”" if title else "") }
 
-@rss_router.post('/test')
+@rss_router.post('/test', **test_route())
 def test_feed(body: dict[str, Any] = Body(...)):
 	# a plain `def`: it runs in the thread pool, where there is no event loop to be in the way of asyncio.run
 	return asyncio.run(_test(body.get("value")))

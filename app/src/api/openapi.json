@@ -1081,6 +1081,117 @@
 				"title": "Role",
 				"type": "object"
 			},
+			"RowStep": {
+				"additionalProperties": false,
+				"description": "A row action's answer, always 200: what to show next (`message`, a `link` to open, a `code` to enter, an `input` to fill, or a wait of `poll` seconds) and the run's `session`,\nuntil it is `done` with `ok` and its last `message`. Each field only when the step has it.",
+				"properties": {
+					"calendars": {
+						"anyOf": [
+							{
+								"items": {
+									"additionalProperties": true,
+									"type": "object"
+								},
+								"type": "array"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Calendars"
+					},
+					"code": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Code"
+					},
+					"done": {
+						"anyOf": [
+							{
+								"type": "boolean"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Done"
+					},
+					"input": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Input"
+					},
+					"link": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Link"
+					},
+					"message": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Message"
+					},
+					"ok": {
+						"anyOf": [
+							{
+								"type": "boolean"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Ok"
+					},
+					"poll": {
+						"anyOf": [
+							{
+								"type": "integer"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Poll"
+					},
+					"session": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Session"
+					}
+				},
+				"title": "RowStep",
+				"type": "object"
+			},
 			"Run": {
 				"additionalProperties": false,
 				"description": "A time a task runs, with its offset.",
@@ -1414,6 +1525,26 @@
 					"task"
 				],
 				"title": "TaskSaved",
+				"type": "object"
+			},
+			"TestAnswer": {
+				"additionalProperties": false,
+				"description": "A Test button's answer, always 200 and in our words: whether it worked, and what to show beside the field.",
+				"properties": {
+					"message": {
+						"title": "Message",
+						"type": "string"
+					},
+					"ok": {
+						"title": "Ok",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"ok",
+					"message"
+				],
+				"title": "TestAnswer",
 				"type": "object"
 			},
 			"TimerDocument": {
@@ -2039,7 +2170,35 @@
 						"application/json": {
 							"schema": {
 								"additionalProperties": true,
-								"title": "Body",
+								"description": "A row action's step: `key` names the saved row (start); `session` the run, and `value` what the person typed (continue, poll).",
+								"properties": {
+									"key": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										],
+										"title": "Key"
+									},
+									"session": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										],
+										"title": "Session"
+									},
+									"value": {
+										"title": "Value"
+									}
+								},
+								"title": "RowActionBody",
 								"type": "object"
 							}
 						}
@@ -2050,7 +2209,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/RowStep"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2078,7 +2239,35 @@
 						"application/json": {
 							"schema": {
 								"additionalProperties": true,
-								"title": "Body",
+								"description": "A row action's step: `key` names the saved row (start); `session` the run, and `value` what the person typed (continue, poll).",
+								"properties": {
+									"key": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										],
+										"title": "Key"
+									},
+									"session": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										],
+										"title": "Session"
+									},
+									"value": {
+										"title": "Value"
+									}
+								},
+								"title": "RowActionBody",
 								"type": "object"
 							}
 						}
@@ -2089,7 +2278,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/RowStep"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2117,7 +2308,35 @@
 						"application/json": {
 							"schema": {
 								"additionalProperties": true,
-								"title": "Body",
+								"description": "A row action's step: `key` names the saved row (start); `session` the run, and `value` what the person typed (continue, poll).",
+								"properties": {
+									"key": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										],
+										"title": "Key"
+									},
+									"session": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										],
+										"title": "Session"
+									},
+									"value": {
+										"title": "Value"
+									}
+								},
+								"title": "RowActionBody",
 								"type": "object"
 							}
 						}
@@ -2128,7 +2347,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/RowStep"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2154,7 +2375,13 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Choice"
+									},
+									"title": "Response Countries Api Datasource Calendar Sources Lookups Countries Get",
+									"type": "array"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2171,7 +2398,13 @@
 						"application/json": {
 							"schema": {
 								"additionalProperties": true,
-								"title": "Body",
+								"description": "A Test button's question: the field's value as typed (a write-only field's mask, or nothing, means the saved one).",
+								"properties": {
+									"value": {
+										"title": "Value"
+									}
+								},
+								"title": "TestBody",
 								"type": "object"
 							}
 						}
@@ -2182,7 +2415,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/TestAnswer"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2209,7 +2444,13 @@
 						"application/json": {
 							"schema": {
 								"additionalProperties": true,
-								"title": "Body",
+								"description": "A Test button's question: the field's value as typed (a write-only field's mask, or nothing, means the saved one).",
+								"properties": {
+									"value": {
+										"title": "Value"
+									}
+								},
+								"title": "TestBody",
 								"type": "object"
 							}
 						}
@@ -2220,7 +2461,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/TestAnswer"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2248,7 +2491,13 @@
 						"application/json": {
 							"schema": {
 								"additionalProperties": true,
-								"title": "Body",
+								"description": "A Test button's question: the field's value as typed (a write-only field's mask, or nothing, means the saved one).",
+								"properties": {
+									"value": {
+										"title": "Value"
+									}
+								},
+								"title": "TestBody",
 								"type": "object"
 							}
 						}
@@ -2259,7 +2508,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/TestAnswer"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2286,7 +2537,13 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Choice"
+									},
+									"title": "Response Image Model Choices Api Datasource Google Api Lookups Image Models Get",
+									"type": "array"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2303,7 +2560,13 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Choice"
+									},
+									"title": "Response Quality Choices Api Datasource Google Api Lookups Qualities Get",
+									"type": "array"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2320,7 +2583,13 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Choice"
+									},
+									"title": "Response Text Model Choices Api Datasource Google Api Lookups Text Models Get",
+									"type": "array"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2355,7 +2624,13 @@
 						"application/json": {
 							"schema": {
 								"additionalProperties": true,
-								"title": "Body",
+								"description": "A Test button's question: the field's value as typed (a write-only field's mask, or nothing, means the saved one).",
+								"properties": {
+									"value": {
+										"title": "Value"
+									}
+								},
+								"title": "TestBody",
 								"type": "object"
 							}
 						}
@@ -2366,7 +2641,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/TestAnswer"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2393,7 +2670,13 @@
 						"application/json": {
 							"schema": {
 								"additionalProperties": true,
-								"title": "Body",
+								"description": "A Test button's question: the field's value as typed (a write-only field's mask, or nothing, means the saved one).",
+								"properties": {
+									"value": {
+										"title": "Value"
+									}
+								},
+								"title": "TestBody",
 								"type": "object"
 							}
 						}
@@ -2404,7 +2687,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/TestAnswer"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2430,7 +2715,13 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Choice"
+									},
+									"title": "Response Plugin Newspaper Slugs Api Datasource Newspaper Lookups Newspaperslug Get",
+									"type": "array"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2447,7 +2738,13 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Choice"
+									},
+									"title": "Response Image Model Choices Api Datasource Openai Api Lookups Image Models Get",
+									"type": "array"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2464,7 +2761,13 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Choice"
+									},
+									"title": "Response Quality Choices Api Datasource Openai Api Lookups Qualities Get",
+									"type": "array"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2481,7 +2784,13 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Choice"
+									},
+									"title": "Response Text Model Choices Api Datasource Openai Api Lookups Text Models Get",
+									"type": "array"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2516,7 +2825,13 @@
 						"application/json": {
 							"schema": {
 								"additionalProperties": true,
-								"title": "Body",
+								"description": "A Test button's question: the field's value as typed (a write-only field's mask, or nothing, means the saved one).",
+								"properties": {
+									"value": {
+										"title": "Value"
+									}
+								},
+								"title": "TestBody",
 								"type": "object"
 							}
 						}
@@ -2527,7 +2842,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/TestAnswer"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2555,7 +2872,13 @@
 						"application/json": {
 							"schema": {
 								"additionalProperties": true,
-								"title": "Body",
+								"description": "A Test button's question: the field's value as typed (a write-only field's mask, or nothing, means the saved one).",
+								"properties": {
+									"value": {
+										"title": "Value"
+									}
+								},
+								"title": "TestBody",
 								"type": "object"
 							}
 						}
@@ -2566,7 +2889,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/TestAnswer"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2593,7 +2918,13 @@
 						"application/json": {
 							"schema": {
 								"additionalProperties": true,
-								"title": "Body",
+								"description": "A Test button's question: the field's value as typed (a write-only field's mask, or nothing, means the saved one).",
+								"properties": {
+									"value": {
+										"title": "Value"
+									}
+								},
+								"title": "TestBody",
 								"type": "object"
 							}
 						}
@@ -2604,7 +2935,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/TestAnswer"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2632,7 +2965,13 @@
 						"application/json": {
 							"schema": {
 								"additionalProperties": true,
-								"title": "Body",
+								"description": "A Test button's question: the field's value as typed (a write-only field's mask, or nothing, means the saved one).",
+								"properties": {
+									"value": {
+										"title": "Value"
+									}
+								},
+								"title": "TestBody",
 								"type": "object"
 							}
 						}
@@ -2643,7 +2982,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/TestAnswer"
+								}
 							}
 						},
 						"description": "Successful Response"

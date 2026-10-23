@@ -20,6 +20,7 @@ from ...plugins.plugin_base import PermanentError
 from ...web.deps import CM
 from ...web.documents import SECRET_MASK
 from ...web.errors import ApiError
+from ...web.openapi import Choice, answers, test_route
 from ..data_source import DataSourceExecutionContext
 from .models import QUALITIES, describe_models, image_models, text_models
 from .openai_api import OpenAIApi, list_model_ids, stored_api_key
@@ -63,17 +64,17 @@ def _stored_ids(cm) -> list[str]:
 def _choices(ids: list[str]) -> list[dict]:
 	return [{ "name": model, "value": model } for model in ids]
 
-@openai_router.get('/lookups/image-models')
+@openai_router.get('/lookups/image-models', **answers(list[Choice]))
 def image_model_choices(cm: CM):
 	"""The image models the saved key may use and the OpenAI Image part can drive (no retired DALL·E)."""
 	return _choices(image_models(_stored_ids(cm)))
 
-@openai_router.get('/lookups/text-models')
+@openai_router.get('/lookups/text-models', **answers(list[Choice]))
 def text_model_choices(cm: CM):
 	"""The text models the saved key may use, for the OpenAI Text part."""
 	return _choices(text_models(_stored_ids(cm)))
 
-@openai_router.get('/lookups/qualities')
+@openai_router.get('/lookups/qualities', **answers(list[Choice]))
 def quality_choices():
 	"""Every quality an image model takes; a model asked for one it does not take uses the nearest one below it."""
 	return [{ "name": QUALITY_NAMES[q], "value": q } for q in QUALITIES]
@@ -100,7 +101,7 @@ def _test_words(error: Exception) -> str:
 		return "OpenAI did not accept the request."
 	return "The key could not be tested."
 
-@openai_router.post('/test')
+@openai_router.post('/test', **test_route())
 def test_key(cm: CM, body: dict[str, Any] = Body(...)):
 	"""Ask OpenAI with the key typed (or the saved one, when the field shows the mask): `{ ok, message }`, always 200, in our words. Never kept."""
 	value = body.get("value")

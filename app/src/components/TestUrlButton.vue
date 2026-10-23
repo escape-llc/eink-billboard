@@ -12,6 +12,7 @@
 import { computed, ref, watch } from "vue"
 import { Button, Message } from "primevue"
 import { apiPost, joinUrl } from "./ApiClient"
+import type { components } from "../api/schema"
 
 export interface PropsType {
 	/** the server's check for this field (`test.url` of the property): it gets `{ value }` and answers `{ ok, message }` */
@@ -25,7 +26,8 @@ export interface PropsType {
 	/** only the button (joined to the input by the group it is in); the answer is sent as `result` */
 	bare?: boolean
 }
-export type TestResult = { ok: boolean, message: string }
+/** A Test route's answer (`TestAnswer`: every descriptor's `test.url` declares it, test_openapi_document checks) */
+export type TestResult = components["schemas"]["TestAnswer"]
 const props = withDefaults(defineProps<PropsType>(), { label: "value" })
 const emits = defineEmits<{ (e: "result", value: TestResult | null): void }>()
 const busy = ref(false)
@@ -41,7 +43,8 @@ async function run() {
 	busy.value = true
 	result.value = null
 	try {
-		const answer = await apiPost(joinUrl(props.baseUrl, props.route), { value: props.value })
+		// the address is the descriptor's, so it is not typed by path: its answer is
+		const answer = await apiPost<TestResult>(joinUrl(props.baseUrl, props.route), { value: props.value })
 		if (mine === sent) result.value = { ok: answer?.ok === true, message: String(answer?.message ?? "") }
 	}
 	catch (ex: any) {

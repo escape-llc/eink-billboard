@@ -15,7 +15,7 @@
 				<SettingsForm
 					:title="`System Settings`"
 					:baseUrl="API_URL"
-					:settingsUrl="settingsSystemUrl"
+					:target="{ kind: 'device', name: 'system' }"
 					:settings="settingsSystem"
 					:schema="schemaSystem"
 					class="form"
@@ -26,7 +26,7 @@
 				<SettingsForm
 					:title="`Display Settings`"
 					:baseUrl="API_URL"
-					:settingsUrl="settingsDisplayUrl"
+					:target="{ kind: 'device', name: 'display' }"
 					:settings="settingsDisplay"
 					:schema="schemaDisplay"
 					class="form"
@@ -37,7 +37,7 @@
 				<SettingsForm
 					title="Theme Settings"
 					:baseUrl="API_URL"
-					:settingsUrl="settingsThemeUrl"
+					:target="{ kind: 'device', name: 'theme' }"
 					:settings="settingsTheme"
 					:schema="schemaTheme"
 					class="form"
@@ -106,10 +106,10 @@
 				<SettingsForm
 					:title="`Master Prompts`"
 					:baseUrl="API_URL"
-					:settingsUrl="settingsPromptsUrl"
+					:target="{ kind: 'device', name: 'master-prompts' }"
 					:settings="settingsPrompts"
 					:schema="schemaPrompts"
-					:defaultsUrl="defaultsPromptsUrl"
+					:defaults="true"
 					class="form"
 					@submit="submitForm"
 					/>
@@ -118,7 +118,7 @@
 				<SettingsForm
 					:title="`Devices`"
 					:baseUrl="API_URL"
-					:settingsUrl="settingsDevicesUrl"
+					:target="{ kind: 'device', name: 'devices' }"
 					:settings="settingsDevices"
 					:schema="schemaDevices"
 					class="form"
@@ -129,7 +129,7 @@
 				<SettingsForm
 					:title="`Plugin Settings`"
 					:baseUrl="API_URL"
-					:settingsUrl="settingsPluginUrl"
+					:target="selectedPlugin ? { kind: 'plugin', id: selectedPlugin.id } : undefined"
 					:owner="selectedPlugin ? { kind: 'plugin', id: selectedPlugin.id } : undefined"
 					:settings="settingsPlugin"
 					:schema="schemaPlugin"
@@ -158,7 +158,7 @@
 				<SettingsForm
 					:title="`Data Source Settings`"
 					:baseUrl="API_URL"
-					:settingsUrl="settingsDatasourceUrl"
+					:target="selectedDatasource ? { kind: 'datasource', id: selectedDatasource.id } : undefined"
 					:owner="selectedDatasource ? { kind: 'datasource', id: selectedDatasource.id } : undefined"
 					:settings="settingsDatasource"
 					:schema="schemaDatasource"
@@ -188,7 +188,7 @@
 				<SettingsForm
 					:title="`Provider Settings`"
 					:baseUrl="API_URL"
-					:settingsUrl="provider.url.value"
+					:target="provider.selected.value ? { kind: 'datasource', id: provider.selected.value.id } : undefined"
 					:owner="provider.selected.value ? { kind: 'datasource', id: provider.selected.value.id } : undefined"
 					:settings="provider.settings.value"
 					:schema="provider.schema.value"
@@ -217,7 +217,7 @@
 		</Tabs>
 </template>
 <script setup lang="ts">
-import { apiJson, ApiError } from "../components/ApiClient"
+import { ApiError } from "../components/ApiClient"
 import { api } from "../api/client"
 import type { Descriptor } from "../components/FormDefs"
 
@@ -237,20 +237,14 @@ import { useToast } from 'primevue';
 const toast = useToast();
 
 const API_URL = import.meta.env.VITE_API_URL
-const settingsSystemUrl = `${API_URL}api/settings/system`
 const schemaSystem = ref<any>(undefined)
 const settingsSystem = ref<any>(undefined)
-const settingsThemeUrl = `${API_URL}api/settings/theme`
 const schemaTheme = ref<any>(undefined)
 const settingsTheme = ref<any>(undefined)
-const settingsPromptsUrl = `${API_URL}api/settings/master-prompts`
-const defaultsPromptsUrl = `${API_URL}api/settings/master-prompts/defaults`
 const schemaPrompts = ref<any>(undefined)
 const settingsPrompts = ref<any>(undefined)
-const settingsDevicesUrl = `${API_URL}api/settings/devices`
 const schemaDevices = ref<any>(undefined)
 const settingsDevices = ref<any>(undefined)
-const settingsDisplayUrl = `${API_URL}api/settings/display`
 const schemaDisplay = ref<any>(undefined)
 const settingsDisplay = ref<any>(undefined)
 
@@ -299,16 +293,10 @@ const displays = ref<Descriptor[]>([])
 const selectedPlugin = ref<any>(undefined)
 const schemaPlugin = ref<any>(undefined)
 const settingsPlugin = ref<any>(undefined)
-const settingsPluginUrl = computed(() => {
-	return selectedPlugin.value ? `${API_URL}api/plugins/${selectedPlugin.value.id}/settings` : ""
-})
 
 const selectedDatasource = ref<any>(undefined)
 const schemaDatasource = ref<any>(undefined)
 const settingsDatasource = ref<any>(undefined)
-const settingsDatasourceUrl = computed(() => {
-	return selectedDatasource.value ? `${API_URL}api/datasources/${selectedDatasource.value.id}/settings` : ""
-})
 
 // a provider (`api`) supplies data and draws nothing: it has a tab of its own, and the Data Sources tab lists what draws
 const isProvider = (item: any): boolean => (item?.features ?? []).includes("api")
@@ -336,8 +324,12 @@ function downloadToRef(asked: Promise<unknown>, vref: Ref<any>, errv: any = unde
 		toast.add({severity:'error', summary: 'Error', detail: `Failed to load: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
 }
-function fetchSettings(url:string, vref: Ref<any>, schema:any) {
-	apiJson(url)
+/** A plugin's or data source's stored settings; none stored yet starts from its schema's defaults. */
+function fetchSettings(kind: "plugin" | "datasource", id: string, vref: Ref<any>, schema:any) {
+	const asked = kind === "plugin"
+		? api.get("/api/plugins/{plugin_id}/settings", { path: { plugin_id: id } })
+		: api.get("/api/datasources/{datasource_id}/settings", { path: { datasource_id: id } })
+	asked
 	.then(data => {
 		vref.value = data
 	})
@@ -418,7 +410,7 @@ watch(selectedPlugin, (nv) => {
 	if(nv) {
 		if(hasSettings(nv)) {
 			schemaPlugin.value = nv.settings
-			fetchSettings(settingsPluginUrl.value, settingsPlugin, nv)
+			fetchSettings("plugin", nv.id, settingsPlugin, nv)
 		}
 		else {
 			schemaPlugin.value = undefined
@@ -427,31 +419,30 @@ watch(selectedPlugin, (nv) => {
 	}
 })
 /** The state of a tab that edits one item's settings at a time: the item chosen, its settings schema and document, and where they are. */
-function itemSettings(kind: "plugins" | "datasources") {
+function itemSettings(kind: "plugin" | "datasource") {
 	const selected = ref<any>(undefined)
 	const schema = ref<any>(undefined)
 	const settings = ref<any>(undefined)
-	const url = computed(() => selected.value ? `${API_URL}api/${kind}/${selected.value.id}/settings` : "")
 	watch(selected, (nv) => {
 		if(!nv) return
 		if(hasSettings(nv)) {
 			schema.value = nv.settings
-			fetchSettings(url.value, settings, nv)
+			fetchSettings(kind, nv.id, settings, nv)
 		}
 		else {
 			schema.value = undefined
 			settings.value = undefined
 		}
 	})
-	return { selected, schema, settings, url }
+	return { selected, schema, settings }
 }
-const provider = itemSettings("datasources")
+const provider = itemSettings("datasource")
 
 watch(selectedDatasource, (nv) => {
 	if(nv) {
 		if(hasSettings(nv)) {
 			schemaDatasource.value = nv.settings
-			fetchSettings(settingsDatasourceUrl.value, settingsDatasource, nv)
+			fetchSettings("datasource", nv.id, settingsDatasource, nv)
 		}
 		else {
 			schemaDatasource.value = undefined

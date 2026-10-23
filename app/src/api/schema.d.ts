@@ -1627,6 +1627,33 @@ export interface components {
             name: string;
         };
         /**
+         * RowStep
+         * @description A row action's answer, always 200: what to show next (`message`, a `link` to open, a `code` to enter, an `input` to fill, or a wait of `poll` seconds) and the run's `session`,
+         *     until it is `done` with `ok` and its last `message`. Each field only when the step has it.
+         */
+        RowStep: {
+            /** Calendars */
+            calendars?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Code */
+            code?: string | null;
+            /** Done */
+            done?: boolean | null;
+            /** Input */
+            input?: string | null;
+            /** Link */
+            link?: string | null;
+            /** Message */
+            message?: string | null;
+            /** Ok */
+            ok?: boolean | null;
+            /** Poll */
+            poll?: number | null;
+            /** Session */
+            session?: string | null;
+        };
+        /**
          * Run
          * @description A time a task runs, with its offset.
          */
@@ -1751,6 +1778,16 @@ export interface components {
             /** Success */
             success: boolean;
             task: components["schemas"]["TimerItem"];
+        };
+        /**
+         * TestAnswer
+         * @description A Test button's answer, always 200 and in our words: whether it worked, and what to show beside the field.
+         */
+        TestAnswer: {
+            /** Message */
+            message: string;
+            /** Ok */
+            ok: boolean;
         };
         /** TimerDocument */
         TimerDocument: {
@@ -2068,6 +2105,13 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** Key */
+                    key?: string | null;
+                    /** Session */
+                    session?: string | null;
+                    /** Value */
+                    value?: unknown;
+                } & {
                     [key: string]: unknown;
                 };
             };
@@ -2079,7 +2123,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RowStep"];
                 };
             };
             /** @description Validation Error */
@@ -2103,6 +2147,13 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** Key */
+                    key?: string | null;
+                    /** Session */
+                    session?: string | null;
+                    /** Value */
+                    value?: unknown;
+                } & {
                     [key: string]: unknown;
                 };
             };
@@ -2114,7 +2165,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RowStep"];
                 };
             };
             /** @description Validation Error */
@@ -2138,6 +2189,13 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** Key */
+                    key?: string | null;
+                    /** Session */
+                    session?: string | null;
+                    /** Value */
+                    value?: unknown;
+                } & {
                     [key: string]: unknown;
                 };
             };
@@ -2149,7 +2207,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RowStep"];
                 };
             };
             /** @description Validation Error */
@@ -2178,7 +2236,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Choice"][];
                 };
             };
         };
@@ -2193,6 +2251,9 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** Value */
+                    value?: unknown;
+                } & {
                     [key: string]: unknown;
                 };
             };
@@ -2204,7 +2265,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TestAnswer"];
                 };
             };
             /** @description Validation Error */
@@ -2228,6 +2289,9 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** Value */
+                    value?: unknown;
+                } & {
                     [key: string]: unknown;
                 };
             };
@@ -2239,7 +2303,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TestAnswer"];
                 };
             };
             /** @description Validation Error */
@@ -2263,6 +2327,9 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** Value */
+                    value?: unknown;
+                } & {
                     [key: string]: unknown;
                 };
             };
@@ -2274,7 +2341,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TestAnswer"];
                 };
             };
             /** @description Validation Error */
@@ -2303,7 +2370,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Choice"][];
                 };
             };
         };
@@ -2323,7 +2390,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Choice"][];
                 };
             };
         };
@@ -2343,7 +2410,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Choice"][];
                 };
             };
         };
@@ -2378,6 +2445,9 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** Value */
+                    value?: unknown;
+                } & {
                     [key: string]: unknown;
                 };
             };
@@ -2389,7 +2459,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TestAnswer"];
                 };
             };
             /** @description Validation Error */
@@ -2413,6 +2483,9 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** Value */
+                    value?: unknown;
+                } & {
                     [key: string]: unknown;
                 };
             };
@@ -2424,7 +2497,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TestAnswer"];
                 };
             };
             /** @description Validation Error */
@@ -2453,7 +2526,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Choice"][];
                 };
             };
         };
@@ -2473,7 +2546,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Choice"][];
                 };
             };
         };
@@ -2493,7 +2566,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Choice"][];
                 };
             };
         };
@@ -2513,7 +2586,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Choice"][];
                 };
             };
         };
@@ -2548,6 +2621,9 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** Value */
+                    value?: unknown;
+                } & {
                     [key: string]: unknown;
                 };
             };
@@ -2559,7 +2635,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TestAnswer"];
                 };
             };
             /** @description Validation Error */
@@ -2583,6 +2659,9 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** Value */
+                    value?: unknown;
+                } & {
                     [key: string]: unknown;
                 };
             };
@@ -2594,7 +2673,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TestAnswer"];
                 };
             };
             /** @description Validation Error */
@@ -2618,6 +2697,9 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** Value */
+                    value?: unknown;
+                } & {
                     [key: string]: unknown;
                 };
             };
@@ -2629,7 +2711,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TestAnswer"];
                 };
             };
             /** @description Validation Error */
@@ -2653,6 +2735,9 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** Value */
+                    value?: unknown;
+                } & {
                     [key: string]: unknown;
                 };
             };
@@ -2664,7 +2749,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TestAnswer"];
                 };
             };
             /** @description Validation Error */
