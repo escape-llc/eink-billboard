@@ -6,8 +6,8 @@
 #   deploy/eink-container.sh update --stable     follow the releases from now on (the default for a new Pi; the newest snapshot while there is no release)
 #   deploy/eink-container.sh update --insider    follow the snapshots from now on: every change, a few minutes after it is made (--master is the same)
 #   deploy/eink-container.sh update TAG          go to that release or snapshot and stay there (until --stable or --insider)
-#   deploy/eink-container.sh get                 download the image GitHub made for this checkout (a few minutes); it says what to do when there is none
-#   deploy/eink-container.sh build               build the image here instead, from this checkout as it is (15 to 20 minutes the first time, a few after a change)
+#   deploy/eink-container.sh get                 download the image GitHub made for this checkout; it says what to do when there is none
+#   deploy/eink-container.sh build               build the image here instead, from this checkout as it is (much longer than a download)
 #   deploy/eink-container.sh rollback            go back to the image that ran before the last update or build, and start it (again: forward); asks first
 #   deploy/eink-container.sh start               start the app (or start it again), with the panel's devices, on port 8080 of every address of the Pi
 #   deploy/eink-container.sh stop                stop it (the settings, schedules and password are kept)
@@ -200,7 +200,7 @@ prefer_overlay() {
 			return 0
 		fi
 	fi
-	warn "Podman keeps images the slow way (vfs): every layer is a full copy, so this writes several GB and takes many minutes.
+	warn "Podman keeps images the slow way (vfs): every layer is a full copy, so this writes and takes far more than overlay does.
          '$SCRIPT storage' changes it to overlay and keeps the app's data."
 }
 
@@ -257,7 +257,7 @@ cmd_build() {
 		fi
 	fi
 	say "Building $IMAGE from $HERE (commit $commit)."
-	say "The first build takes 15 to 20 minutes on a Pi; later ones reuse what did not change. Everything is also written to $log."
+	say "The first build takes a long time; later ones reuse what did not change. Everything is also written to $log."
 	# EINK_BUILD_NETWORK=host builds on the Pi's own network, with no slirp4netns or pasta in between: for a Pi whose container networking fails (see below)
 	local network=()
 	[ -z "${EINK_BUILD_NETWORK:-}" ] || network=(--network "$EINK_BUILD_NETWORK")
@@ -409,7 +409,7 @@ pull_image() {
 	local tag ref made
 	tag=$(published_tag) || return 1
 	ref="$REGISTRY:$tag"
-	say "Downloading the image GitHub made for this version ($tag): about 350 MB, then a minute or two of unpacking on a Pi's SD card (several minutes if Podman keeps images as vfs)."
+	say "Downloading the image GitHub made for this version ($tag), then unpacking it."
 	local pulled
 	pull_plainly "$ref"
 	pulled=$?
@@ -460,7 +460,7 @@ cmd_get() {
 		return 0
 	fi
 	fail "the app was not changed: it still has the image it had (commit $(image_commit)).
-       '$SCRIPT update --insider' goes to the newest version GitHub has made an image of; '$SCRIPT build' builds this one here instead (15 to 20 minutes)."
+       '$SCRIPT update --insider' goes to the newest version GitHub has made an image of; '$SCRIPT build' builds this one here instead (much longer than a download)."
 }
 
 # go back to the image that ran before (and "rollback" again goes forward): the two swap names, then the app starts on it
@@ -730,7 +730,7 @@ cmd_check() {
 	driver=$(store_driver)
 	case "$driver" in
 		overlay) note "Podman keeps images with overlay" ;;
-		vfs) problem "Podman keeps images the slow way (vfs: every layer a full copy, GBs and many minutes per update):  $SCRIPT storage  (keeps the app's data)" ;;
+		vfs) problem "Podman keeps images the slow way (vfs: every layer a full copy, far more written and far slower per update):  $SCRIPT storage  (keeps the app's data)" ;;
 		*) info "Podman keeps images with ${driver:-an unknown driver}" ;;
 	esac
 	for g in "${GROUPS_NEEDED[@]}"; do
@@ -1023,7 +1023,7 @@ cmd_storage() {
 		return 0
 	fi
 	section "Podman keeps images the slow way (vfs)"
-	say "Every layer of an image is a full copy of all the layers under it, so an update writes several GB and takes many minutes. Overlay keeps each layer once."
+	say "Every layer of an image is a full copy of all the layers under it, so an update writes and takes far more than it needs to. Overlay keeps each layer once."
 	conf=$(overlay_conf) || fail "overlay does not work for your user on this Pi, so nothing was changed. Install fuse-overlayfs and run this again:
        sudo apt-get install -y fuse-overlayfs && $SCRIPT storage"
 	backup="$HOME/eink-data-$(date +%Y%m%d-%H%M%S).tar"
@@ -1032,7 +1032,7 @@ cmd_storage() {
 	say "This needs 'podman system reset', which deletes ALL of your Podman images, containers and volumes."
 	say "  - The app's data (the volume '$VOLUME': settings, API keys, schedules, password) is saved to $backup first, checked, and put back after."
 	[ "$others" -eq 0 ] || say "  - $others other volume(s) of yours are NOT saved: 'podman volume ls' lists them; stop here and export them first if you need them."
-	say "  - The app is downloaded again (a few minutes) and started if it is running now. The image kept for '$SCRIPT rollback' is not kept."
+	say "  - The app is downloaded again and started if it is running now. The image kept for '$SCRIPT rollback' is not kept."
 	confirm "" "reset"
 	running && was_running=1
 	exists && { podman rm -f "$NAME" >/dev/null 2>&1 || fail "the app could not be stopped, so nothing was reset: podman rm -f $NAME"; }

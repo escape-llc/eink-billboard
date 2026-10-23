@@ -47,7 +47,7 @@ eInk Billboard setup for a Raspberry Pi 4 or 5 (Raspberry Pi OS 64-bit). Run it 
   curl -fsSL https://raw.githubusercontent.com/escape-llc/eink-billboard/master/deploy/bootstrap.sh | bash
 
 It says what it will do and asks once, then: installs Podman and git, turns on SPI and I2C, adds you to the spi, i2c and gpio
-groups, clones the app to ~/eink-billboard, asks which display you have, downloads the app (a few minutes),
+groups, clones the app to ~/eink-billboard, asks which display you have, downloads the app,
 starts it on port 8080, makes it start when the Pi starts, and prints the address and the setup code.
 Run it again at any time: it continues after a restart it asked for, and later it updates the app.
 
@@ -281,7 +281,7 @@ EOF
 	say "Display: $kind${model:+ $model}"
 
 	# ---- the app's image ---------------------------------------------------------------------------------------------------------------------------
-	step "Getting the app (a download of a few minutes)"
+	step "Getting the app (a download)"
 	"$KIT" get || exit 1
 
 	if [ "$reboot" -eq 1 ]; then
