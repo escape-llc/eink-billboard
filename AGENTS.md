@@ -103,6 +103,7 @@ The same repo is worked on from three places. The rules above are the same every
     Do not work around it by turning off the container firewall: containers then lose internet access too, and builds fail.
   - The Podman installer may move Podman (now `%LOCALAPPDATA%\Programs\Podman`, per user); `PATH` changes reach VS Code and its terminals only after a sign-out or reboot.
   - `podman machine ssh` from Git Bash leaves a file named `NUL` in the current folder (Podman passes `UserKnownHostsFile=NUL`); run it from PowerShell or delete the file.
+  - **What only a build needs is never in a layer** (#557): uv's download cache is a cache mount (`RUN --mount=type=cache,target=/root/.cache/uv`), and the compiler, `swig` and `curl` that build `lgpio` and `spidev` are installed, used and purged (`apt-get purge --auto-remove`) in one `RUN`. Kept, they were 157 MB and about 250 MB of a 1.35 GB image (now 0.88 GB). A new build-only tool goes the same way; check the drivers still import (the list `check` uses) and Chromium still renders after a removal.
   - The web stage keeps the repository layout (`/repo/app`, `/repo/python/tests`) because the type-check imports the shared rule cases from `python/tests`; copy any other cross-folder import it needs.
 - **No secret goes into an image.** `.dockerignore` excludes `.storage` folders, `.env` files, and zips; test storage is only ever mounted.
 
