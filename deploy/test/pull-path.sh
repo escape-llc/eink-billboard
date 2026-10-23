@@ -238,6 +238,23 @@ I=$(git -C "$WORK" rev-parse HEAD)
 kit update >/dev/null 2>&1
 check "update goes to it" [ "$(at)" = "$I" ]
 
+echo "== an update that brings a change to the script runs the rest of itself from the new copy (#561)"
+sed -i 's/section "Getting the app"/section "Getting the app (said by the new copy)"/' "$WORK/deploy/eink-container.sh"
+git -C "$WORK" commit -q -am "the script says something new"
+check "a snapshot changing the script is published" snapshot 20261022113000
+N=$(git -C "$WORK" rev-parse HEAD)
+out=$(kit update 2>&1)
+check "update goes to it" [ "$(at)" = "$N" ]
+check "the download is the new copy's" grep -q "Getting the app (said by the new copy)" <<< "$out"
+check "the code part is said once" [ "$(grep -c "Getting the latest code" <<< "$out")" -eq 1 ]
+check "it downloaded the snapshot's image" [ "$(label "$APP" eink.commit)" = "${N::7}" ]
+# back to the script as it is, for the rest
+git -C "$WORK" revert -q --no-edit HEAD
+check "a snapshot with the script as it was is published" snapshot 20261022114500
+I=$(git -C "$WORK" rev-parse HEAD)
+kit update >/dev/null 2>&1
+check "update goes to it" [ "$(at)" = "$I" ]
+
 out=$(kit update --stable 2>&1)
 check "the release is older: without a person to say yes, nothing moves" grep -q "needs a yes" <<< "$out"
 check "still on the newest snapshot" [ "$(at)" = "$I" ]
