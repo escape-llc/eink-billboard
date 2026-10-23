@@ -1,11 +1,13 @@
 import { expect, test, type Page } from "@playwright/test"
-import { CLAIM } from "./servers"
+import { CLAIM, CLAIM_PHONE } from "./servers"
 import { stubMapTiles, watchProblems } from "./support"
 
 // A new device nobody has claimed (the third server, `--require-auth`): it asks for the setup code once, the person chooses the password,
 // and from then on it asks for that password. The tests run in order on one server.
 test.describe.configure({ mode: "serial" })
-test.use({ baseURL: CLAIM.url })
+// each project claims a device of its own (Playwright reads a fixture's dependencies from the pattern, so it must be an object pattern, even an empty one)
+// eslint-disable-next-line no-empty-pattern
+test.use({ baseURL: async ({}, use, testInfo) => use(testInfo.project.name === "phone" ? CLAIM_PHONE.url : CLAIM.url) })
 test.beforeEach(async ({ page }) => stubMapTiles(page))
 
 const PASSWORD = "first password 1"

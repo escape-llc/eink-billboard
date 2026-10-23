@@ -7,7 +7,7 @@
 			<template #end>
 				<!-- the playlist and what can be done to it, as one group -->
 				<InputGroup class="playlist-actions">
-					<Select :key="selectKey" :options="playlists" optionLabel="name" optionValue="id" :modelValue="currentId" placeholder="No playlist" size="small" style="min-width:14rem"
+					<Select :key="selectKey" :options="playlists" optionLabel="name" optionValue="id" :modelValue="currentId" placeholder="No playlist" size="small" class="playlist-select"
 						aria-label="Playlist" @update:modelValue="(id: string) => guard(() => openPlaylist(id))" />
 					<Button title="New playlist" aria-label="New playlist" icon="mi mi-playlist-add" size="small" severity="secondary" @click="guard(startNew)" />
 					<Button title="Rename playlist" aria-label="Rename playlist" icon="mi mi-edit" size="small" severity="secondary" :disabled="!currentId" @click="startRename" />
@@ -84,15 +84,15 @@
 							<h3 class="mb-0">{{ slotProps.title }}</h3>
 						</template>
 						<template #before-fields>
-							<InputGroup>
-								<InputGroupAddon>
-									<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" style="flex-shrink:0;flex-grow:1">Title</label>
+							<InputGroup class="field-row">
+								<InputGroupAddon class="field-label">
+									<label class="field-title" :style="{ '--label-width': fieldNameWidth }">Title</label>
 								</InputGroupAddon>
 								<InputText style="flex-grow:1" size="small" v-model="editModel.title" />
 							</InputGroup>
-							<InputGroup>
-								<InputGroupAddon>
-									<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" style="flex-shrink:0;flex-grow:1">Plugin</label>
+							<InputGroup class="field-row">
+								<InputGroupAddon class="field-label">
+									<label class="field-title" :style="{ '--label-width': fieldNameWidth }">Plugin</label>
 								</InputGroupAddon>
 								<Select size="small" :options="pluginOptions" optionLabel="name" optionValue="id" v-model="editModel.plugin_name" />
 							</InputGroup>
@@ -106,21 +106,21 @@
 			</div>
 		</div>
 
-		<Dialog v-model:visible="nameOpen" modal :header="nameDialogRename ? 'Rename playlist' : 'New playlist'" style="width:24rem">
+		<Dialog v-model:visible="nameOpen" modal :header="nameDialogRename ? 'Rename playlist' : 'New playlist'" style="width:24rem;max-width:95vw">
 			<InputText size="small" v-model="nameValue" aria-label="Playlist name" fluid autofocus @keyup.enter="confirmName" />
 			<div class="flex gap-2 justify-content-end pt-2">
 				<Button size="small" type="button" label="Cancel" severity="secondary" @click="nameOpen = false"></Button>
 				<Button size="small" type="button" label="OK" :disabled="!nameValue.trim() || saving" @click="confirmName"></Button>
 			</div>
 		</Dialog>
-		<Dialog v-model:visible="deleteOpen" modal header="Delete playlist?" style="width:24rem">
+		<Dialog v-model:visible="deleteOpen" modal header="Delete playlist?" style="width:24rem;max-width:95vw">
 			<p class="mt-0">"{{ playlistName }}" and its tracks will be removed.</p>
 			<div class="flex gap-2 justify-content-end">
 				<Button size="small" type="button" label="Keep" severity="secondary" @click="deleteOpen = false"></Button>
 				<Button size="small" type="button" label="Delete" severity="danger" :disabled="saving" @click="deletePlaylist"></Button>
 			</div>
 		</Dialog>
-		<Dialog v-model:visible="discardOpen" modal header="Discard unsaved changes?" style="width:24rem" @hide="onDiscardHide">
+		<Dialog v-model:visible="discardOpen" modal header="Discard unsaved changes?" style="width:24rem;max-width:95vw" @hide="onDiscardHide">
 			<p class="mt-0">The changes to "{{ playlistName }}" were not saved.</p>
 			<div class="flex gap-2 justify-content-end">
 				<Button size="small" type="button" label="Keep editing" severity="secondary" @click="discardOpen = false"></Button>
@@ -661,5 +661,28 @@ onMounted(() => {
 	align-items: center;
 	justify-content: center;
 	height: 100%;
+}
+.playlist-select {
+	min-width: 14rem;
+}
+/* on a phone there is no room for two columns: the track list above the track's form, and the page area scrolls as one */
+@media (max-width: 40rem) {
+	.playlist-editor {
+		overflow: visible;
+	}
+	.layout {
+		flex-direction: column;
+		flex: none;
+	}
+	.track-list {
+		width: auto;
+	}
+	.track-editor {
+		overflow: visible;
+	}
+	.playlist-select {
+		min-width: 0;
+		flex: 1 1 0;
+	}
 }
 </style>

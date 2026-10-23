@@ -1,17 +1,17 @@
 <template>
 	<div style="display:flex;flex-direction:column;flex-grow:1;justify-content: flex-start;width:100%" class="m-0 p-0">
-		<InputGroup>
-			<InputGroupAddon>
-				<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" fluid style="flex-shrink:0;flex-grow:1">Run On Startup</label>
+		<InputGroup class="field-row">
+			<InputGroupAddon class="field-label">
+				<label class="field-title" :style="{ '--label-width': fieldNameWidth }">Run On Startup</label>
 			</InputGroupAddon>
 			<InputGroupAddon style="flex-grow:1;justify-content:flex-start">
 				<Checkbox v-model="editModel.on_startup" size="small" fluid binary
 					:name="`${parentPropName}on_startup`" @update:modelValue="onEmitChange('checkbox.on_startup', $event)" />
 			</InputGroupAddon>
 		</InputGroup>
-		<InputGroup>
-			<InputGroupAddon style="align-items:flex-start;flex-shrink:0">
-				<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" fluid style="flex-shrink:0;flex-grow:1">Day</label>
+		<InputGroup class="field-row">
+			<InputGroupAddon class="field-label" style="align-items:flex-start;flex-shrink:0">
+				<label class="field-title" :style="{ '--label-width': fieldNameWidth }">Day</label>
 			</InputGroupAddon>
 			<InputGroupAddon class="tt-controls" style="display:flex;flex-direction:column;flex-grow:1;justify-content:flex-start">
 				<Select v-model="editModel.day.type" style="width:100%" size="small" fluid :options="day_options"
@@ -48,9 +48,9 @@
 					size="small" fluid name="day_picker" @update:modelValue="onDatePicker2Change"/>
 			</InputGroupAddon>
 		</InputGroup>
-		<InputGroup>
-			<InputGroupAddon style="align-items:flex-start;flex-shrink:0">
-				<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" fluid style="flex-shrink:0;flex-grow:1">Time</label>
+		<InputGroup class="field-row">
+			<InputGroupAddon class="field-label" style="align-items:flex-start;flex-shrink:0">
+				<label class="field-title" :style="{ '--label-width': fieldNameWidth }">Time</label>
 			</InputGroupAddon>
 			<InputGroupAddon class="tt-controls" style="display:flex;flex-direction:column;flex-grow:1;justify-content:flex-start">
 				<Select v-model="editModel.time.type" style="width:100%" size="small" fluid :options="time_options"

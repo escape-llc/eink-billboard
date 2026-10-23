@@ -1,4 +1,4 @@
-// The two servers the browser tests run against; shared by playwright.config.ts and the specs.
+// The servers the browser tests run against; shared by playwright.config.ts and the specs.
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -19,6 +19,13 @@ export const CLAIM = {
 	url: "http://127.0.0.1:8097",
 	storage: path.join(ROOT, ".e2e-storage", "claim"),
 	code: "2468 1357",
+}
+/** The same for the phone project (the setup is done once per device). */
+export const CLAIM_PHONE = {
+	port: 8096,
+	url: "http://127.0.0.1:8096",
+	storage: path.join(ROOT, ".e2e-storage", "claim-phone"),
+	code: CLAIM.code,
 }
 /** Requires `Authorization: Bearer e2e-token` on /api. */
 export const PROTECTED = {

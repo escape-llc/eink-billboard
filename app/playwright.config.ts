@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test"
-import { CLAIM, OPEN, PROTECTED, ROOT, TOKEN } from "./e2e/servers"
+import { CLAIM, CLAIM_PHONE, OPEN, PROTECTED, ROOT, TOKEN } from "./e2e/servers"
+
+// the specs the phone project runs: the first steps (setup, settings, the playlist), the lookups, the location picker, and the page widths
+const PHONE_SPECS = ["access", "settings", "playlist", "lookups", "address-search", "phone"].map(name => `**/${name}.spec.ts`)
 
 // Browser tests against the real server and the built web app (npm run e2e builds it first).
 // Needs `uv sync` to have been run in the repository root, and the Playwright browser (`npx playwright install chromium`).
@@ -20,7 +23,11 @@ export default defineConfig({
 		trace: "retain-on-failure",
 		screenshot: "only-on-failure",
 	},
-	projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+	projects: [
+		{ name: "chromium", use: { ...devices["Desktop Chrome"] } },
+		// a phone (#510 A5): a new user's first contact is the setup dialog on a phone, so the views they see first run here too, not the whole suite
+		{ name: "phone", use: { ...devices["Pixel 7"] }, testMatch: PHONE_SPECS },
+	],
 	webServer: [
 		{
 			command: server(OPEN),
@@ -46,6 +53,15 @@ export default defineConfig({
 			command: server(CLAIM, "--require-auth"),
 			cwd: ROOT,
 			url: `${CLAIM.url}/api/access`,
+			reuseExistingServer: false,
+			env: { EINK_KEEP_SCHEMAS: "1", EINK_SETUP_CODE: CLAIM.code },
+			timeout: 120_000,
+		},
+		{
+			// the phone project's own new device: claiming one is done once, so each project claims its own
+			command: server(CLAIM_PHONE, "--require-auth"),
+			cwd: ROOT,
+			url: `${CLAIM_PHONE.url}/api/access`,
 			reuseExistingServer: false,
 			env: { EINK_KEEP_SCHEMAS: "1", EINK_SETUP_CODE: CLAIM.code },
 			timeout: 120_000,
