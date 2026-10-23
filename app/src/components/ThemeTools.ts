@@ -11,7 +11,7 @@ let inDarkMode: boolean|undefined = undefined;
 const DARK_MODE_CSS = "app-dark-mode";
 // Dark Mode CSS selector
 const DARK_MODE_SELECTOR = `.${DARK_MODE_CSS}`;
-type ThemeListEntry = { name: String, value: any };
+type ThemeListEntry = { name: string, value: any };
 // theme master list
 const ThemeList: ThemeListEntry[] = [
 	{name: "Material", value: Material },
@@ -59,7 +59,7 @@ const DefaultThemeStorage = {
  * @param {String} mode the mode light|dark|auto
  */
 const applyMode = (mode: string) => {
-	DEBUG && console.log("applyMode", mode, inDarkMode);
+	if (DEBUG) console.log("applyMode", mode, inDarkMode);
 	switch(mode) {
 		case MODE_LIGHT:
 			document.documentElement.classList.remove(DARK_MODE_CSS);
@@ -173,7 +173,7 @@ const getTheme = (key?: string) => {
 	const json = localStorage.getItem(skey);
 	if(!json) return null;
 	const obj = JSON.parse(json);
-	DEBUG && console.log("getTheme.storage", skey, obj);
+	if (DEBUG) console.log("getTheme.storage", skey, obj);
 	return obj;
 }
 /**
@@ -193,7 +193,7 @@ const saveTheme = (key?: string, name?: string, mode?: string, primary?: string,
 		surface: surface ?? DEFAULT_SURFACE
 	};
 	const skey = key ?? STORAGE_KEY;
-	DEBUG && console.log("saveTheme.storage", skey, obj);
+	if (DEBUG) console.log("saveTheme.storage", skey, obj);
 	localStorage.setItem(skey, JSON.stringify(obj));
 	return obj;
 }
@@ -206,7 +206,7 @@ const presetForTheme = (config: any) => {
 	const target = ThemeList.find(tl => tl.name == config.name) ?? DefaultTheme;
 	const presets = presetFor(config);
 	const output = definePreset(target.value, presets as unknown as Parameters<typeof definePreset>[1]);
-	DEBUG && console.log("presetForTheme", config, presets, output);
+	if (DEBUG) console.log("presetForTheme", config, presets, output);
 	return output;
 }
 /**
@@ -221,7 +221,7 @@ const useThemes = (options:any) => {
 	function _handleDarkTheme(evt: any) {
 		inDarkMode = evt.matches;
 		const activeTheme = getTheme(options?.key) ?? DefaultThemeStorage;
-		DEBUG && console.log("prefersDarkTheme.change", evt, activeTheme);
+		if (DEBUG) console.log("prefersDarkTheme.change", evt, activeTheme);
 		applyMode(activeTheme.mode ?? DEFAULT_MODE);
 	}
 	// Handle the current state

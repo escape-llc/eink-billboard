@@ -30,7 +30,7 @@ z.config({
 
 // "" and a value the document does not have are both "not set", which is how an optional field is stored (as the server reads a missing one)
 // `format: "uri"`: the same expression as `_URI` in python/web/documents.py
-const URI = /^([A-Za-z][A-Za-z0-9+.\-]*):\/\/([^/?#\s]+)(\S*)$/
+const URI = /^([A-Za-z][A-Za-z0-9+.-]*):\/\/([^/?#\s]+)(\S*)$/
 const DEFAULT_SCHEMES = ["http", "https"]
 export const isUri = (value: string, schemes: readonly string[] = DEFAULT_SCHEMES): boolean => {
 	const found = URI.exec(value)
