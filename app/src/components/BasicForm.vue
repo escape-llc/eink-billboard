@@ -1,6 +1,6 @@
 <template>
 	<div>
-		<Form ref="form" v-slot="$form" class="flex flex-column gap-1 w-full sm:w-56" :initialValues="localValues" :resolver
+		<Form ref="formRef" v-slot="$form" class="flex flex-column gap-1 w-full sm:w-56" :initialValues="localValues" :resolver
 			:validateOnValueUpdate="true" :validateOnBlur="true" @submit="handleSubmit">
 			<slot name="header"></slot>
 			<!--
@@ -53,7 +53,7 @@ import { hiddenNames } from "./FormVisibility"
 import { adaptiveLabelWidth, labelsOf } from "./LabelWidth"
 import type { LookupValue, FormDef, SchemaType } from "./FormDefs"
 
-const form = ref()
+const formRef = ref()
 // the rules depend on the values (a hidden field is not validated), so they are built per validation
 let currentResolver: ((values: Record<string, any>) => z.ZodTypeAny)|undefined = undefined;
 
@@ -131,8 +131,8 @@ watch(() => props.initialValues, (nv) => {
 		localValues.value = {}
 	}
 	nextTick().then(_ => {
-		form.value?.reset();
-		form.value?.validate();
+		formRef.value?.reset();
+		formRef.value?.validate();
 	});
 }, { immediate:true }
 )
@@ -322,7 +322,7 @@ const setServerErrors = (errors: { path?: unknown[], message?: string }[]): numb
 			matched++
 		}
 	}
-	nextTick().then(_ => form.value?.validate())
+	nextTick().then(_ => formRef.value?.validate())
 	return matched
 }
 /**
@@ -379,10 +379,10 @@ const handleSubmit = (data:any) => {
 	emits('submit', { result, data });
 }
 const submit = () => {
-	form.value?.submit();
+	formRef.value?.submit();
 }
 const reset = () => {
-	form.value?.reset();
+	formRef.value?.reset();
 }
 // function declarations, not consts: the `immediate` watches above run during setup, before a const here would be initialized
 function flatNames(fields: FormField[]): string[] {
@@ -417,13 +417,13 @@ function applyDefaults(fields: FormField[], values: Record<string, any> = {}): [
 }
 const handleFormFieldEvent = (data:any) => {
 	if(data.type === "set-value") {
-		form.value?.setFieldValue(data.field.name, data.value)
+		formRef.value?.setFieldValue(data.field.name, data.value)
 	}
 	else if(data.type === "schema-change") {
 		const field = findField(localProperties.value, data.field.name)
 		if(field) {
 			// the previous choice's values must not be saved with the new one
-			flatNames(field.children ?? []).forEach(name => form.value?.setFieldValue(name, null))
+			flatNames(field.children ?? []).forEach(name => formRef.value?.setFieldValue(name, null))
 			const chosen = data.selected?.schema?.schema as SchemaType|undefined
 			field.children = formProperties(chosen, data.selected?.owner)
 			field.usesMissing = missingUses(data.selected?.uses, dataSources.value)
@@ -441,15 +441,15 @@ const handleFormFieldEvent = (data:any) => {
 					applied.add(name)
 					defaults.push([name, value])
 					localValues.value[name] = value
-					form.value?.setFieldValue(name, value)
+					formRef.value?.setFieldValue(name, value)
 				})
 				field.children = formProperties(chosen, data.selected?.owner)
 			}
 			currentResolver = createResolver(localProperties.value)
 			startLookups(chosen as SchemaType, field.children)
 			nextTick().then(_ => {
-				defaults.forEach(([name, value]) => form.value?.setFieldValue(name, value))
-				form.value?.validate();
+				defaults.forEach(([name, value]) => formRef.value?.setFieldValue(name, value))
+				formRef.value?.validate();
 			})
 		}
 	}
@@ -466,9 +466,9 @@ const newNames = computed<Set<string>>(() => {
 	if(!props.showChanges || !held || Object.keys(held).every(key => key.startsWith("_"))) return new Set()
 	return new Set(flatNames(localProperties.value).filter(name => !(name in held)))
 })
-const isDirty = computed(() => Object.values<{ dirty?: boolean }>(form.value?.states ?? {}).some(st => st.dirty))
+const isDirty = computed(() => Object.values<{ dirty?: boolean }>(formRef.value?.states ?? {}).some(st => st.dirty))
 /** Put a value in a field (a restored default); the form is then changed, and the user saves it or not. */
-const setValue = (name: string, value: unknown) => form.value?.setFieldValue(name, value)
+const setValue = (name: string, value: unknown) => formRef.value?.setFieldValue(name, value)
 defineExpose({ submit, reset, setServerErrors, isDirty, setValue })
 </script>
 <style scoped>

@@ -3,7 +3,7 @@ const MS_PER_HOUR = 1000*60*60;
 const MS_PER_MINUTE = 1000*60;
 
 function midnight(dx:Date):Date {
-	let start = new Date(dx.getTime());
+	const start = new Date(dx.getTime());
 	start.setHours(0);
 	start.setMinutes(0);
 	start.setSeconds(0);

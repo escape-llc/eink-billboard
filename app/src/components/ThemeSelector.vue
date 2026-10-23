@@ -8,7 +8,7 @@
 			<SelectButton id="mode" v-model="currentMode" optionLabel="name" :options="modeList" size="small" @change="handleCurrentMode" />
 			<label for="primary" class="font-bold block mb-0">Primary</label>
 			<div class="select-panel">
-				<template v-for="item in primaryList">
+				<template v-for="item in primaryList" :key="item.name">
 					<button type="button"
 						:class="{ 'active-color': item.value === currentPrimary?.value }" class="primary-button"
 						:style="styleFor(item)" :title="item.name" @click="handleCurrentPrimary(item)" />
@@ -16,7 +16,7 @@
 			</div>
 			<label for="surface" class="font-bold block mb-0">Surface</label>
 			<div class="select-panel">
-				<template v-for="item in surfaceList">
+				<template v-for="item in surfaceList" :key="item.name">
 					<button type="button"
 						:class="{ 'active-color': item.value === currentSurface?.value }" class="primary-button"
 						:style="styleFor(item)" :title="item.name" @click="handleCurrentSurface(item)" />

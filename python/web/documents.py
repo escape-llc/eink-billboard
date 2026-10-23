@@ -126,7 +126,7 @@ def _is_number(v) -> bool:
 
 _ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # `format: "uri"`: a scheme, `://`, then a host part with no space. One expression here and in FormValidation.ts, so both sides read an address the same way.
-_URI = re.compile(r"^([A-Za-z][A-Za-z0-9+.\-]*)://([^/?#\s]+)(\S*)$")
+_URI = re.compile(r"^([A-Za-z][A-Za-z0-9+.-]*)://([^/?#\s]+)(\S*)$")
 DEFAULT_SCHEMES = ("http", "https")
 # `format: "color"`: `#rgb` or `#rrggbb` (the same expression in FormValidation.ts)
 _COLOR = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")

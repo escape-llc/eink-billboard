@@ -468,7 +468,7 @@ function documentBody(rev: string|undefined) {
 		_rev: rev,
 		items: tracks.value.map(t => {
 			const { _rev, ...track } = t as PlaylistItem & { _rev?: string }
-			return String(track.id).startsWith(NEW_PREFIX) ? (({ id, ...rest }) => rest)(track) : track
+			return String(track.id).startsWith(NEW_PREFIX) ? (({ id: _id, ...rest }) => rest)(track) : track
 		})
 	}
 }

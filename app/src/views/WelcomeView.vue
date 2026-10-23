@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import xxx from '../assets/logo.svg'
 import yyy from '../assets/btn_donateCC_LG.gif'
-import Versions from '../components/Versions.vue'
+import AppVersion from '../components/AppVersion.vue'
 </script>
 <template>
 	<div class="welcome-view">
@@ -12,7 +12,7 @@ import Versions from '../components/Versions.vue'
 		<a class="mt-2" href="https://www.paypal.com/donate/?hosted_button_id=G8P9TW4QT6C3U">
 			<img class="pp" :src="yyy"/>
 		</a>
-		<Versions class="mt-2" />
+		<AppVersion class="mt-2" />
 	</div>
 </template>
 <style scoped>

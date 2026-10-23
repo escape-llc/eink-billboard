@@ -6,7 +6,7 @@ import pkg from "./package.json" with { type: "json" }
 const version = pkg.version || 0
 // the commit this bundle was built from (the image build passes it: Dockerfile, EINK_COMMIT); 'dev' for a build on a developer's machine
 const commit = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.EINK_COMMIT || 'dev'
-const packageName = pkg.name || "medialab-wasm"
+const packageName = pkg.name
 
 // https://vite.dev/config/
 export default defineConfig({
