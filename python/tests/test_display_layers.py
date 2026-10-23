@@ -1,5 +1,5 @@
 """
-The layers, as the readme's "Display Architecture" lays them out: the overlays show only in "lock screen" mode (a background page and nothing above
+The layers, as `docs/architecture.md`'s "Display Architecture" lays them out: the overlays show only in "lock screen" mode (a background page and nothing above
 it); a playlist page in blend or override mode, a timer blend and a priority image each take them off until that holds again. A blend washes over
 the background (or the theme's color when there is none); an override covers everything but a priority image.
 """

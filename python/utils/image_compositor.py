@@ -17,7 +17,7 @@ type LayerStackOp = tuple["LayerStack", "LayerStack"]
 @dataclass(frozen=True)
 class LayerStack:
 	"""
-	The layers (the readme's "Display Architecture"). What is shown, back to front:
+	The layers (`docs/architecture.md`'s "Display Architecture"). What is shown, back to front:
 	- `background`, or the theme's color when there is none;
 	- `forground`, the playlist's page above the background: an `override` page is shown alone (on the theme's color) and nothing below it is
 		drawn; a `blend` page washes over the background;

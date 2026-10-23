@@ -1,5 +1,5 @@
 """
-The rest after a panel refresh (the readme's "Blanking Period"): the gate itself, what is kept of it across a restart, the drivers that hold to it, and the Display task that waits it out
+The rest after a panel refresh (`docs/architecture.md`'s "Blanking Period"): the gate itself, what is kept of it across a restart, the drivers that hold to it, and the Display task that waits it out
 before it takes the next image. No image may be sent to the driver while the panel rests.
 """
 import asyncio

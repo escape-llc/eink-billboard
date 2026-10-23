@@ -5,7 +5,7 @@ from PIL import Image
 
 from .messages import BasicMessage
 
-# how a playlist page is shown (the readme's "Display Architecture"):
+# how a playlist page is shown (`docs/architecture.md`'s "Display Architecture"):
 # - "background": the page, with the overlays drawn on it when nothing above it is showing;
 # - "blend": washes over the current background (the previous page), hiding the overlays;
 # - "override": obscures everything under it (only a priority image is drawn over it).

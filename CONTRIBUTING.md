@@ -9,4 +9,5 @@ instructions already written into the repo, which a human contributor should fol
   summary. Includes the per-issue checklist.
 - **[SESSION_SUMMARIES.md](SESSION_SUMMARIES.md)**: how a piece of work is written up afterwards in Discussions, including the friction, so the next session has a real record.
 - **[RELEASING.md](RELEASING.md)**: how a snapshot of `master` becomes a release the stable channel follows; read only when the maintainer asks for a release.
-- **[readme.md](readme.md)**: the architecture (display layers, compositor, tasks, storage) and the web API conventions.
+- **[readme.md](readme.md)**: what the project is, its known limitations and how to install a Pi.
+- **[docs/](docs/)**: [architecture.md](docs/architecture.md) (display layers, compositor, tasks, storage), [development.md](docs/development.md) (running it, containers, the web API conventions, metering, telemetry) and [pi-commands.md](docs/pi-commands.md) (the Pi kit's commands).
