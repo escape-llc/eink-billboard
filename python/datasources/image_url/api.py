@@ -5,6 +5,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Body
+from ...web.openapi import test_route
 from PIL import Image
 
 from ...task.async_http_worker_pool import AsyncHttpWorkerPool, tls_context
@@ -50,7 +51,7 @@ async def _test(value: Any) -> dict:
 		return { "ok": False, "message": str(problem) }
 	return { "ok": True, "message": f"A {picture.width} x {picture.height} {kind} picture." }
 
-@image_url_router.post('/test')
+@image_url_router.post('/test', **test_route())
 def test_picture(body: dict[str, Any] = Body(...)):
 	# a plain `def`: it runs in the thread pool, where there is no event loop to be in the way of asyncio.run
 	return asyncio.run(_test(body.get("value")))

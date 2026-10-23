@@ -56,6 +56,45 @@ class Saved(Answer):
 	id: str
 	rev: str
 
+class TestBody(BaseModel):
+	"""A Test button's question: the field's value as typed (a write-only field's mask, or nothing, means the saved one)."""
+	value: Any = None
+
+class TestAnswer(Answer):
+	"""A Test button's answer, always 200 and in our words: whether it worked, and what to show beside the field."""
+	ok: bool
+	message: str
+
+def test_route() -> dict[str, Any]:
+	"""What a Test route of a descriptor's `test.url` declares: its body and its answer."""
+	return { **answers(TestAnswer), "openapi_extra": json_body(TestBody) }
+
+class RowActionBody(BaseModel):
+	"""A row action's step: `key` names the saved row (start); `session` the run, and `value` what the person typed (continue, poll)."""
+	key: str | None = None
+	session: str | None = None
+	value: Any = None
+
+class RowStep(Answer):
+	"""
+	A row action's answer, always 200: what to show next (`message`, a `link` to open, a `code` to enter, an `input` to fill, or a wait of `poll` seconds) and the run's `session`,
+	until it is `done` with `ok` and its last `message`. Each field only when the step has it.
+	"""
+	done: bool | None = None
+	ok: bool | None = None
+	message: str | None = None
+	session: str | None = None
+	link: str | None = None
+	code: str | None = None
+	input: str | None = None
+	poll: int | None = None
+	# a connected account's calendars, named so a row's calendar can be filled in
+	calendars: list[dict[str, Any]] | None = None
+
+def row_step_route() -> dict[str, Any]:
+	"""What a step of a row action (`items.action.url`) declares: its body and its answer."""
+	return { **answers(RowStep), "openapi_extra": json_body(RowActionBody) }
+
 class Done(Answer):
 	"""The answer of a change that worked and has nothing else to say."""
 	success: bool

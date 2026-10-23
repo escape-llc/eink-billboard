@@ -10,6 +10,7 @@ from fastapi import APIRouter, Body
 
 from ...web.deps import CM
 from ...web.documents import SECRET_MASK
+from ...web.openapi import test_route
 from .thunderforest_api import check_key
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ DATASOURCE_ID = "thunderforest-api"
 # mounted under /api by the web application
 thunderforest_router = APIRouter(prefix=f"/datasource/{DATASOURCE_ID}")
 
-@thunderforest_router.post('/test')
+@thunderforest_router.post('/test', **test_route())
 def test_key(cm: CM, body: dict[str, Any] = Body(...)):
 	"""Ask Thunderforest with the key typed (or the saved one, when the field shows the mask): `{ ok, message }`. Never kept."""
 	value = body.get("value")

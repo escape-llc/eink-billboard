@@ -13,7 +13,7 @@
 				</template>
 				<template #end>
 					<InputGroup>
-						<Button v-if="defaultsUrl" size="small" icon="mi mi-settings-backup-restore" label="Restore defaults" severity="secondary" title="Put back the factory text of every field (then save)" @click="restoreAll" />
+						<Button v-if="defaults" size="small" icon="mi mi-settings-backup-restore" label="Restore defaults" severity="secondary" title="Put back the factory text of every field (then save)" @click="restoreAll" />
 						<HelpToggle v-model="showHelp" />
 						<Button size="small" icon="mi mi-check" severity="success" :disabled="submitDisabled" @click="submit" />
 						<Button size="small" icon="mi mi-close" severity="danger" @click="reset" />
@@ -32,7 +32,8 @@
 	</BasicForm>
 </template>
 <script setup lang="ts">
-import { apiJson, apiPut, ApiError } from "./ApiClient"
+import { ApiError } from "./ApiClient"
+import { api } from "../api/client"
 import { ref, watch, nextTick, onMounted, onBeforeUnmount, provide } from "vue"
 import { onBeforeRouteLeave } from "vue-router"
 import { useConfirm } from "primevue/useconfirm"
@@ -47,14 +48,16 @@ const showHelp = ref(true)
 export interface PropsType {
 	title?: string
 	baseUrl: string
-	settingsUrl: string
+	/** whose settings: a device-wide document by name, or a plugin's or data source's own (none until one is chosen) */
+	target?: SettingsTarget
 	settings?: any
 	schema: any
 	/** the plugin or data source whose settings these are: a `settings` lookup of a field chooses from its stored lists */
 	owner?: Owner
-	/** the factory values of these settings (the copy shipped in the NVE): a field and the whole form can put them back, for the user to save or not */
-	defaultsUrl?: string
+	/** a device-wide document's factory values (the copy shipped in the NVE) can be put back, by a field or the whole form, for the user to save or not */
+	defaults?: boolean
 }
+export type SettingsTarget = { kind: "device", name: string } | { kind: "plugin" | "datasource", id: string }
 export type SubmitEventData = {
 	result: unknown|null
 	invalid: unknown|null
@@ -126,15 +129,30 @@ function applySettings(nv: any) {
 	initialValues.value = nv
 	emits("load-settings", nv)
 }
+/** The stored document (secrets masked), from the target's route. */
+function fetchDocument() {
+	const target = props.target
+	if(!target) return Promise.reject(new Error("Choose one first."))
+	if(target.kind === "device") return api.get("/api/settings/{name}", { path: { name: target.name } })
+	if(target.kind === "plugin") return api.get("/api/plugins/{plugin_id}/settings", { path: { plugin_id: target.id } })
+	return api.get("/api/datasources/{datasource_id}/settings", { path: { datasource_id: target.id } })
+}
+function putDocument(post: Record<string, unknown>) {
+	const target = props.target
+	if(!target) return Promise.reject(new Error("Choose one first."))
+	if(target.kind === "device") return api.put("/api/settings/{name}", { path: { name: target.name } }, post)
+	if(target.kind === "plugin") return api.put("/api/plugins/{plugin_id}/settings", { path: { plugin_id: target.id } }, post)
+	return api.put("/api/datasources/{datasource_id}/settings", { path: { datasource_id: target.id } }, post)
+}
 function send(post: any) {
 	lastPost = post
 	conflict.value = null
-	apiPut(props.settingsUrl, post)
+	putDocument(post)
 	.then(jv => {
 		if(jv.success) {
 			_rev = jv.rev
 			// what was saved is the new starting point: the form is no longer "changed" (leaving does not ask), and secrets show masked again
-			apiJson(props.settingsUrl).then(applySettings).catch(ex => console.warn("settings.reload", ex))
+			fetchDocument().then(applySettings).catch(ex => console.warn("settings.reload", ex))
 		}
 		emits("submit", { result: jv, invalid: null, error: null })
 	})
@@ -157,7 +175,7 @@ function send(post: any) {
 }
 /** Drop the edits and show what the server has now. */
 const reload = () => {
-	apiJson(props.settingsUrl)
+	fetchDocument()
 	.then(doc => {
 		conflict.value = null
 		applySettings(doc)
@@ -215,7 +233,10 @@ const submitForm = (data:any) => {
 /** The factory values, from the server's shipped copy; each goes in its field (nothing is saved until the user saves). */
 async function factoryValues(): Promise<Record<string, unknown>|undefined> {
 	try {
-		return await apiJson(props.defaultsUrl!)
+		const target = props.target
+		if(target?.kind !== "device") return undefined
+		// the shipped document's values (open: its keys are its schema's)
+		return await api.get("/api/settings/{name}/defaults", { path: { name: target.name } }) as Record<string, unknown>
 	}
 	catch(ex) {
 		emits("submit", { result: null, invalid: null, error: ex })
@@ -231,7 +252,7 @@ const restoreAll = async () => {
 	if(values) Object.entries(values).forEach(([name, value]) => bf.value?.setValue(name, value))
 }
 // a field offers its own restore button only when the form has a source of factory values
-provide("restoreField", props.defaultsUrl ? restoreField : null)
+provide("restoreField", props.defaults ? restoreField : null)
 const reset = () => {
 	bf.value?.reset()
 	emits("reset", null)

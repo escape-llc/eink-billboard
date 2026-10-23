@@ -14,6 +14,7 @@ from ...model.service_container import ServiceContainer
 from ...plugins.plugin_base import PermanentError
 from ...web.deps import CM
 from ...web.documents import SECRET_MASK
+from ...web.openapi import test_route
 from ..data_source import DataSourceExecutionContext
 from .comicvine_api import ComicVineApi, comicvine_client, fetch
 
@@ -42,12 +43,12 @@ async def _test(cm, value: Any) -> dict:
 	detail = ", ".join(part for part in (volume["publisher"], volume["year"]) if part)
 	return { "ok": True, "message": f"{volume['name']}" + (f" ({detail})" if detail else "") + f", {count} issue{'' if count == 1 else 's'}" }
 
-@comicvine_router.post('/test')
+@comicvine_router.post('/test', **test_route())
 def test_series(cm: CM, body: dict[str, Any] = Body(...)):
 	# a plain `def`: it runs in the thread pool, where there is no event loop to be in the way of asyncio.run
 	return asyncio.run(_test(cm, body.get("value")))
 
-@comicvine_router.post('/test-key')
+@comicvine_router.post('/test-key', **test_route())
 def test_key(cm: CM, body: dict[str, Any] = Body(...)):
 	"""Ask Comic Vine with the key typed (or the saved one, when the field shows the mask): `{ ok, message }`, always 200, in our words. Never kept. (`/test` is the series' Test.)"""
 	value = body.get("value")

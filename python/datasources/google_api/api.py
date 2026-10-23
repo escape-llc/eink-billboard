@@ -16,6 +16,7 @@ from ...plugins.plugin_base import PermanentError
 from ...web.deps import CM
 from ...web.documents import SECRET_MASK
 from ...web.errors import ApiError
+from ...web.openapi import Choice, answers, test_route
 from ..data_source import DataSourceExecutionContext
 from .google_api import GoogleApi, checked_key, list_model_ids, stored_api_key
 from .models import QUALITY_NAMES, describe_models, image_models, text_models
@@ -52,17 +53,17 @@ def _stored_ids(cm) -> list[str]:
 def _choices(ids: list[str]) -> list[dict]:
 	return [{ "name": model, "value": model } for model in ids]
 
-@google_router.get('/lookups/image-models')
+@google_router.get('/lookups/image-models', **answers(list[Choice]))
 def image_model_choices(cm: CM):
 	"""The Gemini image models the saved key may use."""
 	return _choices(image_models(_stored_ids(cm)))
 
-@google_router.get('/lookups/text-models')
+@google_router.get('/lookups/text-models', **answers(list[Choice]))
 def text_model_choices(cm: CM):
 	"""The Gemini text models the saved key may use, for the Google Text part."""
 	return _choices(text_models(_stored_ids(cm)))
 
-@google_router.get('/lookups/qualities')
+@google_router.get('/lookups/qualities', **answers(list[Choice]))
 def quality_choices():
 	"""The qualities a Google image part offers: each asks for an image size (a model that does not take it uses the nearest one below)."""
 	return [{ "name": name, "value": value } for value, name in QUALITY_NAMES.items()]
@@ -74,7 +75,7 @@ def models(cm: CM):
 	vocabulary = _ask(cm, { "request": "discovery" })
 	return { "image": describe_models(ids, vocabulary), "text": text_models(ids) }
 
-@google_router.post('/test')
+@google_router.post('/test', **test_route())
 def test_key(cm: CM, body: dict[str, Any] = Body(...)):
 	"""Ask Google with the key typed (or the saved one, when the field shows the mask): `{ ok, message }`, always 200, in our words. Never kept."""
 	value = body.get("value")
