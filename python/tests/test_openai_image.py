@@ -88,7 +88,7 @@ class TestTheFamilies(unittest.TestCase):
 		self.assertEqual(len(FAMILIES), len({ f.name for f in FAMILIES }))
 
 def sources() -> dict:
-	return { "openai": OpenAIApi("openai", "OpenAI"), "openai-text": OpenAITextAsync("openai-text", "OpenAI Text"),
+	return { "openai-api": OpenAIApi("openai-api", "OpenAI"), "openai-text": OpenAITextAsync("openai-text", "OpenAI Text"),
 		"openai-image": OpenAIImageAsync("openai-image", "OpenAI Image") }
 
 def storage(api_key: str|None, **settings) -> ConfigurationManager:
@@ -97,7 +97,7 @@ def storage(api_key: str|None, **settings) -> ConfigurationManager:
 	cm = ConfigurationManager(storage_path=folder)
 	cm.hard_reset()
 	if api_key is not None:
-		save_datasource_settings(cm, "openai", { "apiKey": api_key, "modelsCacheHours": 24, "staleDays": 30, **settings })
+		save_datasource_settings(cm, "openai-api", { "apiKey": api_key, "modelsCacheHours": 24, "staleDays": 30, **settings })
 	return cm
 
 def context(cm: ConfigurationManager, orientation="landscape", loaded: dict|None = None, now=NOW) -> DataSourceExecutionContext:
@@ -168,10 +168,10 @@ class TestTheParts(unittest.IsolatedAsyncioTestCase):
 			(context(storage("sk-good")), { "imageModel": "whisper-1" }, "not an OpenAI image model"),
 			(context(storage("sk-good")), { "imageSource": None }, "Choose the image source"),
 			(context(storage("sk-good")), { "randomizePrompt": True, "textSource": "" }, "Choose the text source"),
-			(context(storage("sk-good"), loaded={ "openai": OpenAIApi("openai", "OpenAI") }), {}, "Openai-image data source is not available"),
-			(context(storage("sk-good"), loaded={ "openai-image": OpenAIImageAsync("openai-image", "OpenAI Image") }), {}, "Openai data source is not available"),
+			(context(storage("sk-good"), loaded={ "openai-api": OpenAIApi("openai-api", "OpenAI") }), {}, "The OpenAI Image data source is not available"),
+			(context(storage("sk-good"), loaded={ "openai-image": OpenAIImageAsync("openai-image", "OpenAI Image") }), {}, "The OpenAI data source is not available"),
 			# a source that is not an image part (the text part) cannot be chosen as one
-			(context(storage("sk-good")), { "imageSource": "openai-text" }, "Openai-text data source is not available"),
+			(context(storage("sk-good")), { "imageSource": "openai-text" }, "The OpenAI Text data source is not available"),
 		]
 		for dsec, params, words in cases:
 			with self.subTest(params=params, words=words), self.assertRaises(PermanentError) as refused:
@@ -200,7 +200,7 @@ class TestTheModelList(unittest.IsolatedAsyncioTestCase):
 		fake().requests.clear()
 
 	async def models(self, dsec: DataSourceExecutionContext) -> list[str]:
-		provider, provider_dsec = dsec.use("openai", OpenAIApi)
+		provider, provider_dsec = dsec.use("openai-api", OpenAIApi)
 		return (await provider.open_async(provider_dsec, { "request": "models" }))["ids"]
 
 	async def test_it_is_kept_and_shared_and_another_key_is_another_list(self):
@@ -210,22 +210,22 @@ class TestTheModelList(unittest.IsolatedAsyncioTestCase):
 		self.assertEqual(len(openai_requests("/v1/models")), 1, "kept for a day")
 		await self.models(context(cm, now=NOW + timedelta(hours=25)))
 		self.assertEqual(len(openai_requests("/v1/models")), 2)
-		save_datasource_settings(cm, "openai", { "apiKey": "sk-proj-another", "modelsCacheHours": 24 })
+		save_datasource_settings(cm, "openai-api", { "apiKey": "sk-proj-another", "modelsCacheHours": 24 })
 		with self.assertRaises(PermanentError):
 			await self.models(context(cm, now=NOW + timedelta(hours=25)))
 		# the key is not in what is kept
-		for name in cm.datasource_manager("openai").list_files("cache-"):
-			self.assertNotIn("sk-good", json.dumps(cm.datasource_manager("openai").file(name).get()[1]))
+		for name in cm.datasource_manager("openai-api").list_files("cache-"):
+			self.assertNotIn("sk-good", json.dumps(cm.datasource_manager("openai-api").file(name).get()[1]))
 
 class TestTheRoutes(WebApiTestBase):
-	BASE = "/api/datasource/openai"
+	BASE = "/api/datasource/openai-api"
 
 	def setUp(self):
 		super().setUp()
 		logging.getLogger("python.datasources.openai_api").setLevel(logging.CRITICAL)
 
 	def test_the_lookups_list_what_the_saved_key_may_use(self):
-		self.write_datasource_settings("openai", { "apiKey": "sk-good" })
+		self.write_datasource_settings("openai-api", { "apiKey": "sk-good" })
 		images = self.client.get(f"{self.BASE}/lookups/image-models")
 		self.assertEqual(images.status_code, 200)
 		self.assertEqual([c["value"] for c in images.json()], image_models(ALL_IDS))
@@ -234,7 +234,7 @@ class TestTheRoutes(WebApiTestBase):
 		self.assertEqual([c["value"] for c in self.client.get(f"{self.BASE}/lookups/qualities").json()], list(models.QUALITIES))
 
 	def test_the_models_route_says_what_each_takes(self):
-		self.write_datasource_settings("openai", { "apiKey": "sk-good" })
+		self.write_datasource_settings("openai-api", { "apiKey": "sk-good" })
 		body = self.client.get(f"{self.BASE}/models").json()
 		by_id = { m["id"]: m for m in body["image"] }
 		self.assertEqual(by_id["gpt-image-2.5-flare"]["qualities"], ["auto", "low", "medium", "high", "xhigh", "max"])
@@ -244,7 +244,7 @@ class TestTheRoutes(WebApiTestBase):
 
 	def test_without_a_working_key_the_answer_says_why_and_holds_no_key(self):
 		self.assertEqual(self.client.get(f"{self.BASE}/lookups/image-models").json()["message"], "Enter the OpenAI API key in the OpenAI settings and save them first.")
-		self.write_datasource_settings("openai", { "apiKey": "sk-proj-wrongKEY123" })
+		self.write_datasource_settings("openai-api", { "apiKey": "sk-proj-wrongKEY123" })
 		refused = self.client.get(f"{self.BASE}/lookups/image-models")
 		self.assertEqual((refused.status_code, refused.json()["success"]), (502, False))
 		self.assertIn("OpenAI refused the API key", refused.json()["message"])
@@ -258,5 +258,5 @@ class TestTheRoutes(WebApiTestBase):
 		self.assertEqual(wrong["ok"], False)
 		self.assertNotIn("wrongKEY123", wrong["message"])
 		self.assertEqual(answer("********"), { "ok": False, "message": "Enter an API key first." })
-		self.write_datasource_settings("openai", { "apiKey": "sk-good" })
+		self.write_datasource_settings("openai-api", { "apiKey": "sk-good" })
 		self.assertEqual(answer("********")["ok"], True)

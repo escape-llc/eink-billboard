@@ -8,7 +8,7 @@
 			"enabled": true,
 			"title": "Quarter-hour clock",
 			"task": {
-				"plugin_name": "interstitial",
+				"plugin_name": "priority-update",
 				"content": {
 					"slideMinutes": 1,
 					"dataSource": "clock",
@@ -47,10 +47,10 @@
 			"enabled": false,
 			"title": "Paused year progress",
 			"task": {
-				"plugin_name": "interstitial",
+				"plugin_name": "priority-update",
 				"content": {
 					"slideMinutes": 5,
-					"dataSource": "year_progress"
+					"dataSource": "year-progress"
 				}
 			},
 			"trigger": {

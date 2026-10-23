@@ -1,10 +1,10 @@
 {
-	"id": "comicvine",
+	"id": "comicvine-api",
 	"name": "Comic Vine",
 	"version": "0.0.1",
 	"class": "ComicVineApi",
-	"file": "comicvine.py",
-	"module": "python.datasources.comicvine.comicvine",
+	"file": "comicvine_api.py",
+	"module": "python.datasources.comicvine_api.comicvine_api",
 	"description": "Comic Vine, the comic book database, for the Comic Vine Covers: the API key and the answers it keeps, shared by every task.",
 	"credit": { "text": "Data and covers from Comic Vine", "url": "https://comicvine.gamespot.com/" },
 	"disabled": false,
@@ -13,10 +13,10 @@
 		"id": "comicvine-router",
 		"class": "comicvine_router",
 		"file": "api.py",
-		"module": "python.datasources.comicvine.api"
+		"module": "python.datasources.comicvine_api.api"
 	},
 	"settings": {
-		"_schema": "urn:inky:storage:schema:datasource:comicvine:1",
+		"_schema": "urn:inky:storage:schema:datasource:comicvine-api:1",
 		"schema": {
 			"properties": [
 				{
@@ -28,7 +28,7 @@
 					"default": null,
 					"title": "API Key",
 					"description": "Your Comic Vine key. It is free for personal use: sign in and the key is on the API page. Test asks Comic Vine whether it accepts the key.",
-					"test": { "url": "/api/datasource/comicvine/test-key" },
+					"test": { "url": "/api/datasource/comicvine-api/test-key" },
 					"link": { "url": "https://comicvine.gamespot.com/api/", "label": "Get a free API key" }
 				},
 				{

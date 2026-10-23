@@ -5,11 +5,11 @@ from time import sleep
 import unittest
 
 from ..model.time_of_day import TimeOfDay
-from ..datasources.comic.comic_feed import ComicFeedAsync
+from ..datasources.comic.comic import ComicFeedAsync
 from ..datasources.data_source import DataSource, DataSourceManager
 from ..datasources.image_folder.image_folder import ImageFolderAsync
 from ..datasources.newspaper.newspaper import NewspaperAsync
-from ..datasources.wpotd.wpotd import WpotdAsync
+from ..datasources.wikipedia_potd.wikipedia_potd import WpotdAsync
 from ..model.service_container import ServiceContainer
 from ..model.schedule import PlaylistSchedule, PlaylistScheduleData
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
@@ -132,7 +132,7 @@ class TestAsyncPlugins(unittest.TestCase):
 		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
 	def test_slide_show_with_wpotd(self):
 		content = {
-			"dataSource": "wpotd",
+			"dataSource": "wikipedia-potd",
 			"slideMax": 0,
 			"slideMinutes": 3
 		}
@@ -143,7 +143,7 @@ class TestAsyncPlugins(unittest.TestCase):
 			title="10 Item",
 			content=plugin_data
 		)
-		dsmap:dict[str,DataSource] = {"wpotd": WpotdAsync("wpotd", "wpotd")}
+		dsmap:dict[str,DataSource] = {"wikipedia-potd": WpotdAsync("wikipedia-potd", "wikipedia-potd")}
 		datasources = DataSourceManager(dsmap)
 		display = self.run_slide_show(track, datasources, 10)
 		self.assertEqual(len(display.msgs), 1, "display.msgs failed")

@@ -1,6 +1,6 @@
 {
 	"id": "clock",
-	"name": "Clock Data Source",
+	"name": "Clock",
 	"version": "0.0.1",
 	"class": "ClockAsync",
 	"file": "clock.py",

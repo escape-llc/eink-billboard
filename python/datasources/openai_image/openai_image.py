@@ -16,7 +16,7 @@ from ..openai_api.models import DEFAULT_IMAGE_MODEL, MODERATIONS, family_of, is_
 from ..openai_api.openai_api import OpenAIApi
 
 # the provider it asks: its descriptor's id, never a value from a request
-PROVIDER_ID = "openai"
+PROVIDER_ID = "openai-api"
 
 def _size(value: Any, fallback: int) -> int:
 	return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else fallback

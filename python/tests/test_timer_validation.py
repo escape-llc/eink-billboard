@@ -19,7 +19,7 @@ GOOD: Any = { "dataSource": "clock", "clockFace": "Gradient Clock", "primaryColo
 def entry(*items: TimerTaskItem) -> Any:
 	return { "info": TimerTasks("d", "D", list(items)), "name": "d.json", "path": "d.json", "type": "x" }
 
-def task(id: str, content: Any = None, trigger: Any = None, plugin: str = "interstitial", enabled: bool = True, title: str|None = None) -> TimerTaskItem:
+def task(id: str, content: Any = None, trigger: Any = None, plugin: str = "priority-update", enabled: bool = True, title: str|None = None) -> TimerTaskItem:
 	return TimerTaskItem(id, title or f"Task {id}", enabled, TimerTaskTask(plugin, GOOD if content is None else content), GOOD_TRIGGER if trigger is None else trigger)
 
 class TimerValidationCase(unittest.TestCase):
@@ -56,7 +56,7 @@ class TestCheckTasks(TimerValidationCase):
 		self.assertIn("dataSource", self.check(task("b", content={ **GOOD, "dataSource": None }))["b"])
 
 	def test_a_data_source_the_plugin_cannot_use(self):
-		# Slide Show's sources are background and foreground; Priority Update (interstitial) asks for layer-priority
+		# Slide Show's sources are background and foreground; Priority Update (priority-update) asks for layer-priority
 		self.assertIn("dataSource", self.check(task("a", content={ **GOOD, "dataSource": "rss" }))["a"])
 
 	def test_a_plugin_that_is_not_there_is_left_for_its_error_page(self):

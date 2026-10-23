@@ -22,7 +22,7 @@ class Credit(TypedDict):
 
 # the sources that download only what the user points them at: their own calendars, pictures and feeds, which the user knows the origin of
 USERS_OWN: dict[str, str] = {
-	"calendar": "the user's own calendars and accounts (the holiday data is a library, under Software)",
+	"calendar-sources": "the user's own calendars and accounts (the holiday data is a library, under Software)",
 	"image-url": "a picture at an address the user gives",
 	"rss": "the feeds the user lists",
 }

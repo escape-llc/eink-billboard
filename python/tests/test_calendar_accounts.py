@@ -12,9 +12,9 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
-from ..datasources.calendar.accounts import (AccountError, TokenStore, access_token, finish_google, poll_microsoft, read_account_calendar,
+from ..datasources.calendar_sources.accounts import (AccountError, TokenStore, access_token, finish_google, poll_microsoft, read_account_calendar,
 	read_google, read_microsoft, start)
-from ..datasources.calendar.calendar import CalendarSources
+from ..datasources.calendar_sources.calendar_sources import CalendarSources
 from ..datasources.data_source import DataSourceExecutionContext
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
@@ -87,7 +87,7 @@ class TokenStoreCase(unittest.IsolatedAsyncioTestCase):
 		self.addCleanup(self.tmp.cleanup)
 		self.cm = ConfigurationManager(storage_path=self.tmp.name)
 		self.cm.ensure_folders()
-		self.dsm = self.cm.datasource_manager("calendar")
+		self.dsm = self.cm.datasource_manager("calendar-sources")
 		self.store = TokenStore(self.dsm)
 
 	def connect(self, name: str, provider: str, client_id: str, expires_in: float = 3600, refresh: str = "old-refresh"):
@@ -243,7 +243,7 @@ class TestReading(TokenStoreCase):
 
 class FolderSettings:
 	"""Stands in for DatasourceConfigurationManager: these settings, and the real manager's files (where the tokens live)."""
-	datasource_id = "calendar"
+	datasource_id = "calendar-sources"
 	def __init__(self, document, real):
 		self.document = document
 		self.real = real
@@ -266,7 +266,7 @@ class TestSlot(TokenStoreCase):
 		root.add_service(StaticConfigurationManager, StaticConfigurationManager(STATIC))
 		fake = FakeProviders()
 		use_transport(self, fake)
-		answer = await CalendarSources("calendar", "Calendar Sources").open_async(DataSourceExecutionContext(root, (800, 480), NOW), { "start": NOW, "end": NOW + timedelta(days=31) })
+		answer = await CalendarSources("calendar-sources", "Calendar Sources").open_async(DataSourceExecutionContext(root, (800, 480), NOW), { "start": NOW, "end": NOW + timedelta(days=31) })
 		self.assertEqual({ (e.calendar, e.title) for e in answer.events }, { ("Mine", "Dentist"), ("Mine", "School holiday"), ("Job", "Standup"), ("Job", "Offsite") })
 		self.assertIn("/v1.0/me/calendars/AAMk-1/calendarView", [r.url.path for r in fake.requests])
 
@@ -274,14 +274,14 @@ class TestConnectRoutes(WebApiTestBase):
 	"""The Connect button's steps, through the real routes, from the saved settings."""
 	def setUp(self):
 		super().setUp()
-		self.write_datasource_settings("calendar", { "weekStart": "monday", "cacheHours": 0.25, "staleDays": 30, "calendars": [], "holidays": [], "accounts": [GOOGLE, MICROSOFT] })
+		self.write_datasource_settings("calendar-sources", { "weekStart": "monday", "cacheHours": 0.25, "staleDays": 30, "calendars": [], "holidays": [], "accounts": [GOOGLE, MICROSOFT] })
 		self.fake = FakeProviders([{ "error": "authorization_pending" }, { "access_token": "m-access", "refresh_token": "m-refresh", "expires_in": 3600 }])
 		patcher = patch.object(AsyncHttpWorkerPool, "default_transport", self.fake)
 		patcher.start()
 		self.addCleanup(patcher.stop)
 
 	def post(self, step: str, body: dict) -> dict:
-		resp = self.client.post(f"/api/datasource/calendar/connect/{step}", json=body)
+		resp = self.client.post(f"/api/datasource/calendar-sources/connect/{step}", json=body)
 		self.assertEqual(resp.status_code, 200, resp.text)
 		return resp.json()
 
@@ -291,9 +291,9 @@ class TestConnectRoutes(WebApiTestBase):
 		self.assertEqual(self.post("poll", { "session": first["session"] }), { "done": False, "poll": 5 })
 		done = self.post("poll", { "session": first["session"] })
 		self.assertTrue(done["ok"] and done["done"])
-		with open(os.path.join(self.storage, "datasources", "calendar", "tokens.json"), encoding="utf-8") as f:
+		with open(os.path.join(self.storage, "datasources", "calendar-sources", "tokens.json"), encoding="utf-8") as f:
 			self.assertEqual(json.load(f)["Work"]["refresh_token"], "m-refresh")
-		settings = self.client.get("/api/datasources/calendar/settings").text
+		settings = self.client.get("/api/datasources/calendar-sources/settings").text
 		self.assertNotIn("m-refresh", settings)
 		self.assertNotIn("g-secret", settings, "the client secret is masked too")
 
@@ -315,11 +315,11 @@ class TestConnectRoutes(WebApiTestBase):
 		self.assertEqual(answer, { "done": True, "ok": False, "message": "Could not reach the provider (ConnectError). Try again." })
 
 	def test_the_account_rows_are_checked_on_save(self):
-		doc = self.client.get("/api/datasources/calendar/settings").json()
+		doc = self.client.get("/api/datasources/calendar-sources/settings").json()
 		self.assertEqual(doc["accounts"][0]["clientSecret"], "********")
 		doc["calendars"] = [{ "name": "Mine", "source": "google", "account": "Gone" }]
 		doc["accounts"][1]["tenant"] = "a/b"
-		resp = self.client.put("/api/datasources/calendar/settings", json=doc)
+		resp = self.client.put("/api/datasources/calendar-sources/settings", json=doc)
 		self.assertEqual(resp.status_code, 422)
 		self.assertEqual(resp.json()["errors"], [
 			{ "path": ["calendars", "0", "account"], "message": "Not one of the allowed values" },
@@ -327,8 +327,8 @@ class TestConnectRoutes(WebApiTestBase):
 		])
 		doc["calendars"][0]["account"] = "Home"
 		doc["accounts"][1]["tenant"] = "contoso.onmicrosoft.com"
-		self.assertEqual(self.client.put("/api/datasources/calendar/settings", json=doc).status_code, 200)
-		_, stored = self.cm.datasource_manager("calendar").open().get()
+		self.assertEqual(self.client.put("/api/datasources/calendar-sources/settings", json=doc).status_code, 200)
+		_, stored = self.cm.datasource_manager("calendar-sources").open().get()
 		self.assertEqual(stored["accounts"][0]["clientSecret"], "g-secret", "the masked secret was kept")
 		self.assertEqual((stored["calendars"][0]["url"], stored["calendars"][0]["auth"]), (None, None), "an account calendar has no address")
 

@@ -205,7 +205,7 @@ class TestCacheOutcomes(unittest.TestCase):
 	"""`cached` and `fetch_cached` tell the meter what they did, under the data source's declared id."""
 	def setUp(self):
 		self.cm = temp_configuration_manager(self)
-		self.dscm = self.cm.datasource_manager("wpotd")
+		self.dscm = self.cm.datasource_manager("wikipedia-potd")
 		METER.reset()
 		self.addCleanup(METER.reset)
 		patcher = patch.object(url_guard, "_resolve", public)
@@ -214,7 +214,7 @@ class TestCacheOutcomes(unittest.TestCase):
 		keeping._last_prune.clear()
 
 	def outcomes(self) -> dict[str, int]:
-		entry = next((e for e in METER.report() if e["id"] == "wpotd"), None)
+		entry = next((e for e in METER.report() if e["id"] == "wikipedia-potd"), None)
 		return entry["today"]["cache"] if entry else {}
 
 	def test_a_kept_answer_is_a_hit_a_new_one_a_miss_and_an_old_one_used_for_want_of_a_new_is_stale(self):
@@ -229,7 +229,7 @@ class TestCacheOutcomes(unittest.TestCase):
 			await cached(self.dscm, settings, "k", NOW + timedelta(hours=2), broken)
 		asyncio.run(run())
 		self.assertEqual(self.outcomes(), { "miss": 1, "hit": 1, "stale": 1 })
-		today = next(e for e in METER.report() if e["id"] == "wpotd")["today"]
+		today = next(e for e in METER.report() if e["id"] == "wikipedia-potd")["today"]
 		self.assertEqual(today["cacheBytes"]["hit"], len(json.dumps({ "n": 1 })))
 
 	def test_an_answer_another_task_fetched_while_we_waited_is_coalesced(self):
@@ -265,7 +265,7 @@ class TestCacheOutcomes(unittest.TestCase):
 class TestThePoolsDownloads(unittest.TestCase):
 	"""
 	The download pool's client belongs to no data source; `download_for` names the one it downloads for, so a picture of the day counts as that source's call
-	(the System page said 0 calls beside "'apod' downloaded and kept 2363 KB").
+	(the System page said 0 calls beside "'nasa-apod' downloaded and kept 2363 KB").
 	"""
 	def setUp(self):
 		self.cm = temp_configuration_manager(self)
@@ -290,9 +290,9 @@ class TestThePoolsDownloads(unittest.TestCase):
 		async def run():
 			client_var.set(MeteredClient(None, transport=httpx.MockTransport(lambda r: httpx.Response(200, content=b"x" * 2048))))
 			for _ in range(2):
-				await download_for(self.context("apod"), "https://pics.example/today.jpg", default_hours=24)
+				await download_for(self.context("nasa-apod"), "https://pics.example/today.jpg", default_hours=24)
 		asyncio.run(run())
-		today = only(METER, "apod")["today"]
+		today = only(METER, "nasa-apod")["today"]
 		# the second look is read from disk: one call, and a hit
 		self.assertEqual((today["calls"], today["status"], today["received"]), (1, { "200": 1 }, 2048))
 		self.assertEqual(today["cache"], { "miss": 1, "hit": 1 })
@@ -307,11 +307,11 @@ class TestThePoolsDownloads(unittest.TestCase):
 	def test_a_clients_own_source_wins_over_the_one_named_for_the_pool(self):
 		from ..datasources.metering import metered_as
 		async def run():
-			async with MeteredClient("thunderforest", transport=httpx.MockTransport(lambda r: httpx.Response(200))) as client:
+			async with MeteredClient("thunderforest-api", transport=httpx.MockTransport(lambda r: httpx.Response(200))) as client:
 				with metered_as("thunderforest-map"):
 					await client.get("https://a.example/")
 		asyncio.run(run())
-		self.assertEqual([e["id"] for e in METER.report()], ["thunderforest"])
+		self.assertEqual([e["id"] for e in METER.report()], ["thunderforest-api"])
 
 	def test_the_pools_client_is_a_metered_one(self):
 		from ..task.async_http_worker_pool import AsyncHttpWorkerPool
@@ -341,12 +341,12 @@ class TestEveryApiSourceIsMetered(WebApiTestBase):
 	def test_the_system_page_names_each_source_from_its_descriptor(self):
 		METER.reset()
 		self.addCleanup(METER.reset)
-		METER.call("openweathermap", 200, None, 0, 10)
+		METER.call("openweathermap-api", 200, None, 0, 10)
 		METER.call("gone", 500, None, 0, 0)
 		usage = {entry["id"]: entry for entry in self.client.get("/api/system").json()["usage"]}
-		self.assertEqual(usage["openweathermap"]["name"], next(i["info"]["name"] for i in self.cm.enum_datasources() if i["info"]["id"] == "openweathermap"))
+		self.assertEqual(usage["openweathermap-api"]["name"], next(i["info"]["name"] for i in self.cm.enum_datasources() if i["info"]["id"] == "openweathermap-api"))
 		self.assertEqual(usage["gone"]["name"], "gone")
-		self.assertEqual(usage["openweathermap"]["today"]["calls"], 1)
+		self.assertEqual(usage["openweathermap-api"]["today"]["calls"], 1)
 
 if __name__ == "__main__":
 	unittest.main()

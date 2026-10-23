@@ -9,7 +9,7 @@ from typing import Any, Mapping
 
 from pydantic import BaseModel, ValidationError
 
-from ..datasources.calendar.accounts import TOKENS_VERSION
+from ..datasources.calendar_sources.accounts import TOKENS_VERSION
 from ..model.configuration_manager import BackupFile, ConfigurationManager, backup_file, create_hash
 from ..model.migrations import MigrationGap, TooNew, migrate
 from ..model.schedule import SCHEMA_PLAYLIST, SCHEMA_TASKS

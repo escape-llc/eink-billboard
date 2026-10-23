@@ -64,7 +64,7 @@ def refusal(status: int) -> Exception:
 
 async def check_key(key: str) -> dict[str, Any]:
 	"""Ask for the smallest map with this key and say what came of it: `{ ok, message }`, in our words (the address holds the key)."""
-	async with metered_client("thunderforest", timeout=TIMEOUT, headers=HEADERS) as client:
+	async with metered_client("thunderforest-api", timeout=TIMEOUT, headers=HEADERS) as client:
 		try:
 			response = await client.get(map_address("transport", 0.0, 0.0, 1, (64, 64), key))
 		except httpx.HTTPError as ex:

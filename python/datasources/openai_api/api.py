@@ -26,7 +26,7 @@ from .openai_api import OpenAIApi, list_model_ids, stored_api_key
 
 logger = logging.getLogger(__name__)
 
-DATASOURCE_ID = "openai"
+DATASOURCE_ID = "openai-api"
 
 # mounted under /api by the web application
 openai_router = APIRouter(prefix=f"/datasource/{DATASOURCE_ID}")

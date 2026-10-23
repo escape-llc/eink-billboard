@@ -1,5 +1,5 @@
 {
-	"id": "interstitial",
+	"id": "priority-update",
 	"name": "Priority Update",
 	"version": "0.0.1",
 	"class": "PriorityUpdateAsync",
@@ -10,7 +10,7 @@
 	"disabled": false,
 	"features": ["layer-priority", "media-image"],
 	"settings": {
-		"_schema": "urn:inky:storage:schema:plugin:interstitial:1",
+		"_schema": "urn:inky:storage:schema:plugin:priority-update:1",
 		"schema": {
 			"properties": [
 			]

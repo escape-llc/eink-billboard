@@ -8,7 +8,7 @@ from typing import Any, cast
 from ..datasources.contracts.weather import IMPERIAL, METRIC
 from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager
 from ..datasources.overlay_text import fit_block
-from ..datasources.openweathermap.openweathermap import OpenWeatherMapApi
+from ..datasources.openweathermap_api.openweathermap_api import OpenWeatherMapApi
 from ..datasources.weather.weather import WeatherAsync
 from ..datasources.weather_overlay.weather_overlay import WeatherOverlayAsync, chosen_view, needs_of, view_lines
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
@@ -92,9 +92,9 @@ class Harness:
 		test.addCleanup(shutil.rmtree, folder, True)
 		self.cm = ConfigurationManager(storage_path=folder)
 		self.cm.hard_reset()
-		save_datasource_settings(self.cm, "openweathermap", { "apiKey": KEY, "forecastCacheHours": 6, "currentCacheHours": 6, **(settings or {}) })
+		save_datasource_settings(self.cm, "openweathermap-api", { "apiKey": KEY, "forecastCacheHours": 6, "currentCacheHours": 6, **(settings or {}) })
 		self.weather = WeatherAsync("weather", "Weather")
-		self.sources = { "openweathermap": OpenWeatherMapApi("openweathermap", "OpenWeatherMap") } if sources is None else sources
+		self.sources = { "openweathermap-api": OpenWeatherMapApi("openweathermap-api", "OpenWeatherMap") } if sources is None else sources
 
 	def context(self, now=NOW, own="weather-overlay") -> DataSourceExecutionContext:
 		root = ServiceContainer()
@@ -119,7 +119,7 @@ class TestAsksTheWeather(unittest.IsolatedAsyncioTestCase):
 		# neither keeps anything of its own: the answers are the API data source's
 		for own in ("weather-overlay", "weather"):
 			self.assertEqual(h.cm.datasource_manager(own).list_files("cache-"), [])
-		self.assertEqual(len(h.cm.datasource_manager("openweathermap").list_files("cache-")), 2)
+		self.assertEqual(len(h.cm.datasource_manager("openweathermap-api").list_files("cache-")), 2)
 
 	async def test_without_the_api_data_source_it_says_so(self):
 		h = Harness(self, sources={})

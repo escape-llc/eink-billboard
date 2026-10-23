@@ -108,7 +108,7 @@ async def check_key(key: str) -> dict[str, Any]:
 	Ask OpenWeatherMap, with this key, for the weather at a fixed point and say what came of it: `{ ok, message }`, in our words (the address holds the key: it is never in a message).
 	A client of our own: the web app has no pool, and a test is rare; the tests' transport is installed the same way as the pool's.
 	"""
-	async with metered_client("openweathermap", timeout=httpx.Timeout(10.0)) as client:
+	async with metered_client("openweathermap-api", timeout=httpx.Timeout(10.0)) as client:
 		try:
 			await fetch(client, "weather", 0.0, 0.0, key)
 		except PermanentError:

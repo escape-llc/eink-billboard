@@ -144,8 +144,8 @@ from .storage_files import load_bytes, load_json as _internal_load, remove_file,
 # settings that moved from one data source to another (`upgrade_settings`, once per storage): (from, to, keys). The Weather's went to the
 # OpenWeatherMap API data source that asks the origin for it and the Weather Overlay; the OpenAI Image's key to the OpenAI provider its parts share.
 SETTINGS_MOVES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
-	("weather", "openweathermap", ("apiKey", "currentCacheHours", "forecastCacheHours", "staleDays")),
-	("openai-image", "openai", ("apiKey",)),
+	("weather", "openweathermap-api", ("apiKey", "currentCacheHours", "forecastCacheHours", "staleDays")),
+	("openai-image", "openai-api", ("apiKey",)),
 )
 
 type LoadFunc = Callable[[str], dict|None]

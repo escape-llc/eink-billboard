@@ -10,16 +10,15 @@ from ...utils.url_guard import UrlRefused, fetch_checked
 from ...web.deps import CM, TOD
 from ..metering import metered_client
 from .accounts import SESSIONS, AccountError, TokenStore, account_names, find_account, finish_google, poll_microsoft, start
-from .calendar import device_now
+from .calendar_sources import device_now
 from .sources import HEADERS, MAX_CALENDAR_BYTES, NotACalendar, country_names, events_between, last_day, parse_calendar, web_url
 
 logger = logging.getLogger(__name__)
 
+# the provider's declared id: what its calls are counted under, and its routes' prefix
+CALENDAR_ID = "calendar-sources"
 # mounted under /api by the web application
-calendar_router = APIRouter(prefix="/datasource/calendar")
-
-# the provider's declared id: what its calls are counted under
-CALENDAR_ID = "calendar"
+calendar_router = APIRouter(prefix=f"/datasource/{CALENDAR_ID}")
 TIMEOUT = httpx.Timeout(15.0)
 SOON_DAYS = 30
 
@@ -80,7 +79,7 @@ def countries():
 # The steps work from the *saved* settings: the account's secret is never in the browser, so the server reads the row by its name.
 
 def _stored(cm) -> tuple[dict, TokenStore]:
-	dsm = cm.datasource_manager("calendar")
+	dsm = cm.datasource_manager("calendar-sources")
 	_, settings = dsm.open().get()
 	return settings or {}, TokenStore(dsm)
 

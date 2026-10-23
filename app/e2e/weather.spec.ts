@@ -9,7 +9,7 @@ test("the OpenWeatherMap settings link to where an API key is got, and the key i
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Providers" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
-	await page.getByRole("option", { name: "openweathermap", exact: true }).click()
+	await page.getByRole("option", { name: "openweathermap-api", exact: true }).click()
 	const link = page.getByRole("link", { name: "Get a free API key" })
 	await expect(link).toBeVisible()
 	await expect(link).toHaveAttribute("href", "https://home.openweathermap.org/users/sign_up")
@@ -21,11 +21,11 @@ test("the OpenWeatherMap settings link to where an API key is got, and the key i
 
 test("an API key is one frame: the Test joined to the input, the link right under it, then the answer", async ({ page }) => {
 	const watch = watchProblems(page)
-	await page.route("**/api/datasource/openweathermap/test", route => route.fulfill({ json: { ok: false, message: "OpenWeatherMap refused this key. A new key can take a couple of hours to start working." } }))
+	await page.route("**/api/datasource/openweathermap-api/test", route => route.fulfill({ json: { ok: false, message: "OpenWeatherMap refused this key. A new key can take a couple of hours to start working." } }))
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Providers" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
-	await page.getByRole("option", { name: "openweathermap", exact: true }).click()
+	await page.getByRole("option", { name: "openweathermap-api", exact: true }).click()
 	const key = page.getByRole("textbox", { name: "API Key", exact: true })
 	const test = page.getByRole("button", { name: "Test API Key" })
 	const link = page.getByRole("link", { name: "Get a free API key" })

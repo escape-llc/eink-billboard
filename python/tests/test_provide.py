@@ -81,8 +81,8 @@ class TestNoChoice(unittest.TestCase):
 
 class TestOpenWeatherMapIsAWeatherProvider(unittest.TestCase):
 	def test_it_is_set_up_when_its_key_is_set(self):
-		from ..datasources.openweathermap.openweathermap import OpenWeatherMapApi
-		owm = OpenWeatherMapApi("openweathermap", "OpenWeatherMap")
+		from ..datasources.openweathermap_api.openweathermap_api import OpenWeatherMapApi
+		owm = OpenWeatherMapApi("openweathermap-api", "OpenWeatherMap")
 		for key, ready in (("k-123", True), ("", False), (None, False), ("   ", False)):
 			with self.subTest(key=key):
 				dsec = context(owm, cm=weather_settings({ "apiKey": key }))

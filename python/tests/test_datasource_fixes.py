@@ -17,14 +17,14 @@ from PIL import Image
 
 from ..datasources.clock.clock import Clock, ClockAsync
 from ..datasources.comic import strips
-from ..datasources.comic.comic_feed import ComicFeedAsync, line_count, strip_data_uri, words_that_fit
+from ..datasources.comic.comic import ComicFeedAsync, line_count, strip_data_uri, words_that_fit
 from ..datasources.countdown import countdown
 from ..datasources.countdown.countdown import CountdownAsync
 from ..datasources.data_source import DataSourceExecutionContext, target_dimensions
 from ..datasources.image_folder.image_folder import ImageFolderAsync, grab_image
 from ..datasources.newspaper.newspaper import NewspaperAsync
-from ..datasources.wpotd import wpotd
-from ..datasources.wpotd.wpotd import WpotdAsync
+from ..datasources.wikipedia_potd import wikipedia_potd as wpotd
+from ..datasources.wikipedia_potd.wikipedia_potd import WpotdAsync
 from ..datasources.year_progress import year_progress
 from ..datasources.year_progress.year_progress import YearProgressAsync
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager

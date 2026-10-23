@@ -1,5 +1,5 @@
 {
-	"id": "openai",
+	"id": "openai-api",
 	"name": "OpenAI",
 	"version": "0.0.1",
 	"class": "OpenAIApi",
@@ -16,7 +16,7 @@
 		"module": "python.datasources.openai_api.api"
 	},
 	"settings": {
-		"_schema": "urn:inky:storage:schema:datasource:openai:1",
+		"_schema": "urn:inky:storage:schema:datasource:openai-api:1",
 		"schema": {
 			"properties": [
 				{
@@ -28,7 +28,7 @@
 					"default": null,
 					"title": "API Key",
 					"description": "Your OpenAI API key. Test asks OpenAI which image models it may use.",
-					"test": { "url": "/api/datasource/openai/test" },
+					"test": { "url": "/api/datasource/openai-api/test" },
 					"link": { "url": "https://platform.openai.com/api-keys", "label": "Get an API key" }
 				},
 				{

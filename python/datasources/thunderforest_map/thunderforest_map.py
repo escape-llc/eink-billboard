@@ -1,7 +1,7 @@
 """
 A map of a place (#428): a place of the data source's settings, or the device's own location, in one of Thunderforest's styles (transport shows the bus and rail lines), at the panel's
 size, with the attribution their terms ask for drawn on it. It is a picture of one (`media-image`) and a foreground page: a map has labels an overlay would cover, and its attribution
-must stay in view. The key, the maps it keeps and the Static Maps call are the Thunderforest API data source's (`thunderforest`), asked with `dsec.use`.
+must stay in view. The key, the maps it keeps and the Static Maps call are the Thunderforest API data source's (`thunderforest-api`), asked with `dsec.use`.
 """
 import asyncio
 import base64
@@ -15,9 +15,9 @@ from ...plugins.plugin_base import PermanentError, RenderSession
 from ...utils.image_utils import to_rgb
 from ...utils.upload_image import open_picture
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
-from ..thunderforest.thunderforest import ThunderforestApi
+from ..thunderforest_api.thunderforest_api import ThunderforestApi
 
-THUNDERFOREST_ID = "thunderforest"
+THUNDERFOREST_ID = "thunderforest-api"
 ATTRIBUTION = "Maps © www.thunderforest.com, Data © www.osm.org/copyright"
 
 logger = logging.getLogger(__name__)

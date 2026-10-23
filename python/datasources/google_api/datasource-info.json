@@ -1,5 +1,5 @@
 {
-	"id": "google-ai",
+	"id": "google-api",
 	"name": "Google AI",
 	"version": "0.0.1",
 	"class": "GoogleApi",
@@ -16,7 +16,7 @@
 		"module": "python.datasources.google_api.api"
 	},
 	"settings": {
-		"_schema": "urn:inky:storage:schema:datasource:google-ai:1",
+		"_schema": "urn:inky:storage:schema:datasource:google-api:1",
 		"schema": {
 			"properties": [
 				{
@@ -29,7 +29,7 @@
 					"pattern": "^AQ\\.[A-Za-z0-9._\\-]+$",
 					"title": "API Key",
 					"description": "A Google AI Studio key: create one in AI Studio (it starts with AQ.; an older AIza key is not accepted). Test asks Google which image models it may use.",
-					"test": { "url": "/api/datasource/google-ai/test" },
+					"test": { "url": "/api/datasource/google-api/test" },
 					"link": { "url": "https://aistudio.google.com/apikey", "label": "Get a key in AI Studio" }
 				},
 				{

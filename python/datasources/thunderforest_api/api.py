@@ -10,11 +10,11 @@ from fastapi import APIRouter, Body
 
 from ...web.deps import CM
 from ...web.documents import SECRET_MASK
-from .thunderforest import check_key
+from .thunderforest_api import check_key
 
 logger = logging.getLogger(__name__)
 
-DATASOURCE_ID = "thunderforest"
+DATASOURCE_ID = "thunderforest-api"
 
 # mounted under /api by the web application
 thunderforest_router = APIRouter(prefix=f"/datasource/{DATASOURCE_ID}")

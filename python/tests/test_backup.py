@@ -171,12 +171,12 @@ class TestSealedArchive(unittest.TestCase):
 
 class TestWhatABackupHolds(unittest.TestCase):
 	def test_the_names_a_backup_may_hold(self):
-		for name in ("settings/system-settings.json", "schedules/playlist-0123.json", "plugins/slide-show/state.json", "plugins/slide-show/list-abc123.json", "datasources/calendar/tokens.json", "datasources/rss/settings.json"):
+		for name in ("settings/system-settings.json", "schedules/playlist-0123.json", "plugins/slide-show/state.json", "plugins/slide-show/list-abc123.json", "datasources/calendar-sources/tokens.json", "datasources/rss/settings.json"):
 			with self.subTest(name):
 				self.assertIsNotNone(backup_file(name))
 
 	def test_the_device_password_the_schemas_the_state_and_the_caches_are_never_in_it(self):
-		for name in ("settings/access-settings.json", "schemas/system.json", "state/refresh.json", "datasources/openweathermap/cache-0123abcd.json", "datasources/comicvine/cache-x.json"):
+		for name in ("settings/access-settings.json", "schemas/system.json", "state/refresh.json", "datasources/openweathermap-api/cache-0123abcd.json", "datasources/comicvine-api/cache-x.json"):
 			with self.subTest(name):
 				self.assertIsNone(backup_file(name))
 
@@ -188,21 +188,21 @@ class TestWhatABackupHolds(unittest.TestCase):
 class TestStorageSide(unittest.TestCase):
 	def setUp(self):
 		self.cm = temp_configuration_manager(self)
-		put(self.cm.datasource_manager("openweathermap").open(), { "apiKey": KEY })
+		put(self.cm.datasource_manager("openweathermap-api").open(), { "apiKey": KEY })
 		# what must stay out
 		put(self.cm.state_file("refresh"), { "last": 1 })
-		put(self.cm.datasource_manager("openweathermap").file("cache-0123abcd"), { "answer": 1 })
+		put(self.cm.datasource_manager("openweathermap-api").file("cache-0123abcd"), { "answer": 1 })
 		put(self.cm.plugin_manager("slide-show").file("list-aaaa"), { "left": ["a"] })
 
 	def test_a_backup_has_the_settings_and_the_files_of_plugins_and_data_sources_and_not_the_rest(self):
 		files = self.cm.backup_files()
 		names = set(files)
 		self.assertIn("settings/system-settings.json", names)
-		self.assertIn("datasources/openweathermap/settings.json", names)
+		self.assertIn("datasources/openweathermap-api/settings.json", names)
 		self.assertIn("plugins/slide-show/list-aaaa.json", names)
 		self.assertFalse({n for n in names if n.startswith(("schemas/", "state/")) or "/cache-" in n or n == "settings/access-settings.json"}, names)
 		self.assertTrue(all(n.split("/")[0] in BACKUP_AREAS for n in names))
-		self.assertIn(KEY.encode(), files["datasources/openweathermap/settings.json"])
+		self.assertIn(KEY.encode(), files["datasources/openweathermap-api/settings.json"])
 
 	def test_the_device_password_is_never_in_it(self):
 		put(self.cm.settings_manager().open("access"), { "passwordHash": { "algo": "scrypt", "salt": "00", "hash": "SECRETHASH" } })
@@ -218,12 +218,12 @@ class TestStorageSide(unittest.TestCase):
 		self.assertNotIn("settings/theme-settings.json", self.cm.backup_files())
 
 	def test_a_restore_writes_by_name_and_nothing_is_deleted(self):
-		documents = { "settings/theme-settings.json": { "scheme": "monochrome" }, "datasources/openweathermap/settings.json": { "apiKey": "other" } }
+		documents = { "settings/theme-settings.json": { "scheme": "monochrome" }, "datasources/openweathermap-api/settings.json": { "apiKey": "other" } }
 		extra = self.cm.plugin_manager("slide-show").file("list-aaaa")
 		written = self.cm.write_backup(documents)
 		self.assertEqual(sorted(written), sorted(documents))
 		self.assertEqual(self.cm.settings_manager().open("theme").get()[1], { "scheme": "monochrome" })
-		self.assertEqual(self.cm.datasource_manager("openweathermap").open().get()[1]["apiKey"], "other")
+		self.assertEqual(self.cm.datasource_manager("openweathermap-api").open().get()[1]["apiKey"], "other")
 		self.assertEqual(extra.get()[1], { "left": ["a"] })
 
 	def test_a_name_with_no_place_here_is_not_written(self):
@@ -270,7 +270,7 @@ class BackupApiBase(WebApiTestBase):
 		super().setUp()
 		self.application = StubApplication()
 		self.app.state.root_container.add_service(Application, self.application)
-		put(self.cm.datasource_manager("openweathermap").open(), { "apiKey": KEY })
+		put(self.cm.datasource_manager("openweathermap-api").open(), { "apiKey": KEY })
 
 	def backup(self, passphrase: str = PASSPHRASE, confirm: str|None = None):
 		return self.client.post("/api/backup", json={ "passphrase": passphrase, "confirm": passphrase if confirm is None else confirm })
@@ -287,9 +287,9 @@ class TestBackupRoutes(BackupApiBase):
 		self.assertIn("attachment", resp.headers["content-disposition"])
 		self.assertTrue(resp.content.startswith(MAGIC))
 		self.assertNotIn(KEY.encode(), resp.content)
-		self.assertNotIn(b"openweathermap", resp.content)
+		self.assertNotIn(b"openweathermap-api", resp.content)
 		# and it does hold the key, for whoever has the passphrase
-		self.assertIn(KEY.encode(), unseal(resp.content, PASSPHRASE)["datasources/openweathermap/settings.json"])
+		self.assertIn(KEY.encode(), unseal(resp.content, PASSPHRASE)["datasources/openweathermap-api/settings.json"])
 
 	def test_the_passphrase_must_be_long_enough_and_typed_twice(self):
 		for body in ({}, { "passphrase": "short", "confirm": "short" }, { "passphrase": PASSPHRASE, "confirm": "something else entirely" }, { "passphrase": 5, "confirm": 5 }):
@@ -315,7 +315,7 @@ class TestRestoreRoutes(BackupApiBase):
 		return self.backup().content
 
 	def change_key(self, value: str):
-		cob = self.cm.datasource_manager("openweathermap").open()
+		cob = self.cm.datasource_manager("openweathermap-api").open()
 		rev, doc = cob.get()
 		cob.save(rev, { **(doc or {}), "apiKey": value })
 
@@ -326,11 +326,11 @@ class TestRestoreRoutes(BackupApiBase):
 		self.assertEqual(resp.status_code, 200, resp.text)
 		body = resp.json()
 		self.assertFalse(body["applied"])
-		self.assertEqual([(f["name"], f["status"]) for f in body["files"]], [("datasources/openweathermap/settings.json", "changed")])
+		self.assertEqual([(f["name"], f["status"]) for f in body["files"]], [("datasources/openweathermap-api/settings.json", "changed")])
 		self.assertGreater(body["unchanged"], 0)
 		self.assertNotIn(KEY, resp.text)
 		self.assertNotIn("changed-by-hand", resp.text)
-		self.assertEqual(self.cm.datasource_manager("openweathermap").open().get()[1]["apiKey"], "changed-by-hand")
+		self.assertEqual(self.cm.datasource_manager("openweathermap-api").open().get()[1]["apiKey"], "changed-by-hand")
 		self.assertEqual(self.application.calls, [])
 
 	def test_a_restore_writes_the_files_between_a_begin_and_an_end(self):
@@ -339,7 +339,7 @@ class TestRestoreRoutes(BackupApiBase):
 		resp = self.restore(blob, apply=True)
 		self.assertEqual(resp.status_code, 200, resp.text)
 		self.assertEqual((resp.json()["applied"], resp.json()["written"]), (True, 1))
-		self.assertEqual(self.cm.datasource_manager("openweathermap").open().get()[1]["apiKey"], KEY)
+		self.assertEqual(self.cm.datasource_manager("openweathermap-api").open().get()[1]["apiKey"], KEY)
 		self.assertEqual(self.application.calls, [("begin",), ("end", True, 1)])
 
 	def test_the_device_password_is_not_changed_by_a_restore(self):
@@ -353,10 +353,10 @@ class TestRestoreRoutes(BackupApiBase):
 		blob = self.make()
 		extra = self.cm.plugin_manager("slide-show").file("list-keepme")
 		put(extra, { "left": ["x"] })
-		os.remove(self.cm.datasource_manager("openweathermap").settings_path())
+		os.remove(self.cm.datasource_manager("openweathermap-api").settings_path())
 		self.cm.evict_all()
 		body = self.restore(blob, apply=True).json()
-		self.assertIn(("datasources/openweathermap/settings.json", "new"), [(f["name"], f["status"]) for f in body["files"]])
+		self.assertIn(("datasources/openweathermap-api/settings.json", "new"), [(f["name"], f["status"]) for f in body["files"]])
 		self.assertEqual(extra.get()[1], { "left": ["x"] })
 
 	def test_a_wrong_passphrase_is_a_403_that_counts_against_the_client(self):
@@ -411,7 +411,7 @@ class TestRestoreRoutes(BackupApiBase):
 		self.application.refuse = "A restore is already running."
 		resp = self.restore(blob, apply=True)
 		self.assertEqual(resp.status_code, 409)
-		self.assertEqual(self.cm.datasource_manager("openweathermap").open().get()[1]["apiKey"], "changed-by-hand")
+		self.assertEqual(self.cm.datasource_manager("openweathermap-api").open().get()[1]["apiKey"], "changed-by-hand")
 		self.assertEqual(self.application.calls, [("begin",)])
 
 	def test_a_failed_write_is_a_500_that_still_ends_the_restore(self):
@@ -482,7 +482,7 @@ class TestRestoreMigrates(BackupApiBase):
 		self.assertIn("Cannot be brought up", resp.json()["errors"][0]["message"])
 
 	def test_a_kept_list_or_sign_ins_from_a_newer_version_are_refused(self):
-		for name in ("plugins/slide-show/list-aaaa.json", "datasources/calendar/tokens.json"):
+		for name in ("plugins/slide-show/list-aaaa.json", "datasources/calendar-sources/tokens.json"):
 			with self.subTest(name):
 				resp = self.restore(seal({ name: json.dumps({ "_version": 99, "items": [] }).encode() }, PASSPHRASE))
 				self.assertEqual(resp.status_code, 422)
@@ -490,12 +490,12 @@ class TestRestoreMigrates(BackupApiBase):
 
 	def test_a_backup_carries_a_manifest_that_the_preview_reads_and_is_not_a_file_left_out(self):
 		# (the device stamps every stored document at start; the helper that wrote this one did not)
-		put(self.cm.datasource_manager("openweathermap").open(), { "_schema": "urn:inky:storage:schema:datasource:openweathermap:1", "apiKey": KEY })
+		put(self.cm.datasource_manager("openweathermap-api").open(), { "_schema": "urn:inky:storage:schema:datasource:openweathermap-api:1", "apiKey": KEY })
 		blob = self.make()
 		files = unseal(blob, PASSPHRASE)
 		manifest = json.loads(files["MANIFEST.json"])
 		self.assertEqual((manifest["format"], manifest["files"]["settings/system-settings.json"]), (1, f"{SYSTEM}:1"))
-		self.assertEqual(manifest["files"]["datasources/openweathermap/settings.json"], "urn:inky:storage:schema:datasource:openweathermap:1")
+		self.assertEqual(manifest["files"]["datasources/openweathermap-api/settings.json"], "urn:inky:storage:schema:datasource:openweathermap-api:1")
 		body = self.restore(blob).json()
 		self.assertEqual(body["madeAt"], manifest["created"])
 		self.assertEqual(body["leftOut"], 0)

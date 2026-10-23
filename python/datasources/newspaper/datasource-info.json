@@ -1,6 +1,6 @@
 {
 	"id": "newspaper",
-	"name": "Newspaper Picture-of-the-Day",
+	"name": "Newspaper Front Page",
 	"version": "0.0.1",
 	"class": "NewspaperAsync",
 	"file": "newspaper.py",

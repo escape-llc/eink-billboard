@@ -7,13 +7,13 @@
 	"module": "python.datasources.google_image.google_image",
 	"description": "A Gemini image model draws the picture of a Generated Image. The key is in the Google AI settings.",
 	"disabled": false,
-	"uses": ["google-ai"],
+	"uses": ["google-api"],
 	"features": ["api", "api-client", "data-ai-image"],
 	"instanceSettings": {
 		"schema": {
 			"lookups": {
-				"imageModel": { "url": "/api/datasource/google-ai/lookups/image-models" },
-				"quality": { "url": "/api/datasource/google-ai/lookups/qualities" }
+				"imageModel": { "url": "/api/datasource/google-api/lookups/image-models" },
+				"quality": { "url": "/api/datasource/google-api/lookups/qualities" }
 			},
 			"properties": [
 				{

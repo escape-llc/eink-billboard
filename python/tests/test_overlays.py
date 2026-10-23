@@ -148,7 +148,7 @@ def overlay_item(zone="top-right", plugin="overlay", ident="t1") -> TimerTaskIte
 class TestTimerLayerOverlays(unittest.TestCase):
 	def _layer(self):
 		layer = new_layer()
-		layer.plugin_info = cast(Any, [{ "info": { "id": "overlay", "features": ["layer-overlay"] } }, { "info": { "id": "interstitial", "features": ["layer-priority"] } }])
+		layer.plugin_info = cast(Any, [{ "info": { "id": "overlay", "features": ["layer-overlay"] } }, { "info": { "id": "priority-update", "features": ["layer-priority"] } }])
 		layer.overlay_zones = OverlayZones([z.definition() for z in zones_for((800, 480), "landscape")])
 		sent: list = []
 		layer.router.send = lambda route, msg: sent.append((route, msg))  # type: ignore
@@ -181,7 +181,7 @@ class TestTimerLayerOverlays(unittest.TestCase):
 		self.assertEqual([type(m) for m in displays], [PriorityImage])
 
 	def test_a_failing_task_of_another_plugin_is_unchanged(self):
-		displays, render = self._fail(overlay_item("top-right", plugin="interstitial"))
+		displays, render = self._fail(overlay_item("top-right", plugin="priority-update"))
 		self.assertEqual([type(m) for m in displays], [PriorityImage])
 		self.assertEqual(render.call_args.args[1], (800, 480))
 

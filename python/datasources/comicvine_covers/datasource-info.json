@@ -1,17 +1,18 @@
 {
-	"id": "wpotd",
-	"name": "Wikipedia Picture-of-the-Day",
+	"id": "comicvine-covers",
+	"name": "Comic Vine Covers",
 	"version": "0.0.1",
-	"class": "WpotdAsync",
-	"file": "wpotd.py",
-	"module": "python.datasources.wpotd.wpotd",
-	"description": "A Wikipedia PotD downloader.",
-	"credit": { "text": "Picture of the Day, Wikimedia Commons", "license": "Each picture is its author's, under the licence on its Commons page", "url": "https://commons.wikimedia.org/wiki/Commons:Picture_of_the_day" },
-	"describe": "Wikipedia picture of the day",
+	"class": "ComicVineCoversAsync",
+	"file": "comicvine_covers.py",
+	"module": "python.datasources.comicvine_covers.comicvine_covers",
+	"description": "The covers of a comic series from Comic Vine, in a random order, one page per cover on a blurred margin. The API key is in the Comic Vine settings (it is free).",
+	"describe": "Comic covers {series}",
+	"keepsList": true,
 	"disabled": false,
-	"features": ["internet", "layer-background", "media-image"],
+	"uses": ["comicvine-api"],
+	"features": ["api-client", "layer-foreground", "media-list"],
 	"settings": {
-		"_schema": "urn:inky:storage:schema:datasource:wpotd:1",
+		"_schema": "urn:inky:storage:schema:datasource:comicvine-covers:1",
 		"schema": {
 			"properties": [
 				{
@@ -63,29 +64,14 @@
 			},
 			"properties": [
 				{
-					"name": "shrinkToFit",
-					"type": "boolean",
-					"required": false,
-					"default": true,
-					"title": "Shrink to Fit",
-					"description": "Resize the image to fit the device screen."
-				},
-				{
-					"name": "randomizeDate",
-					"type": "boolean",
-					"required": false,
-					"default": false,
-					"title": "Randomize Date",
-					"description": "Randomize the date for the Picture of the Day."
-				},
-				{
-					"name": "customDate",
-					"type": "string", "format": "date",
-					"required": false,
+					"name": "series",
+					"type": "string",
+					"required": true,
 					"default": null,
-					"title": "Custom Date",
-					"description": "Custom date for the Picture of the Day. Not used when the date is randomized.",
-					"visibleIf": { "field": "randomizeDate", "const": false }
+					"title": "Series",
+					"description": "The comic series to show, as you would search for it. The first match is used: Test shows which one that is.",
+					"maxLength": 100,
+					"test": { "url": "/api/datasource/comicvine-api/test" }
 				}
 			]
 		}

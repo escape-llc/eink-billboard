@@ -1,19 +1,20 @@
 {
-	"urn:inky:storage:schema:datasource:apod": {
+	"urn:inky:storage:schema:datasource:calendar": {
 		"version": 1,
 		"properties": {
-			"contentCacheHours": {
-				"type": "number"
+			"weekStart": {
+				"type": "string",
+				"enum": [
+					"monday",
+					"sunday"
+				]
 			},
-			"contentCacheMB": {
-				"type": "number"
-			},
-			"staleDays": {
-				"type": "integer"
+			"weekNumbers": {
+				"type": "boolean"
 			}
 		}
 	},
-	"urn:inky:storage:schema:datasource:calendar": {
+	"urn:inky:storage:schema:datasource:calendar-sources": {
 		"version": 1,
 		"properties": {
 			"cacheHours": {
@@ -30,21 +31,6 @@
 			},
 			"holidays": {
 				"type": "array"
-			}
-		}
-	},
-	"urn:inky:storage:schema:datasource:calendar-pages": {
-		"version": 1,
-		"properties": {
-			"weekStart": {
-				"type": "string",
-				"enum": [
-					"monday",
-					"sunday"
-				]
-			},
-			"weekNumbers": {
-				"type": "boolean"
 			}
 		}
 	},
@@ -69,21 +55,7 @@
 			}
 		}
 	},
-	"urn:inky:storage:schema:datasource:comic-vine": {
-		"version": 1,
-		"properties": {
-			"contentCacheHours": {
-				"type": "number"
-			},
-			"contentCacheMB": {
-				"type": "number"
-			},
-			"staleDays": {
-				"type": "integer"
-			}
-		}
-	},
-	"urn:inky:storage:schema:datasource:comicvine": {
+	"urn:inky:storage:schema:datasource:comicvine-api": {
 		"version": 1,
 		"properties": {
 			"apiKey": {
@@ -100,11 +72,25 @@
 			}
 		}
 	},
+	"urn:inky:storage:schema:datasource:comicvine-covers": {
+		"version": 1,
+		"properties": {
+			"contentCacheHours": {
+				"type": "number"
+			},
+			"contentCacheMB": {
+				"type": "number"
+			},
+			"staleDays": {
+				"type": "integer"
+			}
+		}
+	},
 	"urn:inky:storage:schema:datasource:countdown": {
 		"version": 1,
 		"properties": {}
 	},
-	"urn:inky:storage:schema:datasource:google-ai": {
+	"urn:inky:storage:schema:datasource:google-api": {
 		"version": 1,
 		"properties": {
 			"apiKey": {
@@ -137,6 +123,20 @@
 			}
 		}
 	},
+	"urn:inky:storage:schema:datasource:nasa-apod": {
+		"version": 1,
+		"properties": {
+			"contentCacheHours": {
+				"type": "number"
+			},
+			"contentCacheMB": {
+				"type": "number"
+			},
+			"staleDays": {
+				"type": "integer"
+			}
+		}
+	},
 	"urn:inky:storage:schema:datasource:newspaper": {
 		"version": 1,
 		"properties": {
@@ -151,7 +151,7 @@
 			}
 		}
 	},
-	"urn:inky:storage:schema:datasource:open-meteo": {
+	"urn:inky:storage:schema:datasource:open-meteo-api": {
 		"version": 1,
 		"properties": {
 			"cacheHours": {
@@ -162,7 +162,7 @@
 			}
 		}
 	},
-	"urn:inky:storage:schema:datasource:openai": {
+	"urn:inky:storage:schema:datasource:openai-api": {
 		"version": 1,
 		"properties": {
 			"apiKey": {
@@ -176,7 +176,7 @@
 			}
 		}
 	},
-	"urn:inky:storage:schema:datasource:openweathermap": {
+	"urn:inky:storage:schema:datasource:openweathermap-api": {
 		"version": 1,
 		"properties": {
 			"apiKey": {
@@ -217,7 +217,7 @@
 			}
 		}
 	},
-	"urn:inky:storage:schema:datasource:thunderforest": {
+	"urn:inky:storage:schema:datasource:thunderforest-api": {
 		"version": 1,
 		"properties": {
 			"apiKey": {
@@ -258,7 +258,7 @@
 		"version": 1,
 		"properties": {}
 	},
-	"urn:inky:storage:schema:datasource:wpotd": {
+	"urn:inky:storage:schema:datasource:wikipedia-potd": {
 		"version": 1,
 		"properties": {
 			"contentCacheHours": {
@@ -272,7 +272,7 @@
 			}
 		}
 	},
-	"urn:inky:storage:schema:datasource:year_progress": {
+	"urn:inky:storage:schema:datasource:year-progress": {
 		"version": 1,
 		"properties": {}
 	},
@@ -365,11 +365,11 @@
 			}
 		}
 	},
-	"urn:inky:storage:schema:plugin:interstitial": {
+	"urn:inky:storage:schema:plugin:overlay": {
 		"version": 1,
 		"properties": {}
 	},
-	"urn:inky:storage:schema:plugin:overlay": {
+	"urn:inky:storage:schema:plugin:priority-update": {
 		"version": 1,
 		"properties": {}
 	},

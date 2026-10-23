@@ -68,7 +68,7 @@ class TestFreshness(unittest.TestCase):
 class CacheTestBase(unittest.TestCase):
 	def setUp(self):
 		self.cm = temp_configuration_manager(self)
-		self.dscm = self.cm.datasource_manager("wpotd")
+		self.dscm = self.cm.datasource_manager("wikipedia-potd")
 		patcher = patch.object(url_guard, "_resolve", public)
 		patcher.start()
 		self.addCleanup(patcher.stop)
@@ -199,7 +199,7 @@ class TestTelemetry(CacheTestBase):
 		asyncio.run(run())
 		self.assertEqual([m.values["kind"] for m in sent], ["cache-miss", "cache-hit"])
 		self.assertEqual(sent[1].name, "data-source")
-		self.assertEqual((sent[1].values["datasource"], sent[1].values["bytes"]), ("wpotd", len(b"picture")))
+		self.assertEqual((sent[1].values["datasource"], sent[1].values["bytes"]), ("wikipedia-potd", len(b"picture")))
 		self.assertNotIn("SECRET", str([m.values for m in sent]))
 
 	def test_the_event_is_said_on_the_devices_clock_not_the_processes(self):
@@ -278,7 +278,7 @@ class TestTheSourcesThatKeep(unittest.IsolatedAsyncioTestCase):
 		return dsec, dscm
 
 	async def test_a_comics_feed_is_kept_and_a_strip_that_left_the_feed_is_removed(self):
-		from ..datasources.comic.comic_feed import ComicFeedAsync
+		from ..datasources.comic.comic import ComicFeedAsync
 		from ..datasources.comic.strips import COMICS
 		dsec, dscm = self.context("comic")
 		atom = """<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>x</title><entry><title>T</title>

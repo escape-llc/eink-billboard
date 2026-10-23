@@ -7,15 +7,15 @@ import { saveButton, stubMapTiles, watchProblems } from "./support"
 // The Calendar Sources (the calendar provider) keeps its calendars and holiday sets in its settings (rows with secrets and fields shown per choice), and a track
 // chooses some of them by name (a multi-select). These tests edit the settings on the open server, so the file is put back afterwards.
 test.describe.configure({ mode: "serial" })
-const FILE = path.join(OPEN.storage, "datasources", "calendar", "settings.json")
+const FILE = path.join(OPEN.storage, "datasources", "calendar-sources", "settings.json")
 let original = ""
 test.beforeAll(() => { original = fs.readFileSync(FILE, "utf8") })
 test.afterAll(() => { fs.writeFileSync(FILE, original) })
 test.beforeEach(async ({ page }) => stubMapTiles(page))
 // put the settings back through the API, not the file: the server keeps the document it last read until its watcher sees the change
 test.afterEach(async ({ request }) => {
-	const current = await (await request.get("/api/datasources/calendar/settings")).json()
-	const resp = await request.put("/api/datasources/calendar/settings", { data: { ...JSON.parse(original), _rev: current._rev } })
+	const current = await (await request.get("/api/datasources/calendar-sources/settings")).json()
+	const resp = await request.put("/api/datasources/calendar-sources/settings", { data: { ...JSON.parse(original), _rev: current._rev } })
 	expect(resp.ok()).toBeTruthy()
 })
 
@@ -23,7 +23,7 @@ async function openCalendarSettings(page: Page) {
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Providers" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
-	await page.getByRole("option", { name: "calendar", exact: true }).click()
+	await page.getByRole("option", { name: "calendar-sources", exact: true }).click()
 	await expect(page.getByRole("textbox", { name: "Name 1", exact: true }).first()).toHaveValue("Family")
 }
 const calendars = (page: Page) => page.getByRole("group", { name: "Calendars" })
@@ -57,7 +57,7 @@ test("a calendar row shows the sign-in fields its choice needs, and its password
 
 	const stored = JSON.parse(fs.readFileSync(FILE, "utf8"))
 	expect(stored.calendars[0]).toMatchObject({ auth: "basic", username: "user", password: "hunter2", token: null })
-	const sent = await (await request.get("/api/datasources/calendar/settings")).json()
+	const sent = await (await request.get("/api/datasources/calendar-sources/settings")).json()
 	expect(sent.calendars[0].password).toBe("********")
 	expect(JSON.stringify(sent)).not.toContain("hunter2")
 	// the form shows the mask; saving it unchanged keeps the password
@@ -118,7 +118,7 @@ test("a track picks views and calendars from the settings, and the agenda's days
 	await expect(page.getByText("Playlist saved")).toBeVisible()
 	const items = JSON.parse(fs.readFileSync(path.join(OPEN.storage, "schedules", "playlist.json"), "utf8")).items
 	const track = items.find((x: { title: string }) => x.title === "Calendar")
-	expect(track.content).toMatchObject({ dataSource: "calendar-pages", views: ["month", "agenda"], calendars: ["Work"], agendaDays: 7 })
+	expect(track.content).toMatchObject({ dataSource: "calendar", views: ["month", "agenda"], calendars: ["Work"], agendaDays: 7 })
 	fs.writeFileSync(path.join(OPEN.storage, "schedules", "playlist.json"), JSON.stringify({ ...JSON.parse(fs.readFileSync(path.join(OPEN.storage, "schedules", "playlist.json"), "utf8")), items: items.filter((x: { title: string }) => x.title !== "Calendar") }, null, "\t"))
 	watch.expectNone()
 })
@@ -145,7 +145,7 @@ test("Connect runs the sign-in steps the server gives: a code to enter, then wai
 	// the server's steps talk to Microsoft, which a test must not: these answers stand in for our own routes (the unit tests run the real ones)
 	const asked: { step: string, body: unknown }[] = []
 	let polls = 0
-	await page.route("**/api/datasource/calendar/connect/*", async route => {
+	await page.route("**/api/datasource/calendar-sources/connect/*", async route => {
 		const step = route.request().url().split("/").pop()!
 		asked.push({ step, body: route.request().postDataJSON() })
 		const answer = step === "start"

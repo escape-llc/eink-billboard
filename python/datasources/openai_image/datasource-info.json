@@ -7,13 +7,13 @@
 	"module": "python.datasources.openai_image.openai_image",
 	"description": "OpenAI draws the picture of a Generated Image. The key is in the OpenAI settings.",
 	"disabled": false,
-	"uses": ["openai"],
+	"uses": ["openai-api"],
 	"features": ["api", "api-client", "data-ai-image"],
 	"instanceSettings": {
 		"schema": {
 			"lookups": {
-				"imageModel": { "url": "/api/datasource/openai/lookups/image-models" },
-				"quality": { "url": "/api/datasource/openai/lookups/qualities" }
+				"imageModel": { "url": "/api/datasource/openai-api/lookups/image-models" },
+				"quality": { "url": "/api/datasource/openai-api/lookups/qualities" }
 			},
 			"properties": [
 				{

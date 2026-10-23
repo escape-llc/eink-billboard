@@ -47,7 +47,7 @@ test("the System page says what each API data source has asked of its service", 
 	await page.route("**/api/system", async route => {
 		const real = await route.fetch()
 		const body = await real.json()
-		body.usage = [{ id: "openweathermap", name: "OpenWeatherMap", today: period(4, 0), week: period(20, 1), month: period(70, 2), lastLimited: "2026-10-21T12:17:09.5+02:00" }]
+		body.usage = [{ id: "openweathermap-api", name: "OpenWeatherMap", today: period(4, 0), week: period(20, 1), month: period(70, 2), lastLimited: "2026-10-21T12:17:09.5+02:00" }]
 		await route.fulfill({ response: real, json: body })
 	})
 	await page.goto("/#/system")

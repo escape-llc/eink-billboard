@@ -8,8 +8,8 @@ import { saveButton, stubMapTiles, watchProblems } from "./support"
 const KEY = "sk-fake-e2e-key-0000"
 const NEW_KEY = "sk-fake-e2e-key-0001"
 const MASK = "********"
-const API = "/api/datasources/openai/settings"
-const stored = () => JSON.parse(fs.readFileSync(path.join(OPEN.storage, "datasources", "openai", "settings.json"), "utf8")).apiKey
+const API = "/api/datasources/openai-api/settings"
+const stored = () => JSON.parse(fs.readFileSync(path.join(OPEN.storage, "datasources", "openai-api", "settings.json"), "utf8")).apiKey
 
 test.describe.configure({ mode: "serial" })
 test.beforeEach(async ({ page }) => stubMapTiles(page))
@@ -18,7 +18,7 @@ async function openKeyForm(page: Page) {
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Providers" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
-	await page.getByRole("option", { name: "openai", exact: true }).click()
+	await page.getByRole("option", { name: "openai-api", exact: true }).click()
 	return page.getByRole("tabpanel").locator("input[type=password]")
 }
 

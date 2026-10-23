@@ -12,7 +12,7 @@ import httpx
 
 from ..datasources.data_source import DataSourceManager
 from ..datasources.contracts.weather import IMPERIAL, METRIC, Report, WeatherApi, daypart, prompt_fields, season
-from ..datasources.openweathermap.openweathermap import OpenWeatherMapApi, parse_current, parse_forecast
+from ..datasources.openweathermap_api.openweathermap_api import OpenWeatherMapApi, parse_current, parse_forecast
 from ..datasources.weather_image.weather_image import WeatherImageAsync, tidy
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
@@ -30,7 +30,7 @@ PROMPT = "A cozy poster of {place} at {daypart} in {season}: {condition}, {temp}
 def storage(weather_key: str|None = KEY) -> ConfigurationManager:
 	"""Metric, so the values read the same wherever the tests run; nothing is kept (most tests count calls)."""
 	cm = weather_settings({ "apiKey": weather_key })
-	save_datasource_settings(cm, "openai", { "apiKey": "sk-good", "modelsCacheHours": 24, "staleDays": 30 })
+	save_datasource_settings(cm, "openai-api", { "apiKey": "sk-good", "modelsCacheHours": 24, "staleDays": 30 })
 	return cm
 
 def context(cm: ConfigurationManager, orientation: str = "landscape", **system) -> Any:
@@ -38,7 +38,7 @@ def context(cm: ConfigurationManager, orientation: str = "landscape", **system) 
 	root = ServiceContainer()
 	root.add_service(ConfigurationManager, cm)
 	root.add_service(DatasourceConfigurationManager, cm.datasource_manager("weather-image"))
-	root.add_service(DataSourceManager, DataSourceManager({ **sources(), "openweathermap": OpenWeatherMapApi("openweathermap", "OpenWeatherMap"),
+	root.add_service(DataSourceManager, DataSourceManager({ **sources(), "openweathermap-api": OpenWeatherMapApi("openweathermap-api", "OpenWeatherMap"),
 		"weather-image": WeatherImageAsync("weather-image", "Weather Visualizer") }))
 	# metric, so the values read the same wherever the tests run (the units are the device's)
 	root.add_service(SettingsConfigurationManager, cast(Any, FakeSettings(orientation, **{ "units": "metric", **system })))

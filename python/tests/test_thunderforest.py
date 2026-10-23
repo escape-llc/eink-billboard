@@ -14,7 +14,7 @@ from typing import Any, cast
 from unittest.mock import patch
 
 
-from ..datasources.thunderforest.thunderforest import HideKey, ThunderforestApi, map_address, refusal
+from ..datasources.thunderforest_api.thunderforest_api import HideKey, ThunderforestApi, map_address, refusal
 from ..datasources.thunderforest_map import thunderforest_map
 from ..datasources.thunderforest_map.thunderforest_map import ThunderforestMapAsync, place_of
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
@@ -51,12 +51,12 @@ def storage(key: str|None = "tf-good", hours: float = 0, location: Any = WHERE, 
 	atexit.register(shutil.rmtree, folder, True)
 	cm = ConfigurationManager(storage_path=folder)
 	cm.hard_reset()
-	save_datasource_settings(cm, "thunderforest", { "apiKey": key, "contentCacheHours": hours, "contentCacheMB": 64, "staleDays": 30 })
+	save_datasource_settings(cm, "thunderforest-api", { "apiKey": key, "contentCacheHours": hours, "contentCacheMB": 64, "staleDays": 30 })
 	save_datasource_settings(cm, "thunderforest-map", { "places": PLACES })
 	root = ServiceContainer()
 	root.add_service(ConfigurationManager, cm)
 	root.add_service(DatasourceConfigurationManager, cm.datasource_manager("thunderforest-map"))
-	root.add_service(DataSourceManager, DataSourceManager({ "thunderforest": ThunderforestApi("thunderforest", "Thunderforest") }))
+	root.add_service(DataSourceManager, DataSourceManager({ "thunderforest-api": ThunderforestApi("thunderforest-api", "Thunderforest") }))
 	root.add_service(SettingsConfigurationManager, cast(Any, FakeSettings(orientation, location)))
 	root.add_service(StaticConfigurationManager, StaticConfigurationManager(STATIC))
 	return DataSourceExecutionContext(root, (800, 480), datetime(2026, 10, 7, 12, 0, tzinfo=timezone.utc))
@@ -114,8 +114,8 @@ class TestRender(unittest.IsolatedAsyncioTestCase):
 
 	def test_the_api_is_data_only(self):
 		from ..datasources.data_source import DataSourceApi
-		self.assertIsInstance(ThunderforestApi("thunderforest", "Thunderforest"), DataSourceApi)
-		self.assertFalse(hasattr(ThunderforestApi("thunderforest", "Thunderforest"), "render_async"))
+		self.assertIsInstance(ThunderforestApi("thunderforest-api", "Thunderforest"), DataSourceApi)
+		self.assertFalse(hasattr(ThunderforestApi("thunderforest-api", "Thunderforest"), "render_async"))
 
 	async def test_the_map_is_asked_for_at_the_panels_size_and_drawn_with_its_attribution(self):
 		result = await self.render({ "place": "Home", "style": "transport", "zoom": 14 })
@@ -169,7 +169,7 @@ class TestRealPage(unittest.IsolatedAsyncioTestCase):
 		use_transport(self, FakeInternet())
 
 	async def test_pages_are_drawn_at_the_display_size(self):
-		folder = Path(test_output_path_for("thunderforest"))
+		folder = Path(test_output_path_for("thunderforest-api"))
 		for orientation, size in (("landscape", (800, 480)), ("portrait", (480, 800))):
 			with self.subTest(orientation=orientation):
 				dsec = storage(orientation=orientation)
@@ -198,7 +198,7 @@ class TestKeyInLogs(unittest.TestCase):
 		self.assertIn("apikey=***&x=1", record.getMessage())
 
 class TestKeyRoute(WebApiTestBase):
-	URL = "/api/datasource/thunderforest/test"
+	URL = "/api/datasource/thunderforest-api/test"
 
 	def ask(self, value) -> dict:
 		resp = self.client.post(self.URL, json={ "value": value })
@@ -211,7 +211,7 @@ class TestKeyRoute(WebApiTestBase):
 		self.assertIn("quota", self.ask("tf-busy")["message"])
 
 	def test_the_saved_key_is_used_when_the_field_shows_the_mask_or_nothing(self):
-		self.write_datasource_settings("thunderforest", { "apiKey": "tf-good" })
+		self.write_datasource_settings("thunderforest-api", { "apiKey": "tf-good" })
 		self.assertTrue(self.ask("********")["ok"])
 		self.assertTrue(self.ask(None)["ok"])
 
@@ -221,9 +221,9 @@ class TestKeyRoute(WebApiTestBase):
 			self.assertNotIn(key, str(self.ask(key)))
 
 	def test_the_settings_need_the_key(self):
-		self.write_datasource_settings("thunderforest", { "apiKey": "tf-good", "contentCacheHours": 168, "contentCacheMB": 64, "staleDays": 30 })
-		doc = self.client.get("/api/datasources/thunderforest/settings").json()
-		resp = self.client.put("/api/datasources/thunderforest/settings", json={ **doc, "apiKey": None })
+		self.write_datasource_settings("thunderforest-api", { "apiKey": "tf-good", "contentCacheHours": 168, "contentCacheMB": 64, "staleDays": 30 })
+		doc = self.client.get("/api/datasources/thunderforest-api/settings").json()
+		resp = self.client.put("/api/datasources/thunderforest-api/settings", json={ **doc, "apiKey": None })
 		self.assertEqual(resp.status_code, 422)
 
 class TestPlacesSettings(WebApiTestBase):
