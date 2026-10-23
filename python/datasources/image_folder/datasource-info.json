@@ -5,7 +5,7 @@
 	"class": "ImageFolderAsync",
 	"file": "image_folder.py",
 	"module": "python.datasources.image_folder.image_folder",
-	"description": "Image folder data source.",
+	"description": "Your own pictures, one page each, fitted to the screen with a blurred margin. List the folders on the device (a name and a path) in this data source's settings; a task picks one by its name.",
 	"describe": "Images {folder}",
 	"keepsList": true,
 	"disabled": false,

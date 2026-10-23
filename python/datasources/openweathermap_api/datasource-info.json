@@ -5,7 +5,7 @@
 	"class": "OpenWeatherMapApi",
 	"file": "openweathermap_api.py",
 	"module": "python.datasources.openweathermap_api.openweathermap_api",
-	"description": "A weather provider: the weather at the device's location from OpenWeatherMap, for the Weather pages, the Weather Overlay and the Weather Visualizer. The API key and the kept answers they share (the units are the device's, in the System settings).",
+	"description": "A weather provider: the weather at the device's location from OpenWeatherMap, for the Weather pages, the Weather Overlay and the Weather Visualizer. Holds the API key and the answers they share; the units are the device's (System settings).",
 	"credit": { "text": "Weather data: OpenWeatherMap", "license": "CC BY-SA 4.0", "url": "https://openweathermap.org/" },
 	"disabled": false,
 	"features": ["internet", "api-key", "api", "data-weather"],

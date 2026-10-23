@@ -5,7 +5,7 @@
 	"class": "NewspaperAsync",
 	"file": "newspaper.py",
 	"module": "python.datasources.newspaper.newspaper",
-	"description": "A Newspaper PotD downloader.",
+	"description": "Today's front page of a newspaper you choose, from the Freedom Forum's daily collection, fitted to the screen with a blurred margin. No key is needed.",
 	"credit": { "text": "Today's Front Pages, Freedom Forum", "license": "Each front page is its newspaper's", "url": "https://www.freedomforum.org/todaysfrontpages/" },
 	"describe": "Newspaper {slug}",
 	"disabled": false,

@@ -5,7 +5,7 @@
 	"class": "ComicFeedAsync",
 	"file": "comic.py",
 	"module": "python.datasources.comic.comic",
-	"description": "A comic downloader.",
+	"description": "The latest strips of a web comic you choose (XKCD, SMBC, Dinosaur Comics and more), one page per strip, with its title and, when Show Caption is on, its caption. Each strip is shown once, then the feed is read again. No key is needed.",
 	"credit": { "text": "Each comic is its author's, read from its own site's feed", "license": "The authors' own terms" },
 	"describe": "Comic {comic}",
 	"disabled": false,

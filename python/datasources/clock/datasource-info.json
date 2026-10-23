@@ -5,7 +5,7 @@
 	"class": "ClockAsync",
 	"file": "clock.py",
 	"module": "python.datasources.clock.clock",
-	"description": "A clock with various faces.",
+	"description": "The time, drawn on a clock face you choose (gradient, digital, divided or in words) in two colors of your own. Also a Priority Update, such as a clock on the hour.",
 	"describe": "Clock {clockFace}",
 	"disabled": false,
 	"features": ["layer-foreground", "layer-priority", "media-image"],

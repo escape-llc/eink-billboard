@@ -5,7 +5,7 @@
 	"class": "CountdownAsync",
 	"file": "countdown.py",
 	"module": "python.datasources.countdown.countdown",
-	"description": "Countdown to a specific date/time.",
+	"description": "The days left to a date you choose, under a title of your own; on the day it says today, and after it the days since.",
 	"describe": "Countdown {title}",
 	"features": ["layer-foreground", "layer-priority", "media-image"],
 	"disabled": false,

@@ -5,7 +5,7 @@
 	"class": "YearProgressAsync",
 	"file": "year_progress.py",
 	"module": "python.datasources.year_progress.year_progress",
-	"description": "Measure progress through the year.",
+	"description": "How far through the year it is: the percent gone and the days left.",
 	"describe": "Year progress",
 	"features": ["layer-foreground", "layer-priority", "media-image"],
 	"disabled": false,

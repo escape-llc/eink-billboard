@@ -5,7 +5,7 @@
 	"class": "WeatherAsync",
 	"file": "weather.py",
 	"module": "python.datasources.weather.weather",
-	"description": "The weather at the device's location: now, the next hours, the next days. One page per view. The weather comes from the device's weather provider (OpenWeatherMap: its key and kept answers are its settings); the units are the device's (System settings).",
+	"description": "The weather at the device's location: now, the next hours, the next days. One page per view. The weather comes from the device's weather provider (Open-Meteo, or OpenWeatherMap with a key: System settings, Weather Provider), in the device's units.",
 	"describe": "Weather {views}",
 	"disabled": false,
 	"requires": ["data-weather"],
