@@ -44,8 +44,8 @@ check() {
 	shift
 	if "$@"; then passed=$((passed + 1)); echo "  ok    $what"; else failed=$((failed + 1)); echo "  FAIL  $what"; fi
 }
-kit() { (cd "$CLONE" && EINK_REGISTRY=$REGISTRY EINK_REGISTRY_TLS_VERIFY=false deploy/eink-container.sh "$@"); }
-answer() { local reply=$1; shift; printf '%s\n' "$reply" | script -qec "cd $CLONE && EINK_REGISTRY=$REGISTRY EINK_REGISTRY_TLS_VERIFY=false deploy/eink-container.sh $*" /dev/null 2>&1; }
+kit() { (cd "$CLONE" && EINK_VERIFY=0 EINK_REGISTRY=$REGISTRY EINK_REGISTRY_TLS_VERIFY=false deploy/eink-container.sh "$@"); }
+answer() { local reply=$1; shift; printf '%s\n' "$reply" | script -qec "cd $CLONE && EINK_VERIFY=0 EINK_REGISTRY=$REGISTRY EINK_REGISTRY_TLS_VERIFY=false deploy/eink-container.sh $*" /dev/null 2>&1; }
 driver() { podman info --format '{{.Store.GraphDriverName}}' 2>/dev/null; }
 label() { podman image inspect -f "{{index .Labels \"$2\"}}" "$1" 2>/dev/null; }
 CONF=/home/pi/.config/containers/storage.conf

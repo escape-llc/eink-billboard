@@ -32,6 +32,8 @@
 #   EINK_NAME, EINK_IMAGE, EINK_VOLUME   the container (eink), the image (localhost/eink-device), the data volume (eink-data)
 #   EINK_REGISTRY      where the images GitHub made are downloaded from (ghcr.io/escape-llc/eink-billboard)
 #   EINK_PULL          0: never download: get builds here instead
+#   EINK_VERIFY        0: do not check a downloaded image's signature (for testing with images GitHub did not make)
+#   EINK_SIGNER        the repository whose image workflow must have signed a downloaded image (escape-llc/eink-billboard)
 #
 # What the Pi needs: Raspberry Pi OS 64-bit, Podman (sudo apt install podman), SPI on (and I2C for an Inky panel: sudo raspi-config, Interface Options),
 # and your user in the spi, i2c and gpio groups. "check" says which of these is missing and how to fix it.
@@ -367,6 +369,41 @@ pull_plainly() {
 	return "$status"
 }
 
+# ---- the image is GitHub's, for this commit (#555) -------------------------------------------------------------------------------------------------
+# image.yaml attests every image it publishes (actions/attest-build-provenance: a Sigstore signature, kept in the registry beside the image). A label says
+# nothing (anyone able to push could set it), so before an image takes the app's name, cosign checks that this repository's image workflow, on master, made
+# it from the clone's own commit. cosign runs from an image of its own, pinned by digest, so what checks the app is never the app.
+COSIGN_IMAGE="ghcr.io/sigstore/cosign/cosign:v3.1.3@sha256:9e5c2f2edc34351160407ca3416c61855bdf9403c3c5936e0f0be7fc261611b8"
+# the repository whose workflow may have made the app's image (a fork that publishes its own sets EINK_SIGNER)
+SIGNER=${EINK_SIGNER:-escape-llc/eink-billboard}
+
+# $1: a downloaded image, $2: the full commit it must have been made from. The digests are the ones Podman recorded for what it downloaded (the image index,
+# which is what is attested, and the image in it), so a tag moved in the meantime cannot pass. Succeeds only when one of them is verified.
+verify_image() {
+	local image=$1 commit=$2 log="$LOG_DIR/verify.log" digest insecure=()
+	if [ "${EINK_VERIFY:-1}" = 0 ]; then
+		warn "EINK_VERIFY=0: the image's signature is not checked."
+		return 0
+	fi
+	mkdir -p "$LOG_DIR"
+	[ "${EINK_REGISTRY_TLS_VERIFY:-true}" = false ] && insecure=(--allow-insecure-registry --allow-http-registry)
+	: > "$log"
+	for digest in $(podman image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image" 2>/dev/null | grep -F "$REGISTRY@sha256:"); do
+		# --network host: cosign only asks the registry and Sigstore, and reaches a registry on this machine as the pull did
+		if podman run --rm --network host --pull=missing "$COSIGN_IMAGE" verify-attestation "${insecure[@]}" \
+			--type slsaprovenance1 \
+			--certificate-oidc-issuer https://token.actions.githubusercontent.com \
+			--certificate-identity "https://github.com/$SIGNER/.github/workflows/image.yaml@refs/heads/master" \
+			--certificate-github-workflow-repository "$SIGNER" \
+			--certificate-github-workflow-sha "$commit" \
+			"$digest" >>"$log" 2>&1; then
+			say "Checked: $SIGNER's image workflow made it from commit ${commit::7} (its Sigstore signature)."
+			return 0
+		fi
+	done
+	return 1
+}
+
 # download the image GitHub made for this checkout and give it the app's name; fails, changing nothing, when there is none or it is not this checkout's
 pull_image() {
 	local tag ref made
@@ -388,6 +425,12 @@ pull_image() {
 	if ! same_commit "$made"; then
 		warn "the downloaded image says it is commit $made, not this checkout's ($(git -C "$HERE" rev-parse --short HEAD)), so it is not used."
 		# "untag IMAGE NAME" removes that one name; "untag IMAGE" alone removes every name the image has (the app's too)
+		podman untag "$ref" "$ref" >/dev/null 2>&1
+		return 1
+	fi
+	if ! verify_image "$ref" "$(git -C "$HERE" rev-parse HEAD)"; then
+		warn "the downloaded image could not be shown to be GitHub's for this version (made by $SIGNER's image workflow from commit $(git -C "$HERE" rev-parse --short HEAD)), so it is not used.
+         The app keeps the image it had. What cosign said is in $LOG_DIR/verify.log (it also fails when the Pi cannot reach Sigstore or download cosign: try again)."
 		podman untag "$ref" "$ref" >/dev/null 2>&1
 		return 1
 	fi
