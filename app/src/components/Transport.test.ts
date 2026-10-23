@@ -25,7 +25,7 @@ describe("the transport", () => {
 		calls = []
 		answer = () => json({ success: true })
 		vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => { calls.push({ url, init }); return answer(url, init) }))
-		transport = new Transport("/")
+		transport = new Transport()
 	})
 	afterEach(() => vi.unstubAllGlobals())
 

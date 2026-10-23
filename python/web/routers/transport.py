@@ -7,11 +7,15 @@ from pydantic import BaseModel
 from ...task.application import Application
 from ..deps import get_container
 from ..errors import ApiError
+from ..openapi import Answer, Done, answers
 
 router = APIRouter(prefix="/transport")
 
 class TransportRequest(BaseModel):
 	command: Literal["play", "stop", "next"]
+
+class TransportState(Answer):
+	stopped: bool
 
 def application_of(request: Request) -> Application:
 	isp = get_container(request)
@@ -21,12 +25,12 @@ def application_of(request: Request) -> Application:
 		raise ApiError(503, "The device is still starting.")
 	return application
 
-@router.get("")
+@router.get("", **answers(TransportState))
 def get_transport(request: Request):
 	"""Whether playback is stopped, for the play/stop button."""
 	return { "stopped": application_of(request).playback_stopped }
 
-@router.post("")
+@router.post("", **answers(Done))
 def send_transport(body: TransportRequest, request: Request):
 	"""
 	Forward a command: `play` (resume where it stopped), `stop`, or `next` (the next track; a stopped layer plays from there).

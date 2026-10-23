@@ -8,16 +8,105 @@ from ...datasources.metering import METER
 from ...model.configuration_manager import ConfigurationManager
 from ..deps import get_cm
 from ..locate import locate
+from ..openapi import Answer, answers
 from ..system_info import host_info, load_info, pi_info
 
 router = APIRouter(prefix="/system")
+
+class Host(Answer):
+	commit: str
+	os: str
+	os_release: str
+	machine: str
+	python: str
+	cpus: int
+	uptime_seconds: int | None = None
+	app_uptime_seconds: int | None = None
+
+class Memory(Answer):
+	total: int
+	used: int
+	percent: float
+
+class Load(Answer):
+	"""Each reading only when the machine gives it."""
+	cpu_percent: float | None = None
+	load: list[float] | None = None
+	memory: Memory | None = None
+	app_memory: int | None = None
+
+class Pi(Answer):
+	"""A Raspberry Pi's own readings: the model always, the others when the Pi gives them."""
+	model: str
+	temperature_c: float | None = None
+	throttled: list[str] | None = None
+	throttled_now: bool | None = None
+	cpu_mhz: int | None = None
+	cpu_max_mhz: int | None = None
+
+class Area(Answer):
+	name: str
+	files: int
+	bytes: int
+
+class Owner(Answer):
+	"""A plugin's or a data source's folder: `kept_bytes` are its kept downloads and answers."""
+	id: str
+	files: int
+	bytes: int
+	kept_bytes: int
+
+class Volume(Answer):
+	total: int
+	used: int
+	free: int
+	percent: float
+
+class Storage(Answer):
+	areas: list[Area]
+	plugins: list[Owner]
+	datasources: list[Owner]
+	volume: Volume | None
+
+class Period(Answer):
+	"""A data source's calls in a period: by status (or why there was none), the bytes, and what its cache did."""
+	calls: int
+	status: dict[str, int]
+	sent: int
+	received: int
+	cache: dict[str, int]
+	cacheBytes: dict[str, int]
+	hitRate: float | None
+	bytesSaved: int
+
+class Usage(Answer):
+	id: str
+	name: str
+	today: Period
+	week: Period
+	month: Period
+	lastLimited: str | None
+
+class SystemInfo(Answer):
+	host: Host
+	load: Load
+	pi: Pi | None
+	storage: Storage
+	usage: list[Usage]
+
+class Located(Answer):
+	"""A rough position, or our words for why there is none."""
+	ok: bool
+	message: str
+	latitude: float | None = None
+	longitude: float | None = None
 
 def usage_report(cm: ConfigurationManager) -> list[dict]:
 	"""What the API data sources have asked of their services (`datasources/metering.py`), each named from its descriptor (an id with no descriptor, a source removed since, keeps its id)."""
 	names = { str(item["info"].get("id")): str(item["info"].get("name") or item["info"].get("id")) for item in cm.enum_datasources() }
 	return [{ **entry, "name": names.get(entry["id"], entry["id"]) } for entry in METER.report()]
 
-@router.get("")
+@router.get("", **answers(SystemInfo))
 def get_system(cm: ConfigurationManager = Depends(get_cm)):
 	"""
 	Numbers and our own words only: no host name, address, user or path. `pi` is present only on a Raspberry Pi. A reading the machine cannot give is left out.
@@ -25,7 +114,7 @@ def get_system(cm: ConfigurationManager = Depends(get_cm)):
 	"""
 	return { "host": host_info(), "load": load_info(), "pi": pi_info(), "storage": cm.storage_usage(), "usage": usage_report(cm) }
 
-@router.post("/locate")
+@router.post("/locate", **answers(Located))
 def locate_by_ip():
 	"""A rough position from the device's public IP address, for the Location field's button: `{ ok, message, latitude?, longitude? }`. Nothing is saved; always 200, in our words."""
 	try:

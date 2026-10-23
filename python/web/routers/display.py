@@ -15,6 +15,7 @@ from ...utils.message_image import MAX_TEXT_CHARACTERS, MAX_TITLE_CHARACTERS, re
 from ...utils.upload_image import MAX_UPLOAD_BYTES, decode_upload
 from ..deps import CM
 from ..errors import ApiError
+from ..openapi import Answer, Done, answers
 from .transport import application_of
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,13 @@ class MessageRequest(BaseModel):
 	title: str = Field("", max_length=MAX_TITLE_CHARACTERS)
 	minutes: int = Field(DEFAULT_MINUTES, ge=1, le=MAX_MINUTES)
 
+class Pushed(Answer):
+	"""A pushed message or picture: the `id` that takes it down, the title it is known by (made unique), and the least it waits."""
+	success: bool
+	id: str
+	title: str
+	startsInSeconds: int
+
 def _clean(text: str) -> str:
 	return _CONTROL.sub("", text).strip()
 
@@ -39,7 +47,7 @@ def _pushed(result) -> dict:
 def _refused(e: PushRefused) -> ApiError:
 	return ApiError(e.status, e.message, "display-push")
 
-@router.post("/message")
+@router.post("/message", **answers(Pushed))
 def push_message(body: MessageRequest, request: Request, cm: CM):
 	"""Show `text` (with an optional `title`) over everything for `minutes`. The answer has the `id` that takes it down again (`DELETE /api/display/message/{id}`) and `startsInSeconds`, the least it waits."""
 	application = application_of(request)
@@ -68,7 +76,7 @@ async def _limited_body(request: Request) -> bytes:
 		chunks.append(chunk)
 	return b"".join(chunks)
 
-@router.post("/image")
+@router.post("/image", **answers(Pushed), openapi_extra={ "requestBody": { "required": True, "content": { kind: { "schema": { "type": "string", "format": "binary" } } for kind in ("image/png", "image/jpeg", "image/gif", "image/webp") } } })
 def push_image(request: Request, picture: bytes = Depends(_limited_body), title: str = Query("", max_length=MAX_TITLE_CHARACTERS), minutes: int = Query(DEFAULT_MINUTES, ge=1, le=MAX_MINUTES)):
 	"""
 	Show a picture over everything for `minutes`: the request's body is the picture itself (PNG, JPEG, GIF or WEBP, at most 10 MB), `title` and `minutes` are in the address
@@ -85,7 +93,7 @@ def push_image(request: Request, picture: bytes = Depends(_limited_body), title:
 	except PushRefused as e:
 		raise _refused(e) from None
 
-@router.delete("/message/{message_id}")
+@router.delete("/message/{message_id}", **answers(Done))
 def delete_message(message_id: str, request: Request):
 	"""Take a pushed message or picture down, whether it is showing or still waiting its turn. 404 when there is none (it was never made, or it is over)."""
 	if not application_of(request).revoke_pushed(message_id):

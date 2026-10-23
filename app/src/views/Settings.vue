@@ -217,7 +217,8 @@
 		</Tabs>
 </template>
 <script setup lang="ts">
-import { apiJson, apiPost, ApiError } from "../components/ApiClient"
+import { apiJson, ApiError } from "../components/ApiClient"
+import { api } from "../api/client"
 
 import ItemInfo from '../components/ItemInfo.vue';
 import Tabs from 'primevue/tabs';
@@ -288,7 +289,7 @@ let paletteTimer: ReturnType<typeof setTimeout> | undefined
 function refreshPalette() {
 	if (paletteTimer) clearTimeout(paletteTimer)
 	paletteTimer = setTimeout(() => {
-		apiPost<{ roles: { name: string, color: string }[] }>(`${API_URL}api/theme/palette`, { theme: previewScheme.value, hue: previewHue.value, saturation: previewSaturation.value, lightness: previewLightness.value, background: previewBackground.value })
+		api.post("/api/theme/palette", {}, { theme: previewScheme.value, hue: previewHue.value, saturation: previewSaturation.value, lightness: previewLightness.value, background: previewBackground.value })
 			.then(answer => { paletteColors.value = Object.fromEntries(answer.roles.map(r => [r.name, r.color])) })
 			.catch(() => { /* the swatches keep what they showed */ })
 	}, 120)

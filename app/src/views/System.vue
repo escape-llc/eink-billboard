@@ -244,30 +244,17 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { Button, Dialog, InputGroup, Select, Tag, Toolbar, ToggleSwitch, useToast } from "primevue"
-import { apiJson } from "../components/ApiClient"
+import { api } from "../api/client"
+import type { components } from "../api/schema"
 import { LAYERS, clockOf, isProblem, layerOf, layersOf, useTelemetry, type TelemetryEvent } from "../components/TelemetryLink"
 import { useTransport, type TransportCommand } from "../components/Transport"
 import BackupRestore from "../components/BackupRestore.vue"
 import PasswordForm from "../components/PasswordForm.vue"
 import { deviceMoment, failedCalls, formatBytes, formatShare, formatUptime, gaugeSeverity, statusSummary, temperatureSeverity } from "../components/SystemFormat"
 
-type Component = { state: "ok" | "failed" | "starting", message: string }
-type Status = { ok: boolean, components: Record<string, Component> }
-type Owner = { id: string, files: number, bytes: number, kept_bytes: number }
-type Period = { calls: number, status: Record<string, number>, sent: number, received: number, cache: Record<string, number>, hitRate: number | null, bytesSaved: number }
-type Usage = { id: string, name: string, today: Period, week: Period, month: Period, lastLimited: string | null }
-type SystemInfo = {
-	host: { commit: string, os: string, os_release: string, machine: string, python: string, cpus: number, uptime_seconds?: number, app_uptime_seconds?: number }
-	load: { cpu_percent?: number, load?: number[], memory?: { total: number, used: number, percent: number }, app_memory?: number }
-	pi: { model: string, temperature_c?: number, cpu_mhz?: number, cpu_max_mhz?: number, throttled?: string[], throttled_now?: boolean } | null
-	storage: {
-		areas: { name: string, files: number, bytes: number }[]
-		plugins: Owner[]
-		datasources: Owner[]
-		volume: { total: number, used: number, free: number, percent: number } | null
-	}
-	usage: Usage[]
-}
+type Schemas = components["schemas"]
+type Status = Schemas["Status"]
+type SystemInfo = Schemas["SystemInfo"]
 const periods = [{ key: "today", label: "Today" }, { key: "week", label: "7 days" }, { key: "month", label: "Month" }] as const
 
 const POLL_MS = 10000
@@ -280,8 +267,8 @@ const webCommit = __APP_COMMIT__
 const mismatch = computed(() => !!info.value && info.value.host.commit !== "unknown" && webCommit !== "dev" && info.value.host.commit !== webCommit)
 let timer: ReturnType<typeof setInterval> | undefined
 function load(): Promise<unknown> {
-	const asked = apiJson<Status>("/api/status").then(s => { status.value = s }).catch(() => {})
-	apiJson<SystemInfo>("/api/system").then(s => { info.value = s; failed.value = false }).catch(() => { failed.value = true })
+	const asked = api.get("/api/status").then(s => { status.value = s }).catch(() => {})
+	api.get("/api/system").then(s => { info.value = s; failed.value = false }).catch(() => { failed.value = true })
 	return asked
 }
 

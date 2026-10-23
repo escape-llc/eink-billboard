@@ -14,9 +14,14 @@ from ...model.configuration_manager import CollectInfoDict, ConfigurationManager
 from ...model.service_container import ServiceContainer
 from ..deps import get_cm
 from ..errors import ApiError
+from ..openapi import Choice, answers
 
 router = APIRouter(prefix="/lookups")
 logger = logging.getLogger(__name__)
+
+class ProviderChoice(Choice):
+	"""A provider of a capability: `ready` when its own settings are complete (its name says so too)."""
+	ready: bool
 
 MAJOR_REGIONS = {
 	"Africa", "America", "Antarctica", "Asia", "Atlantic",
@@ -46,11 +51,11 @@ LOCALES = [
 	{"value": "de-DE", "name": "Deutsch"}
 ]
 
-@router.get('/timezone')
+@router.get('/timezone', **answers(list[Choice]))
 def list_timezones():
 	return _timezone_options(date.today())
 
-@router.get('/locale')
+@router.get('/locale', **answers(list[Choice]))
 def list_locales():
 	return LOCALES
 
@@ -68,7 +73,7 @@ def _set_up(cm: ConfigurationManager, item: CollectInfoDict) -> bool:
 		logger.warning(f"Could not ask '{item['info'].get('id')}' whether it is set up ({type(e).__name__}).")
 		return False
 
-@router.get('/providers/{capability}')
+@router.get('/providers/{capability}', **answers(list[ProviderChoice]))
 def list_providers(capability: str, cm: Annotated[ConfigurationManager, Depends(get_cm)]):
 	"""
 	The providers of a capability (#513) that are enabled, for the device's choice of one (`weatherProvider`): a capability of our own list, else a 404.

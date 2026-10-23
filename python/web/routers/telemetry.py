@@ -17,9 +17,12 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
 
+from typing import Literal
+
 from ...task.telemetry_hub import LOCAL_ONLY, TelemetryHub
 from ..deps import SESSION_COOKIE, get_container, signed_in
 from ..errors import ApiError
+from ..openapi import Answer, answers
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -55,12 +58,21 @@ def _required_hub(request) -> TelemetryHub:
 		raise ApiError(503, "Telemetry is not available.")
 	return hub
 
+class Component(Answer):
+	state: Literal["ok", "failed", "starting"]
+	message: str
+
+class Status(Answer):
+	"""Whether every part came up, and each part's state in our words."""
+	ok: bool
+	components: dict[str, Component]
+
 @router.get('/telemetry')
 def recent(request: Request, since: int = Query(0, ge=0)):
 	"""The kept events newer than `since`, oldest first (a first paint, a script, or catching up)."""
 	return [_for(request.client, e) for e in _required_hub(request).since(since)]
 
-@router.get('/status')
+@router.get('/status', **answers(Status))
 def status(request: Request):
 	"""Whether the display and the two layers came up: `{ ok, components: { name: { state: ok|failed|starting, message } } }`. Our words only."""
 	return _required_hub(request).status()
