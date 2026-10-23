@@ -75,7 +75,7 @@
 					"required": false,
 					"default": [],
 					"title": "Accounts",
-					"description": "Google and Microsoft accounts, for calendars of the kind google or microsoft. Each needs your own app registration (see the readme). Save, then Connect to sign in; Connect lists the account's calendars and their IDs.",
+					"description": "Google and Microsoft accounts, for calendars of the kind google or microsoft. Each needs your own app registration (the Help drawer says how). Save, then Connect to sign in; Connect lists the account's calendars and their IDs.",
 					"items": {
 						"type": "object",
 						"key": "name",

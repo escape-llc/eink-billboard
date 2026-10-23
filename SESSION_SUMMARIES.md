@@ -1,7 +1,7 @@
 # eInk Billboard: Session Summaries (for this repo's Discussions)
 
 A reusable prompt to get an agent to self-report a clean, Discussion-ready summary of one piece of contributor work: a feature, a bug fix, a refactor.
-Its most valuable part is the friction: what was not obvious from `AGENTS.md` or the readme, because that feeds directly back into this repo's docs and backlog.
+Its most valuable part is the friction: what was not obvious from `AGENTS.md` or `docs/`, because that feeds directly back into this repo's docs and backlog.
 
 ## When to write one
 
@@ -38,7 +38,7 @@ Include, as headers:
 3. **Approach**: the instructions that got this working, condensed to the essential ask, not the full back-and-forth.
 4. **Outcome**: what the result looks like, with a link to the merged PR (only once it is merged), and what was verified versus not run
    (which tests, which were network-dependent and could not run, whether the UI was exercised in a browser).
-5. **Friction**: anything that took extra turns, was not obvious from AGENTS.md/the readme, or required guessing. Be specific and honest, even when it reflects a gap
+5. **Friction**: anything that took extra turns, was not obvious from AGENTS.md/`docs/`, or required guessing. Be specific and honest, even when it reflects a gap
    in the docs or the code: this section is the most valuable part of the post.
 6. **Review and CI**: for every review comment and every red CI run on the PR, say whether it was a real defect (and the fix) or a false positive (and why),
    and note anything a later pass caught that the review missed. "Reported nothing, correctly" is a valid entry.

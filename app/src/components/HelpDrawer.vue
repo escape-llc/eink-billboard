@@ -243,7 +243,8 @@
 				<AccordionHeader>More</AccordionHeader>
 				<AccordionContent>
 					<ul class="links">
-						<li><a href="https://github.com/escape-llc/eink-billboard#readme" target="_blank" rel="noopener noreferrer">Documentation (the readme)</a></li>
+						<li><a href="https://github.com/escape-llc/eink-billboard#readme" target="_blank" rel="noopener noreferrer">Setting up a Raspberry Pi (the readme)</a></li>
+						<li><a href="https://github.com/escape-llc/eink-billboard/blob/master/docs/pi-commands.md" target="_blank" rel="noopener noreferrer">The Pi's commands</a></li>
 						<li><a href="https://github.com/escape-llc/eink-billboard/issues" target="_blank" rel="noopener noreferrer">Report a problem or ask for something</a></li>
 						<li><a href="https://github.com/escape-llc/eink-billboard/discussions" target="_blank" rel="noopener noreferrer">Discussions</a></li>
 					</ul>

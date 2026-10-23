@@ -1,5 +1,5 @@
 """
-Back up the storage to an encrypted file, and restore it (#368, the readme's "Backup and Restore"). The file holds the settings with their API keys, so it is always encrypted with a passphrase of its
+Back up the storage to an encrypted file, and restore it (#368, `docs/development.md`'s "Backup and Restore"). The file holds the settings with their API keys, so it is always encrypted with a passphrase of its
 own (not the device password); the device password is never in it. Both routes need a **claimed** device: an unclaimed one has no owner to ask. The passphrase and the archive travel in the body of
 the request only, are never stored or logged, and the answer is never cached.
 """
