@@ -1,16 +1,10 @@
 <template>
-	<div class="credits-page">
-	<Toolbar class="p-1">
-		<template #start>
-			<div style="font-size:150%">Credits</div>
-		</template>
-	</Toolbar>
 	<div class="credits" data-testid="credits">
 		<p class="intro">eInk Billboard shows data, pictures and type made by others. This is everyone it owes, in one place. The Weather pages and the maps also say it on the panel, as those services ask.</p>
 		<Message v-if="failed" severity="error" size="small">The credits could not be loaded.</Message>
 		<template v-if="credits">
 			<section>
-				<h3>Data and pictures</h3>
+				<h4>Data and pictures</h4>
 				<p class="hint">What the providers and data sources download. Calendars, feeds and pictures at your own addresses are yours.</p>
 				<dl>
 					<template v-for="d in credits.data" :key="d.id">
@@ -23,7 +17,7 @@
 				</dl>
 			</section>
 			<section>
-				<h3>Fonts</h3>
+				<h4>Fonts</h4>
 				<p class="hint">Each shipped unmodified, under the SIL Open Font License 1.1, with its licence beside it.</p>
 				<dl>
 					<template v-for="f in credits.fonts" :key="f.name">
@@ -33,7 +27,7 @@
 				</dl>
 			</section>
 			<section>
-				<h3>Software</h3>
+				<h4>Software</h4>
 				<dl>
 					<template v-for="s in credits.software" :key="s.name">
 						<dt>{{ s.name }}</dt>
@@ -47,73 +41,63 @@
 			</section>
 		</template>
 	</div>
-	</div>
 </template>
 <script setup lang="ts">
-/** The Credits page: whose data, pictures, fonts and software the device uses (`GET /api/credits`, built from the descriptors and one list on the server). */
-import { onMounted, ref } from "vue"
-import { Message, Toolbar } from "primevue"
-import { apiJson } from "../components/ApiClient"
+/**
+ * The credits, the Help drawer's last section: whose data, pictures, fonts and software the device uses (`GET /api/credits`, built from the descriptors and one list on the server).
+ * Asked for the first time the section is opened, not every time the drawer is.
+ */
+import { ref, watch } from "vue"
+import { Message } from "primevue"
+import { apiJson } from "./ApiClient"
 
 type DataCredit = { id: string, name: string, text: string, license?: string, url?: string, provider: boolean }
 type Credit = { name: string, by: string, license: string, url?: string, what?: string }
 type Credits = { data: DataCredit[], fonts: Credit[], software: Credit[] }
 
+const props = defineProps<{ active: boolean }>()
 const credits = ref<Credits|null>(null)
 const failed = ref(false)
-onMounted(() => {
+watch(() => props.active, active => {
+	if (!active || credits.value !== null) return
+	failed.value = false
 	apiJson<Credits>("/api/credits").then(c => { credits.value = c }).catch(() => { failed.value = true })
-})
+}, { immediate: true })
 </script>
 <style scoped>
 .credits {
-	padding: .75rem 1rem;
-	max-width: 50rem;
 	display: flex;
 	flex-direction: column;
-	gap: 1rem;
+	gap: 0.75rem;
 }
 .intro, .hint {
 	margin: 0;
 }
 .hint {
 	color: var(--p-text-muted-color);
-	margin-bottom: .5rem;
+	margin-bottom: 0.5rem;
 }
-h3 {
-	margin: 0 0 .25rem 0;
+h4 {
+	margin: 0 0 0.25rem 0;
 }
 dl {
 	margin: 0;
-	display: grid;
-	grid-template-columns: minmax(8rem, 14rem) 1fr;
-	gap: .35rem 1rem;
 }
 dt {
 	font-weight: bold;
 }
 dd {
-	margin: 0;
+	margin: 0 0 0.5rem 0;
 }
 .kind, .license {
 	color: var(--p-text-muted-color);
-	font-size: .875rem;
-	margin-left: .5rem;
+	font-size: 0.875rem;
+	margin-left: 0.5rem;
 }
 .kind {
 	font-weight: normal;
-	display: block;
-	margin-left: 0;
 }
 a {
 	color: var(--p-primary-color);
-}
-@media (max-width: 40rem) {
-	dl {
-		grid-template-columns: 1fr;
-	}
-	dd {
-		margin-bottom: .35rem;
-	}
 }
 </style>

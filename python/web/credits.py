@@ -1,5 +1,5 @@
 """
-Every credit the device owes, for the web app's Credits page (`GET /api/credits`).
+Every credit the device owes, for the Credits section of the web app's Help drawer (`GET /api/credits`).
 
 - **Data**: whoever downloads says whose data it is, in its descriptor (`credit`: `text`, optional `license` and `url`). A provider or data source with the
   `internet` feature declares one, unless it only reads addresses the user gives it (`USERS_OWN`); `test_credits` holds every descriptor to that.

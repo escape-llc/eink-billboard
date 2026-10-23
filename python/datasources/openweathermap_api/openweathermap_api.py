@@ -21,7 +21,7 @@ from ..response_cache import cached
 from ..data_source import DataSourceExecutionContext
 from ..contracts.weather import DAYS_SHOWN, HOURS_SHOWN, NEEDS, Day, Point, Report, WeatherApi, device_now
 
-# the credit its terms ask for next to its data: the Weather pages draw it (the descriptor's `credit`, which the Credits page lists, says the same)
+# the credit its terms ask for next to its data: the Weather pages draw it (the descriptor's `credit`, which the Help drawer's Credits list, says the same)
 CREDIT = "Weather data: OpenWeatherMap"
 # the free plan's endpoints: the weather now, and the forecast in steps of three hours for five days
 API ="https://api.openweathermap.org/data/2.5"

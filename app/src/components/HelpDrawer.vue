@@ -5,7 +5,7 @@
 			eInk Billboard shows pictures and pages on an e-Ink panel. You say <b>what</b> to show and <b>when</b>; the device does the rest, by itself, all day.
 		</p>
 
-		<Accordion :value="['start']" multiple>
+		<Accordion v-model:value="open" multiple>
 			<AccordionPanel value="start">
 				<AccordionHeader>First steps</AccordionHeader>
 				<AccordionContent>
@@ -69,7 +69,7 @@
 					<p>A provider fetches data and draws nothing; the data sources that make pages and overlays ask it. Each is in <b>Settings, Providers</b> with its key and how long its answers are kept, shared by every page and overlay that uses it. A data source that needs a kind of data (the weather, calendar events) takes it from the device's provider of that kind: <b>Weather Provider</b> and <b>Calendar Provider</b> in <b>Settings, System</b>, or, left empty, the one that is set up. A provider that is not set up yet says so there.</p>
 					<dl>
 						<dt>Open-Meteo</dt>
-						<dd>The weather, with no key: free for non-commercial use such as this, and set up as installed, so a new device has weather at once. Its credit is on the Weather pages and under Credits. No place name: the page's heading is its title, or "Weather".</dd>
+						<dd>The weather, with no key: free for non-commercial use such as this, and set up as installed, so a new device has weather at once. Its credit is on the Weather pages and under Credits, below. No place name: the page's heading is its title, or "Weather".</dd>
 						<dt>OpenWeatherMap</dt>
 						<dd>The weather too, with a key: when both are set up, choose one as <b>Weather Provider</b> in <b>Settings, System</b>. A free key will do; a new one can take a couple of hours to start working, and until then the pages say it was refused.</dd>
 						<dt>Calendar Sources</dt>
@@ -119,7 +119,7 @@
 				</AccordionContent>
 			</AccordionPanel>
 
-			<AccordionPanel value="pages">
+			<AccordionPanel value="source-pages">
 				<AccordionHeader>Sources: pages</AccordionHeader>
 				<AccordionContent>
 					<p>A page with text covers the overlays while it shows.</p>
@@ -243,11 +243,17 @@
 				<AccordionHeader>More</AccordionHeader>
 				<AccordionContent>
 					<ul class="links">
-						<li><RouterLink to="/credits" @click="emit('update:visible', false)">Credits</RouterLink>: whose data, pictures, fonts and software the device uses, in one list.</li>
 						<li><a href="https://github.com/escape-llc/eink-billboard#readme" target="_blank" rel="noopener noreferrer">Documentation (the readme)</a></li>
 						<li><a href="https://github.com/escape-llc/eink-billboard/issues" target="_blank" rel="noopener noreferrer">Report a problem or ask for something</a></li>
 						<li><a href="https://github.com/escape-llc/eink-billboard/discussions" target="_blank" rel="noopener noreferrer">Discussions</a></li>
 					</ul>
+				</AccordionContent>
+			</AccordionPanel>
+
+			<AccordionPanel value="credits">
+				<AccordionHeader>Credits</AccordionHeader>
+				<AccordionContent>
+					<CreditsList :active="open.includes('credits')" />
 				</AccordionContent>
 			</AccordionPanel>
 		</Accordion>
@@ -255,11 +261,14 @@
 </template>
 <script setup lang="ts">
 /** The Help drawer: a short guide, opened from the toolbar's help button. It slides out over the page, so the page under it keeps its place. */
+import { ref } from "vue"
 import { Accordion, AccordionContent, AccordionHeader, AccordionPanel, Drawer } from "primevue"
-import { RouterLink } from "vue-router"
+import CreditsList from "./CreditsList.vue"
 
 defineProps<{ visible: boolean }>()
 const emit = defineEmits<{ (e: "update:visible", value: boolean): void }>()
+/** the open sections: the credits are asked for when theirs is first opened */
+const open = ref<string[]>(["start"])
 const version = `v${__APP_VERSION__}`
 const commit = __APP_COMMIT__
 </script>
