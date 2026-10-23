@@ -92,6 +92,15 @@ if [ "${1:-}" = build ]; then
 	printf 'FROM scratch\nCOPY stamp /stamp\n' > "$dir/Containerfile"
 	exec /usr/bin/podman build -q "${args[@]}" -t "$name" "$dir"
 fi
+# FAKE_APP (a file that exists while it "runs"): the app's container as the script sees it, and what was done to it, in order, in /tmp/lifecycle.log
+if [ -n "${FAKE_APP:-}" ]; then
+	case "$*" in
+		"inspect -f {{.State.Running}} eink") if [ -f "$FAKE_APP" ]; then echo true; else echo false; fi; exit 0 ;;
+		"stop -t 15 eink") echo stop >> /tmp/lifecycle.log; rm -f "$FAKE_APP"; exit 0 ;;
+		"start eink") echo start >> /tmp/lifecycle.log; touch "$FAKE_APP"; exit 0 ;;
+	esac
+	[ "${1:-}" != pull ] || echo pull >> /tmp/lifecycle.log
+fi
 exec /usr/bin/podman "$@"
 SHIM
 chmod +x "$SHIM/podman"
@@ -290,6 +299,32 @@ out=$(kit update --bogus 2>&1)
 check "an unknown option is refused by name" grep -q "no option '--bogus'" <<< "$out"
 out=$(kit update no-such-thing 2>&1)
 check "an unknown name is refused" grep -q "no release, snapshot or branch 'no-such-thing'" <<< "$out"
+
+echo "== on a board with less than 1 GB, update stops the app while it downloads, and starts it again when the download fails (#568)"
+LIFE=/tmp/lifecycle.log
+RUNS=/tmp/fake-app-running
+lifecycle() { paste -sd' ' "$LIFE"; }
+lacks() { ! grep -q "$1" <<< "$2"; }
+small() { touch "$RUNS"; : > "$LIFE"; FAKE_APP=$RUNS EINK_MEM_KB=440000 kit update 2>&1; }
+check "a snapshot is published" snapshot 20261022140000
+K=$(git -C "$WORK" rev-parse HEAD)
+out=$(small)
+check "it says the app is stopped for the download" grep -q "less than 1 GB of memory, so the app is stopped" <<< "$out"
+check "the app is stopped before the download" [ "$(lifecycle)" = "stop pull" ]
+check "it downloaded the snapshot's image" [ "$(label "$APP" eink.commit)" = "${K::7}" ]
+check "a snapshot without an image" snapshot 20261022150000 none
+before_app=$(label "$APP" eink.commit)
+out=$(small)
+code=$?
+check "the update fails" [ "$code" -ne 0 ]
+check "the app is started again after the download failed" [ "$(lifecycle)" = "stop pull start" ]
+check "on the image it had" [ "$(label "$APP" eink.commit)" = "$before_app" ]
+check "it says so" grep -q "running again on the image it had (commit $before_app)" <<< "$out"
+check "a snapshot is published" snapshot 20261022160000
+touch "$RUNS"; : > "$LIFE"
+out=$(FAKE_APP=$RUNS EINK_MEM_KB=4000000 kit update 2>&1)
+check "with 4 GB the app is not stopped" [ "$(lifecycle)" = "pull" ]
+check "and nothing says it is" lacks "so the app is stopped" "$out"
 
 echo "== with the signature check on, an image GitHub did not sign is refused (#555)"
 commit V
