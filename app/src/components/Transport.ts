@@ -4,7 +4,7 @@
  * `GET /api/transport` for the state when the page opens or the link comes back. A click shows its result at once; the next event corrects it.
  */
 import { reactive } from "vue"
-import { apiJson, apiPost, joinUrl } from "./ApiClient"
+import { api } from "../api/client"
 import type { TelemetryEvent } from "./TelemetryLink"
 
 export type TransportCommand = "play" | "stop" | "next"
@@ -18,20 +18,11 @@ export function stoppedBy(events: readonly TelemetryEvent[]): boolean | undefine
 
 export class Transport {
 	readonly state = reactive({ stopped: false, busy: false })
-	private base: string
-
-	constructor(base: string) {
-		this.base = base
-	}
-
-	private url(): string {
-		return joinUrl(this.base || "/", "api/transport")
-	}
 
 	/** Ask the device whether playback is stopped. A failure leaves what is known (the link shows the device is not answering). */
 	async load(): Promise<void> {
 		try {
-			const answer = await apiJson<{ stopped: boolean }>(this.url())
+			const answer = await api.get("/api/transport")
 			this.state.stopped = answer.stopped === true
 		} catch { /* the System page's link status says so */ }
 	}
@@ -47,7 +38,7 @@ export class Transport {
 		if (this.state.busy) return
 		this.state.busy = true
 		try {
-			await apiPost(this.url(), { command })
+			await api.post("/api/transport", {}, { command })
 			if (command === "stop") this.state.stopped = true
 			else this.state.stopped = false
 		} finally {
@@ -58,7 +49,7 @@ export class Transport {
 
 let shared: Transport | null = null
 /** The page's one transport (the System page's buttons). */
-export function useTransport(base: string = import.meta.env.VITE_API_URL ?? "/"): Transport {
-	shared ??= new Transport(base)
+export function useTransport(): Transport {
+	shared ??= new Transport()
 	return shared
 }

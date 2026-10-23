@@ -68,7 +68,7 @@ import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
 import { searchAddress, normalQuery, MIN_QUERY_LENGTH, type Place } from './AddressSearch';
 import Button from 'primevue/button';
 import { useToast } from 'primevue/usetoast';
-import { apiPost, joinUrl } from './ApiClient';
+import { api } from '../api/client';
 import InputGroup from 'primevue/inputgroup';
 import InputGroupAddon from 'primevue/inputgroupaddon';
 import InputText from 'primevue/inputtext';
@@ -207,8 +207,8 @@ const locateUser = () => {
 const locateByIp = async () => {
 	locatingByIp.value = true;
 	try {
-		const answer = await apiPost<{ ok: boolean, message: string, latitude?: number, longitude?: number }>(joinUrl(import.meta.env.VITE_API_URL ?? "/", "api/system/locate"), {});
-		if (answer.ok && answer.latitude !== undefined && answer.longitude !== undefined) {
+		const answer = await api.post("/api/system/locate", {}, undefined);
+		if (answer.ok && answer.latitude != null && answer.longitude != null) {
 			zoom.value = 10;
 			updateLocation(answer.latitude, answer.longitude, true);
 			toast.add({ severity: "info", summary: "Location", detail: answer.message, life: 8000 });

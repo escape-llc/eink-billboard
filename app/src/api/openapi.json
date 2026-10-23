@@ -2,6 +2,7 @@
 	"components": {
 		"schemas": {
 			"AccessState": {
+				"additionalProperties": false,
 				"description": "What the sign-in needs to know (the web app's AccessInfo).",
 				"properties": {
 					"localOnly": {
@@ -30,7 +31,161 @@
 				"title": "AccessState",
 				"type": "object"
 			},
+			"Area": {
+				"additionalProperties": false,
+				"properties": {
+					"bytes": {
+						"title": "Bytes",
+						"type": "integer"
+					},
+					"files": {
+						"title": "Files",
+						"type": "integer"
+					},
+					"name": {
+						"title": "Name",
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"files",
+					"bytes"
+				],
+				"title": "Area",
+				"type": "object"
+			},
+			"Choice": {
+				"additionalProperties": false,
+				"description": "One entry of a drop-down: what it shows and what it stores.",
+				"properties": {
+					"name": {
+						"title": "Name",
+						"type": "string"
+					},
+					"value": {
+						"title": "Value",
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"value"
+				],
+				"title": "Choice",
+				"type": "object"
+			},
+			"Component": {
+				"additionalProperties": false,
+				"properties": {
+					"message": {
+						"title": "Message",
+						"type": "string"
+					},
+					"state": {
+						"enum": [
+							"ok",
+							"failed",
+							"starting"
+						],
+						"title": "State",
+						"type": "string"
+					}
+				},
+				"required": [
+					"state",
+					"message"
+				],
+				"title": "Component",
+				"type": "object"
+			},
+			"Credits": {
+				"additionalProperties": false,
+				"properties": {
+					"data": {
+						"items": {
+							"$ref": "#/components/schemas/DataCredit"
+						},
+						"title": "Data",
+						"type": "array"
+					},
+					"fonts": {
+						"items": {
+							"$ref": "#/components/schemas/SoftwareCredit"
+						},
+						"title": "Fonts",
+						"type": "array"
+					},
+					"software": {
+						"items": {
+							"$ref": "#/components/schemas/SoftwareCredit"
+						},
+						"title": "Software",
+						"type": "array"
+					}
+				},
+				"required": [
+					"data",
+					"fonts",
+					"software"
+				],
+				"title": "Credits",
+				"type": "object"
+			},
+			"DataCredit": {
+				"additionalProperties": false,
+				"description": "Whose data a provider or data source downloads, from its descriptor's `credit`.",
+				"properties": {
+					"id": {
+						"title": "Id",
+						"type": "string"
+					},
+					"license": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "License"
+					},
+					"name": {
+						"title": "Name",
+						"type": "string"
+					},
+					"provider": {
+						"title": "Provider",
+						"type": "boolean"
+					},
+					"text": {
+						"title": "Text",
+						"type": "string"
+					},
+					"url": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Url"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"text",
+					"provider"
+				],
+				"title": "DataCredit",
+				"type": "object"
+			},
 			"Done": {
+				"additionalProperties": false,
 				"description": "The answer of a change that worked and has nothing else to say.",
 				"properties": {
 					"success": {
@@ -55,6 +210,187 @@
 					}
 				},
 				"title": "HTTPValidationError",
+				"type": "object"
+			},
+			"Host": {
+				"additionalProperties": false,
+				"properties": {
+					"app_uptime_seconds": {
+						"anyOf": [
+							{
+								"type": "integer"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "App Uptime Seconds"
+					},
+					"commit": {
+						"title": "Commit",
+						"type": "string"
+					},
+					"cpus": {
+						"title": "Cpus",
+						"type": "integer"
+					},
+					"machine": {
+						"title": "Machine",
+						"type": "string"
+					},
+					"os": {
+						"title": "Os",
+						"type": "string"
+					},
+					"os_release": {
+						"title": "Os Release",
+						"type": "string"
+					},
+					"python": {
+						"title": "Python",
+						"type": "string"
+					},
+					"uptime_seconds": {
+						"anyOf": [
+							{
+								"type": "integer"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Uptime Seconds"
+					}
+				},
+				"required": [
+					"commit",
+					"os",
+					"os_release",
+					"machine",
+					"python",
+					"cpus"
+				],
+				"title": "Host",
+				"type": "object"
+			},
+			"Load": {
+				"additionalProperties": false,
+				"description": "Each reading only when the machine gives it.",
+				"properties": {
+					"app_memory": {
+						"anyOf": [
+							{
+								"type": "integer"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "App Memory"
+					},
+					"cpu_percent": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Cpu Percent"
+					},
+					"load": {
+						"anyOf": [
+							{
+								"items": {
+									"type": "number"
+								},
+								"type": "array"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Load"
+					},
+					"memory": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/Memory"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"title": "Load",
+				"type": "object"
+			},
+			"Located": {
+				"additionalProperties": false,
+				"description": "A rough position, or our words for why there is none.",
+				"properties": {
+					"latitude": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Latitude"
+					},
+					"longitude": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Longitude"
+					},
+					"message": {
+						"title": "Message",
+						"type": "string"
+					},
+					"ok": {
+						"title": "Ok",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"ok",
+					"message"
+				],
+				"title": "Located",
+				"type": "object"
+			},
+			"Memory": {
+				"additionalProperties": false,
+				"properties": {
+					"percent": {
+						"title": "Percent",
+						"type": "number"
+					},
+					"total": {
+						"title": "Total",
+						"type": "integer"
+					},
+					"used": {
+						"title": "Used",
+						"type": "integer"
+					}
+				},
+				"required": [
+					"total",
+					"used",
+					"percent"
+				],
+				"title": "Memory",
 				"type": "object"
 			},
 			"MessageRequest": {
@@ -85,6 +421,543 @@
 				"title": "MessageRequest",
 				"type": "object"
 			},
+			"Owner": {
+				"additionalProperties": false,
+				"description": "A plugin's or a data source's folder: `kept_bytes` are its kept downloads and answers.",
+				"properties": {
+					"bytes": {
+						"title": "Bytes",
+						"type": "integer"
+					},
+					"files": {
+						"title": "Files",
+						"type": "integer"
+					},
+					"id": {
+						"title": "Id",
+						"type": "string"
+					},
+					"kept_bytes": {
+						"title": "Kept Bytes",
+						"type": "integer"
+					}
+				},
+				"required": [
+					"id",
+					"files",
+					"bytes",
+					"kept_bytes"
+				],
+				"title": "Owner",
+				"type": "object"
+			},
+			"Palette": {
+				"additionalProperties": false,
+				"properties": {
+					"roles": {
+						"items": {
+							"$ref": "#/components/schemas/Role"
+						},
+						"title": "Roles",
+						"type": "array"
+					}
+				},
+				"required": [
+					"roles"
+				],
+				"title": "Palette",
+				"type": "object"
+			},
+			"Period": {
+				"additionalProperties": false,
+				"description": "A data source's calls in a period: by status (or why there was none), the bytes, and what its cache did.",
+				"properties": {
+					"bytesSaved": {
+						"title": "Bytessaved",
+						"type": "integer"
+					},
+					"cache": {
+						"additionalProperties": {
+							"type": "integer"
+						},
+						"title": "Cache",
+						"type": "object"
+					},
+					"cacheBytes": {
+						"additionalProperties": {
+							"type": "integer"
+						},
+						"title": "Cachebytes",
+						"type": "object"
+					},
+					"calls": {
+						"title": "Calls",
+						"type": "integer"
+					},
+					"hitRate": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Hitrate"
+					},
+					"received": {
+						"title": "Received",
+						"type": "integer"
+					},
+					"sent": {
+						"title": "Sent",
+						"type": "integer"
+					},
+					"status": {
+						"additionalProperties": {
+							"type": "integer"
+						},
+						"title": "Status",
+						"type": "object"
+					}
+				},
+				"required": [
+					"calls",
+					"status",
+					"sent",
+					"received",
+					"cache",
+					"cacheBytes",
+					"hitRate",
+					"bytesSaved"
+				],
+				"title": "Period",
+				"type": "object"
+			},
+			"Pi": {
+				"additionalProperties": false,
+				"description": "A Raspberry Pi's own readings: the model always, the others when the Pi gives them.",
+				"properties": {
+					"cpu_max_mhz": {
+						"anyOf": [
+							{
+								"type": "integer"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Cpu Max Mhz"
+					},
+					"cpu_mhz": {
+						"anyOf": [
+							{
+								"type": "integer"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Cpu Mhz"
+					},
+					"model": {
+						"title": "Model",
+						"type": "string"
+					},
+					"temperature_c": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Temperature C"
+					},
+					"throttled": {
+						"anyOf": [
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Throttled"
+					},
+					"throttled_now": {
+						"anyOf": [
+							{
+								"type": "boolean"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Throttled Now"
+					}
+				},
+				"required": [
+					"model"
+				],
+				"title": "Pi",
+				"type": "object"
+			},
+			"ProviderChoice": {
+				"additionalProperties": false,
+				"description": "A provider of a capability: `ready` when its own settings are complete (its name says so too).",
+				"properties": {
+					"name": {
+						"title": "Name",
+						"type": "string"
+					},
+					"ready": {
+						"title": "Ready",
+						"type": "boolean"
+					},
+					"value": {
+						"title": "Value",
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"value",
+					"ready"
+				],
+				"title": "ProviderChoice",
+				"type": "object"
+			},
+			"Pushed": {
+				"additionalProperties": false,
+				"description": "A pushed message or picture: the `id` that takes it down, the title it is known by (made unique), and the least it waits.",
+				"properties": {
+					"id": {
+						"title": "Id",
+						"type": "string"
+					},
+					"startsInSeconds": {
+						"title": "Startsinseconds",
+						"type": "integer"
+					},
+					"success": {
+						"title": "Success",
+						"type": "boolean"
+					},
+					"title": {
+						"title": "Title",
+						"type": "string"
+					}
+				},
+				"required": [
+					"success",
+					"id",
+					"title",
+					"startsInSeconds"
+				],
+				"title": "Pushed",
+				"type": "object"
+			},
+			"RestoreFile": {
+				"additionalProperties": false,
+				"properties": {
+					"label": {
+						"title": "Label",
+						"type": "string"
+					},
+					"name": {
+						"title": "Name",
+						"type": "string"
+					},
+					"status": {
+						"enum": [
+							"new",
+							"changed"
+						],
+						"title": "Status",
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"label",
+					"status"
+				],
+				"title": "RestoreFile",
+				"type": "object"
+			},
+			"RestoreSummary": {
+				"additionalProperties": false,
+				"description": "What a restore would do (or did), by name: never a value.",
+				"properties": {
+					"applied": {
+						"title": "Applied",
+						"type": "boolean"
+					},
+					"files": {
+						"items": {
+							"$ref": "#/components/schemas/RestoreFile"
+						},
+						"title": "Files",
+						"type": "array"
+					},
+					"leftOut": {
+						"title": "Leftout",
+						"type": "integer"
+					},
+					"madeAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Madeat"
+					},
+					"restartNeeded": {
+						"title": "Restartneeded",
+						"type": "boolean"
+					},
+					"success": {
+						"title": "Success",
+						"type": "boolean"
+					},
+					"unchanged": {
+						"title": "Unchanged",
+						"type": "integer"
+					},
+					"upgraded": {
+						"items": {
+							"$ref": "#/components/schemas/Upgraded"
+						},
+						"title": "Upgraded",
+						"type": "array"
+					},
+					"written": {
+						"anyOf": [
+							{
+								"type": "integer"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Written"
+					}
+				},
+				"required": [
+					"success",
+					"applied",
+					"files",
+					"unchanged",
+					"upgraded",
+					"restartNeeded",
+					"leftOut",
+					"madeAt"
+				],
+				"title": "RestoreSummary",
+				"type": "object"
+			},
+			"Role": {
+				"additionalProperties": false,
+				"description": "A role of the palette: its CSS class and its color as `hsl()`.",
+				"properties": {
+					"color": {
+						"title": "Color",
+						"type": "string"
+					},
+					"name": {
+						"title": "Name",
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"color"
+				],
+				"title": "Role",
+				"type": "object"
+			},
+			"SignedIn": {
+				"additionalProperties": false,
+				"description": "Signed in, or nothing to sign in to (`required` false).",
+				"properties": {
+					"required": {
+						"title": "Required",
+						"type": "boolean"
+					},
+					"success": {
+						"title": "Success",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"success",
+					"required"
+				],
+				"title": "SignedIn",
+				"type": "object"
+			},
+			"SoftwareCredit": {
+				"additionalProperties": false,
+				"description": "A font or other software by others: whose it is, its licence, and what it does here.",
+				"properties": {
+					"by": {
+						"title": "By",
+						"type": "string"
+					},
+					"license": {
+						"title": "License",
+						"type": "string"
+					},
+					"name": {
+						"title": "Name",
+						"type": "string"
+					},
+					"url": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Url"
+					},
+					"what": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "What"
+					}
+				},
+				"required": [
+					"name",
+					"by",
+					"license"
+				],
+				"title": "SoftwareCredit",
+				"type": "object"
+			},
+			"Status": {
+				"additionalProperties": false,
+				"description": "Whether every part came up, and each part's state in our words.",
+				"properties": {
+					"components": {
+						"additionalProperties": {
+							"$ref": "#/components/schemas/Component"
+						},
+						"title": "Components",
+						"type": "object"
+					},
+					"ok": {
+						"title": "Ok",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"ok",
+					"components"
+				],
+				"title": "Status",
+				"type": "object"
+			},
+			"Storage": {
+				"additionalProperties": false,
+				"properties": {
+					"areas": {
+						"items": {
+							"$ref": "#/components/schemas/Area"
+						},
+						"title": "Areas",
+						"type": "array"
+					},
+					"datasources": {
+						"items": {
+							"$ref": "#/components/schemas/Owner"
+						},
+						"title": "Datasources",
+						"type": "array"
+					},
+					"plugins": {
+						"items": {
+							"$ref": "#/components/schemas/Owner"
+						},
+						"title": "Plugins",
+						"type": "array"
+					},
+					"volume": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/Volume"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": [
+					"areas",
+					"plugins",
+					"datasources",
+					"volume"
+				],
+				"title": "Storage",
+				"type": "object"
+			},
+			"SystemInfo": {
+				"additionalProperties": false,
+				"properties": {
+					"host": {
+						"$ref": "#/components/schemas/Host"
+					},
+					"load": {
+						"$ref": "#/components/schemas/Load"
+					},
+					"pi": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/Pi"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"storage": {
+						"$ref": "#/components/schemas/Storage"
+					},
+					"usage": {
+						"items": {
+							"$ref": "#/components/schemas/Usage"
+						},
+						"title": "Usage",
+						"type": "array"
+					}
+				},
+				"required": [
+					"host",
+					"load",
+					"pi",
+					"storage",
+					"usage"
+				],
+				"title": "SystemInfo",
+				"type": "object"
+			},
 			"TransportRequest": {
 				"properties": {
 					"command": {
@@ -101,6 +974,93 @@
 					"command"
 				],
 				"title": "TransportRequest",
+				"type": "object"
+			},
+			"TransportState": {
+				"additionalProperties": false,
+				"properties": {
+					"stopped": {
+						"title": "Stopped",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"stopped"
+				],
+				"title": "TransportState",
+				"type": "object"
+			},
+			"Upgraded": {
+				"additionalProperties": false,
+				"description": "A document from an older version: the versions it is brought from and to.",
+				"properties": {
+					"from": {
+						"title": "From",
+						"type": "integer"
+					},
+					"label": {
+						"title": "Label",
+						"type": "string"
+					},
+					"name": {
+						"title": "Name",
+						"type": "string"
+					},
+					"to": {
+						"title": "To",
+						"type": "integer"
+					}
+				},
+				"required": [
+					"name",
+					"label",
+					"from",
+					"to"
+				],
+				"title": "Upgraded",
+				"type": "object"
+			},
+			"Usage": {
+				"additionalProperties": false,
+				"properties": {
+					"id": {
+						"title": "Id",
+						"type": "string"
+					},
+					"lastLimited": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Lastlimited"
+					},
+					"month": {
+						"$ref": "#/components/schemas/Period"
+					},
+					"name": {
+						"title": "Name",
+						"type": "string"
+					},
+					"today": {
+						"$ref": "#/components/schemas/Period"
+					},
+					"week": {
+						"$ref": "#/components/schemas/Period"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"today",
+					"week",
+					"month",
+					"lastLimited"
+				],
+				"title": "Usage",
 				"type": "object"
 			},
 			"ValidationError": {
@@ -141,6 +1101,35 @@
 					"type"
 				],
 				"title": "ValidationError",
+				"type": "object"
+			},
+			"Volume": {
+				"additionalProperties": false,
+				"properties": {
+					"free": {
+						"title": "Free",
+						"type": "integer"
+					},
+					"percent": {
+						"title": "Percent",
+						"type": "number"
+					},
+					"total": {
+						"title": "Total",
+						"type": "integer"
+					},
+					"used": {
+						"title": "Used",
+						"type": "integer"
+					}
+				},
+				"required": [
+					"total",
+					"used",
+					"free",
+					"percent"
+				],
+				"title": "Volume",
 				"type": "object"
 			}
 		}
@@ -290,14 +1279,46 @@
 			"post": {
 				"description": "The storage as one encrypted file (`{ \"passphrase\": ..., \"confirm\": ... }`, the passphrase of this backup: at least 12 characters, typed twice). Answers the file itself (`application/octet-stream`).\nNot a point-in-time snapshot: each file is whole, and they are read while the device runs.",
 				"operationId": "make_backup_api_backup_post",
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"description": "The passphrase of this backup, typed twice.",
+								"properties": {
+									"confirm": {
+										"title": "Confirm",
+										"type": "string"
+									},
+									"passphrase": {
+										"title": "Passphrase",
+										"type": "string"
+									}
+								},
+								"required": [
+									"passphrase",
+									"confirm"
+								],
+								"title": "BackupBody",
+								"type": "object"
+							}
+						}
+					},
+					"required": true
+				},
 				"responses": {
 					"200": {
 						"content": {
 							"application/json": {
 								"schema": {}
+							},
+							"application/octet-stream": {
+								"schema": {
+									"format": "binary",
+									"type": "string"
+								}
 							}
 						},
-						"description": "Successful Response"
+						"description": "The encrypted backup file"
 					}
 				},
 				"summary": "Make Backup"
@@ -310,7 +1331,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/Credits"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -1143,11 +2166,42 @@
 						}
 					}
 				],
+				"requestBody": {
+					"content": {
+						"image/gif": {
+							"schema": {
+								"format": "binary",
+								"type": "string"
+							}
+						},
+						"image/jpeg": {
+							"schema": {
+								"format": "binary",
+								"type": "string"
+							}
+						},
+						"image/png": {
+							"schema": {
+								"format": "binary",
+								"type": "string"
+							}
+						},
+						"image/webp": {
+							"schema": {
+								"format": "binary",
+								"type": "string"
+							}
+						}
+					},
+					"required": true
+				},
 				"responses": {
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/Pushed"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -1233,7 +2287,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/Pushed"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -1271,7 +2327,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/Done"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -1361,7 +2419,13 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Choice"
+									},
+									"title": "Response List Locales Api Lookups Locale Get",
+									"type": "array"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -1389,7 +2453,13 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/ProviderChoice"
+									},
+									"title": "Response List Providers Api Lookups Providers  Capability  Get",
+									"type": "array"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -1415,7 +2485,13 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Choice"
+									},
+									"title": "Response List Timezones Api Lookups Timezone Get",
+									"type": "array"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -1574,11 +2650,44 @@
 			"post": {
 				"description": "Open a backup (`{ \"archive\": <base64>, \"passphrase\": ..., \"apply\": false|true }`). Without `apply` it only says what would change, by name (the summary the person confirms); with it the files\nare written. Every document is checked by the rules of the route that would have saved it; with any problem nothing is written. The device password is never touched (a backup does not hold it), and\nnothing is deleted: a file in the storage that the backup does not have stays.",
 				"operationId": "restore_backup_api_restore_post",
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"description": "The backup file (base64), its passphrase, and whether to write it (without, only what would change).",
+								"properties": {
+									"apply": {
+										"default": false,
+										"title": "Apply",
+										"type": "boolean"
+									},
+									"archive": {
+										"title": "Archive",
+										"type": "string"
+									},
+									"passphrase": {
+										"title": "Passphrase",
+										"type": "string"
+									}
+								},
+								"required": [
+									"archive",
+									"passphrase"
+								],
+								"title": "RestoreBody",
+								"type": "object"
+							}
+						}
+					},
+					"required": true
+				},
 				"responses": {
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/RestoreSummary"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2408,7 +3517,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/Done"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2423,16 +3534,34 @@
 					"content": {
 						"application/json": {
 							"schema": {
-								"title": "Body"
+								"description": "The device password; the API token is a Bearer header instead, with no body.",
+								"properties": {
+									"password": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										],
+										"title": "Password"
+									}
+								},
+								"title": "SignInBody",
+								"type": "object"
 							}
 						}
-					}
+					},
+					"required": false
 				},
 				"responses": {
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/SignedIn"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2581,7 +3710,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/Status"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2598,7 +3729,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/SystemInfo"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2615,7 +3748,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/Located"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2683,7 +3818,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/Palette"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2710,7 +3847,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/TransportState"
+								}
 							}
 						},
 						"description": "Successful Response"
@@ -2735,7 +3874,9 @@
 					"200": {
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/Done"
+								}
 							}
 						},
 						"description": "Successful Response"

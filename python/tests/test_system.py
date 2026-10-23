@@ -75,6 +75,15 @@ class TestSystemRoute(WebApiTestBase):
 		with patch.object(system_info, "_read", lambda path: None):
 			self.assertIsNone(self.client.get("/api/system").json()["pi"])
 
+	def test_the_answer_model_passes_every_reading_and_leaves_out_what_is_missing(self):
+		# the route's response model (#590) names every field: a Pi's readings all reach the page, and one it cannot give is absent, not null
+		files = { system_info.PI_MODEL: "Raspberry Pi 5 Model B", system_info.PI_TEMPERATURE: "61250", system_info.PI_THROTTLED: "50005" }
+		with patch.object(system_info, "_read", lambda path: files.get(path)):
+			pi = self.client.get("/api/system").json()["pi"]
+			self.assertEqual(sorted(pi), sorted(pi_info() or {}))
+		with patch.object(system_info, "_read", lambda path: "Raspberry Pi 5 Model B" if path == system_info.PI_MODEL else None):
+			self.assertNotIn("temperature_c", self.client.get("/api/system").json()["pi"])
+
 	def test_the_storage_is_counted_by_plugin_and_data_source_with_what_they_keep(self):
 		folder = os.path.join(self.storage, "datasources", "counted-source")
 		os.makedirs(folder, exist_ok=True)

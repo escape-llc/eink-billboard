@@ -4,7 +4,12 @@ renamed or changed here would still type-check there. When this fails, run `cd a
 """
 import unittest
 
+from fastapi import FastAPI
+from fastapi.exceptions import ResponseValidationError
+from fastapi.testclient import TestClient
+
 from scripts.export_openapi import DOCUMENT, as_text, openapi_document
+from ..web.openapi import Answer, answers
 
 class TestOpenApiDocument(unittest.TestCase):
 	def test_the_committed_document_is_the_servers(self):
@@ -18,6 +23,27 @@ class TestOpenApiDocument(unittest.TestCase):
 		self.assertIn("/api/access", paths)
 		# a data source's own router (descriptor "router") is part of the API too
 		self.assertTrue(any(p.startswith("/api/datasource/") for p in paths))
+
+class Reading(Answer):
+	name: str
+	value: int | None = None
+
+class TestAnswers(unittest.TestCase):
+	"""An answer model names every field: one the code adds and the model lacks fails the route, and one the code leaves out stays out."""
+	def client(self, answer: dict) -> TestClient:
+		app = FastAPI()
+		@app.get("/x", **answers(Reading))
+		def route():
+			return answer
+		return TestClient(app)
+
+	def test_a_field_the_model_does_not_name_fails_instead_of_vanishing(self):
+		with self.assertRaises(ResponseValidationError):
+			self.client({ "name": "a", "extra": 1 }).get("/x")
+
+	def test_a_field_left_out_is_absent_not_null(self):
+		self.assertEqual(self.client({ "name": "a" }).get("/x").json(), { "name": "a" })
+		self.assertEqual(self.client({ "name": "a", "value": None }).get("/x").json(), { "name": "a", "value": None })
 
 if __name__ == "__main__":
 	unittest.main()

@@ -64,23 +64,17 @@
  */
 import { ref } from "vue"
 import { Button, InputText, Message } from "primevue"
-import { ApiError, apiDownload, apiPost, joinUrl } from "./ApiClient"
+import { ApiError, apiDownload, joinUrl } from "./ApiClient"
+import { api } from "../api/client"
+import type { components } from "../api/schema"
 
 defineProps<{ part: "backup" | "restore" }>()
 
 const MIN_PASSPHRASE = 12
 const base = import.meta.env.VITE_API_URL ?? "/"
 const BACKUP = joinUrl(base, "api/backup")
-const RESTORE = joinUrl(base, "api/restore")
 
-interface Summary {
-	files: { name: string, label: string, status: string }[]
-	unchanged: number
-	upgraded: { name: string, label: string, from: number, to: number }[]
-	madeAt: string | null
-	leftOut: number
-	restartNeeded: boolean
-}
+type Summary = components["schemas"]["RestoreSummary"]
 
 const passphrase = ref("")
 const again = ref("")
@@ -158,7 +152,7 @@ async function send(applyIt: boolean) {
 	if(!file.value) {
 		return null
 	}
-	return await apiPost<Summary & { applied: boolean, written?: number }>(RESTORE, { archive: await encoded(file.value), passphrase: restorePassphrase.value, apply: applyIt })
+	return await api.post("/api/restore", {}, { archive: await encoded(file.value), passphrase: restorePassphrase.value, apply: applyIt })
 }
 
 async function check() {

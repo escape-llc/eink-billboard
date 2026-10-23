@@ -4,12 +4,23 @@ import math
 from typing import Any
 
 from fastapi import APIRouter, Body, Request, Response
+from pydantic import BaseModel
 
 from ..deps import SESSION_COOKIE, has_valid_bearer
 from ..errors import ApiError, error_response
+from ..openapi import Answer, Done, answers, json_body
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/session")
+
+class SignInBody(BaseModel):
+	"""The device password; the API token is a Bearer header instead, with no body."""
+	password: str | None = None
+
+class SignedIn(Answer):
+	"""Signed in, or nothing to sign in to (`required` false)."""
+	success: bool
+	required: bool
 
 def client_of(request: Request) -> str:
 	return request.client.host if request.client else "unknown"
@@ -39,7 +50,7 @@ def wrong_try(request: Request, what: str) -> None:
 	who = client_of(request)
 	logger.warning(f"Failed {what} from {who} ({request.app.state.throttle.failed(who)} in a row).")
 
-@router.post("")
+@router.post("", **answers(SignedIn), openapi_extra=json_body(SignInBody, required=False))
 def sign_in(request: Request, response: Response, body: Any = Body(None)):
 	"""
 	Present the API token as `Authorization: Bearer <token>`, or the device password as `{ "password": "..." }`. When it is right, the server
@@ -59,7 +70,7 @@ def sign_in(request: Request, response: Response, body: Any = Body(None)):
 	start_session(request, response)
 	return { "success": True, "required": True }
 
-@router.delete("")
+@router.delete("", **answers(Done))
 def sign_out(request: Request, response: Response):
 	request.app.state.sessions.delete(request.cookies.get(SESSION_COOKIE))
 	response.delete_cookie(SESSION_COOKIE, path="/api")

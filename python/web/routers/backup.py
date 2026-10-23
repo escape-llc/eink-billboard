@@ -9,13 +9,17 @@ import json
 import logging
 from datetime import datetime
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Request, Response
+from pydantic import BaseModel, Field
 
 from ...model.configuration_manager import RestoreFailed
 from ...utils.backup_archive import MAX_ARCHIVE_BYTES, NOT_OPENED, BackupError, passphrase_problem, seal, unseal
 from ..backup import MANIFEST, MANIFEST_FORMAT, check_documents, make_manifest, summarize, take_manifest
 from ..deps import CM
 from ..errors import ApiError
+from ..openapi import Answer, answers, json_body
 from .session import client_of, too_many_tries, wrong_try
 from .transport import application_of
 
@@ -46,6 +50,42 @@ async def _json_body(request: Request) -> dict:
 		raise ApiError(400, "The request is not JSON.", "backup")
 	return body
 
+class BackupBody(BaseModel):
+	"""The passphrase of this backup, typed twice."""
+	passphrase: str
+	confirm: str
+
+class RestoreBody(BaseModel):
+	"""The backup file (base64), its passphrase, and whether to write it (without, only what would change)."""
+	archive: str
+	passphrase: str
+	apply: bool = False
+
+class RestoreFile(Answer):
+	name: str
+	label: str
+	status: Literal["new", "changed"]
+
+class Upgraded(Answer):
+	"""A document from an older version: the versions it is brought from and to."""
+	name: str
+	label: str
+	# "from" is a keyword
+	from_: int = Field(alias="from")
+	to: int
+
+class RestoreSummary(Answer):
+	"""What a restore would do (or did), by name: never a value."""
+	success: bool
+	applied: bool
+	written: int | None = None
+	files: list[RestoreFile]
+	unchanged: int
+	upgraded: list[Upgraded]
+	restartNeeded: bool
+	leftOut: int
+	madeAt: str | None
+
 def _claimed(request: Request):
 	"""The application, when the device has been claimed; a backup holds the keys, and a restore changes everything: both are the owner's."""
 	application = application_of(request)
@@ -53,7 +93,7 @@ def _claimed(request: Request):
 		raise ApiError(403, "This device has not been claimed yet: enter the setup code (on the panel and in the log) in the web app first.", "backup")
 	return application
 
-@router.post("/backup")
+@router.post("/backup", openapi_extra={ **json_body(BackupBody), "responses": { "200": { "description": "The encrypted backup file", "content": { "application/octet-stream": { "schema": { "type": "string", "format": "binary" } } } } } })
 def make_backup(request: Request, cm: CM, body: dict = Depends(_json_body)):
 	"""
 	The storage as one encrypted file (`{ "passphrase": ..., "confirm": ... }`, the passphrase of this backup: at least 12 characters, typed twice). Answers the file itself (`application/octet-stream`).
@@ -77,7 +117,7 @@ def make_backup(request: Request, cm: CM, body: dict = Depends(_json_body)):
 	return Response(blob, media_type="application/octet-stream", headers={
 		"Content-Disposition": f'attachment; filename="eink-billboard-{stamp}.einkbackup"', "Cache-Control": "no-store" })
 
-@router.post("/restore")
+@router.post("/restore", **answers(RestoreSummary), openapi_extra=json_body(RestoreBody))
 def restore_backup(request: Request, cm: CM, body: dict = Depends(_json_body)):
 	"""
 	Open a backup (`{ "archive": <base64>, "passphrase": ..., "apply": false|true }`). Without `apply` it only says what would change, by name (the summary the person confirms); with it the files

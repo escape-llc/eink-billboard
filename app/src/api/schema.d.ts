@@ -1232,6 +1232,62 @@ export interface components {
             /** Setuprequired */
             setupRequired: boolean;
         };
+        /** Area */
+        Area: {
+            /** Bytes */
+            bytes: number;
+            /** Files */
+            files: number;
+            /** Name */
+            name: string;
+        };
+        /**
+         * Choice
+         * @description One entry of a drop-down: what it shows and what it stores.
+         */
+        Choice: {
+            /** Name */
+            name: string;
+            /** Value */
+            value: string;
+        };
+        /** Component */
+        Component: {
+            /** Message */
+            message: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "failed" | "starting";
+        };
+        /** Credits */
+        Credits: {
+            /** Data */
+            data: components["schemas"]["DataCredit"][];
+            /** Fonts */
+            fonts: components["schemas"]["SoftwareCredit"][];
+            /** Software */
+            software: components["schemas"]["SoftwareCredit"][];
+        };
+        /**
+         * DataCredit
+         * @description Whose data a provider or data source downloads, from its descriptor's `credit`.
+         */
+        DataCredit: {
+            /** Id */
+            id: string;
+            /** License */
+            license?: string | null;
+            /** Name */
+            name: string;
+            /** Provider */
+            provider: boolean;
+            /** Text */
+            text: string;
+            /** Url */
+            url?: string | null;
+        };
         /**
          * Done
          * @description The answer of a change that worked and has nothing else to say.
@@ -1244,6 +1300,61 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** Host */
+        Host: {
+            /** App Uptime Seconds */
+            app_uptime_seconds?: number | null;
+            /** Commit */
+            commit: string;
+            /** Cpus */
+            cpus: number;
+            /** Machine */
+            machine: string;
+            /** Os */
+            os: string;
+            /** Os Release */
+            os_release: string;
+            /** Python */
+            python: string;
+            /** Uptime Seconds */
+            uptime_seconds?: number | null;
+        };
+        /**
+         * Load
+         * @description Each reading only when the machine gives it.
+         */
+        Load: {
+            /** App Memory */
+            app_memory?: number | null;
+            /** Cpu Percent */
+            cpu_percent?: number | null;
+            /** Load */
+            load?: number[] | null;
+            memory?: components["schemas"]["Memory"] | null;
+        };
+        /**
+         * Located
+         * @description A rough position, or our words for why there is none.
+         */
+        Located: {
+            /** Latitude */
+            latitude?: number | null;
+            /** Longitude */
+            longitude?: number | null;
+            /** Message */
+            message: string;
+            /** Ok */
+            ok: boolean;
+        };
+        /** Memory */
+        Memory: {
+            /** Percent */
+            percent: number;
+            /** Total */
+            total: number;
+            /** Used */
+            used: number;
         };
         /** MessageRequest */
         MessageRequest: {
@@ -1260,6 +1371,200 @@ export interface components {
              */
             title: string;
         };
+        /**
+         * Owner
+         * @description A plugin's or a data source's folder: `kept_bytes` are its kept downloads and answers.
+         */
+        Owner: {
+            /** Bytes */
+            bytes: number;
+            /** Files */
+            files: number;
+            /** Id */
+            id: string;
+            /** Kept Bytes */
+            kept_bytes: number;
+        };
+        /** Palette */
+        Palette: {
+            /** Roles */
+            roles: components["schemas"]["Role"][];
+        };
+        /**
+         * Period
+         * @description A data source's calls in a period: by status (or why there was none), the bytes, and what its cache did.
+         */
+        Period: {
+            /** Bytessaved */
+            bytesSaved: number;
+            /** Cache */
+            cache: {
+                [key: string]: number;
+            };
+            /** Cachebytes */
+            cacheBytes: {
+                [key: string]: number;
+            };
+            /** Calls */
+            calls: number;
+            /** Hitrate */
+            hitRate: number | null;
+            /** Received */
+            received: number;
+            /** Sent */
+            sent: number;
+            /** Status */
+            status: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * Pi
+         * @description A Raspberry Pi's own readings: the model always, the others when the Pi gives them.
+         */
+        Pi: {
+            /** Cpu Max Mhz */
+            cpu_max_mhz?: number | null;
+            /** Cpu Mhz */
+            cpu_mhz?: number | null;
+            /** Model */
+            model: string;
+            /** Temperature C */
+            temperature_c?: number | null;
+            /** Throttled */
+            throttled?: string[] | null;
+            /** Throttled Now */
+            throttled_now?: boolean | null;
+        };
+        /**
+         * ProviderChoice
+         * @description A provider of a capability: `ready` when its own settings are complete (its name says so too).
+         */
+        ProviderChoice: {
+            /** Name */
+            name: string;
+            /** Ready */
+            ready: boolean;
+            /** Value */
+            value: string;
+        };
+        /**
+         * Pushed
+         * @description A pushed message or picture: the `id` that takes it down, the title it is known by (made unique), and the least it waits.
+         */
+        Pushed: {
+            /** Id */
+            id: string;
+            /** Startsinseconds */
+            startsInSeconds: number;
+            /** Success */
+            success: boolean;
+            /** Title */
+            title: string;
+        };
+        /** RestoreFile */
+        RestoreFile: {
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "new" | "changed";
+        };
+        /**
+         * RestoreSummary
+         * @description What a restore would do (or did), by name: never a value.
+         */
+        RestoreSummary: {
+            /** Applied */
+            applied: boolean;
+            /** Files */
+            files: components["schemas"]["RestoreFile"][];
+            /** Leftout */
+            leftOut: number;
+            /** Madeat */
+            madeAt: string | null;
+            /** Restartneeded */
+            restartNeeded: boolean;
+            /** Success */
+            success: boolean;
+            /** Unchanged */
+            unchanged: number;
+            /** Upgraded */
+            upgraded: components["schemas"]["Upgraded"][];
+            /** Written */
+            written?: number | null;
+        };
+        /**
+         * Role
+         * @description A role of the palette: its CSS class and its color as `hsl()`.
+         */
+        Role: {
+            /** Color */
+            color: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * SignedIn
+         * @description Signed in, or nothing to sign in to (`required` false).
+         */
+        SignedIn: {
+            /** Required */
+            required: boolean;
+            /** Success */
+            success: boolean;
+        };
+        /**
+         * SoftwareCredit
+         * @description A font or other software by others: whose it is, its licence, and what it does here.
+         */
+        SoftwareCredit: {
+            /** By */
+            by: string;
+            /** License */
+            license: string;
+            /** Name */
+            name: string;
+            /** Url */
+            url?: string | null;
+            /** What */
+            what?: string | null;
+        };
+        /**
+         * Status
+         * @description Whether every part came up, and each part's state in our words.
+         */
+        Status: {
+            /** Components */
+            components: {
+                [key: string]: components["schemas"]["Component"];
+            };
+            /** Ok */
+            ok: boolean;
+        };
+        /** Storage */
+        Storage: {
+            /** Areas */
+            areas: components["schemas"]["Area"][];
+            /** Datasources */
+            datasources: components["schemas"]["Owner"][];
+            /** Plugins */
+            plugins: components["schemas"]["Owner"][];
+            volume: components["schemas"]["Volume"] | null;
+        };
+        /** SystemInfo */
+        SystemInfo: {
+            host: components["schemas"]["Host"];
+            load: components["schemas"]["Load"];
+            pi: components["schemas"]["Pi"] | null;
+            storage: components["schemas"]["Storage"];
+            /** Usage */
+            usage: components["schemas"]["Usage"][];
+        };
         /** TransportRequest */
         TransportRequest: {
             /**
@@ -1267,6 +1572,37 @@ export interface components {
              * @enum {string}
              */
             command: "play" | "stop" | "next";
+        };
+        /** TransportState */
+        TransportState: {
+            /** Stopped */
+            stopped: boolean;
+        };
+        /**
+         * Upgraded
+         * @description A document from an older version: the versions it is brought from and to.
+         */
+        Upgraded: {
+            /** From */
+            from: number;
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /** To */
+            to: number;
+        };
+        /** Usage */
+        Usage: {
+            /** Id */
+            id: string;
+            /** Lastlimited */
+            lastLimited: string | null;
+            month: components["schemas"]["Period"];
+            /** Name */
+            name: string;
+            today: components["schemas"]["Period"];
+            week: components["schemas"]["Period"];
         };
         /** ValidationError */
         ValidationError: {
@@ -1280,6 +1616,17 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** Volume */
+        Volume: {
+            /** Free */
+            free: number;
+            /** Percent */
+            percent: number;
+            /** Total */
+            total: number;
+            /** Used */
+            used: number;
         };
     };
     responses: never;
@@ -1393,15 +1740,25 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Confirm */
+                    confirm: string;
+                    /** Passphrase */
+                    passphrase: string;
+                };
+            };
+        };
         responses: {
-            /** @description Successful Response */
+            /** @description The encrypted backup file */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": unknown;
+                    "application/octet-stream": string;
                 };
             };
         };
@@ -1421,7 +1778,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Credits"];
                 };
             };
         };
@@ -2196,7 +2553,14 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "image/gif": string;
+                "image/jpeg": string;
+                "image/png": string;
+                "image/webp": string;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -2204,7 +2568,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Pushed"];
                 };
             };
             /** @description Validation Error */
@@ -2270,7 +2634,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Pushed"];
                 };
             };
             /** @description Validation Error */
@@ -2301,7 +2665,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Done"];
                 };
             };
             /** @description Validation Error */
@@ -2383,7 +2747,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Choice"][];
                 };
             };
         };
@@ -2405,7 +2769,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ProviderChoice"][];
                 };
             };
             /** @description Validation Error */
@@ -2434,7 +2798,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Choice"][];
                 };
             };
         };
@@ -2566,7 +2930,21 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Apply
+                     * @default false
+                     */
+                    apply?: boolean;
+                    /** Archive */
+                    archive: string;
+                    /** Passphrase */
+                    passphrase: string;
+                };
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -2574,7 +2952,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RestoreSummary"];
                 };
             };
         };
@@ -3217,7 +3595,10 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": unknown;
+                "application/json": {
+                    /** Password */
+                    password?: string | null;
+                };
             };
         };
         responses: {
@@ -3227,7 +3608,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SignedIn"];
                 };
             };
             /** @description Validation Error */
@@ -3256,7 +3637,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Done"];
                 };
             };
         };
@@ -3375,7 +3756,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Status"];
                 };
             };
         };
@@ -3395,7 +3776,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SystemInfo"];
                 };
             };
         };
@@ -3415,7 +3796,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Located"];
                 };
             };
         };
@@ -3472,7 +3853,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Palette"];
                 };
             };
             /** @description Validation Error */
@@ -3501,7 +3882,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TransportState"];
                 };
             };
         };
@@ -3525,7 +3906,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Done"];
                 };
             };
             /** @description Validation Error */

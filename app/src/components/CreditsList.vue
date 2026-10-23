@@ -49,11 +49,10 @@
  */
 import { ref, watch } from "vue"
 import { Message } from "primevue"
-import { apiJson } from "./ApiClient"
+import { api } from "../api/client"
+import type { components } from "../api/schema"
 
-type DataCredit = { id: string, name: string, text: string, license?: string, url?: string, provider: boolean }
-type Credit = { name: string, by: string, license: string, url?: string, what?: string }
-type Credits = { data: DataCredit[], fonts: Credit[], software: Credit[] }
+type Credits = components["schemas"]["Credits"]
 
 const props = defineProps<{ active: boolean }>()
 const credits = ref<Credits|null>(null)
@@ -61,7 +60,7 @@ const failed = ref(false)
 watch(() => props.active, active => {
 	if (!active || credits.value !== null) return
 	failed.value = false
-	apiJson<Credits>("/api/credits").then(c => { credits.value = c }).catch(() => { failed.value = true })
+	api.get("/api/credits").then(c => { credits.value = c }).catch(() => { failed.value = true })
 }, { immediate: true })
 </script>
 <style scoped>
