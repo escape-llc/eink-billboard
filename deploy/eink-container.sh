@@ -100,6 +100,10 @@ podman_version_ok() {
 }
 
 running() { [ "$(podman inspect -f '{{.State.Running}}' "$NAME" 2>/dev/null)" = "true" ]; }
+# the board's memory (kB, MemTotal; EINK_MEM_KB: a test's), and whether it is a small board: less than about 1 GB (a 1 GB Pi shows about 900 MB), where the app
+# draws one page at a time (render_slot_count) and "update" stops the app while it downloads
+board_mem_kb() { if [ -n "${EINK_MEM_KB:-}" ]; then echo "$EINK_MEM_KB"; else awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null; fi; }
+small_board() { local kb; kb=$(board_mem_kb); [ -n "$kb" ] && [ "$kb" -lt 800000 ]; }
 exists() { podman container exists "$NAME" 2>/dev/null; }
 need_running() {
 	running && return 0
@@ -606,6 +610,22 @@ update_app() {
 			return 0
 		fi
 		say "The image is already this code's."
+	elif small_board && running; then
+		# the download, its unpacking and cosign's check would compete with the app and a render for the memory a small board does not have (#568); an
+		# e-ink panel keeps its picture with the app stopped, so nobody sees it. Stopped, not removed: on a failure the same container starts again.
+		section "Getting the app"
+		say "This Pi has less than 1 GB of memory, so the app is stopped while the new version is downloaded and checked, and started again after (the panel keeps its picture)."
+		podman stop -t 15 "$NAME" >/dev/null 2>&1 || fail "the app could not be stopped for the download, so nothing was changed:  podman stop $NAME"
+		# Ctrl+C during the download leaves the app as it was, running
+		trap 'podman start "$NAME" >/dev/null 2>&1; printf "\nStopped; the app is running again on the image it had.\n"; exit 130' INT TERM
+		local got=0
+		(IN_UPDATE=1 cmd_get) || got=$?
+		trap - INT TERM
+		if [ "$got" -ne 0 ]; then
+			podman start "$NAME" >/dev/null 2>&1 || fail "the app could not be started again on the image it had:  $SCRIPT start"
+			say "The app is running again on the image it had (commit $(image_commit))."
+			exit 1
+		fi
 	else
 		section "Getting the app"
 		IN_UPDATE=1 cmd_get
@@ -742,11 +762,11 @@ cmd_check() {
 	if grep -qE "^[[:space:]]*dtparam=i2c_arm=on" "$cfg" 2>/dev/null; then note "I2C is on"; else problem "I2C is off (an Inky panel needs it):  sudo raspi-config  (Interface Options, I2C), then reboot"; fi
 	# memory: a Chromium render costs about 75 to 110 MB and the app about 135 MB, so a board with less than 1 GB (a Pi Zero 2 W: 512 MB) runs with swap or not at all well
 	local mem_kb swap_kb
-	mem_kb=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null)
+	mem_kb=$(board_mem_kb)
 	swap_kb=$(awk '/^SwapTotal:/ {print $2}' /proc/meminfo 2>/dev/null)
 	if [ -n "$mem_kb" ]; then
 		swap_kb=${swap_kb:-0}
-		if [ "$mem_kb" -ge 800000 ]; then
+		if ! small_board; then
 			note "memory $((mem_kb / 1024)) MB, swap $((swap_kb / 1024)) MB"
 		elif [ "$swap_kb" -ge 256000 ]; then
 			note "memory $((mem_kb / 1024)) MB, swap $((swap_kb / 1024)) MB"
