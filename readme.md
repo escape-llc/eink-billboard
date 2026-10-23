@@ -140,6 +140,7 @@ Every command first checks the basics (Linux, not root, Podman and curl installe
 | `autostart on` | Starts the app when the Pi starts: a systemd unit of your own (`~/.config/systemd/user/eink-billboard.service`) that starts the container, and *linger*, which runs your units at boot without a login (asks for your password once). Needs the container to exist (`start` first). |
 | `autostart off` | No longer starts at boot (the app keeps running now). |
 | `autostart` | Whether it starts at boot (`status`). |
+| `storage` | When `check` says Podman keeps images the slow way (`vfs`: every layer a full copy, several GB and many minutes per update), changes it to overlay. That needs `podman system reset`, which deletes all of your Podman images, containers and volumes, so it first tries overlay in a scratch store and stops with nothing changed if it does not work, then saves the app's data to a file in your home folder, checks it, puts it back after and downloads the app again. Asks you to type `reset` first. (`get` does this by itself when Podman holds nothing yet.) |
 | `reset-password` | Forgets the device password, restarts and shows the new setup code. Asks you to type `yes` first. |
 | `wipe` | Deletes everything the app keeps (settings with their API keys, playlists, schedules, password) and the container, so the next `start` is a new device. Asks you to type the volume's name (`eink-data`) first. |
 

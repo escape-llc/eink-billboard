@@ -14,6 +14,7 @@
 #   deploy/eink-container.sh logs [-f]           the app's log (-f follows it; Ctrl+C to stop)
 #   deploy/eink-container.sh code                the setup code and where to enter it, while the device is not set up
 #   deploy/eink-container.sh check               when something does not work: the Pi, its devices, the container, the app, the display
+#   deploy/eink-container.sh storage             when check says Podman keeps images the slow way (vfs): change it to overlay (the app's data is kept); asks first
 #   deploy/eink-container.sh display TYPE [MODEL]
 #                                                choose the display and restart: mock, inky, or waveshare with its model (e.g. "display waveshare epd7in3e")
 #   deploy/eink-container.sh models              the Waveshare models there are drivers for
@@ -141,6 +142,66 @@ store_free_kb() { df -Pk "$(podman info --format '{{.Store.GraphRoot}}' 2>/dev/n
 BUILD_NEEDS_KB=6000000
 PRUNE_UNUSED_AFTER=72h
 
+# ---- how Podman keeps its images (#552) -------------------------------------------------------------------------------------------------------------
+# Podman chooses its storage driver the first time it runs and keeps it. Rootless, when the kernel's overlay cannot be used for a user and fuse-overlayfs is not
+# installed, it falls back to vfs, where every layer is a full copy of all the layers under it: on a Pi, 5.7 GB written and nine minutes to unpack one image.
+STORAGE_CONF=${XDG_CONFIG_HOME:-$HOME/.config}/containers/storage.conf
+store_driver() { podman info --format '{{.Store.GraphDriverName}}' 2>/dev/null; }
+store_empty() { [ -z "$(podman images -aq 2>/dev/null)$(podman ps -aq 2>/dev/null)$(podman volume ls -q 2>/dev/null)$(podman pod ps -q 2>/dev/null)" ]; }
+
+# the storage.conf that gives overlay here, found by trying it in a scratch store on the same disk as Podman's own (the kernel's overlay first, then
+# fuse-overlayfs); prints it, or fails when neither works. Nothing of Podman's own storage is touched.
+overlay_conf() {
+	local base fuse way probe run driver ways=(kernel) options
+	base=${XDG_DATA_HOME:-$HOME/.local/share}
+	mkdir -p "$base" || return 1
+	fuse=$(command -v fuse-overlayfs 2>/dev/null)
+	[ -n "$fuse" ] && ways+=("$fuse")
+	for way in "${ways[@]}"; do
+		# the store on the same disk as Podman's own (that is what is tried); its run-time state anywhere short (Podman refuses a runroot of more than 50 characters)
+		probe=$(mktemp -d "$base/eink-overlay-probe.XXXXXX") || return 1
+		run=$(mktemp -d /tmp/eink-run.XXXXXX) || { rm -rf "$probe"; return 1; }
+		# a store and a database of their own: a storage.conf alone is not enough, since Podman's database remembers the driver it began with and overrides it
+		options=(--root "$probe/graph" --runroot "$run" --storage-driver overlay)
+		[ "$way" = kernel ] || options+=(--storage-opt "overlay.mount_program=$way")
+		# the last line: fuse-overlayfs may say its version first
+		driver=$(podman "${options[@]}" info --format '{{.Store.GraphDriverName}}' 2>/dev/null | tail -n 1)
+		# what Podman made there belongs to the user namespace's IDs, which only it can remove
+		podman unshare rm -rf "$probe" "$run" 2>/dev/null || rm -rf "$probe" "$run" 2>/dev/null
+		if [ "$driver" = overlay ]; then
+			printf '[storage]\ndriver = "overlay"\n'
+			[ "$way" = kernel ] || printf '[storage.options.overlay]\nmount_program = "%s"\n' "$way"
+			return 0
+		fi
+	done
+	return 1
+}
+
+# writes the storage.conf that overlay_conf found; a storage.conf of the user's own is kept beside it
+write_storage_conf() {
+	mkdir -p "$(dirname "$STORAGE_CONF")" || return 1
+	if [ -f "$STORAGE_CONF" ] && ! grep -q "written by $SCRIPT" "$STORAGE_CONF"; then
+		mv "$STORAGE_CONF" "$STORAGE_CONF.before-eink" || return 1
+		say "Your own $STORAGE_CONF is kept as $STORAGE_CONF.before-eink."
+	fi
+	{ printf '# written by %s: overlay, which was tried on this Pi and works\n' "$SCRIPT"; printf '%s\n' "$1"; } > "$STORAGE_CONF"
+}
+
+# before a download or a build: a Podman that keeps images as vfs and holds nothing yet is changed to overlay (there is nothing to lose); one that holds
+# something is only warned about, since changing it deletes everything Podman holds ("storage" does that, keeping the app's data)
+prefer_overlay() {
+	local conf
+	[ "$(store_driver)" = vfs ] || return 0
+	if store_empty && conf=$(overlay_conf); then
+		if podman system reset --force >/dev/null 2>&1 && write_storage_conf "$conf" && [ "$(store_driver)" = overlay ]; then
+			say "Podman was set to keep images the slow way (vfs) and held nothing yet: it uses overlay now."
+			return 0
+		fi
+	fi
+	warn "Podman keeps images the slow way (vfs): every layer is a full copy, so this writes several GB and takes many minutes.
+         '$SCRIPT storage' changes it to overlay and keeps the app's data."
+}
+
 # what the end of a failed build says it was, and what to do (it used to say "network or space" for everything)
 build_failure_hint() {
 	local log=$1
@@ -159,6 +220,7 @@ build_failure_hint() {
 }
 
 cmd_build() {
+	prefer_overlay
 	podman_version_ok || warn "Podman $(podman version --format '{{.Client.Version}}' 2>/dev/null) is older than 4.3, the oldest this was tried with."
 	case "$(uname -m)" in
 		aarch64) ;;
@@ -343,6 +405,7 @@ cmd_get() {
 		say "The image is already this checkout's (commit $(image_commit), made by $(image_maker))."
 		return 0
 	fi
+	prefer_overlay
 	if [ "${EINK_PULL:-1}" = 0 ]; then
 		say "EINK_PULL=0: not downloading, building here."
 		cmd_build
@@ -598,6 +661,13 @@ cmd_check() {
 	info "addresses: $(hostname -I 2>/dev/null); the web app: $(public_url)"
 	[ "$(uname -m)" = "aarch64" ] && note "64-bit" || problem "not 64-bit ($(uname -m)): install Raspberry Pi OS 64-bit"
 	if podman_version_ok; then note "Podman $(podman version --format '{{.Client.Version}}' 2>/dev/null)"; else problem "Podman $(podman version --format '{{.Client.Version}}' 2>/dev/null) is older than 4.3"; fi
+	local driver
+	driver=$(store_driver)
+	case "$driver" in
+		overlay) note "Podman keeps images with overlay" ;;
+		vfs) problem "Podman keeps images the slow way (vfs: every layer a full copy, GBs and many minutes per update):  $SCRIPT storage  (keeps the app's data)" ;;
+		*) info "Podman keeps images with ${driver:-an unknown driver}" ;;
+	esac
 	for g in "${GROUPS_NEEDED[@]}"; do
 		if in_group "$g"; then note "you are in the $g group"; else problem "you are not in the $g group:  sudo usermod -aG $g $(id -un)  then log out and in again"; fi
 	done
@@ -877,6 +947,55 @@ cmd_reset_password() {
 	cmd_code
 }
 
+# Podman keeps images as vfs: change it to overlay. That needs "podman system reset", which deletes everything Podman holds, so the app's data is saved to a
+# file first (and checked), put back after, and the app is downloaded again and started if it was running.
+cmd_storage() {
+	local driver conf backup was_running=0 others
+	driver=$(store_driver)
+	[ -n "$driver" ] || fail "Podman did not say how it keeps images: 'podman info' says why."
+	if [ "$driver" != vfs ]; then
+		say "Podman keeps images with $driver: nothing to change."
+		return 0
+	fi
+	section "Podman keeps images the slow way (vfs)"
+	say "Every layer of an image is a full copy of all the layers under it, so an update writes several GB and takes many minutes. Overlay keeps each layer once."
+	conf=$(overlay_conf) || fail "overlay does not work for your user on this Pi, so nothing was changed. Install fuse-overlayfs and run this again:
+       sudo apt-get install -y fuse-overlayfs && $SCRIPT storage"
+	backup="$HOME/eink-data-$(date +%Y%m%d-%H%M%S).tar"
+	others=$(podman volume ls -q 2>/dev/null | grep -cvx "$VOLUME")
+	say ""
+	say "This needs 'podman system reset', which deletes ALL of your Podman images, containers and volumes."
+	say "  - The app's data (the volume '$VOLUME': settings, API keys, schedules, password) is saved to $backup first, checked, and put back after."
+	[ "$others" -eq 0 ] || say "  - $others other volume(s) of yours are NOT saved: 'podman volume ls' lists them; stop here and export them first if you need them."
+	say "  - The app is downloaded again (a few minutes) and started if it is running now. The image kept for '$SCRIPT rollback' is not kept."
+	confirm "" "reset"
+	running && was_running=1
+	exists && { podman rm -f "$NAME" >/dev/null 2>&1 || fail "the app could not be stopped, so nothing was reset: podman rm -f $NAME"; }
+	if podman volume exists "$VOLUME"; then
+		podman volume export "$VOLUME" -o "$backup" || fail "the app's data could not be saved, so nothing was reset: podman volume export $VOLUME -o $backup"
+		tar -tf "$backup" >/dev/null 2>&1 || fail "the saved data in $backup cannot be read back, so nothing was reset."
+		say "Saved the app's data to $backup ($(du -h "$backup" | cut -f1))."
+	else
+		backup=""
+		say "There is no volume '$VOLUME' yet: no data to save."
+	fi
+	local safe=""
+	[ -z "$backup" ] || safe=" The app's data is safe in $backup; once Podman works, put it back with:  podman volume create $VOLUME && podman volume import $VOLUME $backup"
+	podman system reset --force >/dev/null 2>&1 || fail "podman system reset failed: 'podman system reset' says why.$safe"
+	write_storage_conf "$conf" || fail "$STORAGE_CONF could not be written.$safe"
+	driver=$(store_driver)
+	[ "$driver" = overlay ] || warn "Podman says it keeps images with '${driver:-nothing}', not overlay: '$SCRIPT check' and 'podman info' say more. The data is put back all the same."
+	if [ -n "$backup" ]; then
+		{ podman volume create "$VOLUME" >/dev/null && podman volume import "$VOLUME" "$backup"; } \
+			|| fail "the app's data could not be put back. It is safe in $backup:  podman volume create $VOLUME; podman volume import $VOLUME $backup"
+		say "Put the app's data back into the volume '$VOLUME'."
+	fi
+	say "Podman keeps images with ${driver:-?} now."
+	IN_UPDATE=1 cmd_get
+	[ "$was_running" -eq 0 ] || cmd_start
+	[ -z "$backup" ] || say "The saved copy $backup holds your settings, API keys included: delete it once the app works:  rm $backup"
+}
+
 cmd_wipe() {
 	confirm "This DELETES everything the app keeps: its settings (API keys too), playlists, schedules and password (the volume '$VOLUME'). It cannot be undone." "$VOLUME"
 	podman rm -f "$NAME" >/dev/null 2>&1
@@ -909,6 +1028,7 @@ case "$command" in
 	detect) cmd_detect ;;
 	autostart) cmd_autostart "$@" ;;
 	reset-password) cmd_reset_password ;;
+	storage) cmd_storage ;;
 	wipe) cmd_wipe ;;
 	*) say "There is no command '$command'."; say ""; cmd_help; exit 2 ;;
 esac
