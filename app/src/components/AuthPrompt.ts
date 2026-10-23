@@ -11,7 +11,10 @@
  */
 import { reactive } from "vue"
 
-export type AccessInfo = { required: boolean, setupRequired: boolean, passwordSet: boolean, localOnly: boolean }
+import type { components } from "../api/schema"
+
+/** What `GET /api/access` answers: the server's own model (`AccessState`), through the generated types (#590). */
+export type AccessInfo = components["schemas"]["AccessState"]
 export type AuthMode = "setup" | "password" | "token"
 export type Values = { secret: string, code?: string }
 export type SendResult = { ok: boolean, message?: string }

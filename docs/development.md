@@ -43,6 +43,7 @@ podman compose --profile waveshare up --build -d app-waveshare   # with the Wave
 ## Web API
 
 * The API is under `/api`; interactive documentation is served at `/api/docs`.
+* The OpenAPI document is also committed as `app/src/api/openapi.json`, and the web app's types (`app/src/api/schema.d.ts`) are generated from it: after changing a route or its models, run `cd app && npm run api` and commit both files (a Python and a Vitest test fail on a stale one). The web app calls typed routes through `api` in `app/src/api/client.ts`.
 * Every error response has the same body: `{ "success": false, "message": "...", "id": "..." }` (plus `rev` on a `409` revision conflict, and `errors` on a `422` validation failure).
 * Settings documents carry `_id` and `_rev`. A `PUT` must send back the `_rev` it loaded; if the settings changed in the meantime the server answers `409` with the current `rev`.
 * Settings the schema marks `"writeOnly": true` (e.g. an API key) are returned as `********`. Sending `********` back, or omitting the field, keeps the stored value.

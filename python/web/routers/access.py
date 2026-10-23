@@ -3,10 +3,12 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Request, Response
+from pydantic import BaseModel
 
 from ..access import password_problem
 from ..deps import require_auth
 from ..errors import ApiError
+from ..openapi import Done, json_body
 from .session import client_of, start_session, too_many_tries, wrong_try
 
 logger = logging.getLogger(__name__)
@@ -15,13 +17,30 @@ logger = logging.getLogger(__name__)
 # and the password change checks for itself
 router = APIRouter(prefix="/access")
 
-@router.get("")
+class AccessState(BaseModel):
+	"""What the sign-in needs to know (the web app's AccessInfo)."""
+	required: bool
+	setupRequired: bool
+	passwordSet: bool
+	localOnly: bool
+
+class SetupBody(BaseModel):
+	"""The setup code (from the log or the panel) and the password to choose."""
+	code: str
+	password: str
+
+class PasswordBody(BaseModel):
+	"""The current password (when there is one) and the new one."""
+	current: str | None = None
+	new: str
+
+@router.get("", response_model=AccessState)
 def state(request: Request):
 	"""What the web app needs to know before it can sign in: is a sign-in needed, and does this device still have to be set up."""
 	access = request.app.state.access
 	return { "required": access.required(), "setupRequired": access.setup_open(), "passwordSet": access.password_set(), "localOnly": access.local }
 
-@router.post("/setup")
+@router.post("/setup", response_model=Done, openapi_extra=json_body(SetupBody))
 def setup(request: Request, response: Response, body: Any = Body(None)):
 	"""Claim a new device: the setup code (from its log or its panel) and the password to choose. Starts a session."""
 	access = request.app.state.access
@@ -47,7 +66,7 @@ def setup(request: Request, response: Response, body: Any = Body(None)):
 	start_session(request, response)
 	return { "success": True }
 
-@router.put("/password", dependencies=[Depends(require_auth)])
+@router.put("/password", dependencies=[Depends(require_auth)], response_model=Done, openapi_extra=json_body(PasswordBody))
 def change_password(request: Request, response: Response, body: Any = Body(None)):
 	"""Change the device password (the current one is needed when there is one). The caller stays signed in."""
 	access = request.app.state.access
