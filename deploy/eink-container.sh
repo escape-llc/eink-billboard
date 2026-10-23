@@ -409,7 +409,7 @@ pull_image() {
 	local tag ref made
 	tag=$(published_tag) || return 1
 	ref="$REGISTRY:$tag"
-	say "Downloading the image GitHub made for this version ($tag): about 500 MB, then a few minutes of unpacking on a Pi's SD card."
+	say "Downloading the image GitHub made for this version ($tag): about 350 MB, then a minute or two of unpacking on a Pi's SD card (several minutes if Podman keeps images as vfs)."
 	local pulled
 	pull_plainly "$ref"
 	pulled=$?
@@ -520,12 +520,23 @@ cmd_update() {
 	esac
 	command -v git >/dev/null || fail "git is not installed. Install it with:  sudo apt install -y git"
 	git -C "$HERE" rev-parse --git-dir >/dev/null 2>&1 || fail "$HERE is not a git clone, so it cannot be updated. Run the setup command again, it makes one."
+	# handed over by the old copy of this script, which moved the clone to this commit: only the second half is left (an older copy, which does not know
+	# this, runs a whole update again, finds the clone already there, and goes on: nothing loops)
+	if [ -n "${EINK_UPDATE_HANDOVER:-}" ]; then
+		local handed=$EINK_UPDATE_HANDOVER
+		unset EINK_UPDATE_HANDOVER
+		if [ "$handed" = "$(git -C "$HERE" rev-parse HEAD)" ]; then
+			update_app
+			return
+		fi
+	fi
 	git -C "$HERE" diff --quiet && git -C "$HERE" diff --cached --quiet \
 		|| fail "the clone in $HERE has changes of its own, and updating would mix them in. Undo them (git -C $HERE stash), then run it again."
 
 	section "Getting the latest code"
-	local before target="" branch
+	local before target="" branch before_full now
 	before=$(git -C "$HERE" rev-parse --short HEAD)
+	before_full=$(git -C "$HERE" rev-parse HEAD)
 	# the snapshots GitHub removed go from here too, so the newest one here is one GitHub still has an image of
 	git -C "$HERE" fetch -q --tags --prune --prune-tags origin || fail "the latest code could not be fetched: is the Pi on the internet?"
 	if [ -n "$want" ]; then
@@ -578,6 +589,17 @@ cmd_update() {
 		branch) say "Following $(version_name), was commit $before." ;;
 	esac
 
+	# the clone now holds the new copy of this script, and the one running is the old one: the rest (the download, its check, the start) is the new copy's,
+	# so a change to this script works in the update that brings it, not the one after (#561: the image check of #555 did not run in its own update)
+	now=$(git -C "$HERE" rev-parse HEAD)
+	if [ "$now" != "$before_full" ]; then
+		EINK_UPDATE_HANDOVER=$now exec "$HERE/deploy/eink-container.sh" update
+	fi
+	update_app
+}
+
+# the second half of "update": the clone is where it should be; get its image (unless the app has it) and start it
+update_app() {
 	if same_commit "$(image_commit)" && podman image exists "$IMAGE"; then
 		if running; then
 			say "The app already runs this code: nothing to do."
