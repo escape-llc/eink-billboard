@@ -15,7 +15,7 @@ from pathvalidate import sanitize_filename
 
 from ..model.time_of_day import TimeOfDay
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool, client_var
-from ..task.basic_task import DispatcherTask
+from ..task.basic_task import DispatcherTask, handles
 from ..task.messages import BasicMessage
 from ..task.protocols import MessageSink
 from ..task.display import DisplayImage
@@ -30,6 +30,7 @@ class RecordingTask(DispatcherTask):
 		self.msgs = []
 		self.logger = logging.getLogger(__name__)
 
+	@handles(BasicMessage)
 	def _basic_message(self, msg: BasicMessage):
 		self.logger.debug(f"{self.name}: {msg}")
 		self.msgs.append(msg)

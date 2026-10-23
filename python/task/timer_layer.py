@@ -14,7 +14,7 @@ from ..model.service_container import IServiceProvider, ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..plugins.plugin_base import PermanentError, PluginAsync, PluginExecutionContext
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool
-from ..task.basic_task import DispatcherTask
+from ..task.basic_task import DispatcherTask, handles
 from ..task.display_messages import DisplaySettings, OverlayDefinition, OverlayImage, OverlayRevoke, OverlayZones, PriorityImage
 from ..task.coalescer import Coalescer
 from ..task.message_router import MessageRouter
@@ -122,6 +122,7 @@ class TimerLayer(DispatcherTask):
 		root.add_service(MessageSink, self)
 		root.add_service(OverlayZones, self.overlay_zones)
 		return root
+	@handles(ConfigureEvent)
 	def _configure_event(self, msg: ConfigureEvent):
 		self.cm = msg.content.cm
 		self.startup_done = False
@@ -173,10 +174,12 @@ class TimerLayer(DispatcherTask):
 			self.state = 'error'
 			msg.notify(True, e)
 			self._error_with_telemetry("The timer tasks could not be configured", msg.timestamp, e)
+	@handles(DisplaySettings)
 	def _display_settings(self, msg: DisplaySettings):
 		self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
 		self.dimensions = (msg.width, msg.height)
 		self.overlay_zones = OverlayZones(msg.overlays)
+	@handles(StartPlayback)
 	def _start_playback(self, msg: StartPlayback):
 		self.logger.info(f"'{self.name}' StartPlayback {self.state}")
 		if self.state != 'loaded':
@@ -365,6 +368,7 @@ class TimerLayer(DispatcherTask):
 		else:
 			self.logger.info("Layer task completed.")
 		self.layer_task = None
+	@handles(AsyncTaskCompleted)
 	def _async_task_completed(self, msg: AsyncTaskCompleted):
 		if not msg.fut.done():
 			self.logger.info("Plugin task still running, cancel...")
@@ -398,6 +402,7 @@ class TimerLayer(DispatcherTask):
 			# the layer task only ends by being cancelled; if it returned, start it again
 			self.logger.warning("Layer task ended unexpectedly, restarting.")
 			self._schedule_restart(msg.timestamp)
+	@handles(ConfigurationChanged)
 	def _configuration_changed(self, msg: ConfigurationChanged):
 		if msg.area in ("schedules", "restore") and self.cm is not None and self.timebase is not None and not self.is_stopped():
 			self._reload.trigger()
@@ -412,6 +417,7 @@ class TimerLayer(DispatcherTask):
 	@staticmethod
 	def _signature(tasks: list[ScheduleLoaderDict]) -> str:
 		return json.dumps([t["info"].to_dict() for t in tasks if t.get("info") is not None], sort_keys=True, default=str)
+	@handles(ReloadSchedules)
 	def _reload_schedules(self, msg: ReloadSchedules):
 		"""Re-read the schedules and re-plan. Startup tasks do not run again. A schedule that does not load keeps the one in use."""
 		if self.cm is None or self.timebase is None or self.state in ('uninitialized', 'stopped'):

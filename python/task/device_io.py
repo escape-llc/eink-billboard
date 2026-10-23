@@ -12,7 +12,7 @@ and a configuration that cannot be opened leaves the previous one working.
 import logging
 from typing import Any, Callable, Mapping
 
-from .basic_task import DispatcherTask, exclude_from_dispatch
+from .basic_task import DispatcherTask, handles
 from .coalescer import Coalescer
 from .configure_event import ConfigureEvent
 from .message_router import MessageRouter
@@ -52,7 +52,6 @@ class DeviceIO(DispatcherTask):
 		"""The ids of the devices that are open (what the status says is connected)."""
 		return tuple(self._open)
 
-	@exclude_from_dispatch
 	def emit(self, source: str, name: str, gesture: str) -> None:
 		"""What a device calls from its own thread: the event goes on this task's queue, and nothing else is done there."""
 		try:
@@ -63,6 +62,7 @@ class DeviceIO(DispatcherTask):
 
 	# ---- messages ---------------------------------------------------------------------------------------------------------------------------------------
 
+	@handles(ConfigureEvent)
 	def _configure_event(self, msg: ConfigureEvent):
 		try:
 			self.cm = msg.content.cm
@@ -75,6 +75,7 @@ class DeviceIO(DispatcherTask):
 			self.logger.error(f"'{self.name}' could not open the devices: {e}", exc_info=True)
 			msg.notify(True, e)
 
+	@handles(ConfigurationChanged)
 	def _configuration_changed(self, msg: ConfigurationChanged):
 		# the devices' settings are in the settings area; any change there is a reason to look (the document itself is compared when it is read)
 		if msg.area in ("settings", "restore") and self.cm is not None and not self.is_stopped():
@@ -89,6 +90,7 @@ class DeviceIO(DispatcherTask):
 		except ValueError:
 			self.logger.debug(f"'{self.name}' stopped before the reload.")
 
+	@handles(ReloadDevices)
 	def _reload_devices(self, msg: ReloadDevices):
 		if self.cm is None:
 			return
@@ -118,6 +120,7 @@ class DeviceIO(DispatcherTask):
 			except Exception as again:
 				self.report_failure("The previous device settings could not be restored either", again)
 
+	@handles(InputEvent)
 	def _input_event(self, msg: InputEvent):
 		"""An event a device reported: on to the Application, which gives it its meaning."""
 		self.router.send("device-input", msg)
@@ -129,14 +132,12 @@ class DeviceIO(DispatcherTask):
 
 	# ---- devices ----------------------------------------------------------------------------------------------------------------------------------------
 
-	@exclude_from_dispatch
 	def _read_settings(self) -> dict[str, Any]:
 		"""The `devices` document (none stored yet is none connected)."""
 		assert self.cm is not None
 		_, content = self.cm.settings_manager().open(SETTINGS).get()
 		return dict(content) if isinstance(content, dict) else {}
 
-	@exclude_from_dispatch
 	def _close_all(self) -> None:
 		devices, self._open = self._open, {}
 		for device_id, device in devices.items():
@@ -145,7 +146,6 @@ class DeviceIO(DispatcherTask):
 			except Exception:
 				self.logger.debug(f"'{self.name}' device '{device_id}' did not close cleanly", exc_info=True)
 
-	@exclude_from_dispatch
 	def _plan(self, settings: dict[str, Any]) -> dict[str, InputDevice]:
 		"""
 		The devices the settings ask for (a device with no pin set is not asked for: nothing is imported or claimed for it). The pins are checked against the panel's lines and against each
@@ -160,12 +160,10 @@ class DeviceIO(DispatcherTask):
 			raise PermanentError(" ".join(problems))
 		return wanted
 
-	@exclude_from_dispatch
 	def _apply(self, settings: dict[str, Any]) -> tuple[str, ...]:
 		"""Open what the settings say, after closing what was open. Raises (our words) when it cannot be done."""
 		return self._open_wanted(self._plan(settings), settings)
 
-	@exclude_from_dispatch
 	def _open_wanted(self, wanted: dict[str, InputDevice], settings: dict[str, Any]) -> tuple[str, ...]:
 		"""Close what is open and open `wanted`; when one cannot be opened whatever was opened is closed again and it raises."""
 		self._close_all()
@@ -179,14 +177,12 @@ class DeviceIO(DispatcherTask):
 		self._config = dict(settings)
 		return tuple(self._open)
 
-	@exclude_from_dispatch
 	def emit_for(self, source: str) -> Callable[[str, str], None]:
 		"""`emit` for one device: it says which device the event is from."""
 		def emit(name: str, gesture: str) -> None:
 			self.emit(source, name, gesture)
 		return emit
 
-	@exclude_from_dispatch
 	def _tell(self, message: str) -> None:
 		"""Tell the telemetry link what happened to the devices."""
 		try:

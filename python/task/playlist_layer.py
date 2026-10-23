@@ -17,7 +17,7 @@ from .configure_event import ConfigureEvent
 from .message_router import MessageRouter
 from .source_router import SourceRouter, image_source
 from .protocols import IProvideTimer, MessageSink
-from .basic_task import DispatcherTask
+from .basic_task import DispatcherTask, handles
 from ..datasources.data_source import DataSourceManager
 from ..model.schedule_loader import ScheduleLoaderDict
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
@@ -315,6 +315,7 @@ class PlaylistLayer(DispatcherTask):
 			'current_track_index': 0,
 			'current_track': None,
 		}))
+	@handles(StartPlayback)
 	def _start_playback(self, msg: StartPlayback):
 		self.logger.info(f"'{self.name}' StartPlayback {self.state}")
 		if self._halted:
@@ -358,6 +359,7 @@ class PlaylistLayer(DispatcherTask):
 			"kind": "transport", "state": state, "message": message,
 			'current_playlist_index': -1, 'current_playlist': None, 'current_track_index': -1, 'current_track': None,
 		}))
+	@handles(StopPlayback)
 	def _stop_playback(self, msg: StopPlayback):
 		"""The running track is cancelled (the Slide Show keeps its list item by item, so nothing is lost); the panel keeps what it shows."""
 		if self._halted or not self._can_transport("stop"):
@@ -368,6 +370,7 @@ class PlaylistLayer(DispatcherTask):
 		self.state = 'halted'
 		self.logger.info(f"'{self.name}' stopped.")
 		self._transport_telemetry(msg.timestamp, 'halted', "Playback is stopped.")
+	@handles(ResumePlayback)
 	def _resume_playback(self, msg: ResumePlayback):
 		"""Play again where it stopped: the track is entered with `resumed` set and its plugin decides whether to carry on or pass on."""
 		if not self._halted:
@@ -378,6 +381,7 @@ class PlaylistLayer(DispatcherTask):
 		self.logger.info(f"'{self.name}' resuming.")
 		self._transport_telemetry(msg.timestamp, 'playing', "Playback is resumed.")
 		self._start_playback(StartPlayback(msg.timestamp, None if at is None else Start(at.playlist, at.track, at.resume)))
+	@handles(NextTrack)
 	def _next_track(self, msg: NextTrack):
 		"""Cancel what is showing and begin at the next track (a stopped layer plays from there)."""
 		if not self._can_transport("next"):
@@ -490,6 +494,7 @@ class PlaylistLayer(DispatcherTask):
 		finally:
 			donev.set()
 			self.logger.info(f"'{self.name}' Layer task ended.")
+	@handles(LayerFaulted)
 	def _layer_faulted(self, msg: LayerFaulted):
 		"""Every track has struck out: say so once, and try again when the first of them is due (or when the configuration changes)."""
 		self.state = 'faulted'
@@ -516,6 +521,7 @@ class PlaylistLayer(DispatcherTask):
 			self.accept(RetryStruckOut(self._now(datetime.now().astimezone())))
 		except ValueError:
 			self.logger.debug(f"'{self.name}' stopped before the retry.")
+	@handles(RetryStruckOut)
 	def _retry_struck_out(self, msg: RetryStruckOut):
 		"""A faulted layer plays again: the tracks whose wait is over are tried (the strikes stay, so a track that fails again is struck out again at once), the others show their error pages as before."""
 		if self._halted or self.state != 'faulted':
@@ -556,6 +562,7 @@ class PlaylistLayer(DispatcherTask):
 			self.state = "error"
 			self._error_with_telemetry("The playlist could not start", timestamp, e)
 			return False
+	@handles(AsyncTaskCompleted)
 	def _async_task_completed(self, msg: AsyncTaskCompleted):
 		if not msg.fut.done():
 			self.logger.info("Layer task still running, cancel...")
@@ -618,6 +625,7 @@ class PlaylistLayer(DispatcherTask):
 		except ValueError:
 			# the task stopped in the meantime
 			self.logger.debug(f"'{self.name}' stopped before the restart.")
+	@handles(ConfigurationChanged)
 	def _configuration_changed(self, msg: ConfigurationChanged):
 		# a faulted layer is waiting for anything that might fix it: a plugin's or data source's settings, not only the schedules
 		if (msg.area in ("schedules", "restore") or self.state == 'faulted') and self.cm is not None and self.timebase is not None and not self.is_stopped():
@@ -633,6 +641,7 @@ class PlaylistLayer(DispatcherTask):
 	@staticmethod
 	def _signature(playlists: list[ScheduleLoaderDict]) -> str:
 		return json.dumps([p["info"].to_dict() for p in playlists if p.get("info") is not None], sort_keys=True, default=str)
+	@handles(ReloadSchedules)
 	def _reload_schedules(self, msg: ReloadSchedules):
 		"""Re-read the schedules and start the playlists again from the top. A schedule that does not load keeps the one in use."""
 		if self.cm is None or self.timebase is None or self.state == 'uninitialized':
@@ -695,6 +704,7 @@ class PlaylistLayer(DispatcherTask):
 		self._restart_timer = None
 		if timer is not None:
 			timer.cancel()
+	@handles(ConfigureEvent)
 	def _configure_event(self, msg: ConfigureEvent):
 		self.cm = msg.content.cm
 		self._strikes.clear()
@@ -746,6 +756,7 @@ class PlaylistLayer(DispatcherTask):
 			self.logger.error(f"Failed to load/validate schedules: {e}", exc_info=True)
 			self.state = 'error'
 			msg.notify(True, e)
+	@handles(DisplaySettings)
 	def _display_settings(self, msg: DisplaySettings):
 		self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
 		self.dimensions = (msg.width, msg.height)

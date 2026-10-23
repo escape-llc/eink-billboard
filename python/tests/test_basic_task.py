@@ -1,6 +1,6 @@
 from datetime import datetime
 import unittest
-from ..task.basic_task import DispatcherTask
+from ..task.basic_task import DispatcherTask, handles
 from ..task.messages import MessageWithContent, QuitMessage
 
 class RecordContentTask(DispatcherTask):
@@ -8,6 +8,7 @@ class RecordContentTask(DispatcherTask):
 		super().__init__()
 		self.msgs = []
 
+	@handles(MessageWithContent)
 	def _execute_message(self, msg: MessageWithContent):
 		self.msgs.append(msg.content)
 

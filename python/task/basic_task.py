@@ -9,17 +9,6 @@ from typing import Any, Callable, Type
 from .messages import BasicMessage, QuitMessage, Telemetry
 from .protocols import MessageSink
 
-def _message_class_names() -> set[str]:
-	"""The names of every message class (BasicMessage and its subclasses, at any depth): what an unresolved string annotation is compared with."""
-	found: set[str] = set()
-	todo: list[type] = [BasicMessage]
-	while todo:
-		cls = todo.pop()
-		if cls.__name__ not in found:
-			found.add(cls.__name__)
-			todo.extend(cls.__subclasses__())
-	return found
-
 class TaskStoppedError(ValueError):
 	"""A message was sent to a task that has already stopped (a ValueError, as `accept` always raised)."""
 
@@ -104,64 +93,69 @@ class CoreTask(threading.Thread, MessageSink):
 		if isinstance(msg, QuitMessage):
 			self.msg_queue.shutdown()
 
-def exclude_from_dispatch(obj):
-	"""Mark a function or callable so the DispatcherTasks registration will skip it."""
-	setattr(obj, "__exclude_from_dispatch__", True)  # noqa: B010 -- any callable: the type checker knows no such attribute
-	return obj
+def handles(*types: type[BasicMessage]) -> Callable[[Callable], Callable]:
+	"""
+	Mark a method of a DispatcherTask as the handler of these message types (#579): `@handles(ConfigureEvent)` above `def _configure_event(self, msg: ConfigureEvent)`.
+	Only marked methods are handlers, so a helper that happens to take a message is never one (two helpers once silently replaced a real handler). A type must
+	be a message class other than QuitMessage, which every task handles in `quitMsg`; anything else is refused here, when the module is imported.
+	"""
+	if not types:
+		raise TypeError("@handles needs at least one message type")
+	for t in types:
+		if not (inspect.isclass(t) and issubclass(t, BasicMessage)):
+			raise TypeError(f"@handles takes message classes, not {t!r}")
+		if issubclass(t, QuitMessage):
+			raise TypeError(f"@handles cannot take {t.__name__}: a quit is handled by quitMsg")
+	def mark(fn: Callable) -> Callable:
+		setattr(fn, "__handles__", tuple(types))  # noqa: B010 -- any function: the type checker knows no such attribute
+		return fn
+	return mark
 
-def is_excluded(obj: Any) -> bool:
-    """Return True if the object is marked to be excluded from dispatch."""
-    return bool(getattr(obj, "__exclude_from_dispatch__", False))
+def handler_claims(cls: type) -> dict[type[BasicMessage], str]:
+	"""
+	The message types a task class handles and the name of the method for each, from its `@handles` marks along its classes, base first: a subclass's handler for
+	a type replaces its base's, and an override of a marked method keeps the mark. Two methods of one class for the same type, or a mark that disagrees with
+	the method's parameter (`@handles(A)` on `def f(self, msg: B)` where A is not a B), are a TypeError, so the mistake shows when the task is made, not when
+	a message goes to the wrong method.
+	"""
+	claims: dict[type[BasicMessage], str] = {}
+	for klass in reversed(cls.__mro__):
+		own: dict[type[BasicMessage], str] = {}
+		for name, fn in vars(klass).items():
+			types = getattr(fn, "__handles__", None)
+			if types is None:
+				continue
+			hint = _parameter_hint(fn)
+			for t in types:
+				if t in own:
+					raise TypeError(f"{klass.__name__}: {own[t]} and {name} both handle {t.__name__}")
+				if inspect.isclass(hint) and not issubclass(t, hint):
+					raise TypeError(f"{klass.__name__}.{name} handles {t.__name__}, but its parameter is a {hint.__name__}")
+				own[t] = name
+		claims.update(own)
+	return claims
+
+def _parameter_hint(fn: Callable) -> Any:
+	"""The class a handler's message parameter is annotated with, or None when it has none or it cannot be resolved (a name imported for type checking only)."""
+	params = list(inspect.signature(fn).parameters.values())[1:]
+	if len(params) != 1:
+		raise TypeError(f"{fn.__qualname__}: a handler takes one message")
+	try:
+		return typing.get_type_hints(fn).get(params[0].name)
+	except Exception:
+		return None
 
 type HandlerFunc = Callable[[BasicMessage], None]
 class DispatcherTask(CoreTask):
-	"""Task that dispatches messages to handlers registered by message class.
+	"""Task that dispatches messages to the methods marked `@handles(...)` (see `handles`).
 
-	Methods are auto-scanned in the ctor based on type hints of the first argument.
-	Handlers are keyed by the exact message class, then subclasses.
+	Handlers are keyed by the exact message class, then its base classes.
 
-	Registering a handler for `QuitMessage` (or any subclass thereof) is not allowed —
-	quit messages are handled identically to `CoreTask`.
+	`QuitMessage` (or a subclass) cannot be handled: quit messages are handled identically to `CoreTask`, by `quitMsg`.
 	"""
 	def __init__(self, name=None):
 		super().__init__(name=name)
-		self.handlers: dict[Type[BasicMessage], HandlerFunc] = {}
-		self._populate_registry()
-
-	def _populate_registry(self):
-		# 1. Inspect all bound methods
-		for name, method in inspect.getmembers(self, predicate=inspect.ismethod):
-			if name.startswith("__"):
-				continue
-			if getattr(method, "__exclude_from_dispatch__", False):
-				continue
-			if name == "quitMsg" or name == "_dispatch" or name == "accept":
-				continue
-			# 2. Get signature (excludes 'self' for bound methods)
-			sig = inspect.signature(method)
-			params = list(sig.parameters.values())
-			if params and len(params) == 1:
-				# 3. Extract the type hint of the first argument
-				param_type = self._parameter_type(name, method, params[0])
-				# 4. Filter and store if it matches your base type
-				if inspect.isclass(param_type) and issubclass(param_type, BasicMessage) and not issubclass(param_type, QuitMessage):
-					self.handlers[param_type] = method
-
-	def _parameter_type(self, name: str, method: Callable, param: inspect.Parameter) -> Any:
-		"""
-		The class a one-parameter method is annotated with. In a module with `from __future__ import annotations` every annotation is a string: it is resolved
-		(`typing.get_type_hints`), or no handler would be registered and the first message of its type would find "no handler" at run time (#456). One that names a
-		message type and cannot be resolved (a name imported only for type checking) is said at once, by the task's and method's names.
-		"""
-		annotation = param.annotation
-		if not isinstance(annotation, str):
-			return annotation
-		try:
-			return typing.get_type_hints(method).get(param.name, annotation)
-		except Exception:
-			if annotation.rsplit(".", 1)[-1] in _message_class_names():
-				self.logger.warning(f"'{self.name}': the parameter of '{name}' is annotated '{annotation}', which cannot be resolved, so it handles no message.")
-			return annotation
+		self.handlers: dict[Type[BasicMessage], HandlerFunc] = { t: getattr(self, name) for t, name in handler_claims(type(self)).items() }
 
 	def _dispatch(self, msg: BasicMessage):
 		if isinstance(msg, QuitMessage):

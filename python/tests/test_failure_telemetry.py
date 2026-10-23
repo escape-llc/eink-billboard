@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 from PIL import Image
 
-from ..task.basic_task import DispatcherTask
+from ..task.basic_task import DispatcherTask, handles
 from ..task.display import Display
 from ..task.display_messages import DisplayImage
 from ..task.message_router import MessageRouter, Route
@@ -21,6 +21,7 @@ class Ping(BasicMessage):
 	pass
 
 class Boomer(DispatcherTask):
+	@handles(Ping)
 	def _ping(self, msg: Ping):
 		raise RuntimeError(f"cannot read {SECRET}")
 
