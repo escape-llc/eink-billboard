@@ -7,17 +7,25 @@
 			<InputGroupAddon v-if="markerPosition">
 				<div>{{ latString(markerPosition[0]) }}, {{ lngString(markerPosition[1]) }}</div>
 			</InputGroupAddon>
-			 <AutoComplete
-					v-model="searchQuery"
-					:suggestions="suggestions"
-					optionLabel="label"
-					placeholder="Search for an address..."
-					name="searchquery-location"
-					size="small"
-					@complete="handleSearch"
-					@item-select="onSelectLocation"
+			<!-- searched on request only: Nominatim's usage policy forbids searching as you type -->
+			<InputText
+				v-model="searchQuery"
+				placeholder="Search for an address..."
+				name="searchquery-location"
+				aria-label="Address"
+				size="small"
+				@keydown.enter.prevent="search"
 				/>
-			<Button 
+			<Button
+				icon="pi pi-search"
+				size="small"
+				:loading="searching"
+				:disabled="normalQuery(searchQuery).length < MIN_QUERY_LENGTH"
+				@click="search"
+				aria-label="Search"
+				title="Search for the address with OpenStreetMap's Nominatim"
+				/>
+			<Button
 				icon="pi pi-map-marker" 
 				class="locate-btn" 
 				size="small"
@@ -34,7 +42,13 @@
 				title="A rough position (about the city) from this device's public IP address. It is looked up with an online service, which sees that address. Nothing is saved until you save the settings."
 				/>
 		</InputGroup>
-		<l-map 
+		<div v-if="places !== null" class="address-results mb-1" data-testid="address-results">
+			<div v-if="places.length === 0" class="address-none">No place found for that address.</div>
+			<Button v-for="(place, ix) in places" :key="ix" :label="place.label" text size="small" class="address-place" @click="pick(place)" />
+			<!-- the search policy asks for the attribution beside the results -->
+			<div class="address-credit">Search by <a href="https://nominatim.org/" target="_blank" rel="noopener">Nominatim</a>, data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div>
+		</div>
+		<l-map
 			style="flex-grow:1"
 			v-model:zoom="zoom"
 			@click="onMapClick"
@@ -42,7 +56,7 @@
 			:use-global-leaflet="false"
 		>
 			<!-- the tile policy asks for the attribution on the map itself; the Credits page lists it too -->
-			<l-tile-layer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" layer-type="base" name="OpenStreetMap" attribution="&copy; <a href=&quot;https://www.openstreetmap.org/copyright&quot;>OpenStreetMap</a> contributors"></l-tile-layer>
+			<l-tile-layer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" layer-type="base" name="OpenStreetMap" attribution="&copy; <a href=&quot;https://www.openstreetmap.org/copyright&quot;>OpenStreetMap</a> contributors"></l-tile-layer>
 			<l-marker v-if="markerPosition" :lat-lng="markerPosition" draggable @dragend="onMarkerDrag" />
 		</l-map>
 	</div>
@@ -51,13 +65,13 @@
 import "leaflet/dist/leaflet.css";
 import { ref, watch, provide } from 'vue';
 import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
-import { OpenStreetMapProvider } from 'leaflet-geosearch';
+import { searchAddress, normalQuery, MIN_QUERY_LENGTH, type Place } from './AddressSearch';
 import Button from 'primevue/button';
 import { useToast } from 'primevue/usetoast';
 import { apiPost, joinUrl } from './ApiClient';
 import InputGroup from 'primevue/inputgroup';
 import InputGroupAddon from 'primevue/inputgroupaddon';
-import AutoComplete from 'primevue/autocomplete';
+import InputText from 'primevue/inputtext';
 
 // turns off all the form field context stuff since this component doesn't want it.
 // This allows it to be used inside forms without interfering with the form context.
@@ -87,7 +101,9 @@ const loadingLocation = ref(false);
 const locatingByIp = ref(false);
 const toast = useToast();
 const searchQuery = ref<string|undefined>(undefined);
-const suggestions = ref<any[]>([]);
+/** The places the last search found; null: no search shown. */
+const places = ref<Place[]|null>(null);
+const searching = ref(false);
 
 function latString(lat: number): string {
 	return (lat >= 0 ? lat.toFixed(4) + "N" : (-lat).toFixed(4) + "S");
@@ -110,18 +126,26 @@ watch(() => props.modelValue, (newLocation) => {
 	}
 }, { immediate: true });
 
-const provider = new OpenStreetMapProvider();
-
-const handleSearch = async (event: { query: string }) => {
-  if (event.query.length < 3) return;
-  // Use the provider manually to get results
-  const results = await provider.search({ query: event.query });
-  suggestions.value = results;
+/** Search for the typed address (the Search button, or Enter); a press while a search runs is ignored. */
+const search = async () => {
+	if (searching.value || normalQuery(searchQuery.value).length < MIN_QUERY_LENGTH) return;
+	searching.value = true;
+	try {
+		const found = await searchAddress(searchQuery.value);
+		if (found !== null) places.value = found;
+	}
+	catch (ex: any) {
+		console.warn("Address search failed", ex);
+		toast.add({ severity: "warn", summary: "Location", detail: "The address search did not answer. Try again, or click the map.", life: 8000 });
+	}
+	finally {
+		searching.value = false;
+	}
 };
 
-const onSelectLocation = (event: any) => {
-  const { y: lat, x: lng } = event.value;
-  updateLocation(lat, lng, true);
+const pick = (place: Place) => {
+	places.value = null;
+	updateLocation(place.latitude, place.longitude, true);
 };
 
 const onMapReady = (mapInstance: any) => {
@@ -202,4 +226,24 @@ const locateByIp = async () => {
 };
 </script>
 <style scoped>
+.address-results {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	max-height: 12rem;
+	overflow-y: auto;
+	border: 1px solid var(--p-content-border-color);
+	border-radius: var(--p-content-border-radius);
+	background: var(--p-content-background);
+	padding: 0.25rem;
+}
+.address-place {
+	text-align: left;
+	justify-content: flex-start;
+}
+.address-none, .address-credit {
+	color: var(--p-text-muted-color);
+	font-size: 0.75rem;
+	padding: 0.25rem 0.5rem;
+}
 </style>

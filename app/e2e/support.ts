@@ -4,7 +4,20 @@ import { expect, type Page } from "@playwright/test"
 const PIXEL = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64")
 
 export async function stubMapTiles(page: Page) {
-	await page.route("**/*.tile.openstreetmap.org/**", route => route.fulfill({ status: 200, contentType: "image/png", body: PIXEL }))
+	await page.route("https://tile.openstreetmap.org/**", route => route.fulfill({ status: 200, contentType: "image/png", body: PIXEL }))
+}
+
+/** One place in Nominatim's answer, as its `/search?format=json` gives it. */
+export const NOMINATIM_PLACE = { lat: "51.5007", lon: "-0.1246", display_name: "Big Ben, Westminster, London, United Kingdom", boundingbox: ["51.50", "51.51", "-0.13", "-0.12"] }
+
+/** The location picker's address search answered from a fixture: returns the queries it was asked, in order. */
+export async function stubAddressSearch(page: Page, answer: object[] = [NOMINATIM_PLACE]) {
+	const queries: string[] = []
+	await page.route("https://nominatim.openstreetmap.org/**", route => {
+		queries.push(new URL(route.request().url()).searchParams.get("q") ?? "")
+		return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(answer) })
+	})
+	return queries
 }
 
 /**
