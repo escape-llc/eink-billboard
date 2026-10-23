@@ -10,7 +10,7 @@
 				<AccordionHeader>First steps</AccordionHeader>
 				<AccordionContent>
 					<ol>
-						<li><b>Settings, System:</b> set the device's <b>Location</b> and time zone. Weather, maps and the clock use them. <b>Weather Provider</b> says where the weather comes from; left empty, it is the one that is set up (Open-Meteo, which needs no key; with OpenWeatherMap's key set too, choose one). <b>Units</b> are the weather's: Automatic means miles and Fahrenheit in US time zones, kilometres and Celsius elsewhere, and the temperature and the wind speed can each be given a unit of their own (Celsius with miles per hour, say). To find a place, type its address and press <i class="pi pi-search" aria-hidden="true"></i> Search (or Enter), then choose it from the list; or click the map. The <i class="pi pi-wifi" aria-hidden="true"></i> button beside the map finds a rough position from the device's internet address; nothing is saved until you press Save.</li>
+						<li><b>Settings, System:</b> set the device's <b>Location</b> and time zone. Weather, maps and the clock use them. <b>Weather Provider</b> says where the weather comes from; left empty, it is the one that is set up (Open-Meteo, which needs no key; with OpenWeatherMap's key set too, choose one). <b>Units</b> are the weather's: Automatic means miles and Fahrenheit in US time zones, kilometres and Celsius elsewhere, and the temperature and the wind speed can each be given a unit of their own (Celsius with miles per hour, say). To find a place, type its address and press <i class="mi mi-search" aria-hidden="true"></i> Search (or Enter), then choose it from the list; or click the map. The <i class="mi mi-wifi" aria-hidden="true"></i> button beside the map finds a rough position from the device's internet address; nothing is saved until you press Save.</li>
 						<li><b>Settings, Display:</b> choose the panel you have, and its orientation.</li>
 						<li><b>Playlist:</b> make a playlist and add <b>tracks</b>. A track is one page or picture and how long it stays. Save the playlist: nothing reaches the panel until it is saved.</li>
 						<li>The weather works without a key (from Open-Meteo). If a track needs a key (maps, comics, AI pictures, or OpenWeatherMap's weather), add it under <b>Settings, Providers</b>. Each key has a <b>Test</b> button and a link to where you get one.</li>
@@ -22,13 +22,13 @@
 				<AccordionHeader>The pages</AccordionHeader>
 				<AccordionContent>
 					<dl>
-						<dt><i class="pi pi-clock" aria-hidden="true"></i> Schedule</dt>
+						<dt><i class="mi mi-schedule" aria-hidden="true"></i> Schedule</dt>
 						<dd>Timer tasks: things that happen at a time of day, such as a priority message for ten minutes at 8:00, or an overlay (the date, the weather) drawn over the picture. Shown as a day, a week or a list.</dd>
-						<dt><i class="pi pi-play" aria-hidden="true"></i> Playlist</dt>
+						<dt><i class="mi mi-play-arrow" aria-hidden="true"></i> Playlist</dt>
 						<dd>The tracks that play one after another, round and round. You can keep several playlists.</dd>
-						<dt><i class="pi pi-desktop" aria-hidden="true"></i> System</dt>
+						<dt><i class="mi mi-desktop-windows" aria-hidden="true"></i> System</dt>
 						<dd>How the device is: whether its parts started and the latest problems, the machine (load, memory, how long it and the app have been up), a Raspberry Pi's temperature and power warnings, the storage by plugin and data source, and the <b>API usage</b> of each service. On the right, live: <b>Now showing</b> (what the panel shows, with the layers it is made of; click for full size), <b>Recently shown</b> and <b>Activity</b> (filter it by source, or show only problems). The toolbar has play, stop and next, and Back up, Restore and the device password.</dd>
-						<dt><i class="pi pi-globe" aria-hidden="true"></i> Settings</dt>
+						<dt><i class="mi mi-settings" aria-hidden="true"></i> Settings</dt>
 						<dd>The device (System, Display, Theme, Devices such as buttons), the plugins, the data sources (what makes a page or an overlay) and the providers (where their data comes from, with the keys), each with its own settings.</dd>
 					</dl>
 				</AccordionContent>
@@ -220,7 +220,7 @@
 				<AccordionHeader>Keeping it safe</AccordionHeader>
 				<AccordionContent>
 					<ul>
-						<li>A new device asks for a <b>setup code</b> (in its log and on the panel) and then your own password. Change it from the System page's <i class="pi pi-key" aria-hidden="true"></i> button.</li>
+						<li>A new device asks for a <b>setup code</b> (in its log and on the panel) and then your own password. Change it from the System page's <i class="mi mi-key" aria-hidden="true"></i> button.</li>
 						<li><b>Back up</b> from the System page before an update or a move. The file holds the settings (with their keys), playlists, timer tasks and calendar sign-ins, never the device password, and is locked with a passphrase of its own (12 characters or more, not the device password), which is kept nowhere: if you lose it the file cannot be opened.</li>
 						<li><b>Restore</b> first shows what would change, file by file; nothing is written until you apply it, and nothing is ever deleted. A backup from an older version is brought up to date; one from a newer version is refused.</li>
 					</ul>

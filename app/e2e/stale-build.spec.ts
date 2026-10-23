@@ -20,7 +20,7 @@ test("a page of an old build that is gone reloads the tab once, at that page", a
 		refused++
 		return route.fulfill({ status: 404, contentType: "application/json", body: "{\"success\":false}" })
 	})
-	await page.getByRole("button", { name: "pi pi-bars" }).or(page.locator("button[aria-controls=overlay_tmenu]").first()).first().click()
+	await page.getByRole("button", { name: "Menu" }).or(page.locator("button[aria-controls=overlay_tmenu]").first()).first().click()
 	await page.getByRole("menuitem", { name: "Settings" }).click()
 	await expect(page.getByText("System Settings")).toBeVisible()
 	expect(refused, "the old build's chunk was refused").toBeGreaterThan(0)

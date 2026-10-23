@@ -83,7 +83,7 @@
 				<Textarea style="flex-grow:1" :name="field.name" :id="field.name" :invalid="isInvalid" size="small" :rows="field.rows ?? 3" autoResize
 					:placeholder="field.title" fluid />
 				<!-- a settings form that knows the factory text offers it back: it goes into the field, and the user saves it or not -->
-				<Button v-if="restoreField" type="button" size="small" severity="secondary" icon="pi pi-history" :aria-label="`Restore default ${field.title}`"
+				<Button v-if="restoreField" type="button" size="small" severity="secondary" icon="mi mi-settings-backup-restore" :aria-label="`Restore default ${field.title}`"
 					title="Put back the factory text" @click="restoreField(field.name)" />
 			</template>
 			<template v-else>
@@ -98,7 +98,7 @@
 		</InputGroup>
 		<!-- where to get a key, right under the input: one frame, then the feedback -->
 		<div v-if="safeLink" class="field-link">
-			<Button as="a" :href="safeLink.url" target="_blank" rel="noopener noreferrer" :label="safeLink.label" icon="pi pi-external-link" size="small" variant="text" />
+			<Button as="a" :href="safeLink.url" target="_blank" rel="noopener noreferrer" :label="safeLink.label" icon="mi mi-open-in-new" size="small" variant="text" />
 		</div>
 		<Message v-if="testResult" :severity="testResult.ok ? 'success' : 'error'" size="small" variant="simple" data-testid="test-result">{{ testResult.message }}</Message>
 		<slot name="message" v-bind="{ field, fieldState }">

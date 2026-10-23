@@ -16,14 +16,14 @@
 			</div>
 			<Message v-if="backupProblem" severity="error" size="small" variant="simple" role="alert">{{ backupProblem }}</Message>
 			<Message v-if="backupDone" severity="success" size="small" variant="simple" role="status">{{ backupDone }}</Message>
-			<div><Button size="small" type="submit" label="Download backup" icon="pi pi-download" :loading="backingUp" /></div>
+			<div><Button size="small" type="submit" label="Download backup" icon="mi mi-download" :loading="backingUp" /></div>
 		</form>
 
 		<form v-if="part === 'restore'" class="backup-fields" data-testid="backup-restore" @submit.prevent="check">
 			<div class="backup-field">
 				<label>Backup file</label>
 				<div class="backup-file">
-					<Button size="small" type="button" label="Choose file" icon="pi pi-upload" severity="secondary" @click="chooser?.click()" />
+					<Button size="small" type="button" label="Choose file" icon="mi mi-upload" severity="secondary" @click="chooser?.click()" />
 					<span data-testid="backup-file-name">{{ file ? file.name : "No file chosen" }}</span>
 				</div>
 				<input ref="chooser" type="file" hidden aria-label="Backup file" data-testid="backup-file" @change="chosen" />
@@ -50,7 +50,7 @@
 			<p v-if="summary.restartNeeded">The display settings change only when the device starts again.</p>
 			<p>Nothing is deleted: files this device has that the backup does not stay as they are.</p>
 			<div class="backup-actions">
-				<Button size="small" type="button" label="Restore" icon="pi pi-history" severity="danger" :loading="restoring" :disabled="summary.files.length === 0" data-testid="backup-apply" @click="apply" />
+				<Button size="small" type="button" label="Restore" icon="mi mi-history" severity="danger" :loading="restoring" :disabled="summary.files.length === 0" data-testid="backup-apply" @click="apply" />
 				<Button size="small" type="button" label="Cancel" severity="secondary" :disabled="restoring" @click="reset" />
 			</div>
 		</div>

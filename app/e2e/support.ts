@@ -53,4 +53,4 @@ export async function choose(page: Page, current: string | RegExp, option: strin
 }
 
 /** The save (check mark) button of the settings form in the tab that is showing. */
-export const saveButton = (page: Page) => page.getByRole("tabpanel").locator("button:has(.pi-check)").first()
+export const saveButton = (page: Page) => page.getByRole("tabpanel").locator("button:has(.mi-check)").first()

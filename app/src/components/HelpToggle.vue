@@ -1,6 +1,6 @@
 <template>
 	<!-- the help under a form's fields is long for some forms: this hides it once it is known (BasicForm's `showHelp`); it goes in the header's group, before apply and reset -->
-	<Button size="small" icon="pi pi-question-circle" severity="secondary" :variant="model ? undefined : 'outlined'" :aria-pressed="model"
+	<Button size="small" icon="mi mi-help" severity="secondary" :variant="model ? undefined : 'outlined'" :aria-pressed="model"
 		aria-label="Help text" :title="model ? 'Hide the help under the fields' : 'Show the help under the fields'" @click="model = !model" />
 </template>
 <script setup lang="ts">

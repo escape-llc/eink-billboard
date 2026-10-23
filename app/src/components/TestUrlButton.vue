@@ -1,9 +1,9 @@
 <template>
 	<!-- `bare`: only the button, a member of an input group; the answer goes to the parent (`result`), which shows it with the rest of the field's feedback -->
-	<Button v-if="bare" size="small" severity="secondary" icon="pi pi-bolt" label="Test" type="button" :loading="busy" :disabled="disabled || busy || !hasValue"
+	<Button v-if="bare" size="small" severity="secondary" icon="mi mi-bolt" label="Test" type="button" :loading="busy" :disabled="disabled || busy || !hasValue"
 		:aria-label="`Test ${label}`" @click="run" />
 	<div v-else class="test-url">
-		<Button size="small" severity="secondary" icon="pi pi-bolt" label="Test" type="button" :loading="busy" :disabled="disabled || busy || !hasValue"
+		<Button size="small" severity="secondary" icon="mi mi-bolt" label="Test" type="button" :loading="busy" :disabled="disabled || busy || !hasValue"
 			:aria-label="`Test ${label}`" @click="run" />
 		<Message v-if="result" :severity="result.ok ? 'success' : 'error'" size="small" variant="simple">{{ result.message }}</Message>
 	</div>

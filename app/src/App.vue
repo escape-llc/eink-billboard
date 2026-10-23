@@ -29,27 +29,27 @@ const helpOpen = ref(false)
 const items = ref([
 		{
 			label:"Schedule",
-			icon: "pi pi-clock",
+			icon: "mi mi-schedule",
 			class: "p-0 m-0",
 //			disabled: () => appStore.currentStateAppConfig !== "initialized",
 			to: "/schedule",
 		},
 		{
 			label:"Playlist",
-			icon: "pi pi-play",
+			icon: "mi mi-play-arrow",
 			class: "p-0 m-0",
 //			disabled: () => appStore.currentStateAppConfig !== "initialized",
 			to: "/playlist",
 		},
 		{
 			label:"System",
-			icon: "pi pi-desktop",
+			icon: "mi mi-desktop-windows",
 			class: "p-0 m-0",
 			to: "/system",
 		},
 		{
 			label:"Settings",
-			icon: "pi pi-globe",
+			icon: "mi mi-settings",
 			class: "p-0 m-0",
 //			disabled: () => appStore.currentStateAppConfig !== "initialized",
 			to: "/settings",
@@ -66,7 +66,8 @@ const items = ref([
 		<InputGroup>
 			<Button
 				v-if="items.length !== 0"
-				icon="pi pi-bars"
+				icon="mi mi-menu"
+				aria-label="Menu"
 				size="small"
 				class="p-button-outlined"
 				type="button"
@@ -104,7 +105,7 @@ const items = ref([
 					>
 							<span :class="item.icon" />
 							<span class="ml-2">{{ item.label }}</span>
-							<span v-if="hasSubmenu" class="pi pi-angle-right ml-auto" />
+							<span v-if="hasSubmenu" class="mi mi-chevron-right ml-auto" />
 					</a>
 				</template>
 			</TieredMenu>
@@ -114,8 +115,8 @@ const items = ref([
 					<div style="font-weight: bold;font-size: 110%">{{ appStore.currentProject.project.name }}</div>
 				</InputGroupAddon>
 				<template v-if="openMode === 'open'">
-					<Button size="small" icon="pi pi-video" @click="handleAnnotate" />
-					<Button size="small" icon="pi pi-database" @click="handleDatabase" />
+					<Button size="small" icon="mi mi-videocam" @click="handleAnnotate" />
+					<Button size="small" icon="mi mi-database" @click="handleDatabase" />
 				</template>
 			</template>
 			-->
@@ -140,7 +141,7 @@ const items = ref([
 		<InputGroup>
 			<ThemeSelector class="p-button-sm"/>
 			<Button size="small"
-				icon="pi pi-question-circle"
+				icon="mi mi-help"
 				class="p-button-sm p-button-outlined"
 				type="button"
 				aria-label="Help"

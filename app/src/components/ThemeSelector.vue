@@ -1,5 +1,5 @@
 <template>
-	<Button size="small" v-bind="$attrs" icon="pi pi-palette" severity="contrast" title="Theme Control" aria-label="Theme Control" @click="openPopover" />
+	<Button size="small" v-bind="$attrs" icon="mi mi-palette" severity="contrast" title="Theme Control" aria-label="Theme Control" @click="openPopover" />
 	<Popover ref="op">
 		<div class="flex flex-column gap-2 mb-2">
 			<label for="theme" class="font-bold block mb-0">Theme</label>
