@@ -156,7 +156,8 @@
 	</div>
 </template>
 <script setup lang="ts">
-import { ApiError, apiDelete, apiJson, apiPost, apiPut } from "../components/ApiClient"
+import { ApiError } from "../components/ApiClient"
+import { api } from "../api/client"
 import { InputGroup, InputGroupAddon, Button, Dialog, Toolbar, Select, Checkbox, InputText, Message, DataTable, Column, Tag, useToast } from "primevue"
 import { MODES, rangeLabel, step, switchMode, taskRows, windowOf, type SchedulerMode, type TaskRow } from "../components/SchedulerView"
 import FormField from '@primevue/forms/formfield';
@@ -168,7 +169,8 @@ import { ProgressBar } from "primevue"
 import BasicForm, { type ValidateEventData } from "../components/BasicForm.vue"
 import HelpToggle from "../components/HelpToggle.vue"
 import type { FormDef } from "../components/FormDefs"
-import type { PluginDef } from "../components/ScheduleDefs"
+import type { PluginDef, TimerTasks } from "../components/ScheduleDefs"
+import type { Descriptor } from "../components/FormDefs"
 import { TriggerDefSchema } from "../components/ScheduleDefs"
 import TimedTrigger from "../components/TimedTrigger.vue"
 import z from "zod";
@@ -191,7 +193,7 @@ const offset = ref(0)
 // today in the device's zone (the server's first day when nothing is asked for)
 const today = ref(zonedParts(new Date()).key)
 // the stored tasks as the server sent them: not deeply reactive, so a row hands the editor plain data (structuredClone cannot copy a proxy)
-const schedules = shallowRef<Record<string, any>>({})
+const schedules = shallowRef<Record<string, TimerTasks>>({})
 const rangeText = computed(() => rangeLabel(firstDay.value, dayCount.value))
 const rows = computed<TaskRow[]>(() => taskRows(eventList.value, schedules.value, id => pluginList.value.find(p => p.id === id)?.name ?? id))
 function setMode(next: SchedulerMode) {
@@ -225,7 +227,6 @@ const eventList = ref<EventInfo[]>([])
 const dialogOpen = ref(false)
 const currentEvent = ref()
 const toast = useToast()
-const TIMER_URL = `${import.meta.env.VITE_API_URL}api/schedule/timer`
 // the stored documents of timer tasks (a task is added to one of them)
 const documents = ref<{ id: string, name: string }[]>([])
 const newTaskDocument = ref<string|undefined>(undefined)
@@ -255,13 +256,8 @@ const TIMER_LAYERS = ["layer-priority", "layer-overlay"]
 const timerPlugins = computed(() => pluginList.value.filter(p => (p.features ?? []).some(f => TIMER_LAYERS.includes(f))))
 const pluginOptions = computed<DropdownOption[]>(() => pluginList.value.filter(p => timerPlugins.value.includes(p) || p.id === editModel.value.plugin_name).map(p => ({ id: p.id, name: p.name })))
 
-function derefSchedule(schedules:Record<string,any>, sid:string, id:string) {
-	if(sid in schedules) {
-		const schedule = schedules[sid]
-		const item = schedule.items.find((sx: any) => sx.id === id)
-		return item
-	}
-	return null
+function derefSchedule(schedules: Record<string, TimerTasks>, sid: string, id: string) {
+	return schedules[sid]?.items.find(sx => sx.id === id) ?? null
 }
 const color_map: Map<string, string> = new Map()
 
@@ -289,7 +285,7 @@ function sidebarColor(event:any):string {
 const API_URL = import.meta.env.VITE_API_URL
 
 const pluginList = ref<PluginDef[]>([])
-const dataSources = ref([])
+const dataSources = ref<Descriptor[]>([])
 provide("settingsPluginsList", pluginList)
 provide("settingsDataSourcesList", dataSources)
 
@@ -297,42 +293,40 @@ provide("settingsDataSourcesList", dataSources)
 function loadTimeline(): Promise<void> {
 	// today itself is the server's (its zone); a later day is asked for by its date
 	const window = windowOf(mode.value, today.value, offset.value)
-	const renderUrl = `${API_URL}api/schedule/tasks/render?days=${window.days}${offset.value > 0 ? `&start=${window.start}` : ""}`
-	const listPluginsUrl = `${API_URL}api/plugins/list`
-	const listDatasourcesUrl = `${API_URL}api/datasources/list`
-	const pxs = [
-		apiJson(renderUrl),
-		apiJson(listPluginsUrl),
-		apiJson(listDatasourcesUrl),
-		apiJson(`${TIMER_URL}/list`),
-	]
-	return Promise.all(pxs).then(rxs => {
-		const json = rxs[0]
-		pluginList.value = rxs[1]
-		dataSources.value = rxs[2]
-		documents.value = (rxs[3].timed ?? []).map((d: any) => ({ id: d.id, name: d.name }))
+	return Promise.all([
+		api.get("/api/schedule/tasks/render", { query: { days: window.days, start: offset.value > 0 ? window.start : undefined } }),
+		api.get("/api/plugins/list"),
+		api.get("/api/datasources/list"),
+		api.get("/api/schedule/timer/list"),
+	]).then(([json, plugins, sources, timed]) => {
+		// a descriptor's keys are its own (open in the API): read as PluginDef and Descriptor, which DescriptorSchema.test holds to every descriptor
+		pluginList.value = plugins as PluginDef[]
+		dataSources.value = sources as Descriptor[]
+		documents.value = timed.timed.map(d => ({ id: d.id, name: d.name }))
 		if(json.success) {
 			// the response's first day is "today" in the device's zone (its ISO time is written in that zone)
 			timeZone.value = typeof json.timezone === "string" ? json.timezone : undefined
 			firstDay.value = String(json.start_ts).slice(0, 10)
 			if(offset.value === 0) today.value = firstDay.value
 			dayCount.value = json.days
-			schedules.value = json.schedules ?? {}
+			// a trigger is read as the form's (one a file holds that cannot be evaluated is in `invalid`, and has no runs)
+			schedules.value = json.schedules as Record<string, TimerTasks>
 			loadedDay = zonedParts(new Date(), timeZone.value).key
 			const events:EventInfo[] = []
-			json.render.forEach((rx: any) => {
-				rx.start = new Date(rx.scheduled_time)
-				const sref = derefSchedule(json.schedules, rx.schedule, rx.id)
-				const ei = {
-					start: rx.start,
+			json.render.forEach(rx => {
+				const sref = derefSchedule(schedules.value, rx.schedule, rx.id)
+				const ei: EventInfo = {
+					start: new Date(rx.scheduled_time),
 					title: "my event",
 					duration: 15,
 					data: undefined
-				} satisfies EventInfo
+				}
 				if(sref) {
 					ei.title = `${sref.title} (${sref.task.plugin_name})`
-					if(sref.task.content.slideMinutes) {
-						ei.duration = sref.task.content.slideMinutes
+					// the plugin's content: a number only when the plugin has one
+					const minutes = sref.task.content.slideMinutes
+					if(typeof minutes === "number" && minutes > 0) {
+						ei.duration = minutes
 					}
 					// the document id travels with the task: that is what a change is addressed to
 					ei.data = { ...sref, schedule: rx.schedule }
@@ -455,11 +449,11 @@ const handleNew = () => {
 	editModel.value = { title: "", enabled: true, trigger: structuredClone(DEFAULT_TRIGGER), plugin_name: first.id, content: {} }
 	dialogOpen.value = true
 }
-const taskUrl = (schedule: string, id: string) => `${TIMER_URL}/${encodeURIComponent(schedule)}/items/${encodeURIComponent(id)}`
+const taskPath = (schedule: string, id: string) => ({ path: { doc_id: schedule, item_id: id } })
 /** The documents hold the tasks: a first task needs one to exist. */
 async function ensureDocument(): Promise<string> {
 	if(newTaskDocument.value) return newTaskDocument.value
-	const created = await apiPost(TIMER_URL, { name: "Timer tasks" })
+	const created = await api.post("/api/schedule/timer", {}, { name: "Timer tasks" })
 	return created.id
 }
 /** Send the task; `rev` is the revision it was loaded at (a stale one is a 409, which the dialog lets the person resolve). */
@@ -471,10 +465,10 @@ async function saveTask(body: Record<string, any>, rev: string|undefined) {
 	lastBody = body
 	try {
 		if(target.id) {
-			await apiPut(taskUrl(target.schedule, target.id), { ...body, _rev: rev })
+			await api.put("/api/schedule/timer/{doc_id}/items/{item_id}", taskPath(target.schedule, target.id), { ...body, _rev: rev })
 		}
 		else {
-			await apiPost(`${TIMER_URL}/${encodeURIComponent(await ensureDocument())}/items`, body)
+			await api.post("/api/schedule/timer/{doc_id}/items", { path: { doc_id: await ensureDocument() } }, body)
 		}
 		toast.add({severity:'success', summary: 'Success', detail: 'Task saved', life: 3000});
 		dialogOpen.value = false
@@ -519,7 +513,7 @@ async function reloadTask() {
 	const target = editTarget.value
 	if(!target?.id) return
 	try {
-		const rx = await apiJson(taskUrl(target.schedule, target.id))
+		const rx = await api.get("/api/schedule/timer/{doc_id}/items/{item_id}", taskPath(target.schedule, target.id))
 		editTarget.value = { ...target, rev: rx.task._rev }
 		resetMessages()
 		editModel.value = stageTask(rx.task)
@@ -540,7 +534,7 @@ async function deleteTask() {
 	if(!target?.id || !target.rev) return
 	saving.value = true
 	try {
-		await apiDelete(`${taskUrl(target.schedule, target.id)}?rev=${encodeURIComponent(target.rev)}`)
+		await api.delete("/api/schedule/timer/{doc_id}/items/{item_id}", { path: { doc_id: target.schedule, item_id: target.id }, query: { rev: target.rev } })
 		toast.add({severity:'success', summary: 'Success', detail: 'Task deleted', life: 3000});
 		deleteOpen.value = false
 		dialogOpen.value = false

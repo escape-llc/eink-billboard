@@ -1,5 +1,8 @@
 import { z } from 'zod'
 import type { FormDef } from './FormDefs'
+import type { components } from '../api/schema'
+
+type Schemas = components["schemas"]
 
 /** A plugin's descriptor as `/api/plugins/list` sends it (plugin-info.json). */
 export type PluginDef = {
@@ -21,19 +24,9 @@ export type PluginDef = {
 
 export const PLAYLIST_SCHEMA = "urn:inky:storage:schedule:playlist:1"
 export const TIMED_SCHEDULE_SCHEMA = "urn:inky:storage:schedule:tasks:1"
-export type PlaylistItem = {
-	id: string;
-	type: string;
-	plugin_name: string;
-	title: string;
-	content: Record<string, any>;
-}
-export type PlaylistSchedule = {
-	_schema: string;
-	id: string;
-	name: string;
-	items: PlaylistItem[];
-}
+/** A track as the server sends it (`Track`), or one being edited: a new track has no revision yet, and `type` is what the stored file names it. */
+export type PlaylistItem = Omit<Schemas["Track"], "_rev"> & { _rev?: string, type?: "PlaylistSchedule" }
+export type PlaylistSchedule = Schemas["PlaylistDocument"]
 // day triggers
 export type TriggerDays = {
 	type: "dayofweek" | "dayofmonth";
@@ -66,23 +59,10 @@ export type TriggerDef = {
 	day: DayTrigger;
 	time: TimeTrigger;
 }
-export type TimerTaskTask = {
-	plugin_name: string;
-	content: Record<string, any>;
-}
-export type TimerTaskItem = {
-	id: string;
-	enabled: boolean;
-	title: string;
-	task: TimerTaskTask;
-	trigger: TriggerDef;
-}
-export type TimerTasks = {
-	_schema: string;
-	id: string;
-	name: string;
-	items: TimerTaskItem[];
-}
+export type TimerTaskTask = Schemas["Task"]
+/** A timer task as the server sends it (`TimerTask`), its trigger read as the form's: the server sends any trigger a file holds (one it cannot evaluate is listed as invalid). */
+export type TimerTaskItem = Omit<Schemas["TimerTask"], "trigger"> & { trigger: TriggerDef }
+export type TimerTasks = Omit<Schemas["TimerDocument"], "items"> & { items: TimerTaskItem[] }
 export type ScheduleDef = PlaylistSchedule | TimerTasks
 
 // Zod Schemas
