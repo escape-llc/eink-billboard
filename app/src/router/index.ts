@@ -44,12 +44,6 @@ const router = createRouter({
 			// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 			component: () => import('../views/PlaylistEditor.vue')
 		},
-		{
-			path: '/credits',
-			name: 'credits',
-			// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-			component: () => import('../views/Credits.vue')
-		},
 	]
 })
 export default router

@@ -2,7 +2,7 @@
 Open-Meteo as a weather provider (`WeatherApi`, `data-weather`): the weather at the device's location, now and forecast, with no key, and nothing drawn.
 
 Free for non-commercial use (a hobby device is), and its data is CC BY 4.0: the report carries the credit ("Weather data by Open-Meteo.com"), which the
-Weather pages show (an overlay has no room for it); the Credits page lists it from the descriptor's `credit`. One call answers the weather now, the hours and the days, kept for the settings' `cacheHours` and shared by every page and overlay. The
+Weather pages show (an overlay has no room for it); the Help drawer's Credits list it from the descriptor's `credit`. One call answers the weather now, the hours and the days, kept for the settings' `cacheHours` and shared by every page and overlay. The
 answer is asked in SI (Celsius, metres per second) as the contract's `Report` is; the device's units are applied by whatever shows it.
 """
 from datetime import date, datetime, timedelta, timezone, tzinfo

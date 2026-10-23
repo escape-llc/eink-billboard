@@ -1,5 +1,5 @@
 """
-The Credits page (#534): every credit is in one list, kept complete by these checks. Whoever downloads declares whose data it is, every font we ship is credited
+The Credits, the Help drawer's last section (#534): every credit is in one list, kept complete by these checks. Whoever downloads declares whose data it is, every font we ship is credited
 (here and in NOTICE), and the two credits drawn on the panel are their descriptors' words.
 """
 import glob

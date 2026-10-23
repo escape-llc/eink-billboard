@@ -1,4 +1,4 @@
-"""The Credits page's list: whose data the providers and data sources show, the fonts, and the software by others (`python/web/credits.py`)."""
+"""The Credits list (the Help drawer's last section): whose data the providers and data sources show, the fonts, and the software by others (`python/web/credits.py`)."""
 from fastapi import APIRouter, Depends
 
 from ...model.configuration_manager import ConfigurationManager
