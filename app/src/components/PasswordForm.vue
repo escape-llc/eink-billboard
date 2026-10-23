@@ -27,11 +27,10 @@
 /** Set or change the device password (PUT /api/access/password). The server keeps the browser signed in. */
 import { onMounted, ref } from "vue"
 import { Button, InputText, Message } from "primevue"
-import { ApiError, apiJson, apiPut, joinUrl } from "./ApiClient"
+import { ApiError } from "./ApiClient"
+import { api } from "../api/client"
 import { MIN_PASSWORD, type AccessInfo } from "./AuthPrompt"
 
-const base = import.meta.env.VITE_API_URL ?? "/"
-const ACCESS = joinUrl(base, "api/access")
 const info = ref<AccessInfo>({ required: false, setupRequired: false, passwordSet: false, localOnly: true })
 const current = ref("")
 const next = ref("")
@@ -41,7 +40,7 @@ const done = ref("")
 const busy = ref(false)
 
 async function load() {
-	info.value = await apiJson<AccessInfo>(ACCESS)
+	info.value = await api.get("/api/access")
 }
 onMounted(() => { load().catch(() => {}) })
 
@@ -58,7 +57,7 @@ async function submit() {
 	}
 	busy.value = true
 	try {
-		await apiPut(joinUrl(ACCESS, "password"), { current: current.value, new: next.value })
+		await api.put("/api/access/password", {}, { current: current.value, new: next.value })
 		done.value = "The password was changed."
 		current.value = next.value = again.value = ""
 		await load()
