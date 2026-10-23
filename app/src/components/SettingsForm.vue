@@ -13,18 +13,18 @@
 				</template>
 				<template #end>
 					<InputGroup>
-						<Button v-if="defaultsUrl" size="small" icon="pi pi-history" label="Restore defaults" severity="secondary" title="Put back the factory text of every field (then save)" @click="restoreAll" />
+						<Button v-if="defaultsUrl" size="small" icon="mi mi-settings-backup-restore" label="Restore defaults" severity="secondary" title="Put back the factory text of every field (then save)" @click="restoreAll" />
 						<HelpToggle v-model="showHelp" />
-						<Button size="small" icon="pi pi-check" severity="success" :disabled="submitDisabled" @click="submit" />
-						<Button size="small" icon="pi pi-times" severity="danger" @click="reset" />
+						<Button size="small" icon="mi mi-check" severity="success" :disabled="submitDisabled" @click="submit" />
+						<Button size="small" icon="mi mi-close" severity="danger" @click="reset" />
 					</InputGroup>
 				</template>
 			</Toolbar>
 			<Message size="small" v-if="conflict" severity="warn" :closable="false" class="mt-1">
 				<div class="flex align-items-center gap-2 flex-wrap">
 					<span>{{ conflict.message }}</span>
-					<Button size="small" label="Reload" icon="pi pi-refresh" severity="secondary" @click="reload" />
-					<Button size="small" label="Overwrite" icon="pi pi-upload" severity="danger" @click="overwrite" />
+					<Button size="small" label="Reload" icon="mi mi-refresh" severity="secondary" @click="reload" />
+					<Button size="small" label="Overwrite" icon="mi mi-upload" severity="danger" @click="overwrite" />
 				</div>
 			</Message>
 			<slot name="header-end"></slot>
@@ -176,7 +176,7 @@ const leaving = (): boolean|Promise<boolean> => {
 		confirm.require({
 			header: "Unsaved changes",
 			message: "Leave this page and discard your changes?",
-			icon: "pi pi-exclamation-triangle",
+			icon: "mi mi-warning",
 			acceptLabel: "Discard",
 			rejectLabel: "Stay",
 			accept: () => resolve(true),

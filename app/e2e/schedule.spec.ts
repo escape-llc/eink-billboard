@@ -296,8 +296,8 @@ test("the list shows each task once and opens it", async ({ page }) => {
 	await expect(row).toContainText(/(Day-of-Week|Day-of-Month|Day-and-Month)\/(Hourly|Hour-of-Day|Specific)/)
 	// which tasks run at startup: a check in its own column, from the task's trigger
 	await expect(list.getByRole("columnheader", { name: "Run At Startup" })).toBeVisible()
-	await expect(list.locator("td.startup i.pi-check")).toHaveCount(1)
-	await expect(row.locator("td.startup i.pi-check")).toHaveCount(1)
+	await expect(list.locator("td.startup i.mi-check")).toHaveCount(1)
+	await expect(row.locator("td.startup i.mi-check")).toHaveCount(1)
 	await expect(list.getByRole("row").filter({ hasText: "Paused year progress" }).locator("td.startup i")).toHaveCount(0)
 	await list.getByRole("button", { name: "Edit Quarter-hour clock" }).click()
 	await expect(dialog(page)).toBeVisible()

@@ -2,7 +2,7 @@
 	<div class="flex flex-column" style="width:100%;height:100%;overflow:visible">
 		<InputGroup class="mb-1">
 			<InputGroupAddon>
-				<span class="pi pi-globe"></span>
+				<span class="mi mi-public"></span>
 			</InputGroupAddon>
 			<InputGroupAddon v-if="markerPosition">
 				<div>{{ latString(markerPosition[0]) }}, {{ lngString(markerPosition[1]) }}</div>
@@ -17,7 +17,7 @@
 				@keydown.enter.prevent="search"
 				/>
 			<Button
-				icon="pi pi-search"
+				icon="mi mi-search"
 				size="small"
 				:loading="searching"
 				:disabled="normalQuery(searchQuery).length < MIN_QUERY_LENGTH"
@@ -26,7 +26,7 @@
 				title="Search for the address with OpenStreetMap's Nominatim"
 				/>
 			<Button
-				icon="pi pi-map-marker" 
+				icon="mi mi-my-location" 
 				class="locate-btn" 
 				size="small"
 				:loading="loadingLocation"
@@ -34,7 +34,7 @@
 				aria-label="Locate Me"
 				/>
 			<Button
-				icon="pi pi-wifi"
+				icon="mi mi-wifi"
 				size="small"
 				:loading="locatingByIp"
 				@click="locateByIp"

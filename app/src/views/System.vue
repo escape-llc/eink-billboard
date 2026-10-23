@@ -8,17 +8,17 @@
 		<template #end>
 			<InputGroup class="system-actions" role="group" aria-label="Playback">
 				<Button size="small" severity="secondary" type="button" data-testid="play-stop"
-					:icon="transport.state.stopped ? 'pi pi-play' : 'pi pi-stop'"
+					:icon="transport.state.stopped ? 'mi mi-play-arrow' : 'mi mi-stop'"
 					:aria-label="transport.state.stopped ? 'Play' : 'Stop playback'" :title="transport.state.stopped ? 'Play' : 'Stop playback'"
 					:data-state="transport.state.stopped ? 'stopped' : 'playing'" :disabled="transport.state.busy"
 					@click="press(transport.state.stopped ? 'play' : 'stop')" />
-				<Button size="small" severity="secondary" type="button" icon="pi pi-step-forward" aria-label="Next track" title="Next track"
+				<Button size="small" severity="secondary" type="button" icon="mi mi-skip-next" aria-label="Next track" title="Next track"
 					data-testid="next-track" :disabled="transport.state.busy" @click="press('next')" />
 			</InputGroup>
 			<InputGroup class="system-actions ml-2">
-				<Button size="small" severity="secondary" type="button" icon="pi pi-download" aria-label="Back up" title="Back up" data-testid="open-backup" @click="dialog = 'backup'" />
-				<Button size="small" severity="secondary" type="button" icon="pi pi-history" aria-label="Restore" title="Restore from a backup" data-testid="open-restore" @click="dialog = 'restore'" />
-				<Button size="small" severity="secondary" type="button" icon="pi pi-key" aria-label="Device password" title="Change the device password" data-testid="open-password" @click="dialog = 'password'" />
+				<Button size="small" severity="secondary" type="button" icon="mi mi-download" aria-label="Back up" title="Back up" data-testid="open-backup" @click="dialog = 'backup'" />
+				<Button size="small" severity="secondary" type="button" icon="mi mi-history" aria-label="Restore" title="Restore from a backup" data-testid="open-restore" @click="dialog = 'restore'" />
+				<Button size="small" severity="secondary" type="button" icon="mi mi-key" aria-label="Device password" title="Change the device password" data-testid="open-password" @click="dialog = 'password'" />
 			</InputGroup>
 		</template>
 	</Toolbar>
@@ -31,7 +31,7 @@
 				</div>
 				<ul v-if="status" class="plain">
 					<li v-for="(c, name) in status.components" :key="name" class="row">
-						<i :class="c.state === 'failed' ? 'pi pi-times-circle' : c.state === 'ok' ? 'pi pi-check-circle' : 'pi pi-clock'" aria-hidden="true"></i>
+						<i :class="c.state === 'failed' ? 'mi mi-cancel' : c.state === 'ok' ? 'mi mi-check-circle' : 'mi mi-schedule'" aria-hidden="true"></i>
 						<span><b>{{ TITLES[name] ?? name }}</b>: {{ c.message }}</span>
 					</li>
 				</ul>
@@ -342,16 +342,16 @@ const statusSeverity = computed(() => ({ live: "success", connecting: "info", of
 
 const title = (e: TelemetryEvent): string => String(e.values?.title ?? "")
 function iconOf(e: TelemetryEvent): string {
-	// what was sent to the panel: a screen, which no layer's glyph is (they are a picture, a stack and a page); Material, as PrimeIcons has none like it
+	// what was sent to the panel: a screen, which no layer's glyph is (they are a picture, a stack and a page)
 	if (e.kind === "shown") return "mi mi-screenshot-monitor"
 	// the first and last markers of a slot, not "play"
-	if (e.kind === "track-started" || e.kind === "task-started") return "pi pi-step-backward-alt"
-	if (e.kind === "track-ended" || e.kind === "task-ended") return "pi pi-step-forward-alt"
-	if (e.kind === "stopped") return "pi pi-stop"
-	if (e.kind === "transport") return e.values?.state === "halted" ? "pi pi-stop" : "pi pi-play"
+	if (e.kind === "track-started" || e.kind === "task-started") return "mi mi-play-circle"
+	if (e.kind === "track-ended" || e.kind === "task-ended") return "mi mi-stop-circle"
+	if (e.kind === "stopped") return "mi mi-stop"
+	if (e.kind === "transport") return e.values?.state === "halted" ? "mi mi-stop" : "mi mi-play-arrow"
 	// a page is shown on a layer: the layer's own glyph, as in Now showing
 	if (e.kind === "showing") return LAYERS[layerOf(e.values?.layer)].glyph
-	return { playlist_layer: "pi pi-play", timer_layer: "pi pi-clock", display: "pi pi-image", "data-source": "pi pi-database", application: "pi pi-cog", telemetry: "pi pi-wifi" }[e.source] ?? "pi pi-circle"
+	return { playlist_layer: "mi mi-play-arrow", timer_layer: "mi mi-schedule", display: "mi mi-image", "data-source": "mi mi-database", application: "mi mi-settings", telemetry: "mi mi-wifi" }[e.source] ?? "mi mi-circle"
 }
 /** Our own words for an event: its message when it has one, else what its values say. */
 function describe(e: TelemetryEvent): string {

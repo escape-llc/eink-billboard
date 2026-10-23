@@ -12,10 +12,10 @@
 			<InputGroup class="scheduler-actions">
 				<Button v-for="m in MODES" :key="m.value" size="small" :icon="m.icon" :label="m.label" :aria-pressed="mode === m.value"
 					:severity="mode === m.value ? 'contrast' : 'secondary'" @click="setMode(m.value)" />
-				<Button size="small" icon="pi pi-chevron-left" severity="secondary" aria-label="Back" :title="mode === 'day' ? 'The day before' : 'The week before'" :disabled="offset === 0" @click="move(-1)" />
+				<Button size="small" icon="mi mi-chevron-left" severity="secondary" aria-label="Back" :title="mode === 'day' ? 'The day before' : 'The week before'" :disabled="offset === 0" @click="move(-1)" />
 				<Button size="small" label="Today" severity="secondary" :disabled="offset === 0" @click="goToday" />
-				<Button size="small" icon="pi pi-chevron-right" severity="secondary" aria-label="Forward" :title="mode === 'day' ? 'The next day' : 'The next week'" @click="move(1)" />
-				<Button size="small" label="New task" icon="pi pi-plus" :disabled="timerPlugins.length === 0" @click="handleNew" />
+				<Button size="small" icon="mi mi-chevron-right" severity="secondary" aria-label="Forward" :title="mode === 'day' ? 'The next day' : 'The next week'" @click="move(1)" />
+				<Button size="small" label="New task" icon="mi mi-add" :disabled="timerPlugins.length === 0" @click="handleNew" />
 			</InputGroup>
 		</template>
 	</Toolbar>
@@ -35,7 +35,7 @@
 			</Column>
 			<Column header="Run At Startup" bodyClass="startup">
 				<template #body="{ data }">
-					<i v-if="data.startup" class="pi pi-check" role="img" aria-label="Runs at startup"></i>
+					<i v-if="data.startup" class="mi mi-check" role="img" aria-label="Runs at startup"></i>
 					<span v-else class="p-hidden-accessible">No</span>
 				</template>
 			</Column>
@@ -80,8 +80,8 @@
 		<Message size="small" v-if="conflict" severity="warn" :closable="false" class="mb-2">
 			<div class="flex align-items-center gap-2">
 				<span>{{ conflict.message }}</span>
-				<Button size="small" label="Reload" icon="pi pi-refresh" severity="secondary" @click="reloadTask" />
-				<Button v-if="conflict.rev" size="small" label="Overwrite" icon="pi pi-upload" severity="danger" @click="overwriteTask" />
+				<Button size="small" label="Reload" icon="mi mi-refresh" severity="secondary" @click="reloadTask" />
+				<Button v-if="conflict.rev" size="small" label="Overwrite" icon="mi mi-upload" severity="danger" @click="overwriteTask" />
 			</div>
 		</Message>
 		<Message v-for="(problem, index) in serverProblems" :key="index" severity="error" size="small" variant="simple">{{ problem }}</Message>
@@ -98,9 +98,9 @@
 						<InputGroup>
 							<HelpToggle v-model="showHelp" />
 							<!-- a stored task can be deleted from here; the dialog's own close button leaves without saving -->
-							<Button v-if="editTarget?.id" size="small" icon="pi pi-trash" severity="danger" variant="outlined" aria-label="Delete" title="Delete this task" @click="deleteOpen = true" />
-							<Button size="small" icon="pi pi-check" severity="success" aria-label="Save" :title="saveTitle" :disabled="!editModelValid || saving || unchanged" @click="handleSubmit" />
-							<Button size="small" icon="pi pi-times" severity="danger" aria-label="Cancel" title="Close without saving" @click="handleCancel" />
+							<Button v-if="editTarget?.id" size="small" icon="mi mi-delete" severity="danger" variant="outlined" aria-label="Delete" title="Delete this task" @click="deleteOpen = true" />
+							<Button size="small" icon="mi mi-check" severity="success" aria-label="Save" :title="saveTitle" :disabled="!editModelValid || saving || unchanged" @click="handleSubmit" />
+							<Button size="small" icon="mi mi-close" severity="danger" aria-label="Cancel" title="Close without saving" @click="handleCancel" />
 						</InputGroup>
 					</template>
 				</Toolbar>

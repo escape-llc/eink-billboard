@@ -38,14 +38,14 @@
 			<RowAction v-if="field.items?.action && baseUrl !== undefined" class="array-action" :action="field.items.action" :baseUrl="baseUrl"
 				:rowKey="field.items.key ? row[field.items.key] : undefined" :label="`${field.title} ${index + 1}`" />
 			<div class="array-buttons">
-				<Button icon="pi pi-arrow-up" size="small" class="p-button-text" :aria-label="`Move ${index + 1} up`" :disabled="index === 0" @click="move(index, -1)" />
-				<Button icon="pi pi-arrow-down" size="small" class="p-button-text" :aria-label="`Move ${index + 1} down`" :disabled="index === rows.length - 1" @click="move(index, 1)" />
-				<Button icon="pi pi-trash" size="small" severity="danger" class="p-button-text" :aria-label="`Remove ${index + 1}`" @click="remove(index)" />
+				<Button icon="mi mi-arrow-upward" size="small" class="p-button-text" :aria-label="`Move ${index + 1} up`" :disabled="index === 0" @click="move(index, -1)" />
+				<Button icon="mi mi-arrow-downward" size="small" class="p-button-text" :aria-label="`Move ${index + 1} down`" :disabled="index === rows.length - 1" @click="move(index, 1)" />
+				<Button icon="mi mi-delete" size="small" severity="danger" class="p-button-text" :aria-label="`Remove ${index + 1}`" @click="remove(index)" />
 			</div>
 		</div>
 		<Message v-if="rowErrors(undefined).length" severity="error" size="small" variant="simple">{{ rowErrors(undefined)[0]!.message }}</Message>
 		<div>
-			<Button icon="pi pi-plus" size="small" severity="secondary" label="Add" :aria-label="`Add to ${field.title}`"
+			<Button icon="mi mi-add" size="small" severity="secondary" label="Add" :aria-label="`Add to ${field.title}`"
 				:disabled="field.maxItems !== undefined && rows.length >= field.maxItems" @click="add" />
 		</div>
 	</div>

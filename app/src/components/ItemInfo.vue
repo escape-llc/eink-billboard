@@ -8,7 +8,7 @@
 					<span v-if="!row.tags.length" class="none">none</span>
 					<Tag v-for="tag in row.tags" :key="tag" class="tag" :value="tag" :title="FEATURE_HELP[tag]" severity="secondary" />
 				</template>
-				<i v-else-if="row.kind === 'flag'" class="pi" :class="row.value ? 'pi-check' : 'pi-times'" role="img" :aria-label="row.value ? 'yes' : 'no'"></i>
+				<i v-else-if="row.kind === 'flag'" class="mi" :class="row.value ? 'mi-check' : 'mi-close'" role="img" :aria-label="row.value ? 'yes' : 'no'"></i>
 				<template v-else>{{ row.value }}</template>
 			</dd>
 		</template>

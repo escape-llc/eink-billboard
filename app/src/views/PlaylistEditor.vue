@@ -9,24 +9,24 @@
 				<InputGroup class="playlist-actions">
 					<Select :key="selectKey" :options="playlists" optionLabel="name" optionValue="id" :modelValue="currentId" placeholder="No playlist" size="small" style="min-width:14rem"
 						aria-label="Playlist" @update:modelValue="(id: string) => guard(() => openPlaylist(id))" />
-					<Button title="New playlist" aria-label="New playlist" icon="pi pi-plus-circle" size="small" severity="secondary" @click="guard(startNew)" />
-					<Button title="Rename playlist" aria-label="Rename playlist" icon="pi pi-pencil" size="small" severity="secondary" :disabled="!currentId" @click="startRename" />
-					<Button title="Delete playlist" aria-label="Delete playlist" icon="pi pi-trash" size="small" severity="danger" :disabled="!currentId" @click="deleteOpen = true" />
-					<Button title="Add Track" aria-label="Add track" icon="pi pi-plus" size="small" :disabled="!currentId" @click="addTrack" />
-					<Button title="Save playlist" aria-label="Save playlist" icon="pi pi-save" size="small" severity="success" :disabled="!currentId || !dirty || saving" @click="savePlaylist(docRev)" />
+					<Button title="New playlist" aria-label="New playlist" icon="mi mi-playlist-add" size="small" severity="secondary" @click="guard(startNew)" />
+					<Button title="Rename playlist" aria-label="Rename playlist" icon="mi mi-edit" size="small" severity="secondary" :disabled="!currentId" @click="startRename" />
+					<Button title="Delete playlist" aria-label="Delete playlist" icon="mi mi-delete" size="small" severity="danger" :disabled="!currentId" @click="deleteOpen = true" />
+					<Button title="Add Track" aria-label="Add track" icon="mi mi-add" size="small" :disabled="!currentId" @click="addTrack" />
+					<Button title="Save playlist" aria-label="Save playlist" icon="mi mi-save" size="small" severity="success" :disabled="!currentId || !dirty || saving" @click="savePlaylist(docRev)" />
 				</InputGroup>
 			</template>
 		</Toolbar>
 		<ProgressBar v-if="loading" mode="indeterminate" style="height:4px" aria-label="Loading" data-testid="loading" />
 		<!-- nothing reaches the device until the playlist is saved: a warning in its own box, across the page, not a line of small print -->
-		<Message v-if="dirty" severity="warn" size="small" icon="pi pi-exclamation-triangle" class="mt-1 unsaved-banner" data-testid="unsaved-banner" role="status">
+		<Message v-if="dirty" severity="warn" size="small" icon="mi mi-warning" class="mt-1 unsaved-banner" data-testid="unsaved-banner" role="status">
 			Unsaved changes to "{{ playlistName }}": save the playlist to keep them.
 		</Message>
 		<Message size="small" v-if="conflict" severity="warn" :closable="false" class="mt-1">
 			<div class="flex align-items-center gap-2">
 				<span>{{ conflict.message }}</span>
-				<Button size="small" label="Reload" icon="pi pi-refresh" severity="secondary" @click="reloadPlaylist" />
-				<Button v-if="conflict.rev" size="small" label="Overwrite" icon="pi pi-upload" severity="danger" @click="savePlaylist(conflict.rev)" />
+				<Button size="small" label="Reload" icon="mi mi-refresh" severity="secondary" @click="reloadPlaylist" />
+				<Button v-if="conflict.rev" size="small" label="Overwrite" icon="mi mi-upload" severity="danger" @click="savePlaylist(conflict.rev)" />
 			</div>
 		</Message>
 		<Message v-for="(problem, index) in serverProblems" :key="index" severity="error" size="small" variant="simple">{{ problem }}</Message>
@@ -41,9 +41,9 @@
 								<div>{{ describeOf(t) }}</div>
 							</div>
 							<div class="actions">
-								<Button icon="pi pi-arrow-up" aria-label="Move up" size="small" class="p-button-text" :disabled="idx === 0" @click.stop="moveTrack(idx, -1)" />
-								<Button icon="pi pi-arrow-down" aria-label="Move down" size="small" class="p-button-text" :disabled="idx === tracks.length - 1" @click.stop="moveTrack(idx, 1)" />
-								<Button icon="pi pi-trash" aria-label="Remove track" size="small" severity="danger" class="p-button-text"
+								<Button icon="mi mi-arrow-upward" aria-label="Move up" size="small" class="p-button-text" :disabled="idx === 0" @click.stop="moveTrack(idx, -1)" />
+								<Button icon="mi mi-arrow-downward" aria-label="Move down" size="small" class="p-button-text" :disabled="idx === tracks.length - 1" @click.stop="moveTrack(idx, 1)" />
+								<Button icon="mi mi-delete" aria-label="Remove track" size="small" severity="danger" class="p-button-text"
 									@click.stop="removeTrack(idx)" />
 							</div>
 						</div>
@@ -74,8 +74,8 @@
 								<template #end>
 									<InputGroup>
 										<HelpToggle v-model="showHelp" />
-										<Button size="small" icon="pi pi-check" severity="success" aria-label="Apply track" title="Apply to the playlist (then save it)" :disabled="applyDisabled" @click="handleSubmit" />
-										<Button size="small" icon="pi pi-times" severity="danger" aria-label="Reset track" @click="handleReset" />
+										<Button size="small" icon="mi mi-check" severity="success" aria-label="Apply track" title="Apply to the playlist (then save it)" :disabled="applyDisabled" @click="handleSubmit" />
+										<Button size="small" icon="mi mi-close" severity="danger" aria-label="Reset track" @click="handleReset" />
 									</InputGroup>
 								</template>
 							</Toolbar>

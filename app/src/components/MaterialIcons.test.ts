@@ -25,3 +25,29 @@ describe("the style sheet", () => {
 		expect(document.querySelectorAll("style#material-icons")).toHaveLength(1)
 	})
 })
+
+// the app's components, views and scripts, as text (as SmallControls.test.ts reads them)
+const SOURCES = import.meta.glob<string>(["../**/*.vue", "../**/*.ts", "!../**/*.test.ts", "!./MaterialIcons.ts"], { query: "?raw", import: "default", eager: true })
+
+describe("the app's glyphs", () => {
+	it("are all Material Symbols in the table: a class that is not one draws nothing", () => {
+		expect(Object.keys(SOURCES).length).toBeGreaterThan(10)
+		const known = new Set((Object.keys(MATERIAL_ICONS) as MaterialIconName[]).map(iconClass))
+		const unknown: string[] = []
+		const used = new Set<string>()
+		for (const [file, text] of Object.entries(SOURCES)) {
+			for (const m of text.matchAll(/(?<![-\w])mi-([a-z][a-z0-9-]*)/g)) {
+				if (m[1] === "size" || m[1] === "image") continue
+				used.add(m[1])
+				if (!known.has(`mi-${m[1]}`)) unknown.push(`${file}: mi-${m[1]}`)
+			}
+		}
+		// the scan finds them (a pattern that matched nothing would pass)
+		expect(used.size).toBeGreaterThan(40)
+		expect(unknown).toEqual([])
+	})
+	it("are one set: no PrimeIcons class (#544)", () => {
+		const prime = Object.entries(SOURCES).flatMap(([file, text]) => [...text.matchAll(/\bpi pi-[a-z-]+|["'`]pi-[a-z-]+/g)].map(m => `${file}: ${m[0]}`))
+		expect(prime).toEqual([])
+	})
+})
