@@ -5,7 +5,7 @@
 	"class": "SlideShowAsync",
 	"file": "slide_show.py",
 	"module": "python.plugins.slide_show.slide_show",
-	"description": "Media Gallery Slide Show.",
+	"description": "A playlist track that shows a data source's pages one at a time, each for its minutes. A source with a list (a feed, a folder) goes on where the last visit stopped and is fetched again when it is used up.",
 	"describe": "{dataSource}",
 	"disabled": false,
 	"features": ["layer-background", "layer-foreground", "media-image", "media-list"],

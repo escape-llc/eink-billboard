@@ -5,7 +5,7 @@
 	"class": "WpotdAsync",
 	"file": "wikipedia_potd.py",
 	"module": "python.datasources.wikipedia_potd.wikipedia_potd",
-	"description": "A Wikipedia PotD downloader.",
+	"description": "Wikipedia's Picture of the Day: today's, a day you choose, or a random day. Shrink to Fit shows it whole on a blurred margin. No key is needed.",
 	"credit": { "text": "Picture of the Day, Wikimedia Commons", "license": "Each picture is its author's, under the licence on its Commons page", "url": "https://commons.wikimedia.org/wiki/Commons:Picture_of_the_day" },
 	"describe": "Wikipedia picture of the day",
 	"disabled": false,

@@ -5,7 +5,7 @@
 	"class": "WeatherOverlayAsync",
 	"file": "weather_overlay.py",
 	"module": "python.datasources.weather_overlay.weather_overlay",
-	"description": "The weather for an overlay zone: now, today's range, or the next three days, as outlined text. It asks the device's weather provider (OpenWeatherMap) and shares its kept answers, in the device's units: no settings of its own.",
+	"description": "The weather for an overlay zone: now, today's range, or the next three days, as outlined text. It asks the device's weather provider and shares its kept answers, in the device's units: no settings of its own.",
 	"describe": "Weather {view}",
 	"disabled": false,
 	"requires": ["data-weather"],
