@@ -43,27 +43,27 @@
 import { missingProviders, missingUses } from "./DataSourceUses"
 import { apiJson, joinUrl } from "./ApiClient"
 //import { InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Message, Select } from 'primevue';
-import Form from "@primevue/forms/form"
+import Form, { type FormInstance, type FormSubmitEvent } from "@primevue/forms/form"
 import { Tag } from "primevue"
-import { ref, toRaw, nextTick, watch, inject, computed } from "vue"
+import { ref, toRaw, nextTick, watch, inject, computed, type Ref } from "vue"
 import z from "zod"
-import BasicFormField from './BasicFormField.vue'
+import BasicFormField, { type FieldEventData } from './BasicFormField.vue'
 import { fieldRules, type FormField } from "./FormValidation"
 import { hiddenNames } from "./FormVisibility"
 import { adaptiveLabelWidth, labelsOf } from "./LabelWidth"
-import type { LookupValue, FormDef, SchemaType } from "./FormDefs"
+import type { Descriptor, FormDef, FormValues, LookupValue, Owner, PropertiesDef, ResolvedField, ResolvedFieldDef, SchemaChoice, SchemaType } from "./FormDefs"
 
-const formRef = ref()
+const formRef = ref<FormInstance & { submit: () => void, reset: () => void, states?: Record<string, { dirty?: boolean }> }>()
 // the rules depend on the values (a hidden field is not validated), so they are built per validation
-let currentResolver: ((values: Record<string, any>) => z.ZodTypeAny)|undefined = undefined;
+let currentResolver: ((values: FormValues) => z.ZodType<FormValues>)|undefined = undefined;
 
 type AddToSchemaType = (resv: Record<string, z.ZodTypeAny>) => void
-type AddInitialValuesType = () => Record<string, any>
+type AddInitialValuesType = () => FormValues
 
-export type Owner = { kind: "plugin" | "datasource" | "display", id: string }
+export type { Owner }
 export interface PropsType {
 	form?: FormDef
-	initialValues?: any
+	initialValues?: FormValues | null
 	/** the label column's width as a CSS length (default 10rem), or `adaptive`: as wide as the longest label, so none wraps */
 	fieldNameWidth?: string
 	baseUrl: string
@@ -78,28 +78,33 @@ export interface PropsType {
 	showChanges?: boolean
 }
 export interface ValidateEventData {
-	result: z.ZodSafeParseResult<any>
-	values: any
+	result: z.ZodSafeParseResult<FormValues>
+	values: FormValues
+}
+/** What a submit hands the page: the rules' verdict on the values (`result.data` is what to save) and PrimeVue's own event. */
+export interface SubmitEventData {
+	result: z.ZodSafeParseResult<FormValues> | undefined
+	data: FormSubmitEvent
 }
 export interface EmitsType {
 	(e: 'validate', data: ValidateEventData): void
-	(e: 'submit', data: any): void
+	(e: 'submit', data: SubmitEventData): void
 }
 
 const props = withDefaults(defineProps<PropsType>(), { fieldNameWidth: "10rem", showHelp: true })
 /** The label column's width: the prop as given, or, for `adaptive`, wide enough for the longest label of the form (see LabelWidth.ts). */
 const labelWidth = computed(() => props.fieldNameWidth === "adaptive" ? adaptiveLabelWidth(labelsOf(localProperties.value)) : props.fieldNameWidth)
 const emits = defineEmits<EmitsType>()
-const localProperties = ref<any[]>([])
-const localValues = ref<any>({})
+const localProperties = ref<ResolvedField[]>([])
+const localValues = ref<FormValues>({})
 /** How deep a choice inside a choice goes (a plugin's data source, then the parts it chooses): the server's MAX_CHOICE_DEPTH (documents.py). Before the `immediate` watches, which use it. */
 const MAX_CHOICE_DEPTH = 3
-const injplugins = inject("settingsPluginsList", ref([]))
-const injdataSources = inject("settingsDataSourcesList", ref([]))
-const injdisplays = inject("settingsDisplaysList", ref([]))
-const plugins = computed<any[]>(() => injplugins.value)
-const dataSources = computed<any[]>(() => injdataSources.value)
-const displays = computed<any[]>(() => injdisplays.value)
+const injplugins = inject<Ref<Descriptor[]>>("settingsPluginsList", ref([]))
+const injdataSources = inject<Ref<Descriptor[]>>("settingsDataSourcesList", ref([]))
+const injdisplays = inject<Ref<Descriptor[]>>("settingsDisplaysList", ref([]))
+const plugins = computed<Descriptor[]>(() => injplugins.value)
+const dataSources = computed<Descriptor[]>(() => injdataSources.value)
+const displays = computed<Descriptor[]>(() => injdisplays.value)
 watch(() => props.form, (nv) => {
 	if(nv) {
 		// a plugin just chosen brings fields the values do not have: they start at the descriptor's default, as they do for a new item
@@ -142,34 +147,34 @@ function ensureInitializeForm(schema: SchemaType|undefined): void {
 	currentResolver = createResolver(localProperties.value)
 	startLookups(schema, localProperties.value)
 }
-function startLookups(schema: SchemaType, values: any[]): void {
+function startLookups(schema: SchemaType, values: ResolvedField[]): void {
 	values.forEach(px => {
-		if(px.lookup && px.listType === "url") {
+		if(px.type !== "header" && px.lookup && px.listType === "url") {
 			lookupUrl(px)
 		}
 		if(px.children) {
 			startLookups(schema, px.children)
 		}
 		// the fields of a list's rows may choose from a lookup too
-		if(px.type === "array" && px.items?.properties) {
+		if(px.type === "array" && px.items && "properties" in px.items) {
 			startLookups(schema, px.items.properties)
 		}
 	})
 }
-function schemaFilterFeatures(features: string[], check: string[]|undefined): boolean {
+function schemaFilterFeatures(features: string[]|undefined, check: string[]|undefined): boolean {
 	if(!features || features.length === 0) return false;
 	if(!check || check.length === 0) return true;
 	return check.some(c => features.includes(c))
 }
-function formProperties(schema: SchemaType|undefined, owner: Owner|undefined) :any[] {
+function formProperties(schema: SchemaType|undefined, owner: Owner|undefined): ResolvedField[] {
 	if(schema?.properties) {
-		const retv:any[] = []
-		const resolve = (px: any): any => {
-			const fx:any = { ...px }
-			if(px.type === "array" && px.items?.properties) {
-				fx.items = { ...px.items, properties: px.items.properties.map(resolve) }
-			}
-			if("lookup" in px && px.lookup) {
+		const retv: ResolvedField[] = []
+		// a list's row fields are resolved too (they may have a lookup); a header has nothing to resolve
+		const resolve = (px: PropertiesDef): ResolvedField => {
+			if(px.type === "header") return { ...px }
+			const { items, ...rest } = px
+			const fx: ResolvedFieldDef = items?.type === "object" ? { ...rest, items: { ...items, properties: items.properties.map(resolve) as ResolvedFieldDef[] } } : { ...rest, items }
+			if(px.lookup) {
 				if(isLookupItems(schema, px.lookup, "items")) {
 					fx.list = lookupItems(schema, px.lookup)
 					fx.listType = "items"
@@ -178,7 +183,7 @@ function formProperties(schema: SchemaType|undefined, owner: Owner|undefined) :a
 					fx.list = []
 					fx.listType = "url"
 					const urlLookup = schema.lookups ? schema.lookups[px.lookup] : undefined
-					fx.lookupUrl = toRaw(urlLookup && 'url' in urlLookup ? urlLookup.url : null)
+					fx.lookupUrl = urlLookup && 'url' in urlLookup ? urlLookup.url : null
 				}
 				else if(isLookupItems(schema, px.lookup, "settings")) {
 					// the choices are a list the owner keeps in its own settings: served by the owner's lookup route
@@ -197,13 +202,13 @@ function formProperties(schema: SchemaType|undefined, owner: Owner|undefined) :a
 			return fx
 		}
 		schema.properties.forEach(px => {
-			const fx:any = resolve(px)
-			if(px.type === "schema" && "list" in fx && fx.listType === "schema") {
+			const fx = resolve(px)
+			if(px.type === "schema" && fx.listType === "schema") {
 				const svalue = localValues.value[px.name]
 				if(svalue) {
-					const target = fx.list.find((vx: any) => vx.value === svalue)
+					const target = schemaChoices(fx).find(vx => vx.value === svalue)
 					if(target) {
-						fx.children = formProperties(target.schema?.schema as SchemaType|undefined, target.owner)
+						fx.children = formProperties(target.schema?.schema, target.owner)
 						fx.usesMissing = missingUses(target.uses, dataSources.value)
 						fx.providersMissing = missingProviders(target.requires, dataSources.value)
 					}
@@ -214,6 +219,10 @@ function formProperties(schema: SchemaType|undefined, owner: Owner|undefined) :a
 		return retv
 	}
 	return []
+}
+/** A `schema` field's choices (its list holds only those). */
+function schemaChoices(field: ResolvedField): SchemaChoice[] {
+	return field.listType === "schema" ? (field.list ?? []) as SchemaChoice[] : []
 }
 function isLookupItems(schema: SchemaType, lookup:string, prop:string): boolean {
 	if(schema.lookups) {
@@ -241,7 +250,7 @@ function lookupItems(schema: SchemaType, lookup:string): LookupValue[] {
 	}
 	return []
 }
-function lookupSchema(schema: SchemaType, lookup:string): LookupValue[] {
+function lookupSchema(schema: SchemaType, lookup:string): SchemaChoice[] {
  if(schema.lookups) {
 		const lookups = schema.lookups
 		if(lookup in lookups) {
@@ -264,11 +273,11 @@ function lookupSchema(schema: SchemaType, lookup:string): LookupValue[] {
 	}
 	return [];
 }
-function lookupUrl(target: any): void {
-	if(!target) return;
+function lookupUrl(target: ResolvedField): void {
+	if(target.type === "header") return;
 	if(!target.lookupUrl) return;
 	const finalUrl = joinUrl(props.baseUrl, target.lookupUrl)
-	apiJson(finalUrl).then(json => {
+	apiJson<LookupValue[]>(finalUrl).then(json => {
 		nextTick().then(_ => {
 			target.list = withCurrentValue(json, target.name)
 			target.lookupError = undefined
@@ -290,7 +299,7 @@ function withCurrentValue(list: LookupValue[], name: string): LookupValue[] {
 		.filter(current => current !== undefined && current !== null && current !== "" && !list.some(lx => lx.value === current))
 	return [...list, ...missing.map(current => ({ name: String(current), value: current }))]
 }
-function createResolver(fields: FormField[]): (values: Record<string, any>) => z.ZodTypeAny {
+function createResolver(fields: FormField[]): (values: FormValues) => z.ZodType<FormValues> {
 	return (values) => {
 		const resv: Record<string, z.ZodTypeAny> = {}
 		if(props.beforeFieldsSchema) {
@@ -305,7 +314,7 @@ function createResolver(fields: FormField[]): (values: Record<string, any>) => z
 }
 // what the server reported per field: `path` (after the field's name) names the row and field of a list's problem
 const serverErrors: Record<string, { message: string, path: string[], value: string }[]> = {}
-let lastSubmitted: Record<string, any> = {}
+let lastSubmitted: FormValues = {}
 /** Show the `errors` of a 422 response (`[{ path: [name], message }]`) on their fields. Returns how many matched a field of this form. */
 const setServerErrors = (errors: { path?: unknown[], message?: string }[]): number => {
 	const values = lastSubmitted
@@ -330,15 +339,15 @@ const setServerErrors = (errors: { path?: unknown[], message?: string }[]): numb
  * A field mounts only after the field it depends on is set (`visibleIf`), so for a moment it is in the schema and not in the form's values: it must not be
  * judged missing then, and a field the document lacks is the schema's to fill, not to ignore.
  */
-function withSchemaValues(values: Record<string, any>): Record<string, any> {
+function withSchemaValues(values: FormValues): FormValues {
 	const complete = { ...values }
 	for(const name of flatNames(localProperties.value)) {
 		if(complete[name] === undefined && localValues.value?.[name] !== undefined) complete[name] = localValues.value[name]
 	}
 	return complete
 }
-const resolver = ({ values: held }: { values: Record<string, any> }) => {
-	const errors:Record<PropertyKey,any> = {};
+const resolver = ({ values: held }: { values: FormValues }) => {
+	const errors: Record<PropertyKey, { message: string, path: string[] }[]> = {};
 	const values = held
 	if(!currentResolver) return { values, errors };
 	const complete = withSchemaValues(held)
@@ -347,8 +356,7 @@ const resolver = ({ values: held }: { values: Record<string, any> }) => {
 		result.error.issues.forEach(issue => {
 			const field = issue.path[0];
 			if(field !== undefined) {
-				if (!errors[field]) errors[field] = [];
-				errors[field].push({ message: issue.message, path: issue.path.slice(1).map(String) });
+				(errors[field] ??= []).push({ message: issue.message, path: issue.path.slice(1).map(String) });
 			}
 		});
 	}
@@ -367,7 +375,7 @@ const resolver = ({ values: held }: { values: Record<string, any> }) => {
 		errors
 	};
 }
-const handleSubmit = (data:any) => {
+const handleSubmit = (data: FormSubmitEvent) => {
 	lastSubmitted = data.values ?? {}
 	const complete = withSchemaValues(data.values ?? {})
 	const result = currentResolver?.(complete)?.safeParse(complete);
@@ -389,9 +397,9 @@ function flatNames(fields: FormField[]): string[] {
 	return fields.flatMap(f => [...(f.type === "header" ? [] : [f.name]), ...flatNames(f.children ?? [])])
 }
 /** The field of that name at any depth (a data source's own fields can hold another choice). */
-function findField(fields: FormField[], name: string): any {
+function findField(fields: FormField[], name: string): FormField|undefined {
 	for(const f of fields) {
-		if(f.name === name) return f
+		if(f.type !== "header" && f.name === name) return f
 		const inner = findField(f.children ?? [], name)
 		if(inner) return inner
 	}
@@ -409,13 +417,13 @@ function deepDefaults(schema: SchemaType|undefined, owner: Owner|undefined): voi
 	}
 }
 /** The `default` of each field (null and absent defaults carry no information), for values the form does not have yet. */
-function applyDefaults(fields: FormField[], values: Record<string, any> = {}): [string, unknown][] {
+function applyDefaults(fields: FormField[], values: FormValues = {}): [string, unknown][] {
 	return fields.flatMap(f => [
 		...(f.type !== "header" && f.default !== undefined && f.default !== null && !(f.name in values) ? [[f.name, f.default] as [string, unknown]] : []),
 		...applyDefaults(f.children ?? [], values)
 	])
 }
-const handleFormFieldEvent = (data:any) => {
+const handleFormFieldEvent = (data: FieldEventData) => {
 	if(data.type === "set-value") {
 		formRef.value?.setFieldValue(data.field.name, data.value)
 	}
@@ -424,7 +432,7 @@ const handleFormFieldEvent = (data:any) => {
 		if(field) {
 			// the previous choice's values must not be saved with the new one
 			flatNames(field.children ?? []).forEach(name => formRef.value?.setFieldValue(name, null))
-			const chosen = data.selected?.schema?.schema as SchemaType|undefined
+			const chosen = data.selected?.schema?.schema
 			field.children = formProperties(chosen, data.selected?.owner)
 			field.usesMissing = missingUses(data.selected?.uses, dataSources.value)
 			field.providersMissing = missingProviders(data.selected?.requires, dataSources.value)
@@ -435,7 +443,7 @@ const handleFormFieldEvent = (data:any) => {
 			const defaults: [string, unknown][] = []
 			const applied = new Set<string>()
 			for(let pass = 0; pass <= MAX_CHOICE_DEPTH; pass++) {
-				const more = applyDefaults(field.children).filter(([name]) => !applied.has(name))
+				const more = applyDefaults(field.children ?? []).filter(([name]) => !applied.has(name))
 				if(more.length === 0) break
 				more.forEach(([name, value]) => {
 					applied.add(name)
@@ -446,7 +454,7 @@ const handleFormFieldEvent = (data:any) => {
 				field.children = formProperties(chosen, data.selected?.owner)
 			}
 			currentResolver = createResolver(localProperties.value)
-			startLookups(chosen as SchemaType, field.children)
+			if(chosen) startLookups(chosen, field.children ?? [])
 			nextTick().then(_ => {
 				defaults.forEach(([name, value]) => formRef.value?.setFieldValue(name, value))
 				formRef.value?.validate();

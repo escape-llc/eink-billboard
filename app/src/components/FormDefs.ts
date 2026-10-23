@@ -99,5 +99,52 @@ export type SchemaType = {
 }
 export type FormDef = {
 	schema: SchemaType
-	default: Record<string,any>
+	default: Record<string, unknown> | null
 }
+
+/** Whose own settings a form's `settings` lookups choose from (a plugin's instance form: that plugin). */
+export type Owner = { kind: "plugin" | "datasource" | "display", id: string }
+/** What the app is told of an installed plugin, data source or display (`GET /api/plugins`, ...): what a `schema` lookup offers. */
+export type Descriptor = {
+	id: string
+	name: string
+	features?: string[]
+	instanceSettings?: FormDef
+	uses?: string[]
+	requires?: string[]
+	keepsList?: boolean
+}
+/** One choice of a `schema` lookup: a plugin, data source or display, with the form of its own settings (the fields it brings). */
+export type SchemaChoice = LookupValue & {
+	value: string
+	schema?: FormDef
+	owner: Owner
+	uses?: string[]
+	requires?: string[]
+	features?: string[]
+	keepsList?: boolean
+}
+/** Where a resolved field's choices came from: fixed `items`, a `url` (or a `settings` list, served by a route), or the installed `schema`s. */
+export type ListType = "items" | "url" | "schema"
+/** What the form adds to a field of the descriptor when it builds it (BasicForm's `formProperties`). */
+type Resolved = {
+	/** the choices of a `lookup` (a `schema` field's are `SchemaChoice`s) */
+	list?: (LookupValue | SchemaChoice)[]
+	listType?: ListType
+	/** the route a `url` or `settings` lookup is read from (null: none, as for a `settings` lookup with no owner) */
+	lookupUrl?: string | null
+	/** why the list could not be loaded, shown under the field (never a choice) */
+	lookupError?: string
+	/** a `schema` field's: the fields of the chosen source */
+	children?: ResolvedField[]
+	/** a `schema` field's: the data sources the chosen one uses that the device lacks, and the capabilities no provider supplies */
+	usesMissing?: string[]
+	providersMissing?: string[]
+}
+/** A field as the form shows it: the descriptor's definition and what the form resolved for it; a list's row fields are resolved too. */
+export type ResolvedFieldDef = Omit<FieldDef, "items"> & Resolved & {
+	items?: { type: "object", key?: string, properties: ResolvedFieldDef[], action?: RowActionDef } | { type: "string", enum?: string[] }
+}
+export type ResolvedField = ResolvedFieldDef | (FieldGroupDef & Resolved)
+/** The values of a form, by field name. */
+export type FormValues = Record<string, unknown>

@@ -1,15 +1,11 @@
 import z from "zod"
-import type { FieldDef, PropertiesDef } from "./FormDefs"
+import type { FieldDef, ResolvedField } from "./FormDefs"
 import { messages } from "./FormMessages"
 import { hiddenNames, type ValueSource } from "./FormVisibility"
 import { unknownToken } from "./PromptTokens"
 
 /** A property as the form holds it: the descriptor plus what the form resolved for it (`list` of a lookup, `children` of a `schema` field). */
-export type FormField = PropertiesDef & {
-	enum?: string[]
-	list?: { value: unknown }[]
-	children?: FormField[]
-}
+export type FormField = ResolvedField
 
 // a null/undefined where a value is required reads "Required" rather than zod's type message;
 // NaN and the infinities are numbers zod refuses as the wrong type, which the server words as "Must be a finite number"

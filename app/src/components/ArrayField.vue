@@ -12,7 +12,7 @@
 						@update:modelValue="(v: boolean) => change(index, f.name, v)" />
 					<!-- a location is chosen on a map, as everywhere else (the System settings): the picker sits in the row, a block of its own -->
 					<div v-else-if="f.type === 'location'" class="array-location" :class="{ invalid: !!cellError(index, f.name) }">
-						<LeafletPicker :name="`${f.name}-${index}`" :modelValue="(row[f.name] as any) ?? undefined" @change="(e: { value: unknown }) => change(index, f.name, e.value)" />
+						<LeafletPicker :name="`${f.name}-${index}`" :modelValue="(row[f.name] as { latitude: number, longitude: number } | null) ?? undefined" @change="(e: { value: unknown }) => change(index, f.name, e.value)" />
 					</div>
 					<Select v-else-if="f.enum" size="small" fluid :options="f.enum" :modelValue="row[f.name]" :placeholder="f.title" :aria-label="`${f.title} ${index + 1}`"
 						:showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
@@ -35,8 +35,8 @@
 						:disabled="!!cellError(index, f.name)" />
 				</template>
 			</div>
-			<RowAction v-if="field.items?.action && baseUrl !== undefined" class="array-action" :action="field.items.action" :baseUrl="baseUrl"
-				:rowKey="field.items.key ? row[field.items.key] : undefined" :label="`${field.title} ${index + 1}`" />
+			<RowAction v-if="rowItems?.action && baseUrl !== undefined" class="array-action" :action="rowItems.action" :baseUrl="baseUrl"
+				:rowKey="rowItems.key ? row[rowItems.key] : undefined" :label="`${field.title} ${index + 1}`" />
 			<div class="array-buttons">
 				<Button icon="mi mi-arrow-upward" size="small" class="p-button-text" :aria-label="`Move ${index + 1} up`" :disabled="index === 0" @click="move(index, -1)" />
 				<Button icon="mi mi-arrow-downward" size="small" class="p-button-text" :aria-label="`Move ${index + 1} down`" :disabled="index === rows.length - 1" @click="move(index, 1)" />
@@ -58,12 +58,13 @@ import LeafletPicker from "./LeafletPicker.vue"
 import RowAction from "./RowAction.vue"
 import TestUrlButton from "./TestUrlButton.vue"
 import { isVisible } from "./FormVisibility"
+import type { ResolvedFieldDef } from "./FormDefs"
 
 type Row = Record<string, unknown>
 type Choice = { name: string, value: unknown }
 export interface PropsType {
 	/** the array property (`items.properties` are the fields of a row; a field with a `lookup` carries its resolved `list`) */
-	field: any
+	field: ResolvedFieldDef
 	/** where the API is, for a field's Test button */
 	baseUrl?: string
 	modelValue?: Row[] | null
@@ -73,7 +74,9 @@ export interface PropsType {
 const props = defineProps<PropsType>()
 const emits = defineEmits<{ (e: "update:modelValue", value: Row[]): void }>()
 
-const itemFields = computed<any[]>(() => props.field.items?.properties ?? [])
+/** a list of objects' item definition: its row fields, key and row action */
+const rowItems = computed(() => props.field.items?.type === "object" ? props.field.items : undefined)
+const itemFields = computed<ResolvedFieldDef[]>(() => rowItems.value?.properties ?? [])
 const rows = computed<Row[]>(() => Array.isArray(props.modelValue) ? props.modelValue : [])
 // more fields than fit across: each row is a block of labelled fields instead of a line under one header
 // (a map needs room: a row with a location is a block too)
@@ -82,7 +85,7 @@ const stacked = computed(() => itemFields.value.length > 4 || itemFields.value.s
 const text = (row: Row, name: string): string => typeof row[name] === "string" ? row[name] : ""
 const numeric = (row: Row, name: string): number|null => typeof row[name] === "number" ? row[name] : null
 /** A lookup's choices, with the row's value kept when the list does not offer it (renamed, deleted, or not loaded): it must not look unset. */
-function choices(f: any, row: Row): Choice[] {
+function choices(f: ResolvedFieldDef, row: Row): Choice[] {
 	const list: Choice[] = Array.isArray(f.list) ? f.list : []
 	const current = row[f.name]
 	if (current === undefined || current === null || current === "" || list.some(c => c.value === current)) return list

@@ -510,13 +510,13 @@ const handleThemeValidate = (e: ValidateEventData) => {
 		if(typeof data.theme === "string") {
 			previewScheme.value = data.theme
 		}
-		if("hue" in data) {
+		if(typeof data.hue === "number") {
 			previewHue.value = data.hue
 		}
-		if("saturation" in data) {
+		if(typeof data.saturation === "number") {
 			previewSaturation.value = data.saturation
 		}
-		if("lightness" in data) {
+		if(typeof data.lightness === "number") {
 			previewLightness.value = data.lightness
 		}
 		if("fontBody" in data && typeof data.fontBody === "string") {

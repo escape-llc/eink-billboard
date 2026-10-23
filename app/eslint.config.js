@@ -21,9 +21,14 @@ export default tseslint.config(
 			"no-undef": "off",
 			// a name that starts with _ is unused on purpose (an ignored argument, a key left out of a copy)
 			"@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", destructuredArrayIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }],
-			// off until the form engine is typed (#510 A3): it is nearly all of BasicForm, BasicFormField and ArrayField
+			// off for the rest of the app for now (its views and a few helpers still use it); on for the form engine below
 			"@typescript-eslint/no-explicit-any": "off",
 		},
+	},
+	{
+		// the form engine is typed (#510 A3): a field is a ResolvedField, the values FormValues (FormDefs.ts); keep it so
+		files: ["src/components/BasicForm.vue", "src/components/BasicFormField.vue", "src/components/ArrayField.vue", "src/components/FormDefs.ts", "src/components/FormValidation.ts"],
+		rules: { "@typescript-eslint/no-explicit-any": "error" },
 	},
 	{
 		// a page is named after what it shows (Settings, System)

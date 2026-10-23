@@ -150,10 +150,17 @@ import { derivedValues, isVisible } from './FormVisibility';
 // a settings form that can restore a field's factory text provides this (SettingsForm)
 const restoreField = inject<((name: string) => void)|null>('restoreField', null);
 import { computed, inject, nextTick, onMounted, ref, toRaw, watch } from 'vue';
+import type { FormFieldState } from '@primevue/forms/form';
+import type { LookupValue, ResolvedField, SchemaChoice } from './FormDefs';
+/** PrimeVue's state of each field of the form (its `v-slot="$form"`), by name; a list's problems carry the row and field in `path` */
+export type FormContext = Record<string, (FormFieldState & { errors?: { message?: string, path?: string[] }[], error?: { message?: string } }) | undefined>
+/** one field's state, as much as the form has of it yet (none before the field registers) */
+type FieldState = Partial<NonNullable<FormContext[string]>>
 export interface PropsType {
-	field: any
+	/** a field, or a header (a chosen source's own fields can hold one) */
+	field: ResolvedField
 	// pass the v-slot="$form" to this prop
-	formContext: any
+	formContext: FormContext
 	fieldNameWidth?: string
 	/** where the API is, for a field's Test button */
 	baseUrl?: string
@@ -162,17 +169,18 @@ export interface PropsType {
 	/** the names of the fields the stored document lacks (BasicForm's `showChanges`): they are tagged "new" */
 	newFields?: Set<string>
 	/** every field of the form: a predicate may read what a `schema` field's chosen source says (`dataSource.keepsList`), which is in that field's list */
-	fields?: any[]
+	fields?: ResolvedField[]
 }
 export interface SchemaChangeData {
 	type: 'schema-change'
-	field: any
-	selected: any
+	field: ResolvedField
+	/** the chosen plugin or data source, or null when the choice was cleared */
+	selected: SchemaChoice | null
 }
 /** a field that is not a PrimeVue control hands its new value to the form */
 export interface SetValueData {
 	type: 'set-value'
-	field: any
+	field: ResolvedField
 	value: unknown
 }
 export type FieldEventData = SchemaChangeData | SetValueData
@@ -182,22 +190,22 @@ export interface EmitsType {
 
 const props = withDefaults(defineProps<PropsType>(), { showHelp: true })
 // explicit slot types: the template forwards every slot to the recursive child, which TypeScript cannot infer
-defineSlots<Record<string, (props: any) => any>>()
+defineSlots<Record<string, (props: Record<string, unknown>) => unknown>>()
 const emits = defineEmits<EmitsType>()
-function handleSchemaChange(event: any, field: any) {
+function handleSchemaChange(event: { value: unknown }, field: ResolvedField) {
 	// emit an event to the parent with the selected schema
 	// a cleared choice (no match) still tells the parent, which drops the previous choice's fields
-	const schema = field.list.find((s: any) => s.value === event.value);
+	const schema = (field.list ?? []).find(s => s.value === event.value) as SchemaChoice | undefined;
 	emits('form-field-event', { type: 'schema-change', field, selected: schema ? toRaw(schema) : null });
 }
-const fieldState = computed(() => props.formContext?.[props.field.name] || {});
+const fieldState = computed<FieldState>(() => props.formContext?.[props.field.name] ?? {});
 // the form's field states, read by name, are the values the predicates look at
 const visible = computed(() => isVisible(props.field, derivedValues(props.fields ?? [], (name: string) => props.formContext?.[name]?.value)))
 // a link opens in a new tab and only to a secure address (the descriptor is ours, but a page is not built from what it holds without a look)
 // the answer of the Test button of this field (it is shown under the input, with the rest of the feedback)
 const testResult = ref<TestResult | null>(null)
 const safeLink = computed(() => {
-	const link = props.field.link
+	const link = props.field.type === 'header' ? undefined : props.field.link
 	return link && typeof link.label === 'string' && /^https:\/\/[^\s]+$/.test(String(link.url)) ? link : null
 })
 const isInvalid = computed(() => !!fieldState.value.invalid);
@@ -206,8 +214,9 @@ const TOKENS_OPEN = 4;
 const isNew = computed(() => props.newFields?.has(props.field.name) === true);
 /** A field that is shown with no value takes its default: it was hidden when the document was saved (stored as null), or the document is older than the field. It is then there to see and change, not an error to find. */
 function takeDefault() {
+	if(props.field.type === 'header') return
 	const dflt = props.field.default
-	if(props.field.type === 'header' || dflt === undefined || dflt === null) return
+	if(dflt === undefined || dflt === null) return
 	const held = fieldState.value?.value
 	if(held === null || held === undefined) emits('form-field-event', { type: 'set-value', field: props.field, value: structuredClone(toRaw(dflt)) })
 }
@@ -216,12 +225,15 @@ onMounted(() => nextTick(takeDefault))
 // a field as tall as a map or a list of rows: its label sits at the top, beside the first line, not in the middle of the block
 const tall = computed(() => props.field.type === 'location' || props.field.type === 'array');
 // a multi-select's choices: fixed ones as `{ name, value }`, like a lookup's list
-const choices = computed(() => props.field.items?.enum ? props.field.items.enum.map((v: string) => ({ name: v, value: v })) : (props.field.list ?? []));
+const choices = computed<LookupValue[]>(() => {
+	const items = props.field.type === 'header' ? undefined : props.field.items
+	return items?.type === 'string' && items.enum ? items.enum.map(v => ({ name: v, value: v })) : (props.field.list ?? [])
+});
 // a problem with one row of a list is shown on that row (by `ArrayField`); the message under the field is for the field as a whole
 const errorMessage = computed(() => {
 	const errors: { message?: string, path?: string[] }[] = fieldState.value.errors ?? []
 	// a multi-select has no rows: a problem with one of its values is shown under it
-	if (props.field.items?.type === 'string') return errors[0]?.message ?? fieldState.value.error?.message
+	if (props.field.type !== 'header' && props.field.items?.type === 'string') return errors[0]?.message ?? fieldState.value.error?.message
 	return errors.length > 0 ? errors.find(e => !e.path?.length)?.message : fieldState.value.error?.message
 });
 </script>
