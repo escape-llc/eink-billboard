@@ -21,7 +21,7 @@ from ..model.service_container import ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..plugins.plugin_base import PermanentError
 from ..task.application import Application
-from ..task.basic_task import DispatcherTask
+from ..task.basic_task import handler_claims
 from ..task.configure_event import ConfigureEvent, ConfigureNotify, ConfigureOptions
 from ..task.device_io import DeviceIO
 from ..task.display import Display
@@ -441,23 +441,15 @@ class TestMissingDocument(unittest.TestCase):
 
 class TestEveryHandlerIsRegistered(unittest.TestCase):
 	"""
-	A method of a task whose only parameter is annotated with a message type is that message's handler, and a second one for the same type silently replaces the first (a helper that took a
-	`DisplaySettings` once stopped the application from configuring its layers; it happened again while this task was written). So no task may have two.
+	A task's handlers are the methods marked @handles (#579); two of one class for the same message type, or a mark that disagrees with its parameter, fail
+	when the task is made. This checks the real tasks without making them (they need a router and a storage): a mistake fails here, not on a device.
 	"""
-	def test_no_message_type_has_two_handlers_in_a_task(self):
+	def test_every_task_class_has_consistent_marks(self):
 		for cls in (Application, Display, PlaylistLayer, TimerLayer, DeviceIO):
 			with self.subTest(cls.__name__):
-				claims: dict[type, list[str]] = {}
-				task: DispatcherTask = cls.__new__(cls)
-				for name, method in inspect.getmembers(cls, predicate=inspect.isfunction):
-					if name.startswith("__") or name in ("quitMsg", "_dispatch", "accept") or getattr(method, "__exclude_from_dispatch__", False):
-						continue
-					params = list(inspect.signature(method).parameters.values())[1:]
-					if len(params) == 1 and inspect.isclass(params[0].annotation) and issubclass(params[0].annotation, BasicMessage) and not issubclass(params[0].annotation, QuitMessage):
-						claims.setdefault(params[0].annotation, []).append(name)
-				del task
-				doubled = { message.__name__: names for message, names in claims.items() if len(names) > 1 }
-				self.assertEqual(doubled, {}, "two methods claim the same message type; the later one replaces the first")
+				claims = handler_claims(cls)
+				self.assertTrue(claims, "a task with no handlers")
+				self.assertFalse(any(issubclass(t, QuitMessage) for t in claims))
 
 if __name__ == "__main__":
 	unittest.main()

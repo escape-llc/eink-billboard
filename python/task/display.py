@@ -12,7 +12,7 @@ from ..display.display_base import DisplayBase
 from ..model.configuration_manager import ConfigurationManager
 from ..model.theme import current_palette
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
-from ..task.basic_task import DispatcherTask
+from ..task.basic_task import DispatcherTask, handles
 from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage, Telemetry
 from ..task.configure_event import ConfigureEvent
 from ..task.protocols import IProvideTimer
@@ -88,6 +88,7 @@ class Display(DispatcherTask):
 			self.router.send("telemetry", Telemetry(now, "display", { "kind": kind, **values }))
 		except Exception as e:
 			self.logger.warning(f"Display telemetry could not be sent ({type(e).__name__}).")
+	@handles(ConfigurationChanged)
 	def _configuration_changed(self, msg: ConfigurationChanged):
 		# the display settings are read when the display starts; reconfiguring it live is not supported yet
 		if msg.area in ("settings", "schemas", "restore"):
@@ -125,6 +126,7 @@ class Display(DispatcherTask):
 		finally:
 			self.display = None
 			super().quitMsg(msg)
+	@handles(ConfigureEvent)
 	def _configure_event(self, msg: ConfigureEvent):
 		try:
 			self.cm = msg.content.cm
@@ -401,6 +403,7 @@ class Display(DispatcherTask):
 			fut.cancel()
 			self.report_failure(f"The panel timed out after {self.RESULT_TIMEOUT_SECONDS:g}s taking {what}; the frame was dropped")
 			return False
+	@handles(PriorityImage)
 	def _priority_image(self, msg: PriorityImage):
 		try:
 			if self.cm is None:
@@ -424,11 +427,13 @@ class Display(DispatcherTask):
 			self._wait_for(fut, f"priority '{msg.title}'")
 		except Exception as e:
 			self.report_failure("A priority image could not be queued", e)
+	@handles(PriorityRevoke)
 	def _priority_revoke(self, msg: PriorityRevoke):
 		if self.task_pool is None or self.priorityq is None:
 			return
 		fut = self.task_pool.submit(self._task_priority_revoke(self.priorityq, msg.title), None)
 		self._wait_for(fut, f"priority revoke '{msg.title}'")
+	@handles(BlendImage)
 	def _blend_image(self, msg: BlendImage):
 		"""A timer task's image that washes over the background for a while (queued like priority images)."""
 		if self.task_pool is None or self.blendq is None:
@@ -437,6 +442,7 @@ class Display(DispatcherTask):
 		self.logger.info(f"Blend '{msg.title}' ({msg.duration})")
 		fut = self.task_pool.submit(self._task_blend_layer(self.blendq, msg), None)
 		self._wait_for(fut, f"blend '{msg.title}'")
+	@handles(OverlayImage)
 	def _overlay_image(self, msg: OverlayImage):
 		"""An overlay for a zone: it stays until its sender (`key`) replaces or revokes it."""
 		if self.task_pool is None or self.commitq is None:
@@ -445,11 +451,13 @@ class Display(DispatcherTask):
 		self.logger.info(f"Overlay '{msg.title}' in '{msg.zone}'")
 		fut = self.task_pool.submit(self._task_overlay_layer(self.commitq, self.compositor, msg), None)
 		self._wait_for(fut, f"overlay '{msg.title}'")
+	@handles(OverlayRevoke)
 	def _overlay_revoke(self, msg: OverlayRevoke):
 		if self.task_pool is None or self.commitq is None:
 			return
 		fut = self.task_pool.submit(self._task_overlay_revoke(self.commitq, self.compositor, msg), None)
 		self._wait_for(fut, f"overlay revoke '{msg.key}'")
+	@handles(DisplayImage)
 	def _display_image(self, msg: DisplayImage):
 		try:
 			if self.cm is None:
@@ -482,6 +490,7 @@ class Display(DispatcherTask):
 			self._wait_for(fut, f"display '{msg.title}' ({di.layer})")
 		except Exception as e:
 			self.report_failure("A page could not be shown", e)
+	@handles(AsyncTaskCompleted)
 	def _async_task_completed(self, msg: AsyncTaskCompleted):
 		if not msg.fut.done():
 			self.logger.info(f"{msg.token} task still running, cancel...")

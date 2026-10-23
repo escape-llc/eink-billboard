@@ -19,7 +19,7 @@ from ..device.bindings import action_for
 from ..device.buttons import LABELS
 from ..device.pins import Panel
 from ..display.mock_display import MockDisplay
-from .basic_task import DispatcherTask
+from .basic_task import DispatcherTask, handles
 from .message_router import MessageRouter, Route
 from ..model.configuration_manager import ConfigurationManager
 from ..model.service_container import IServiceProvider, ServiceContainer
@@ -100,6 +100,7 @@ class Application(DispatcherTask):
 		self.restore_quiet_seconds = RESTORE_QUIET_SECONDS
 		self.restore_cap_seconds = RESTORE_CAP_SECONDS
 
+	@handles(StartEvent)
 	def _start_event(self, msg: StartEvent):
 		try:
 			self._handleStart(msg.options, msg.root, msg.timestamp)
@@ -108,6 +109,7 @@ class Application(DispatcherTask):
 		except Exception as e:
 			self.report_failure("The application could not start", e)
 			self.app_stopped.set()
+	@handles(ConfigurationWatcherEvent)
 	def _configuration_watcher_event(self, msg: ConfigurationWatcherEvent):
 		"""The watcher saw a file change: tell every task where (the cache was already evicted by the sink before this one)."""
 		if self.router is None or self.cm is None:
@@ -127,6 +129,7 @@ class Application(DispatcherTask):
 		self.router.send("configuration", ConfigurationChanged(msg.timestamp, area, msg.type, msg.path))
 		# the area only: a path in the storage folder is the device's business
 		self.router.send("telemetry", Telemetry(msg.timestamp, "application", { "kind": "config-changed", "area": area, "message": f"The {area} changed." }))
+	@handles(StopEvent)
 	def _stop_event(self, msg: StopEvent):
 		try:
 			self._handleStop(msg.timestamp)
@@ -135,6 +138,7 @@ class Application(DispatcherTask):
 		finally:
 			self.app_stopped.set()
 			self.logger.info(f"'{self.name}' stopped.")
+	@handles(DisplaySettings)
 	def _display_settings(self, msg: DisplaySettings):
 		# STEP 3 configure scheduler (it also receives DisplaySettings)
 		self.logger.info(f"'{self.name}' DisplaySettings {msg.name} {msg.width} {msg.height}.")
@@ -178,6 +182,7 @@ class Application(DispatcherTask):
 		if tod:
 			container.add_service(TimeOfDay, tod)
 		self.device_io.accept(ConfigureEvent(timestamp, ConfigureOptions(cm=self.cm, isp=container), "device-io", self))
+	@handles(InputEvent)
 	def _input_event(self, msg: InputEvent):
 		"""Something happened at a device (a button pressed): what it means is decided here, by the bindings."""
 		action = action_for(msg.source, msg.name, msg.gesture)
@@ -229,6 +234,7 @@ class Application(DispatcherTask):
 			self.accept(SetupCodeChanged(self._now()))
 		except ValueError:
 			self.logger.debug(f"'{self.name}' stopped before the setup code changed.")
+	@handles(SetupDone)
 	def _setup_done(self, msg: SetupDone):
 		if self.router is None:
 			return
@@ -292,6 +298,7 @@ class Application(DispatcherTask):
 			return False
 		self.router.send("display", PriorityRevoke(self._now(), entry[0]))
 		return True
+	@handles(PushedImage)
 	def _pushed_image(self, msg: PushedImage):
 		"""A pushed image on the application's own thread: on to the display as a priority image, marked as the API's."""
 		if self.router is None:
@@ -303,6 +310,7 @@ class Application(DispatcherTask):
 	def playback_stopped(self) -> bool:
 		"""Whether the playlist layer is stopped by a transport command (what the play/stop button shows)."""
 		return self.playlist_layer is not None and self.playlist_layer.halted
+	@handles(TransportCommand)
 	def _transport_command(self, msg: TransportCommand):
 		"""The first hop of a transport command: it goes to the playlist layer only (the timer layer keeps running), and not at all while the device waits to be claimed."""
 		if self.router is None:
@@ -349,6 +357,7 @@ class Application(DispatcherTask):
 			except ValueError:
 				self.logger.debug(f"'{self.name}' stopped before the restore settled.")
 		return fire
+	@handles(RestoreBegin)
 	def _restore_begin(self, msg: RestoreBegin):
 		if not msg.reply.set_running_or_notify_cancel():
 			return
@@ -366,6 +375,7 @@ class Application(DispatcherTask):
 		self._restore_timers[0].trigger()
 		self.logger.info(f"'{self.name}' a restore begins: change notifications are held back.")
 		msg.reply.set_result(None)
+	@handles(RestoreEnd)
 	def _restore_end(self, msg: RestoreEnd):
 		if self._restore_state != "restoring":
 			self.logger.warning(f"'{self.name}' a restore ended that was not running.")
@@ -378,6 +388,7 @@ class Application(DispatcherTask):
 		# the watcher's events for the files just written arrive a debounce later: settled when none has come for the quiet time, or at the cap
 		self._restore_timers[1].trigger()
 		self._restore_timers[2].trigger()
+	@handles(RestoreSettled)
 	def _restore_settled(self, msg: RestoreSettled):
 		if msg.generation != self._restore_generation or self._restore_state == "idle":
 			return
@@ -411,12 +422,14 @@ class Application(DispatcherTask):
 			timer.cancel()
 		self._restore_timers = []
 		self._restore_state = "idle"
+	@handles(SetupCodeChanged)
 	def _setup_code_changed(self, msg: SetupCodeChanged):
 		"""The page on the panel must not show a code that no longer works: take it down and put the new one up."""
 		if self.router is None or self._held is None or self._panel is None:
 			return
 		self.router.send("display", PriorityRevoke(msg.timestamp, SETUP_TITLE))
 		self._show_setup_notice(self._panel[0], self._panel[1], msg.timestamp)
+	@handles(ConfigureNotify)
 	def _configure_notify(self, msg: ConfigureNotify):
 		# STEP 4 playback started if layer configured successfully
 		self.logger.info(f"'{self.name}' ConfigureNotify {msg.token} {msg.error} {msg.content}.")
