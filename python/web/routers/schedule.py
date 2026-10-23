@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta, tzinfo
 from typing import Any
 
 from fastapi import APIRouter, Body, Query
+from pydantic import Field
 
 from ...model.configuration_manager import HASH_KEY, create_hash
 from ...model.schedule import Playlist, TimerTasks, daily_sequence, day_start, normalize, render_task_schedule_at
@@ -13,11 +14,136 @@ from ...model.schedule_store import PLAYLISTS, TASKS, Ambiguous, Conflict, Inval
 from ..deps import CM, TOD
 from ..documents import plugin_content_errors
 from ..errors import ApiError
+from ..openapi import Answer, described
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/schedule")
 
 MAX_RENDER_DAYS = 62
+
+# the documents as the store presents them (`to_dict` of the parsed schedule, each level with its `_rev`): the shape is ours, a track's or a task's
+# `content` is its plugin's (open), and so is a trigger, since a file edited by hand may hold one the render lists as invalid. The routes are `described`:
+# a file may have been written by hand, and one odd value must not fail the whole list (test_schedule_api checks the real answers against these)
+class Track(Answer):
+	id: str
+	title: str
+	plugin_name: str
+	content: dict[str, Any]
+	rev: str = Field(alias="_rev")
+
+class PlaylistDocument(Answer):
+	id: str
+	name: str
+	schema_: str = Field(alias="_schema")
+	items: list[Track]
+	rev: str = Field(alias="_rev")
+
+class Task(Answer):
+	"""What a timer task runs: a plugin and its settings."""
+	plugin_name: str
+	content: dict[str, Any]
+
+class TimerTask(Answer):
+	id: str
+	enabled: bool
+	title: str
+	trigger: Any
+	task: Task
+	rev: str = Field(alias="_rev")
+
+class TimerItem(TimerTask):
+	"""A timer task on its own, with its document's id and revision (a change to the task changes the document's)."""
+	schedule: str
+	schedule_rev: str
+
+class TimerDocument(Answer):
+	id: str
+	name: str
+	schema_: str = Field(alias="_schema")
+	items: list[TimerTask]
+	rev: str = Field(alias="_rev")
+
+class Playlists(Answer):
+	success: bool
+	playlists: list[PlaylistDocument]
+
+class TimerDocuments(Answer):
+	success: bool
+	timed: list[TimerDocument]
+
+class Run(Answer):
+	"""A time a task runs, with its offset."""
+	schedule: str
+	id: str
+	scheduled_time: str
+
+class NotRun(Answer):
+	schedule: str
+	id: str
+
+class InvalidTask(Answer):
+	"""A task whose trigger cannot be evaluated, and why in our words."""
+	schedule: str
+	id: str
+	title: str
+	message: str
+
+class Rendered(Answer):
+	"""The runs of the timer tasks over the days asked for, in the device zone (`timezone`), with the documents they belong to."""
+	success: bool
+	start_ts: str
+	end_ts: str
+	days: int
+	timezone: str | None
+	schedules: dict[str, TimerDocument]
+	render: list[Run]
+	not_render: list[NotRun]
+	invalid: list[InvalidTask]
+
+class PlaylistSaved(Answer):
+	success: bool
+	message: str
+	id: str
+	rev: str
+	schedule: PlaylistDocument
+
+class TimerSaved(Answer):
+	success: bool
+	message: str
+	id: str
+	rev: str
+	schedule: TimerDocument
+
+class PlaylistGot(Answer):
+	success: bool
+	schedule: PlaylistDocument
+
+class TimerGot(Answer):
+	success: bool
+	schedule: TimerDocument
+
+class Removed(Answer):
+	success: bool
+	message: str
+	id: None
+
+class TaskSaved(Answer):
+	success: bool
+	message: str
+	id: str
+	rev: str
+	schedule_rev: str
+	task: TimerItem
+
+class TaskGot(Answer):
+	success: bool
+	task: TimerItem
+
+class TaskRemoved(Answer):
+	success: bool
+	message: str
+	id: str
+	schedule_rev: str
 
 def _load_schedules(cm) -> dict:
 	try:
@@ -35,12 +161,12 @@ def _with_rev(info) -> dict:
 		dx["items"] = [{ **x, HASH_KEY: create_hash(x) } for x in dx["items"]]
 	return dx
 
-@router.get('/playlist/list')
+@router.get('/playlist/list', **described(Playlists))
 def schedule_playlist_list(cm: CM):
 	playlists = [_with_rev(x["info"]) for x in _load_schedules(cm).get("playlists", []) if x.get("info") is not None]
 	return { "success": True, "playlists": playlists }
 
-@router.get('/timer/list')
+@router.get('/timer/list', **described(TimerDocuments))
 def schedule_timed_list(cm: CM):
 	tasks = [_with_rev(x["info"]) for x in _load_schedules(cm).get("tasks", []) if x.get("info") is not None]
 	return { "success": True, "timed": tasks }
@@ -103,7 +229,7 @@ def _render_start(start: datetime|date|None, now: datetime, tz: tzinfo|None, day
 	except (OverflowError, ValueError, OSError):
 		raise ApiError(422, f"start must be between the years {MIN_RENDER_YEAR} and {MAX_RENDER_YEAR}.", "start") from None
 
-@router.get('/tasks/render')
+@router.get('/tasks/render', **described(Rendered))
 def render_tasks_schedule(
 	cm: CM,
 	tod: TOD,
@@ -202,50 +328,50 @@ def _call(doc_id: str|None, fn):
 def _rev_of(body: Any) -> Any:
 	return body.get(HASH_KEY) if isinstance(body, dict) else None
 
-@router.post('/timer', status_code=201)
+@router.post('/timer', status_code=201, **described(TimerSaved, 201))
 def timer_create(cm: CM, body: dict[str, Any] = Body(...)):
 	doc = _call(None, lambda: _store(cm).create_document(body))
 	return { "success": True, "message": "Success", "id": doc["id"], "rev": doc[HASH_KEY], "schedule": doc }
 
-@router.get('/timer/{doc_id}')
+@router.get('/timer/{doc_id}', **described(TimerGot))
 def timer_get(doc_id: str, cm: CM):
 	return { "success": True, "schedule": _call(None, lambda: _store(cm).get_document(doc_id)) }
 
-@router.put('/timer/{doc_id}')
+@router.put('/timer/{doc_id}', **described(TimerSaved))
 def timer_put(doc_id: str, cm: CM, body: dict[str, Any] = Body(...)):
 	doc = _call(doc_id, lambda: _store(cm).replace_document(doc_id, body, _rev_of(body)))
 	return { "success": True, "message": "Success", "id": doc["id"], "rev": doc[HASH_KEY], "schedule": doc }
 
-@router.patch('/timer/{doc_id}')
+@router.patch('/timer/{doc_id}', **described(TimerSaved))
 def timer_rename(doc_id: str, cm: CM, body: dict[str, Any] = Body(...)):
 	doc = _call(doc_id, lambda: _store(cm).rename_document(doc_id, body, _rev_of(body)))
 	return { "success": True, "message": "Success", "id": doc["id"], "rev": doc[HASH_KEY], "schedule": doc }
 
-@router.delete('/timer/{doc_id}')
+@router.delete('/timer/{doc_id}', **described(Removed))
 def timer_delete(doc_id: str, cm: CM, rev: str = Query(...)):
 	_call(doc_id, lambda: _store(cm).delete_document(doc_id, rev))
 	return { "success": True, "message": "Success", "id": None }
 
-@router.get('/timer/{doc_id}/items/{item_id}')
+@router.get('/timer/{doc_id}/items/{item_id}', **described(TaskGot))
 def timer_item_get(doc_id: str, item_id: str, cm: CM):
 	return { "success": True, "task": _call(None, lambda: _store(cm).get_item(doc_id, item_id)) }
 
-@router.post('/timer/{doc_id}/items', status_code=201)
+@router.post('/timer/{doc_id}/items', status_code=201, **described(TaskSaved, 201))
 def timer_item_add(doc_id: str, cm: CM, body: dict[str, Any] = Body(...)):
 	item = _call(doc_id, lambda: _store(cm).add_item(doc_id, body))
 	return { "success": True, "message": "Success", "id": item["id"], "rev": item[HASH_KEY], "schedule_rev": item["schedule_rev"], "task": item }
 
-@router.put('/timer/{doc_id}/items/{item_id}')
+@router.put('/timer/{doc_id}/items/{item_id}', **described(TaskSaved))
 def timer_item_put(doc_id: str, item_id: str, cm: CM, body: dict[str, Any] = Body(...)):
 	item = _call(doc_id, lambda: _store(cm).replace_item(doc_id, item_id, body))
 	return { "success": True, "message": "Success", "id": item["id"], "rev": item[HASH_KEY], "schedule_rev": item["schedule_rev"], "task": item }
 
-@router.patch('/timer/{doc_id}/items/{item_id}')
+@router.patch('/timer/{doc_id}/items/{item_id}', **described(TaskSaved))
 def timer_item_patch(doc_id: str, item_id: str, cm: CM, body: dict[str, Any] = Body(...)):
 	item = _call(doc_id, lambda: _store(cm).patch_item(doc_id, item_id, body))
 	return { "success": True, "message": "Success", "id": item["id"], "rev": item[HASH_KEY], "schedule_rev": item["schedule_rev"], "task": item }
 
-@router.delete('/timer/{doc_id}/items/{item_id}')
+@router.delete('/timer/{doc_id}/items/{item_id}', **described(TaskRemoved))
 def timer_item_delete(doc_id: str, item_id: str, cm: CM, rev: str = Query(...)):
 	doc = _call(doc_id, lambda: _store(cm).delete_item(doc_id, item_id, rev))
 	return { "success": True, "message": "Success", "id": item_id, "schedule_rev": doc[HASH_KEY] }
@@ -256,23 +382,23 @@ def timer_item_delete(doc_id: str, item_id: str, cm: CM, rev: str = Query(...)):
 def _saved(doc: dict) -> dict:
 	return { "success": True, "message": "Success", "id": doc["id"], "rev": doc[HASH_KEY], "schedule": doc }
 
-@router.post('/playlist', status_code=201)
+@router.post('/playlist', status_code=201, **described(PlaylistSaved, 201))
 def playlist_create(cm: CM, body: dict[str, Any] = Body(...)):
 	return _saved(_call(None, lambda: _store(cm, PLAYLISTS).create_document(body)))
 
-@router.get('/playlist/{doc_id}')
+@router.get('/playlist/{doc_id}', **described(PlaylistGot))
 def playlist_get(doc_id: str, cm: CM):
 	return { "success": True, "schedule": _call(None, lambda: _store(cm, PLAYLISTS).get_document(doc_id)) }
 
-@router.put('/playlist/{doc_id}')
+@router.put('/playlist/{doc_id}', **described(PlaylistSaved))
 def playlist_put(doc_id: str, cm: CM, body: dict[str, Any] = Body(...)):
 	return _saved(_call(doc_id, lambda: _store(cm, PLAYLISTS).replace_document(doc_id, body, _rev_of(body))))
 
-@router.patch('/playlist/{doc_id}')
+@router.patch('/playlist/{doc_id}', **described(PlaylistSaved))
 def playlist_rename(doc_id: str, cm: CM, body: dict[str, Any] = Body(...)):
 	return _saved(_call(doc_id, lambda: _store(cm, PLAYLISTS).rename_document(doc_id, body, _rev_of(body))))
 
-@router.delete('/playlist/{doc_id}')
+@router.delete('/playlist/{doc_id}', **described(Removed))
 def playlist_delete(doc_id: str, cm: CM, rev: str = Query(...)):
 	_call(doc_id, lambda: _store(cm, PLAYLISTS).delete_document(doc_id, rev))
 	return { "success": True, "message": "Success", "id": None }

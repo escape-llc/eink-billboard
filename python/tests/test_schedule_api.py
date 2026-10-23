@@ -3,7 +3,10 @@ import os
 import threading
 import unittest
 
+from pydantic import BaseModel
+
 from .test_web_api import WebApiTestBase, _error_shape
+from ..web.routers import schedule as routes
 from ..model.schedule_store import check_item_shape, merge_patch
 
 BASE = "/api/schedule/timer"
@@ -244,6 +247,48 @@ class TestPure(unittest.TestCase):
 	def test_shape_checks_never_echo_values(self):
 		errors = check_item_shape({ "title": 5, "trigger": "secret-value", "task": "secret-value", "zzz": "secret-value" })
 		self.assertNotIn("secret-value", json.dumps(errors))
+
+class TestDescribedAnswers(ScheduleApiBase):
+	"""
+	The schedule routes' answers are only described in the OpenAPI document (`described`, #590: a file may be written by hand, so nothing is checked at run time).
+	Here every route answers well-formed documents, and each answer must be the model the document names for it, exactly: a field added or renamed in the code fails here.
+	"""
+	def answer(self, method: str, template: str, model: type[BaseModel], path: dict|None = None, **kwargs) -> dict:
+		response = self.client.request(method, template.format(**(path or {})), **kwargs)
+		self.assertLess(response.status_code, 300, response.text)
+		described = self.app.openapi()["paths"][template][method.lower()]["responses"][str(response.status_code)]["content"]["application/json"]["schema"]
+		self.assertEqual(described["$ref"].rsplit("/", 1)[-1], model.__name__, template)
+		model.model_validate(response.json())
+		return response.json()
+
+	def test_every_timer_route_answers_its_described_model(self):
+		listed = self.answer("GET", f"{BASE}/list", routes.TimerDocuments)
+		self.assertEqual([d["id"] for d in listed["timed"]], ["doc-a"])
+		self.answer("GET", "/api/schedule/tasks/render", routes.Rendered, params={ "start": "2026-01-05", "days": 2 })
+		doc = { "doc_id": self.answer("POST", BASE, routes.TimerSaved, json={ "name": "B" })["id"] }
+		one, items = f"{BASE}/{{doc_id}}", f"{BASE}/{{doc_id}}/items"
+		got = self.answer("GET", one, routes.TimerGot, doc)
+		renamed = self.answer("PATCH", one, routes.TimerSaved, doc, json={ "name": "C", "_rev": got["schedule"]["_rev"] })
+		self.answer("PUT", one, routes.TimerSaved, doc, json={ **renamed["schedule"], "name": "D" })
+		added = self.answer("POST", items, routes.TaskSaved, doc, json=task_body())
+		item, task = { **doc, "item_id": added["id"] }, f"{items}/{{item_id}}"
+		self.answer("GET", task, routes.TaskGot, item)
+		put = self.answer("PUT", task, routes.TaskSaved, item, json={ **task_body(title="Noon"), "_rev": added["rev"] })
+		patched = self.answer("PATCH", task, routes.TaskSaved, item, json={ "title": "Evening", "_rev": put["rev"] })
+		self.answer("DELETE", task, routes.TaskRemoved, item, params={ "rev": patched["rev"] })
+		final = self.answer("GET", one, routes.TimerGot, doc)
+		self.answer("DELETE", one, routes.Removed, doc, params={ "rev": final["schedule"]["_rev"] })
+
+	def test_every_playlist_route_answers_its_described_model(self):
+		playlists = "/api/schedule/playlist"
+		one = f"{playlists}/{{doc_id}}"
+		track = { "title": "T", "plugin_name": "slide-show", "content": dict(CONTENT) }
+		doc = { "doc_id": self.answer("POST", playlists, routes.PlaylistSaved, json={ "name": "P", "items": [track] })["id"] }
+		self.answer("GET", f"{playlists}/list", routes.Playlists)
+		got = self.answer("GET", one, routes.PlaylistGot, doc)
+		saved = self.answer("PUT", one, routes.PlaylistSaved, doc, json={ **got["schedule"], "items": [*got["schedule"]["items"], track] })
+		renamed = self.answer("PATCH", one, routes.PlaylistSaved, doc, json={ "name": "Q", "_rev": saved["rev"] })
+		self.answer("DELETE", one, routes.Removed, doc, params={ "rev": renamed["rev"] })
 
 if __name__ == "__main__":
 	unittest.main()

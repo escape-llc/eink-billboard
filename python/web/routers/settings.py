@@ -9,6 +9,7 @@ from ...model.configuration_manager import CollectInfoDict
 from ..deps import CM
 from ..documents import from_source, get_document, instance_properties, load_schema_lookups, load_schema_properties, put_document, secret_fields, settings_choices, settings_lookup_items
 from ..errors import ApiError
+from ..openapi import Choice, Descriptor, Document, Saved, answers, described
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -69,13 +70,13 @@ def _settings_lookup_choices(item: CollectInfoDict, lookup_name: str, stored: di
 			return settings_lookup_items(definition, stored if other is None else (stored_of(str(other)) if stored_of else None))
 	raise ApiError(404, "Unknown lookup.", None)
 
-@router.get('/settings/{name}')
+@router.get('/settings/{name}', **described(Document))
 def get_device_settings(name: str, cm: CM):
 	name = _device_name(name)
 	cob = cm.settings_manager().open(name)
 	return get_document(f"{name}-settings", cob)
 
-@router.put('/settings/{name}')
+@router.put('/settings/{name}', **answers(Saved))
 def put_device_settings(name: str, cm: CM, body: dict[str, Any] = Body(...)):
 	name = _device_name(name)
 	cob = cm.settings_manager().open(name)
@@ -103,54 +104,54 @@ def get_device_schema(name: str, cm: CM):
 	# no lifetime, so a browser would keep an old copy for days (a schema that gained settings showed none): no-cache is "ask each time"
 	return JSONResponse(schema, headers={ "Cache-Control": "no-cache" })
 
-@router.get('/plugins/list')
+@router.get('/plugins/list', **described(list[Descriptor]))
 def plugins_list(cm: CM):
 	return [x.get("info") for x in cm.enum_plugins()]
 
-@router.get('/displays/list')
+@router.get('/displays/list', **described(list[Descriptor]))
 def displays_list(cm: CM):
 	"""The display devices that are installed (`python/displays`): what the display type's `schema` field chooses among, each with the settings of its own."""
 	return [x.get("info") for x in cm.enum_displays()]
 
-@router.get('/datasources/list')
+@router.get('/datasources/list', **described(list[Descriptor]))
 def datasources_list(cm: CM):
 	return [x.get("info") for x in cm.enum_datasources()]
 
-@router.get('/plugins/{plugin_id}/settings')
+@router.get('/plugins/{plugin_id}/settings', **described(Document))
 def get_plugin_settings(plugin_id: str, cm: CM):
 	declared, item = _find_item(cm.enum_plugins(), plugin_id, "plugin")
 	cob = cm.plugin_manager(declared).open()
 	properties = _settings_properties(item)
 	return get_document(f"plugin-{declared}-settings", cob, secret_fields(properties), _names(properties))
 
-@router.put('/plugins/{plugin_id}/settings')
+@router.put('/plugins/{plugin_id}/settings', **answers(Saved))
 def put_plugin_settings(plugin_id: str, cm: CM, body: dict[str, Any] = Body(...)):
 	declared, item = _find_item(cm.enum_plugins(), plugin_id, "plugin")
 	cob = cm.plugin_manager(declared).open()
 	properties = _settings_properties(item)
 	return put_document(f"plugin-{declared}-settings", body, cob, properties, secret_fields(properties), _settings_lookups(item), schema_id=_settings_schema_id(item))
 
-@router.get('/datasources/{datasource_id}/settings')
+@router.get('/datasources/{datasource_id}/settings', **described(Document))
 def get_datasource_settings(datasource_id: str, cm: CM):
 	declared, item = _find_item(cm.enum_datasources(), datasource_id, "datasource")
 	cob = cm.datasource_manager(declared).open()
 	properties = _settings_properties(item)
 	return get_document(f"datasource-{declared}-settings", cob, secret_fields(properties), _names(properties))
 
-@router.put('/datasources/{datasource_id}/settings')
+@router.put('/datasources/{datasource_id}/settings', **answers(Saved))
 def put_datasource_settings(datasource_id: str, cm: CM, body: dict[str, Any] = Body(...)):
 	declared, item = _find_item(cm.enum_datasources(), datasource_id, "datasource")
 	cob = cm.datasource_manager(declared).open()
 	properties = _settings_properties(item)
 	return put_document(f"datasource-{declared}-settings", body, cob, properties, secret_fields(properties), _settings_lookups(item), schema_id=_settings_schema_id(item))
 
-@router.get('/plugins/{plugin_id}/lookups/{lookup}')
+@router.get('/plugins/{plugin_id}/lookups/{lookup}', **answers(list[Choice]))
 def get_plugin_lookup(plugin_id: str, lookup: str, cm: CM):
 	declared, item = _find_item(cm.enum_plugins(), plugin_id, "plugin")
 	_, stored = cm.plugin_manager(declared).open().get()
 	return _settings_lookup_choices(item, lookup, stored)
 
-@router.get('/datasources/{datasource_id}/lookups/{lookup}')
+@router.get('/datasources/{datasource_id}/lookups/{lookup}', **answers(list[Choice]))
 def get_datasource_lookup(datasource_id: str, lookup: str, cm: CM):
 	sources = cm.enum_datasources()
 	declared, item = _find_item(sources, datasource_id, "datasource")

@@ -1289,6 +1289,30 @@ export interface components {
             url?: string | null;
         };
         /**
+         * Descriptor
+         * @description An installed plugin, data source or display's descriptor (its `*-info.json`): open, its keys are the descriptor's (the web app reads them as `FormDefs.ts`'s `Descriptor`).
+         */
+        Descriptor: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * Document
+         * @description A settings document: its `_id` and `_rev`, and keys only its schema or descriptor knows. Open: every key is passed on, none is checked here.
+         */
+        Document: {
+            /** Id */
+            _id: string;
+            /** Rev */
+            _rev: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
          * Done
          * @description The answer of a change that worked and has nothing else to say.
          */
@@ -1319,6 +1343,20 @@ export interface components {
             python: string;
             /** Uptime Seconds */
             uptime_seconds?: number | null;
+        };
+        /**
+         * InvalidTask
+         * @description A task whose trigger cannot be evaluated, and why in our words.
+         */
+        InvalidTask: {
+            /** Id */
+            id: string;
+            /** Message */
+            message: string;
+            /** Schedule */
+            schedule: string;
+            /** Title */
+            title: string;
         };
         /**
          * Load
@@ -1370,6 +1408,13 @@ export interface components {
              * @default
              */
             title: string;
+        };
+        /** NotRun */
+        NotRun: {
+            /** Id */
+            id: string;
+            /** Schedule */
+            schedule: string;
         };
         /**
          * Owner
@@ -1436,6 +1481,44 @@ export interface components {
             /** Throttled Now */
             throttled_now?: boolean | null;
         };
+        /** PlaylistDocument */
+        PlaylistDocument: {
+            /** Rev */
+            _rev: string;
+            /** Schema */
+            _schema: string;
+            /** Id */
+            id: string;
+            /** Items */
+            items: components["schemas"]["Track"][];
+            /** Name */
+            name: string;
+        };
+        /** PlaylistGot */
+        PlaylistGot: {
+            schedule: components["schemas"]["PlaylistDocument"];
+            /** Success */
+            success: boolean;
+        };
+        /** PlaylistSaved */
+        PlaylistSaved: {
+            /** Id */
+            id: string;
+            /** Message */
+            message: string;
+            /** Rev */
+            rev: string;
+            schedule: components["schemas"]["PlaylistDocument"];
+            /** Success */
+            success: boolean;
+        };
+        /** Playlists */
+        Playlists: {
+            /** Playlists */
+            playlists: components["schemas"]["PlaylistDocument"][];
+            /** Success */
+            success: boolean;
+        };
         /**
          * ProviderChoice
          * @description A provider of a capability: `ready` when its own settings are complete (its name says so too).
@@ -1461,6 +1544,41 @@ export interface components {
             success: boolean;
             /** Title */
             title: string;
+        };
+        /** Removed */
+        Removed: {
+            /** Id */
+            id: null;
+            /** Message */
+            message: string;
+            /** Success */
+            success: boolean;
+        };
+        /**
+         * Rendered
+         * @description The runs of the timer tasks over the days asked for, in the device zone (`timezone`), with the documents they belong to.
+         */
+        Rendered: {
+            /** Days */
+            days: number;
+            /** End Ts */
+            end_ts: string;
+            /** Invalid */
+            invalid: components["schemas"]["InvalidTask"][];
+            /** Not Render */
+            not_render: components["schemas"]["NotRun"][];
+            /** Render */
+            render: components["schemas"]["Run"][];
+            /** Schedules */
+            schedules: {
+                [key: string]: components["schemas"]["TimerDocument"];
+            };
+            /** Start Ts */
+            start_ts: string;
+            /** Success */
+            success: boolean;
+            /** Timezone */
+            timezone: string | null;
         };
         /** RestoreFile */
         RestoreFile: {
@@ -1507,6 +1625,32 @@ export interface components {
             color: string;
             /** Name */
             name: string;
+        };
+        /**
+         * Run
+         * @description A time a task runs, with its offset.
+         */
+        Run: {
+            /** Id */
+            id: string;
+            /** Schedule */
+            schedule: string;
+            /** Scheduled Time */
+            scheduled_time: string;
+        };
+        /**
+         * Saved
+         * @description A document that was stored: its id and its new revision.
+         */
+        Saved: {
+            /** Id */
+            id: string;
+            /** Message */
+            message: string;
+            /** Rev */
+            rev: string;
+            /** Success */
+            success: boolean;
         };
         /**
          * SignedIn
@@ -1564,6 +1708,137 @@ export interface components {
             storage: components["schemas"]["Storage"];
             /** Usage */
             usage: components["schemas"]["Usage"][];
+        };
+        /**
+         * Task
+         * @description What a timer task runs: a plugin and its settings.
+         */
+        Task: {
+            /** Content */
+            content: {
+                [key: string]: unknown;
+            };
+            /** Plugin Name */
+            plugin_name: string;
+        };
+        /** TaskGot */
+        TaskGot: {
+            /** Success */
+            success: boolean;
+            task: components["schemas"]["TimerItem"];
+        };
+        /** TaskRemoved */
+        TaskRemoved: {
+            /** Id */
+            id: string;
+            /** Message */
+            message: string;
+            /** Schedule Rev */
+            schedule_rev: string;
+            /** Success */
+            success: boolean;
+        };
+        /** TaskSaved */
+        TaskSaved: {
+            /** Id */
+            id: string;
+            /** Message */
+            message: string;
+            /** Rev */
+            rev: string;
+            /** Schedule Rev */
+            schedule_rev: string;
+            /** Success */
+            success: boolean;
+            task: components["schemas"]["TimerItem"];
+        };
+        /** TimerDocument */
+        TimerDocument: {
+            /** Rev */
+            _rev: string;
+            /** Schema */
+            _schema: string;
+            /** Id */
+            id: string;
+            /** Items */
+            items: components["schemas"]["TimerTask"][];
+            /** Name */
+            name: string;
+        };
+        /** TimerDocuments */
+        TimerDocuments: {
+            /** Success */
+            success: boolean;
+            /** Timed */
+            timed: components["schemas"]["TimerDocument"][];
+        };
+        /** TimerGot */
+        TimerGot: {
+            schedule: components["schemas"]["TimerDocument"];
+            /** Success */
+            success: boolean;
+        };
+        /**
+         * TimerItem
+         * @description A timer task on its own, with its document's id and revision (a change to the task changes the document's).
+         */
+        TimerItem: {
+            /** Rev */
+            _rev: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            /** Schedule */
+            schedule: string;
+            /** Schedule Rev */
+            schedule_rev: string;
+            task: components["schemas"]["Task"];
+            /** Title */
+            title: string;
+            /** Trigger */
+            trigger: unknown;
+        };
+        /** TimerSaved */
+        TimerSaved: {
+            /** Id */
+            id: string;
+            /** Message */
+            message: string;
+            /** Rev */
+            rev: string;
+            schedule: components["schemas"]["TimerDocument"];
+            /** Success */
+            success: boolean;
+        };
+        /** TimerTask */
+        TimerTask: {
+            /** Rev */
+            _rev: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            task: components["schemas"]["Task"];
+            /** Title */
+            title: string;
+            /** Trigger */
+            trigger: unknown;
+        };
+        /** Track */
+        Track: {
+            /** Rev */
+            _rev: string;
+            /** Content */
+            content: {
+                [key: string]: unknown;
+            };
+            /** Id */
+            id: string;
+            /** Plugin Name */
+            plugin_name: string;
+            /** Title */
+            title: string;
         };
         /** TransportRequest */
         TransportRequest: {
@@ -2418,7 +2693,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Descriptor"][];
                 };
             };
         };
@@ -2441,7 +2716,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Choice"][];
                 };
             };
             /** @description Validation Error */
@@ -2472,7 +2747,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Document"];
                 };
             };
             /** @description Validation Error */
@@ -2509,7 +2784,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Saved"];
                 };
             };
             /** @description Validation Error */
@@ -2694,7 +2969,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Descriptor"][];
                 };
             };
         };
@@ -2818,7 +3093,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Descriptor"][];
                 };
             };
         };
@@ -2841,7 +3116,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Choice"][];
                 };
             };
             /** @description Validation Error */
@@ -2872,7 +3147,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Document"];
                 };
             };
             /** @description Validation Error */
@@ -2909,7 +3184,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Saved"];
                 };
             };
             /** @description Validation Error */
@@ -2978,7 +3253,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PlaylistSaved"];
                 };
             };
             /** @description Validation Error */
@@ -3007,7 +3282,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Playlists"];
                 };
             };
         };
@@ -3029,7 +3304,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PlaylistGot"];
                 };
             };
             /** @description Validation Error */
@@ -3066,7 +3341,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PlaylistSaved"];
                 };
             };
             /** @description Validation Error */
@@ -3099,7 +3374,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Removed"];
                 };
             };
             /** @description Validation Error */
@@ -3136,7 +3411,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PlaylistSaved"];
                 };
             };
             /** @description Validation Error */
@@ -3169,7 +3444,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Rendered"];
                 };
             };
             /** @description Validation Error */
@@ -3204,7 +3479,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TimerSaved"];
                 };
             };
             /** @description Validation Error */
@@ -3233,7 +3508,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TimerDocuments"];
                 };
             };
         };
@@ -3255,7 +3530,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TimerGot"];
                 };
             };
             /** @description Validation Error */
@@ -3292,7 +3567,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TimerSaved"];
                 };
             };
             /** @description Validation Error */
@@ -3325,7 +3600,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Removed"];
                 };
             };
             /** @description Validation Error */
@@ -3362,7 +3637,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TimerSaved"];
                 };
             };
             /** @description Validation Error */
@@ -3399,7 +3674,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TaskSaved"];
                 };
             };
             /** @description Validation Error */
@@ -3431,7 +3706,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TaskGot"];
                 };
             };
             /** @description Validation Error */
@@ -3469,7 +3744,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TaskSaved"];
                 };
             };
             /** @description Validation Error */
@@ -3503,7 +3778,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TaskRemoved"];
                 };
             };
             /** @description Validation Error */
@@ -3541,7 +3816,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TaskSaved"];
                 };
             };
             /** @description Validation Error */
@@ -3659,7 +3934,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Document"];
                 };
             };
             /** @description Validation Error */
@@ -3696,7 +3971,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["Saved"];
                 };
             };
             /** @description Validation Error */

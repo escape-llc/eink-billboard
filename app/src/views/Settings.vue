@@ -219,6 +219,7 @@
 <script setup lang="ts">
 import { apiJson, ApiError } from "../components/ApiClient"
 import { api } from "../api/client"
+import type { Descriptor } from "../components/FormDefs"
 
 import ItemInfo from '../components/ItemInfo.vue';
 import Tabs from 'primevue/tabs';
@@ -237,24 +238,19 @@ const toast = useToast();
 
 const API_URL = import.meta.env.VITE_API_URL
 const settingsSystemUrl = `${API_URL}api/settings/system`
-const schemaSystemUrl = `${API_URL}api/schemas/system`
 const schemaSystem = ref<any>(undefined)
 const settingsSystem = ref<any>(undefined)
 const settingsThemeUrl = `${API_URL}api/settings/theme`
-const schemaThemeUrl = `${API_URL}api/schemas/theme`
 const schemaTheme = ref<any>(undefined)
 const settingsTheme = ref<any>(undefined)
 const settingsPromptsUrl = `${API_URL}api/settings/master-prompts`
-const schemaPromptsUrl = `${API_URL}api/schemas/master-prompts`
 const defaultsPromptsUrl = `${API_URL}api/settings/master-prompts/defaults`
 const schemaPrompts = ref<any>(undefined)
 const settingsPrompts = ref<any>(undefined)
 const settingsDevicesUrl = `${API_URL}api/settings/devices`
-const schemaDevicesUrl = `${API_URL}api/schemas/devices`
 const schemaDevices = ref<any>(undefined)
 const settingsDevices = ref<any>(undefined)
 const settingsDisplayUrl = `${API_URL}api/settings/display`
-const schemaDisplayUrl = `${API_URL}api/schemas/display`
 const schemaDisplay = ref<any>(undefined)
 const settingsDisplay = ref<any>(undefined)
 
@@ -296,10 +292,10 @@ function refreshPalette() {
 }
 onMounted(refreshPalette)
 
-const plugins = ref([])
-const dataSources = ref([])
+const plugins = ref<Descriptor[]>([])
+const dataSources = ref<Descriptor[]>([])
 // the display devices that are installed: what the Display tab's display type (a `schema` field) chooses among
-const displays = ref([])
+const displays = ref<Descriptor[]>([])
 const selectedPlugin = ref<any>(undefined)
 const schemaPlugin = ref<any>(undefined)
 const settingsPlugin = ref<any>(undefined)
@@ -330,12 +326,8 @@ provide("settingsPluginsList", plugins)
 provide("settingsDataSourcesList", dataSources)
 provide("settingsDisplaysList", displays)
 
-const listPluginsUrl = `${API_URL}api/plugins/list`
-const listDatasourcesUrl = `${API_URL}api/datasources/list`
-const listDisplaysUrl = `${API_URL}api/displays/list`
-
-function downloadToRef(url:string, vref: Ref<any>, errv: any = undefined) {
-	apiJson(url).then(data => {
+function downloadToRef(asked: Promise<unknown>, vref: Ref<any>, errv: any = undefined) {
+	asked.then(data => {
 		vref.value = data
 	})
 	.catch(ex => {
@@ -361,53 +353,55 @@ function fetchSettings(url:string, vref: Ref<any>, schema:any) {
 	})
 }
 onMounted(() => {
-	const px0 = apiJson(listPluginsUrl)
-	const px1 = apiJson(listDatasourcesUrl)
-	const px2 = apiJson(listDisplaysUrl)
+	// a descriptor's keys are its own (open in the API): read as FormDefs' Descriptor, which DescriptorSchema.test holds to every descriptor
+	const px0 = api.get("/api/plugins/list")
+	const px1 = api.get("/api/datasources/list")
+	const px2 = api.get("/api/displays/list")
 	const px3 = px0.then(json => {
-		plugins.value = json
+		plugins.value = json as Descriptor[]
 	})
 	.catch(ex => {
 		console.error("fetch.pl.unhandled", ex)
 		toast.add({severity:'error', summary: 'Error', detail: `Failed to load plugins list: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
 	const px4 = px1.then(json2 => {
-		dataSources.value = json2
+		dataSources.value = json2 as Descriptor[]
 	})
 	.catch(ex => {
 		console.error("fetch.ds.unhandled", ex)
 		toast.add({severity:'error', summary: 'Error', detail: `Failed to load data sources list: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
 	const px5 = px2.then(json3 => {
-		displays.value = json3
+		displays.value = json3 as Descriptor[]
 	})
 	.catch(ex => {
 		console.error("fetch.dp.unhandled", ex)
 		toast.add({severity:'error', summary: 'Error', detail: `Failed to load displays list: ${ex.message || 'Unknown error'}`, life: 5000});
 	})
 	Promise.all([px3, px4, px5]).then(_ => {
-		downloadToRef(schemaThemeUrl, schemaTheme)
-		downloadToRef(schemaDisplayUrl, schemaDisplay)
-		downloadToRef(schemaSystemUrl, schemaSystem)
-		downloadToRef(schemaPromptsUrl, schemaPrompts)
+		const schema = (name: string) => api.get("/api/schemas/{name}", { path: { name } })
+		const settings = (name: string) => api.get("/api/settings/{name}", { path: { name } })
+		downloadToRef(schema("theme"), schemaTheme)
+		downloadToRef(schema("display"), schemaDisplay)
+		downloadToRef(schema("system"), schemaSystem)
+		downloadToRef(schema("master-prompts"), schemaPrompts)
 		loadDevices()
-		// a settings file that was never saved is a 404; fetchSettings then starts from the schema's `default`
-		downloadToRef(settingsSystemUrl, settingsSystem)
-		downloadToRef(settingsDisplayUrl, settingsDisplay)
-		downloadToRef(settingsThemeUrl, settingsTheme)
-		downloadToRef(settingsPromptsUrl, settingsPrompts)
+		downloadToRef(settings("system"), settingsSystem)
+		downloadToRef(settings("display"), settingsDisplay)
+		downloadToRef(settings("theme"), settingsTheme)
+		downloadToRef(settings("master-prompts"), settingsPrompts)
 	})
 })
 
 // the devices' settings: a storage that is older than them has none stored, which is not an error: the form starts from the schema's default (saving it creates the document)
 function loadDevices() {
-	apiJson(schemaDevicesUrl).then(schema => {
+	api.get("/api/schemas/{name}", { path: { name: "devices" } }).then(schema => {
 		schemaDevices.value = schema
-		return apiJson(settingsDevicesUrl)
+		return api.get("/api/settings/{name}", { path: { name: "devices" } })
 			.then(data => { settingsDevices.value = data })
 			.catch(ex => {
 				if (ex instanceof ApiError && ex.status === 404) {
-					settingsDevices.value = structuredClone(schema.default)
+					settingsDevices.value = structuredClone((schema as { default?: unknown }).default)
 					return
 				}
 				throw ex

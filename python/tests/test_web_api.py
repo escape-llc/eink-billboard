@@ -1265,5 +1265,18 @@ class TestAtomicSave(unittest.TestCase):
 			with open(path) as f:
 				self.assertEqual(json.load(f), {"a": 1})
 
+class TestDescribedSettings(WebApiTestBase):
+	"""The settings documents and the descriptor lists are described open models (#590): each answer has the keys the model names, and keeps every other."""
+	def test_a_settings_document_and_the_descriptor_lists_are_their_models(self):
+		from pydantic import TypeAdapter
+		from ..web.openapi import Descriptor, Document
+		document = self.client.get("/api/settings/system").json()
+		Document.model_validate(document)
+		self.assertIn("timezoneName", Document.model_validate(document).model_dump(by_alias=True))
+		for kind in ("plugins", "datasources", "displays"):
+			listed = self.client.get(f"/api/{kind}/list").json()
+			self.assertTrue(listed, kind)
+			TypeAdapter(list[Descriptor]).validate_python(listed)
+
 if __name__ == '__main__':
 	unittest.main()

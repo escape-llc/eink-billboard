@@ -1,6 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import WelcomeView from '../views/WelcomeView.vue'
-import { apiJson } from '../components/ApiClient'
+import { api } from '../api/client'
 
 const router = createRouter({
 	history: createWebHashHistory(),
@@ -12,8 +12,8 @@ const router = createRouter({
 			// a device with no playlist has nothing on its panel: the first thing to do is make one, so the landing page goes there (only the landing page: any other address is the user's choice)
 			beforeEnter: async () => {
 				try {
-					const found = await apiJson<{ playlists?: unknown[] }>('/api/schedule/playlist/list')
-					if (Array.isArray(found.playlists) && found.playlists.length === 0) return { name: 'playlist' }
+					const found = await api.get('/api/schedule/playlist/list')
+					if (found.playlists.length === 0) return { name: 'playlist' }
 				} catch {
 					// not signed in, or the server did not answer: stay on the welcome page, which does not need it
 				}

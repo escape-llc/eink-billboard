@@ -131,15 +131,16 @@
 </template>
 
 <script setup lang="ts">
-import { ApiError, apiDelete, apiJson, apiPatch, apiPost, apiPut } from "../components/ApiClient"
+import { ApiError } from "../components/ApiClient"
+import { api } from "../api/client"
 import { ref, reactive, computed, onMounted, provide } from 'vue'
 import { InputGroup, InputGroupAddon, Toolbar, Button, Select, InputText, Dialog, Message, ProgressBar, useToast } from 'primevue'
 import BasicForm, { type ValidateEventData } from '../components/BasicForm.vue'
 import HelpToggle from '../components/HelpToggle.vue'
-import type { PlaylistItem, PluginDef } from '../components/ScheduleDefs'
+import type { PlaylistItem, PlaylistSchedule, PluginDef } from '../components/ScheduleDefs'
+import type { Descriptor } from '../components/FormDefs'
 import { describeTrack, type Describable } from '../components/Describe'
 const API_URL = import.meta.env.VITE_API_URL
-const PLAYLIST_URL = `${API_URL}api/schedule/playlist`
 const toast = useToast()
 const bf = ref<InstanceType<typeof BasicForm>>()
 // the fields' help text; for this page's life only (the browser stores nothing but the theme)
@@ -147,13 +148,10 @@ const showHelp = ref(true)
 const submitDisabled = ref(true)
 const fieldNameWidth = "10rem";
 
-const plugins = ref([])
-const dataSources = ref([])
+const plugins = ref<PluginDef[]>([])
+const dataSources = ref<Descriptor[]>([])
 provide("settingsPluginsList", plugins)
 provide("settingsDataSourcesList", dataSources)
-
-const listPluginsUrl = `${API_URL}api/plugins/list`
-const listDatasourcesUrl = `${API_URL}api/datasources/list`
 
 const pluginList = ref<PluginDef[]>([])
 // every stored playlist (a playlist is a self-contained document), and the one being edited: its working copy is saved whole
@@ -311,11 +309,12 @@ function cancelEdit() {
 }
 
 function initProviders() {
-	const px0 = apiJson(listPluginsUrl)
-	const px1 = apiJson(listDatasourcesUrl)
+	// a descriptor's keys are its own (open in the API): the web app reads them as PluginDef and Descriptor, which DescriptorSchema.test holds to every descriptor
+	const px0 = api.get("/api/plugins/list")
+	const px1 = api.get("/api/datasources/list")
 	const px3 = px0.then(json => {
-		plugins.value = structuredClone(json)
-		pluginList.value = structuredClone(json)
+		plugins.value = structuredClone(json) as PluginDef[]
+		pluginList.value = structuredClone(json) as PluginDef[]
 	})
 	.catch(ex => {
 		console.error("fetch.pl.unhandled", ex)
@@ -324,7 +323,7 @@ function initProviders() {
 		pluginList.value = []
 	})
 	const px4 = px1.then(json2 => {
-		dataSources.value = json2
+		dataSources.value = json2 as Descriptor[]
 	})
 	.catch(ex => {
 		console.error("fetch.ds.unhandled", ex)
@@ -336,7 +335,7 @@ function initProviders() {
 
 // --- the playlists
 /** Put a stored playlist into the working copy. */
-function adopt(doc: any, keepSelection = false) {
+function adopt(doc: PlaylistSchedule, keepSelection = false) {
 	currentId.value = doc.id
 	playlistName.value = doc.name
 	docRev.value = doc._rev
@@ -350,8 +349,7 @@ function adopt(doc: any, keepSelection = false) {
 }
 async function loadPlaylists(selectId?: string) {
 	try {
-		const json = await apiJson(`${PLAYLIST_URL}/list`)
-		const all: any[] = json.playlists ?? []
+		const all = (await api.get("/api/schedule/playlist/list")).playlists
 		playlists.value = all.map(p => ({ id: p.id, name: p.name }))
 		const target = all.find(p => p.id === selectId) ?? all[0]
 		if(target) {
@@ -412,14 +410,14 @@ async function confirmName() {
 	saving.value = true
 	try {
 		if(nameDialogRename.value && currentId.value) {
-			const rx = await apiPatch(`${PLAYLIST_URL}/${encodeURIComponent(currentId.value)}`, { name, _rev: docRev.value })
+			const rx = await api.patch("/api/schedule/playlist/{doc_id}", { path: { doc_id: currentId.value } }, { name, _rev: docRev.value })
 			// only the name changed in the store: the unsaved edits stay, on top of the new revision
 			playlistName.value = rx.schedule.name
 			docRev.value = rx.rev
 			playlists.value = playlists.value.map(p => p.id === currentId.value ? { id: p.id, name: rx.schedule.name } : p)
 		}
 		else {
-			const rx = await apiPost(PLAYLIST_URL, { name, items: [] })
+			const rx = await api.post("/api/schedule/playlist", {}, { name, items: [] })
 			nameOpen.value = false
 			await loadPlaylists(rx.id)
 		}
@@ -442,7 +440,7 @@ async function deletePlaylist() {
 	if(!currentId.value || !docRev.value) return
 	saving.value = true
 	try {
-		await apiDelete(`${PLAYLIST_URL}/${encodeURIComponent(currentId.value)}?rev=${encodeURIComponent(docRev.value)}`)
+		await api.delete("/api/schedule/playlist/{doc_id}", { path: { doc_id: currentId.value }, query: { rev: docRev.value } })
 		toast.add({severity:'success', summary: 'Success', detail: 'Playlist deleted', life: 3000});
 		deleteOpen.value = false
 		dirty.value = false
@@ -478,7 +476,7 @@ async function savePlaylist(rev: string|undefined) {
 	saving.value = true
 	resetMessages()
 	try {
-		const rx = await apiPut(`${PLAYLIST_URL}/${encodeURIComponent(currentId.value)}`, documentBody(rev))
+		const rx = await api.put("/api/schedule/playlist/{doc_id}", { path: { doc_id: currentId.value } }, documentBody(rev))
 		toast.add({severity:'success', summary: 'Success', detail: 'Playlist saved', life: 3000});
 		adopt(rx.schedule, true)
 	}
