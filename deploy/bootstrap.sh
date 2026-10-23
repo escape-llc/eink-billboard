@@ -121,7 +121,8 @@ EOF
 
 	# ---- what needs doing ----------------------------------------------------------------------------------------------------------------------
 	local packages=() p need_spi=0 need_i2c=0 groups_missing=() g
-	for p in podman git curl uidmap; do
+	# fuse-overlayfs: without it (and without the kernel's overlay for a user) Podman keeps images as vfs, every layer a full copy: GBs and many minutes per update
+	for p in podman fuse-overlayfs git curl uidmap; do
 		dpkg -s "$p" >/dev/null 2>&1 || packages+=("$p")
 	done
 	# on is when the device is there (a change in config.txt waits for a restart, so a run before it asks again: harmless)
