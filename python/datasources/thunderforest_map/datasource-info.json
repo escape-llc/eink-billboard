@@ -8,7 +8,7 @@
 	"description": "A map of a place from Thunderforest (OpenStreetMap data), in one of their styles: transport shows the bus and rail lines, cycle the cycle routes. The places are kept in the data source's settings, and a task picks one, or the device's own location. The API key is in the Thunderforest settings (the free plan is enough: a map is kept for a week).",
 	"describe": "Map {place}",
 	"disabled": false,
-	"uses": ["thunderforest"],
+	"uses": ["thunderforest-api"],
 	"features": ["api-client", "layer-foreground", "media-image"],
 	"settings": {
 		"_schema": "urn:inky:storage:schema:datasource:thunderforest-map:1",

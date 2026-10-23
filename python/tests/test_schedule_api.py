@@ -203,7 +203,7 @@ class TestTasks(ScheduleApiBase):
 		self.assertIn((("task", "content", "dataSource"), "Not one of the allowed values"), errors(task={ "plugin_name": "slide-show", "content": { **CONTENT, "dataSource": "gone" } }))
 		self.assertIn((("task", "content", "folder"), "Required"), errors(task={ "plugin_name": "slide-show", "content": { "dataSource": "image-folder", "slideMax": 1, "slideMinutes": 1 } }))
 		self.assertIn((("surprise",), "Unknown property"), errors(surprise=1))
-		self.assertIn((("task", "extra"), "Unknown property"), errors(task={ "plugin_name": "interstitial", "content": {}, "extra": 1 }))
+		self.assertIn((("task", "extra"), "Unknown property"), errors(task={ "plugin_name": "priority-update", "content": {}, "extra": 1 }))
 		self.assertIn((("enabled",), "Expected true or false"), errors(enabled="yes"))
 		self.assertEqual(len(self.stored()["items"]), 2)
 

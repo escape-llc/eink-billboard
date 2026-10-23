@@ -84,7 +84,7 @@ test("tracks can be added, moved and removed, and the order is saved", async ({ 
 	await expect(page.getByText("Playlist saved")).toBeVisible()
 	const items = stored().items
 	expect(items.map((x: { title: string }) => x.title)).toEqual(["Morning slides", "Third"])
-	expect(items[1].content.dataSource).toBe("year_progress")
+	expect(items[1].content.dataSource).toBe("year-progress")
 	expect(items[1].id).not.toMatch(/^new-/)
 	watch.expectNone()
 })
@@ -218,7 +218,7 @@ test("a stored track shows what is new and what is no longer used, and a field t
 	doc.items = [
 		track("w", "0 Item", { dataSource: "weather", views: ["current"], title: null, fontSize: "normal", slideMax: 0, slideMinutes: 2, showAs: "auto" }),
 		// no `fontSize`, no `listMode`: new; `washStyle` and `oldSetting`: deleted (`textModel: null` is unset: not listed)
-		track("c", "1 Item", { dataSource: "calendar-pages", views: ["agenda"], calendars: [], holidaySets: [], agendaDays: 7, title: "Agenda", slideMax: 0, slideMinutes: 2, showAs: "auto", weeksAhead: null, washStyle: "soft", oldSetting: 3, textModel: null }),
+		track("c", "1 Item", { dataSource: "calendar", views: ["agenda"], calendars: [], holidaySets: [], agendaDays: 7, title: "Agenda", slideMax: 0, slideMinutes: 2, showAs: "auto", weeksAhead: null, washStyle: "soft", oldSetting: 3, textModel: null }),
 	]
 	fs.writeFileSync(FILE, JSON.stringify(doc, null, 2))
 	await page.goto("/#/playlist")

@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => stubMapTiles(page))
 
 const TRIGGER = { on_startup: false, day: { type: "dayofweek", days: [0, 1, 2, 3, 4, 5, 6] }, time: { type: "specific", hour: 9, minute: 0 } }
 const item = (id: string, title: string, minutes: number) => ({
-	id, title, enabled: true, _rev: `rev-${id}`, trigger: TRIGGER, task: { plugin_name: "interstitial", content: { slideMinutes: minutes, dataSource: "year_progress" } }
+	id, title, enabled: true, _rev: `rev-${id}`, trigger: TRIGGER, task: { plugin_name: "priority-update", content: { slideMinutes: minutes, dataSource: "year-progress" } }
 })
 async function stubRender(page: Page, render: object) {
 	await page.route("**/api/schedule/tasks/render**", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(render) }))
@@ -66,7 +66,7 @@ test("an event can be opened from the keyboard", async ({ page }) => {
 		render: [{ schedule: "s", id: "a", scheduled_time: "2026-01-05T09:00:00+00:00" }], not_render: [], invalid: []
 	})
 	await page.goto("/#/schedule")
-	const event = page.getByRole("button", { name: "Edit Keyboard task (interstitial)" })
+	const event = page.getByRole("button", { name: "Edit Keyboard task (priority-update)" })
 	await expect(event).toBeVisible()
 	await event.focus()
 	await page.keyboard.press("Enter")

@@ -49,7 +49,7 @@ for _name in ("httpx", "httpcore"):
 logger = logging.getLogger(__name__)
 
 def comicvine_client() -> httpx.AsyncClient:
-	return metered_client("comicvine", timeout=TIMEOUT, headers=HEADERS, follow_redirects=False)
+	return metered_client("comicvine-api", timeout=TIMEOUT, headers=HEADERS, follow_redirects=False)
 
 def stored_api_key(dscm: DatasourceConfigurationManager) -> str:
 	_, settings = dscm.open().get()

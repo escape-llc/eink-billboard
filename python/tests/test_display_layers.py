@@ -256,8 +256,8 @@ class TestPriorityUpdateShowAs(unittest.TestCase):
 		content: dict = { "dataSource": "poem", "slideMinutes": 3 }
 		if show_as is not None:
 			content["showAs"] = show_as
-		item = TimerTaskItem("t1", "Poem", True, TimerTaskTask("interstitial", content), cast(TriggerDict, at(9, 0)))
-		asyncio.run(PriorityUpdateAsync("interstitial", "Priority Update").task_async(PluginExecutionContext(provider, (800, 480), NOW), item, threading.Event()))
+		item = TimerTaskItem("t1", "Poem", True, TimerTaskTask("priority-update", content), cast(TriggerDict, at(9, 0)))
+		asyncio.run(PriorityUpdateAsync("priority-update", "Priority Update").task_async(PluginExecutionContext(provider, (800, 480), NOW), item, threading.Event()))
 		return [m for route, m in sent if route == "display"]
 
 	def test_priority_is_the_default(self):

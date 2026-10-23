@@ -141,7 +141,7 @@ test("the weather provider is chosen from the providers of the weather, which sa
 	await options.getByRole("option").filter({ hasText: "OpenWeatherMap" }).click()
 	await saveButton(page).click()
 	await expect(page.getByText("Settings saved successfully")).toBeVisible()
-	expect((await system(request)).weatherProvider).toBe("openweathermap")
+	expect((await system(request)).weatherProvider).toBe("openweathermap-api")
 	// back to empty for the tests after this one
 	const doc = await system(request)
 	expect((await request.put("/api/settings/system", { data: { ...doc, weatherProvider: null } })).ok()).toBe(true)

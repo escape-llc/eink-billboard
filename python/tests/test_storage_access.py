@@ -79,7 +79,7 @@ class TestNames(unittest.TestCase):
 		with tempfile.TemporaryDirectory() as tmp:
 			cm = ConfigurationManager(storage_path=tmp)
 			cm.ensure_folders()
-			dsm = cm.datasource_manager("calendar")
+			dsm = cm.datasource_manager("calendar-sources")
 			for bad in ("../x", "..", "a/b", "a\b", "", "/etc/passwd", ".hidden", "x.json"):
 				with self.subTest(bad), self.assertRaises(ValueError):
 					dsm.file(bad)

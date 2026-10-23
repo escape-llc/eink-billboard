@@ -30,7 +30,7 @@ MAX_PAGES = 20
 logger = logging.getLogger(__name__)
 
 def google_client() -> httpx.AsyncClient:
-	return metered_client("google-ai", timeout=TIMEOUT)
+	return metered_client("google-api", timeout=TIMEOUT)
 
 def stored_api_key(dscm: DatasourceConfigurationManager) -> str:
 	_, settings = dscm.open().get()

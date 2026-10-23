@@ -1,16 +1,16 @@
 {
-	"id": "open-meteo",
+	"id": "open-meteo-api",
 	"name": "Open-Meteo",
 	"version": "0.0.1",
 	"class": "OpenMeteoApi",
-	"file": "open_meteo.py",
-	"module": "python.datasources.open_meteo.open_meteo",
+	"file": "open_meteo_api.py",
+	"module": "python.datasources.open_meteo_api.open_meteo_api",
 	"description": "A weather provider with no key: the weather at the device's location from Open-Meteo, for the Weather pages, the Weather Overlay and the Weather Visualizer. Free for non-commercial use.",
 	"credit": { "text": "Weather data by Open-Meteo.com", "license": "CC BY 4.0; free for non-commercial use", "url": "https://open-meteo.com/" },
 	"disabled": false,
 	"features": ["internet", "api", "data-weather"],
 	"settings": {
-		"_schema": "urn:inky:storage:schema:datasource:open-meteo:1",
+		"_schema": "urn:inky:storage:schema:datasource:open-meteo-api:1",
 		"schema": {
 			"properties": [
 				{

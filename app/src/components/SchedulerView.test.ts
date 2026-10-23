@@ -31,7 +31,7 @@ describe("the scheduler's window", () => {
 describe("the list of tasks", () => {
 	const schedules = { doc: { items: [
 		{ id: "a", title: "Clock", enabled: true, trigger: { on_startup: true, day: { type: "dayofweek" }, time: { type: "hourly" } }, task: { plugin_name: "overlay" } },
-		{ id: "b", title: "Poem", enabled: true, trigger: { on_startup: false }, task: { plugin_name: "interstitial" } },
+		{ id: "b", title: "Poem", enabled: true, trigger: { on_startup: false }, task: { plugin_name: "priority-update" } },
 		{ id: "c", title: "Off", enabled: false, task: { plugin_name: "overlay" } },
 	] } }
 	const at = (h: number) => new Date(Date.UTC(2026, 9, 13, h))
@@ -42,7 +42,7 @@ describe("the list of tasks", () => {
 		{ start: at(11), data: undefined },
 	]
 	it("has each task once, with its first run and how many, in order of first run", () => {
-		const rows = taskRows(events, schedules, id => ({ overlay: "Overlay", interstitial: "Priority Update" })[id] ?? id, at(0))
+		const rows = taskRows(events, schedules, id => ({ overlay: "Overlay", "priority-update": "Priority Update" })[id] ?? id, at(0))
 		expect(rows.map(r => [r.title, r.plugin, r.runs, r.next?.getUTCHours() ?? null, r.enabled, r.startup])).toEqual([
 			["Poem", "Priority Update", 1, 9, true, false],
 			["Clock", "Overlay", 2, 10, true, true],

@@ -288,7 +288,7 @@ class TestSlideShowKeepsItsList(unittest.IsolatedAsyncioTestCase):
 
 	async def test_a_resumed_visit_passes_on_for_a_single_picture(self):
 		ds = FakeItem(state="x")
-		ds.id = ds.name = "apod"
+		ds.id = ds.name = "nasa-apod"
 		self.assertEqual(await self.show(ds, resumed=True), [])
 		# and a visit that is not a resume shows it
 		self.assertEqual(len(await self.show(ds)), 1)

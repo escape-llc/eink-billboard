@@ -1,18 +1,17 @@
 {
-	"id": "comic-vine",
-	"name": "Comic Vine Covers",
+	"id": "nasa-apod",
+	"name": "NASA Picture of the Day",
 	"version": "0.0.1",
-	"class": "ComicVineCoversAsync",
-	"file": "comic_vine.py",
-	"module": "python.datasources.comic_vine.comic_vine",
-	"description": "The covers of a comic series from Comic Vine, in a random order, one page per cover on a blurred margin. The API key is in the Comic Vine settings (it is free).",
-	"describe": "Comic covers {series}",
-	"keepsList": true,
+	"class": "ApodAsync",
+	"file": "nasa_apod.py",
+	"module": "python.datasources.nasa_apod.nasa_apod",
+	"description": "NASA's Astronomy Picture of the Day: today's, a day you choose, or a random day. A day with a video instead of a picture is passed over (today, random) or reported (a chosen day). The picture is fitted to the screen with a blurred margin. No key is needed.",
+	"credit": { "text": "Astronomy Picture of the Day, NASA", "license": "Each picture's own: NASA's are public domain, others are their authors', as the day's page says", "url": "https://apod.nasa.gov/apod/" },
+	"describe": "NASA picture of the day",
 	"disabled": false,
-	"uses": ["comicvine"],
-	"features": ["api-client", "layer-foreground", "media-list"],
+	"features": ["internet", "layer-background", "media-image"],
 	"settings": {
-		"_schema": "urn:inky:storage:schema:datasource:comic-vine:1",
+		"_schema": "urn:inky:storage:schema:datasource:nasa-apod:1",
 		"schema": {
 			"properties": [
 				{
@@ -64,14 +63,21 @@
 			},
 			"properties": [
 				{
-					"name": "series",
-					"type": "string",
-					"required": true,
+					"name": "randomizeDate",
+					"type": "boolean",
+					"required": false,
+					"default": false,
+					"title": "Randomize Date",
+					"description": "A random day since 16 June 1995, when the Picture of the Day began, each time."
+				},
+				{
+					"name": "customDate",
+					"type": "string", "format": "date",
+					"required": false,
 					"default": null,
-					"title": "Series",
-					"description": "The comic series to show, as you would search for it. The first match is used: Test shows which one that is.",
-					"maxLength": 100,
-					"test": { "url": "/api/datasource/comicvine/test" }
+					"title": "Custom Date",
+					"description": "A day to show. Not used when the date is randomized. Empty: today's picture (or the latest one, until today's is published).",
+					"visibleIf": { "field": "randomizeDate", "const": false }
 				}
 			]
 		}

@@ -5,9 +5,9 @@ import unittest
 from ..datasources.countdown.countdown import CountdownAsync
 from ..datasources.year_progress.year_progress import YearProgressAsync
 from ..datasources.clock.clock import ClockAsync
-from ..datasources.comic.comic_feed import ComicFeedAsync
+from ..datasources.comic.comic import ComicFeedAsync
 from ..datasources.data_source import DataSourceExecutionContext, MediaItemAsync, MediaListAsync, MediaRenderAsync
-from ..datasources.wpotd.wpotd import WpotdAsync
+from ..datasources.wikipedia_potd.wikipedia_potd import WpotdAsync
 from ..datasources.image_folder.image_folder import ImageFolderAsync
 from ..datasources.newspaper.newspaper import NewspaperAsync
 from ..model.configuration_manager import DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
@@ -108,7 +108,7 @@ class TestAsyncDataSources(unittest.TestCase):
 		}
 		self.pool.submit(self.run_datasource_async, ds, params, (700, 1166), 1).result(timeout=60)
 	def test_wikipedia(self):
-		ds = WpotdAsync("wpotd", "wpotd")
+		ds = WpotdAsync("wikipedia-potd", "wikipedia-potd")
 		params = {
 			"shrinkToFit": True
 		}

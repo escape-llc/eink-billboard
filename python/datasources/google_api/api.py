@@ -22,7 +22,7 @@ from .models import QUALITY_NAMES, describe_models, image_models, text_models
 
 logger = logging.getLogger(__name__)
 
-DATASOURCE_ID = "google-ai"
+DATASOURCE_ID = "google-api"
 
 # mounted under /api by the web application
 google_router = APIRouter(prefix=f"/datasource/{DATASOURCE_ID}")

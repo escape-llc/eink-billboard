@@ -3,7 +3,7 @@ Covers of a comic series from Comic Vine, one page per cover. `open_async` lists
 newest or oldest issues are not the only ones shown) in a random order; the Slide Show keeps the list and shows it through (`keepsList`).
 `render_async` draws one cover on a blurred margin: a cover is portrait and a panel usually is not.
 
-The key, the search and the kept answers are the Comic Vine API data source's (`comicvine`), asked with `dsec.use`.
+The key, the search and the kept answers are the Comic Vine API data source's (`comicvine-api`), asked with `dsec.use`.
 """
 import logging
 import math
@@ -15,10 +15,10 @@ from PIL import Image, UnidentifiedImageError
 from ...plugins.plugin_base import PermanentError
 from ...utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, blurred_margin
 from ..content_cache import download_for
-from ..comicvine.comicvine import HEADERS, PAGE, ComicVineApi
+from ..comicvine_api.comicvine_api import HEADERS, PAGE, ComicVineApi
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 
-COMICVINE_ID = "comicvine"
+COMICVINE_ID = "comicvine-api"
 MAX_IMAGE_BYTES = DEFAULT_MAX_DOWNLOAD_BYTES
 # a cover does not change: kept for a day (the site's headers can shorten that)
 DEFAULT_CONTENT_HOURS = 24.0

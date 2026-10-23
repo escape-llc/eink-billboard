@@ -1,5 +1,5 @@
 """
-The Comic Vine API data source (`comicvine`, the key, the search and the kept answers) and the Comic Vine Covers page source (`comic-vine`), against the fake
+The Comic Vine API data source (`comicvine-api`, the key, the search and the kept answers) and the Comic Vine Covers page source (`comicvine-covers`), against the fake
 internet's Comic Vine (python/tests/fake_internet.py): no key, no cost, no real cover (they are copyrighted).
 """
 import atexit
@@ -13,9 +13,9 @@ from unittest.mock import patch
 
 import httpx
 
-from ..datasources.comic_vine import comic_vine
-from ..datasources.comic_vine.comic_vine import ComicVineCoversAsync
-from ..datasources.comicvine.comicvine import ComicVineApi, HideKey, api_error, parse_issues, parse_volume
+from ..datasources.comicvine_covers import comicvine_covers as comic_vine
+from ..datasources.comicvine_covers.comicvine_covers import ComicVineCoversAsync
+from ..datasources.comicvine_api.comicvine_api import ComicVineApi, HideKey, api_error, parse_issues, parse_volume
 from ..datasources.data_source import DataSourceApi, DataSourceExecutionContext, DataSourceManager
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager
 from ..model.service_container import ServiceContainer
@@ -27,7 +27,7 @@ from .test_web_api import WebApiTestBase
 from .utils import save_datasource_settings
 
 NOW = datetime(2026, 10, 16, 12, 0, tzinfo=timezone.utc)
-API_ID = "comicvine"
+API_ID = "comicvine-api"
 
 def fake() -> FakeInternet:
 	transport = AsyncHttpWorkerPool.default_transport
@@ -152,9 +152,9 @@ class TestTheCovers(unittest.IsolatedAsyncioTestCase):
 	def setUp(self):
 		fake().requests.clear()
 		client_var.set(httpx.AsyncClient(transport=fake()))
-		self.source = ComicVineCoversAsync("comic-vine", "Comic Vine Covers")
+		self.source = ComicVineCoversAsync("comicvine-covers", "Comic Vine Covers")
 		self.cm = storage()
-		self.dsec = context(self.cm, own="comic-vine")
+		self.dsec = context(self.cm, own="comicvine-covers")
 
 	async def test_a_page_of_covers_in_a_random_order_titled_by_issue(self):
 		with patch.object(comic_vine.random, "randrange", return_value=1):
@@ -191,19 +191,19 @@ class TestTheCovers(unittest.IsolatedAsyncioTestCase):
 		self.assertEqual(result.image.size, (800, 480))
 		self.assertNotEqual(result.image.getpixel((5, 240)), (255, 255, 255))
 		self.assertTrue(result.title.startswith("Test Tales #"))
-		portrait = context(self.cm, own="comic-vine", orientation="portrait")
+		portrait = context(self.cm, own="comicvine-covers", orientation="portrait")
 		turned = await self.source.render_async(portrait, { "series": "Test Tales" }, covers[0])
 		assert turned is not None and turned.image is not None
 		self.assertEqual(turned.image.size, (480, 800))
 
 	async def test_the_problems_are_the_settings_to_fix(self):
 		for params, loaded, text in (({ "series": "  " }, None, "Enter the series"), ({ "series": "nothing-here" }, None, "no series that matches"),
-				({ "series": "Test Tales" }, {}, "Comicvine data source is not available")):
+				({ "series": "Test Tales" }, {}, "The Comic Vine data source is not available")):
 			with self.subTest(text), self.assertRaises(PermanentError) as caught:
-				await self.source.open_async(context(self.cm, own="comic-vine", loaded=loaded), params)
+				await self.source.open_async(context(self.cm, own="comicvine-covers", loaded=loaded), params)
 			self.assertIn(text, str(caught.exception))
 		with self.assertRaises(PermanentError) as keyless:
-			await self.source.open_async(context(storage(None), own="comic-vine"), { "series": "Test Tales" })
+			await self.source.open_async(context(storage(None), own="comicvine-covers"), { "series": "Test Tales" })
 		self.assertIn("API key is not set", str(keyless.exception))
 
 	async def test_a_state_that_is_not_ours_draws_nothing(self):
@@ -211,11 +211,11 @@ class TestTheCovers(unittest.IsolatedAsyncioTestCase):
 		self.assertIsNone(await self.source.render_async(self.dsec, {}, { "url": "" }))
 
 class TestTheRoute(WebApiTestBase):
-	BASE = "/api/datasource/comicvine"
+	BASE = "/api/datasource/comicvine-api"
 
 	def setUp(self):
 		super().setUp()
-		logging.getLogger("python.datasources.comicvine").setLevel(logging.CRITICAL)
+		logging.getLogger("python.datasources.comicvine_api").setLevel(logging.CRITICAL)
 
 	def test_the_test_button_says_which_series_the_search_matches(self):
 		answer = lambda value: self.client.post(f"{self.BASE}/test", json={ "value": value })
@@ -234,6 +234,6 @@ class TestTheRoute(WebApiTestBase):
 
 	def test_the_key_is_never_served(self):
 		self.write_datasource_settings(API_ID, { "apiKey": "cv-good", "volumeCacheHours": 0 })
-		served = self.client.get("/api/datasources/comicvine/settings")
+		served = self.client.get("/api/datasources/comicvine-api/settings")
 		self.assertEqual(served.status_code, 200)
 		self.assertNotIn("cv-good", served.text)

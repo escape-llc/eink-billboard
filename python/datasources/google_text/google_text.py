@@ -7,7 +7,7 @@ from ..google_api.google_api import GoogleApi
 from ..google_api.models import DEFAULT_TEXT_MODEL
 
 # the provider it asks: its descriptor's id, never a value from a request
-PROVIDER_ID = "google-ai"
+PROVIDER_ID = "google-api"
 
 class GoogleTextAsync(AiTextApi):
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> str:

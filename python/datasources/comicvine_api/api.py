@@ -15,11 +15,11 @@ from ...plugins.plugin_base import PermanentError
 from ...web.deps import CM
 from ...web.documents import SECRET_MASK
 from ..data_source import DataSourceExecutionContext
-from .comicvine import ComicVineApi, comicvine_client, fetch
+from .comicvine_api import ComicVineApi, comicvine_client, fetch
 
 logger = logging.getLogger(__name__)
 
-DATASOURCE_ID = "comicvine"
+DATASOURCE_ID = "comicvine-api"
 
 # mounted under /api by the web application
 comicvine_router = APIRouter(prefix=f"/datasource/{DATASOURCE_ID}")

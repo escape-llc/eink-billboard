@@ -758,14 +758,14 @@ class TestPluginsAndDatasources(WebApiTestBase):
 			self.assertNotIn(probe, resp.text, url)
 
 	def test_datasource_settings_round_trip(self):
-		self.write_datasource_settings("wpotd", {"contentCacheHours": 24, "contentCacheMB": 64, "staleDays": 30})
-		resp = self.client.get("/api/datasources/wpotd/settings")
+		self.write_datasource_settings("wikipedia-potd", {"contentCacheHours": 24, "contentCacheMB": 64, "staleDays": 30})
+		resp = self.client.get("/api/datasources/wikipedia-potd/settings")
 		self.assertEqual(resp.status_code, 200, resp.text)
 		doc = resp.json()
-		self.assertEqual(doc["_id"], "datasource-wpotd-settings")
+		self.assertEqual(doc["_id"], "datasource-wikipedia-potd-settings")
 		doc["contentCacheHours"] = 12
-		self.assertEqual(self.client.put("/api/datasources/wpotd/settings", json=doc).status_code, 200)
-		self.assertEqual(self.client.get("/api/datasources/wpotd/settings").json()["contentCacheHours"], 12)
+		self.assertEqual(self.client.put("/api/datasources/wikipedia-potd/settings", json=doc).status_code, 200)
+		self.assertEqual(self.client.get("/api/datasources/wikipedia-potd/settings").json()["contentCacheHours"], 12)
 
 	def test_missing_settings_is_404_and_first_save_needs_no_rev(self):
 		# a plugin with no stored settings.json yet
@@ -783,8 +783,8 @@ class TestPluginsAndDatasources(WebApiTestBase):
 			self.assertEqual(resp.status_code, 200, resp.text)
 
 	def test_secrets_are_masked_and_kept(self):
-		url = "/api/datasources/openai/settings"
-		settings_file = self.write_datasource_settings("openai", {"apiKey": "sk-test-1", "modelsCacheHours": 24, "staleDays": 30})
+		url = "/api/datasources/openai-api/settings"
+		settings_file = self.write_datasource_settings("openai-api", {"apiKey": "sk-test-1", "modelsCacheHours": 24, "staleDays": 30})
 
 		doc = self.client.get(url).json()
 		self.assertEqual(doc["apiKey"], SECRET_MASK)
@@ -818,10 +818,10 @@ class TestPluginsAndDatasources(WebApiTestBase):
 		self.assertEqual((resp.json()["apiKey"], resp.json()["empty"]), (SECRET_MASK, ""))
 
 class TestSecretMaskOnFirstSave(WebApiTestBase):
-	URL = "/api/datasources/openai/settings"
+	URL = "/api/datasources/openai-api/settings"
 
 	def _no_stored_settings(self):
-		settings_file = self.write_datasource_settings("openai", {})
+		settings_file = self.write_datasource_settings("openai-api", {})
 		os.remove(settings_file)
 		cob = self.cm.find(settings_file)
 		if cob is not None:
@@ -835,7 +835,7 @@ class TestSecretMaskOnFirstSave(WebApiTestBase):
 		self.assertFalse(os.path.exists(settings_file))
 
 	def test_the_literal_mask_is_refused_when_the_stored_settings_have_no_key(self):
-		self.write_datasource_settings("openai", { "other": 1 })
+		self.write_datasource_settings("openai-api", { "other": 1 })
 		doc = self.client.get(self.URL).json()
 		doc["apiKey"] = SECRET_MASK
 		_error_shape(self, self.client.put(self.URL, json=doc), 422)
@@ -871,14 +871,14 @@ class TestLookups(WebApiTestBase):
 		# the device's choice of weather provider lists the providers of `data-weather`, and only a capability of our own list is asked about
 		# not set up (no key yet): it is listed, and says so; with a key it is set up
 		# Open-Meteo needs no key: it is set up as installed
-		self.assertEqual(self.client.get("/api/lookups/providers/data-weather").json(), [{ "name": "Open-Meteo", "value": "open-meteo", "ready": True },
-			{ "name": "OpenWeatherMap (not set up)", "value": "openweathermap", "ready": False }])
-		self.write_datasource_settings("openweathermap", { "apiKey": "k-123" })
-		self.assertEqual(self.client.get("/api/lookups/providers/data-weather").json()[1], { "name": "OpenWeatherMap", "value": "openweathermap", "ready": True })
+		self.assertEqual(self.client.get("/api/lookups/providers/data-weather").json(), [{ "name": "Open-Meteo", "value": "open-meteo-api", "ready": True },
+			{ "name": "OpenWeatherMap (not set up)", "value": "openweathermap-api", "ready": False }])
+		self.write_datasource_settings("openweathermap-api", { "apiKey": "k-123" })
+		self.assertEqual(self.client.get("/api/lookups/providers/data-weather").json()[1], { "name": "OpenWeatherMap", "value": "openweathermap-api", "ready": True })
 		# the calendar provider is set up once it has a calendar or a holiday set
 		self.assertEqual([x["ready"] for x in self.client.get("/api/lookups/providers/data-calendar").json()], [False])
-		self.write_datasource_settings("calendar", { "calendars": [], "holidays": [{ "name": "US", "country": "US" }] })
-		self.assertEqual(self.client.get("/api/lookups/providers/data-calendar").json(), [{ "name": "Calendar Sources", "value": "calendar", "ready": True }])
+		self.write_datasource_settings("calendar-sources", { "calendars": [], "holidays": [{ "name": "US", "country": "US" }] })
+		self.assertEqual(self.client.get("/api/lookups/providers/data-calendar").json(), [{ "name": "Calendar Sources", "value": "calendar-sources", "ready": True }])
 		self.assertEqual({x["value"] for x in self.client.get("/api/lookups/providers/data-ai-image").json()}, { "openai-image", "google-image" })
 		resp = self.client.get("/api/lookups/providers/..%2Fsettings")
 		self.assertEqual(resp.status_code, 404)

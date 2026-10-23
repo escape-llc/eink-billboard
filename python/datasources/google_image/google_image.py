@@ -16,7 +16,7 @@ from ..google_api.google_api import GoogleApi, checked_model
 from ..google_api.models import DEFAULT_IMAGE_MODEL, Vocabulary, is_image_model, ratio_for, size_for
 
 # the provider it asks: its descriptor's id, never a value from a request
-PROVIDER_ID = "google-ai"
+PROVIDER_ID = "google-api"
 
 def _size(value: Any, fallback: int) -> int:
 	return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else fallback

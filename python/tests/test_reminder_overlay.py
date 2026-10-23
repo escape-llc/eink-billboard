@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 from typing import Any, cast
 
 
-from ..datasources.calendar.calendar import CalendarSources
-from ..datasources.calendar_pages.calendar_pages import CalendarPagesAsync
+from ..datasources.calendar_sources.calendar_sources import CalendarSources
+from ..datasources.calendar.calendar import CalendarPagesAsync
 from ..datasources.contracts.calendar import Event
 from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager
 from ..datasources.overlay_text import lines_that_fit
@@ -64,9 +64,9 @@ class Harness:
 		test.addCleanup(shutil.rmtree, folder, True)
 		self.cm = ConfigurationManager(storage_path=folder)
 		self.cm.hard_reset()
-		save_datasource_settings(self.cm, "calendar", { "cacheHours": 0.25, "staleDays": 30, "calendars": CALENDARS, "holidays": [], "accounts": [], **(settings or {}) })
-		self.calendar = CalendarSources("calendar", "Calendar Sources")
-		self.sources = { "calendar": self.calendar } if sources is None else sources
+		save_datasource_settings(self.cm, "calendar-sources", { "cacheHours": 0.25, "staleDays": 30, "calendars": CALENDARS, "holidays": [], "accounts": [], **(settings or {}) })
+		self.calendar = CalendarSources("calendar-sources", "Calendar Sources")
+		self.sources = { "calendar-sources": self.calendar } if sources is None else sources
 
 	def context(self, now=NOW, own="reminder-overlay") -> DataSourceExecutionContext:
 		root = ServiceContainer()
@@ -94,7 +94,7 @@ class TestAsksTheCalendar(unittest.IsolatedAsyncioTestCase):
 
 	async def test_the_overlay_and_the_calendars_pages_share_one_read(self):
 		h = Harness(self)
-		await CalendarPagesAsync("calendar-pages", "Calendar").open_async(h.context(BEFORE_DENTIST, own="calendar-pages"), { "views": ["agenda"], "calendars": ["Family"] })
+		await CalendarPagesAsync("calendar", "Calendar").open_async(h.context(BEFORE_DENTIST, own="calendar"), { "views": ["agenda"], "calendars": ["Family"] })
 		first = h.asked()
 		overlay = ReminderOverlayAsync("reminder-overlay", "Reminder Overlay")
 		await overlay.open_async(h.context(BEFORE_DENTIST + timedelta(minutes=5)), { "calendars": ["Family"], "windowMinutes": 60 })

@@ -124,7 +124,7 @@ test("a task can be added", async ({ page }) => {
 	await expect(page.getByText("Task saved")).toBeVisible()
 	await expect.poll(() => stored().items.length).toBe(3)
 	const added = stored().items.find((x: { title: string }) => x.title === "Added in the browser")
-	expect(added.task.content.dataSource).toBe("year_progress")
+	expect(added.task.content.dataSource).toBe("year-progress")
 	expect(added.trigger.time).toEqual({ type: "specific", hour: 9, minute: 0 })
 	watch.expectNone()
 })

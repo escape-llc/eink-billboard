@@ -365,7 +365,7 @@ class TestPluginsHandleResume(unittest.TestCase):
 	def test_every_plugin_in_the_repository_says_how(self):
 		cm = create_configuration_manager()
 		found = [info["info"]["id"] for info in cm.enum_plugins()]
-		self.assertTrue({ "slide-show", "overlay", "interstitial" } <= set(found), found)
+		self.assertTrue({ "slide-show", "overlay", "priority-update" } <= set(found), found)
 		for info in cm.enum_plugins():
 			plugin = cm.create_plugin(info)
 			self.assertIn(getattr(plugin, "resume_contract", None), ("honours", "ignores"), f"plugin '{info['info']['id']}' does not say how it handles `resumed`")
@@ -375,7 +375,7 @@ class TestPluginsHandleResume(unittest.TestCase):
 		contracts = { info["info"]["id"]: getattr(cm.create_plugin(info), "resume_contract", None) for info in cm.enum_plugins() }
 		# the playlist layer's plugin lookup asks for `layer-background` / `layer-foreground`; the timer layer's for priority and overlay
 		self.assertEqual(contracts["slide-show"], "honours")
-		self.assertEqual((contracts["overlay"], contracts["interstitial"]), ("ignores", "ignores"))
+		self.assertEqual((contracts["overlay"], contracts["priority-update"]), ("ignores", "ignores"))
 
 	def test_the_context_defaults_to_not_resumed(self):
 		context = PluginExecutionContext(ServiceContainer(), (8, 8), datetime.now().astimezone())

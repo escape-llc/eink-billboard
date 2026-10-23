@@ -46,10 +46,10 @@ def shape_of(properties: list[dict]) -> dict[str, dict]:
 
 class TestSchemaId(unittest.TestCase):
 	def test_a_urn_is_taken_apart(self):
-		found = SchemaId.parse("urn:inky:storage:schema:datasource:year_progress:12")
+		found = SchemaId.parse("urn:inky:storage:schema:datasource:year-progress:12")
 		assert found is not None
-		self.assertEqual((found.family, found.version), ("urn:inky:storage:schema:datasource:year_progress", 12))
-		self.assertEqual(str(found.with_version(13)), "urn:inky:storage:schema:datasource:year_progress:13")
+		self.assertEqual((found.family, found.version), ("urn:inky:storage:schema:datasource:year-progress", 12))
+		self.assertEqual(str(found.with_version(13)), "urn:inky:storage:schema:datasource:year-progress:13")
 
 	def test_the_urn_an_earlier_release_wrote_is_the_same_family(self):
 		found = SchemaId.parse("urn:inky:storage:settings:system:1")
@@ -328,18 +328,18 @@ class TestFilesWithoutASource(unittest.TestCase):
 		self.assertEqual(kept.head(), "a")
 
 	def test_the_sign_ins_are_stamped_and_a_newer_file_is_never_overwritten(self):
-		from ..datasources.calendar.accounts import AccountError, TOKENS_VERSION, TokenStore
-		store = TokenStore(self.cm.datasource_manager("calendar"))
+		from ..datasources.calendar_sources.accounts import AccountError, TOKENS_VERSION, TokenStore
+		store = TokenStore(self.cm.datasource_manager("calendar-sources"))
 		store.put("Home", { "client_id": "c", "refresh_token": "r" })
 		self.cm.evict_all()
-		saved = self.cm.datasource_manager("calendar").file("tokens").get()[1]
+		saved = self.cm.datasource_manager("calendar-sources").file("tokens").get()[1]
 		assert saved is not None
 		self.assertEqual((saved["_version"], sorted(k for k in saved if k != "_version")), (TOKENS_VERSION, ["Home"]))
 		self.assertEqual(store.get("Home", "c"), { "client_id": "c", "refresh_token": "r" })
-		self.put(self.cm.datasource_manager("calendar").file("tokens"), { **saved, "_version": TOKENS_VERSION + 1 })
+		self.put(self.cm.datasource_manager("calendar-sources").file("tokens"), { **saved, "_version": TOKENS_VERSION + 1 })
 		with self.assertRaises(AccountError):
 			store.put("Work", { "client_id": "c", "refresh_token": "w" })
-		self.assertEqual(self.cm.datasource_manager("calendar").file("tokens").get()[1]["_version"], TOKENS_VERSION + 1)  # type: ignore[index]
+		self.assertEqual(self.cm.datasource_manager("calendar-sources").file("tokens").get()[1]["_version"], TOKENS_VERSION + 1)  # type: ignore[index]
 
 def record() -> None:
 	"""Write `fixtures/schema_shapes.json` from the sources as they are now (after raising a number and adding its migration)."""

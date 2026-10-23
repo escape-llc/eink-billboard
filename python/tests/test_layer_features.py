@@ -71,7 +71,7 @@ class TestPluginsAndSourcesAgree(unittest.TestCase):
 	"""
 	def test_each_plugin_asks_for_its_own_layers(self):
 		self.assertEqual(PLUGINS["overlay"]["instanceSettings"]["schema"]["lookups"]["dataSource"]["features"], ["layer-overlay"])
-		self.assertEqual(PLUGINS["interstitial"]["instanceSettings"]["schema"]["lookups"]["dataSource"]["features"], ["layer-priority"])
+		self.assertEqual(PLUGINS["priority-update"]["instanceSettings"]["schema"]["lookups"]["dataSource"]["features"], ["layer-priority"])
 		self.assertEqual(sorted(PLUGINS["slide-show"]["instanceSettings"]["schema"]["lookups"]["dataSource"]["features"]), ["layer-background", "layer-foreground"])
 
 	def test_a_plugin_asks_only_for_layers_it_advertises(self):
@@ -200,7 +200,7 @@ class TestCapabilities(unittest.TestCase):
 
 	def test_the_weather_and_generators_require_what_they_ask_for(self):
 		by_id = { s["id"]: s for s in SOURCES }
-		self.assertIn("data-weather", by_id["openweathermap"]["features"])
+		self.assertIn("data-weather", by_id["openweathermap-api"]["features"])
 		for sid in ("weather", "weather-overlay", "weather-image"):
 			self.assertIn("data-weather", by_id[sid]["requires"])
 		for sid in ("ai-image", "weather-image"):
@@ -217,14 +217,14 @@ class TestCapabilities(unittest.TestCase):
 		def tokens_from(source: dict, value: list[str]):
 			next(p for p in source["instanceSettings"]["schema"]["properties"] if p.get("tokensFrom"))["tokensFrom"] = value
 		cases = [
-			("unknown feature", lambda s: s["openweathermap"]["features"].append("data-wether"), "openweathermap: unknown feature data-wether"),
+			("unknown feature", lambda s: s["openweathermap-api"]["features"].append("data-wether"), "openweathermap-api: unknown feature data-wether"),
 			("a page that is a provider", lambda s: s["weather"]["features"].append("api"), "weather: neither a provider"),
 			("a capability on a page", lambda s: s["weather"]["features"].append("data-weather"), "weather: supplies ['data-weather'] but is not a provider"),
-			("a requirement nobody supplies", lambda s: [drop(s[p], "features", "data-weather") for p in ("openweathermap", "open-meteo")], "weather: requires data-weather, which no provider supplies"),
+			("a requirement nobody supplies", lambda s: [drop(s[p], "features", "data-weather") for p in ("openweathermap-api", "open-meteo-api")], "weather: requires data-weather, which no provider supplies"),
 			("a requirement that is no capability", lambda s: s["weather"]["requires"].append("internet"), "weather: requires internet, which is not a capability"),
 			("a choice not required", lambda s: drop(s["ai-image"], "requires", "data-ai-text"), "ai-image: chooses a provider of data-ai-text but does not require it"),
 			("a page used as a provider", lambda s: s["weather"].update(uses=["rss"]), "weather: uses rss, which is not a provider"),
-			("prompt fields from a vendor", lambda s: tokens_from(s["weather-image"], ["openweathermap"]), "weather-image: weatherPrompt takes its fields from openweathermap, which is not a capability"),
+			("prompt fields from a vendor", lambda s: tokens_from(s["weather-image"], ["openweathermap-api"]), "weather-image: weatherPrompt takes its fields from openweathermap-api, which is not a capability"),
 			("prompt fields not required", lambda s: drop(s["weather-image"], "requires", "data-weather"), "weather-image: weatherPrompt takes its fields from data-weather, which it does not require"),
 		]
 		for name, change, expected in cases:

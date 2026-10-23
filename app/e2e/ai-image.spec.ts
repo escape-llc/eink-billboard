@@ -19,12 +19,12 @@ test.afterAll(restore)
 
 const choices = (...values: string[]) => values.map(value => ({ name: value, value }))
 async function stubProviders(page: Page) {
-	await page.route("**/api/datasource/openai/lookups/image-models", route => route.fulfill({ json: choices("gpt-image-2.5-flare", "gpt-image-2", "gpt-image-1.5") }))
-	await page.route("**/api/datasource/openai/lookups/text-models", route => route.fulfill({ json: choices("gpt-5.6-sol", "gpt-5.6-luna") }))
-	await page.route("**/api/datasource/openai/lookups/qualities", route => route.fulfill({ json: [{ name: "Auto (the model chooses)", value: "auto" }, { name: "High", value: "high" }] }))
-	await page.route("**/api/datasource/google-ai/lookups/image-models", route => route.fulfill({ json: choices("gemini-nano-banana-2.1", "gemini-3-pro-image") }))
-	await page.route("**/api/datasource/google-ai/lookups/text-models", route => route.fulfill({ json: choices("gemini-3.5-flash") }))
-	await page.route("**/api/datasource/google-ai/lookups/qualities", route => route.fulfill({ json: [{ name: "Auto (1K)", value: "auto" }, { name: "High (2K)", value: "high" }] }))
+	await page.route("**/api/datasource/openai-api/lookups/image-models", route => route.fulfill({ json: choices("gpt-image-2.5-flare", "gpt-image-2", "gpt-image-1.5") }))
+	await page.route("**/api/datasource/openai-api/lookups/text-models", route => route.fulfill({ json: choices("gpt-5.6-sol", "gpt-5.6-luna") }))
+	await page.route("**/api/datasource/openai-api/lookups/qualities", route => route.fulfill({ json: [{ name: "Auto (the model chooses)", value: "auto" }, { name: "High", value: "high" }] }))
+	await page.route("**/api/datasource/google-api/lookups/image-models", route => route.fulfill({ json: choices("gemini-nano-banana-2.1", "gemini-3-pro-image") }))
+	await page.route("**/api/datasource/google-api/lookups/text-models", route => route.fulfill({ json: choices("gemini-3.5-flash") }))
+	await page.route("**/api/datasource/google-api/lookups/qualities", route => route.fulfill({ json: [{ name: "Auto (1K)", value: "auto" }, { name: "High (2K)", value: "high" }] }))
 }
 
 test.beforeEach(async ({ page }) => {

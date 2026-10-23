@@ -1,5 +1,5 @@
 {
-	"id": "year_progress",
+	"id": "year-progress",
 	"name": "Year Progress",
 	"version": "0.0.1",
 	"class": "YearProgressAsync",
@@ -10,7 +10,7 @@
 	"features": ["layer-foreground", "layer-priority", "media-image"],
 	"disabled": false,
 	"settings": {
-		"_schema": "urn:inky:storage:schema:datasource:year_progress:1",
+		"_schema": "urn:inky:storage:schema:datasource:year-progress:1",
 		"schema": {
 			"properties": [
 			]

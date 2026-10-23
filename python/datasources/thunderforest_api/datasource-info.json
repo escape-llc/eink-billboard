@@ -1,10 +1,10 @@
 {
-	"id": "thunderforest",
+	"id": "thunderforest-api",
 	"name": "Thunderforest",
 	"version": "0.0.1",
 	"class": "ThunderforestApi",
-	"file": "thunderforest.py",
-	"module": "python.datasources.thunderforest.thunderforest",
+	"file": "thunderforest_api.py",
+	"module": "python.datasources.thunderforest_api.thunderforest_api",
 	"description": "Thunderforest, the OpenStreetMap map maker, for the Thunderforest Map: the API key and the maps it keeps, shared by every task.",
 	"credit": { "text": "Maps © www.thunderforest.com, Data © www.osm.org/copyright", "license": "Map data ODbL, © OpenStreetMap contributors", "url": "https://www.thunderforest.com/" },
 	"disabled": false,
@@ -13,10 +13,10 @@
 		"id": "thunderforest-router",
 		"class": "thunderforest_router",
 		"file": "api.py",
-		"module": "python.datasources.thunderforest.api"
+		"module": "python.datasources.thunderforest_api.api"
 	},
 	"settings": {
-		"_schema": "urn:inky:storage:schema:datasource:thunderforest:1",
+		"_schema": "urn:inky:storage:schema:datasource:thunderforest-api:1",
 		"schema": {
 			"properties": [
 				{
@@ -29,7 +29,7 @@
 					"title": "API Key",
 					"description": "Your Thunderforest key. The free plan (a Hobby Project) is enough: sign up and the key is on your dashboard. Test asks Thunderforest whether it accepts the key.",
 					"test": {
-						"url": "/api/datasource/thunderforest/test"
+						"url": "/api/datasource/thunderforest-api/test"
 					},
 					"link": {
 						"url": "https://manage.thunderforest.com/users/sign_up",

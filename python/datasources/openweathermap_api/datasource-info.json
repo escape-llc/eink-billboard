@@ -1,10 +1,10 @@
 {
-	"id": "openweathermap",
+	"id": "openweathermap-api",
 	"name": "OpenWeatherMap",
 	"version": "0.0.1",
 	"class": "OpenWeatherMapApi",
-	"file": "openweathermap.py",
-	"module": "python.datasources.openweathermap.openweathermap",
+	"file": "openweathermap_api.py",
+	"module": "python.datasources.openweathermap_api.openweathermap_api",
 	"description": "A weather provider: the weather at the device's location from OpenWeatherMap, for the Weather pages, the Weather Overlay and the Weather Visualizer. The API key and the kept answers they share (the units are the device's, in the System settings).",
 	"credit": { "text": "Weather data: OpenWeatherMap", "license": "CC BY-SA 4.0", "url": "https://openweathermap.org/" },
 	"disabled": false,
@@ -13,10 +13,10 @@
 		"id": "openweathermap-router",
 		"class": "openweathermap_router",
 		"file": "api.py",
-		"module": "python.datasources.openweathermap.api"
+		"module": "python.datasources.openweathermap_api.api"
 	},
 	"settings": {
-		"_schema": "urn:inky:storage:schema:datasource:openweathermap:1",
+		"_schema": "urn:inky:storage:schema:datasource:openweathermap-api:1",
 		"schema": {
 			"properties": [
 				{
@@ -28,7 +28,7 @@
 					"default": null,
 					"title": "API Key",
 					"description": "Your OpenWeatherMap key. The free plan is enough. A new key can take a couple of hours to start working. Test asks OpenWeatherMap whether it accepts the key.",
-					"test": { "url": "/api/datasource/openweathermap/test" },
+					"test": { "url": "/api/datasource/openweathermap-api/test" },
 					"link": { "url": "https://home.openweathermap.org/users/sign_up", "label": "Get a free API key" }
 				},
 				{

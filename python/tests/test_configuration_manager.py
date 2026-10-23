@@ -47,8 +47,8 @@ class TestConfigurationManager(unittest.TestCase):
 		list = cm.enum_plugins()
 		self.assertIsNotNone(list)
 		by_id = { px['info']['id']: px['info'] for px in list }
-		self.assertEqual(set(by_id), { 'interstitial', 'overlay', 'slide-show' })
-		self.assertEqual(by_id['interstitial']['class'], 'PriorityUpdateAsync')
+		self.assertEqual(set(by_id), { 'priority-update', 'overlay', 'slide-show' })
+		self.assertEqual(by_id['priority-update']['class'], 'PriorityUpdateAsync')
 		self.assertEqual(by_id['overlay']['class'], 'OverlayAsync')
 		self.assertEqual(by_id['slide-show']['class'], 'SlideShowAsync')
 
@@ -57,7 +57,7 @@ class TestConfigurationManager(unittest.TestCase):
 		list = cm.enum_datasources()
 		self.assertIsNotNone(list)
 		by_id = { px['info']['id']: px['info'] for px in list }
-		self.assertEqual(set(by_id), { 'ai-image', 'calendar', 'calendar-pages', 'clock', 'open-meteo', 'comic', 'countdown', 'google-ai', 'google-image', 'google-text', 'image-folder', 'image-url', 'newspaper', 'openai', 'openai-image', 'openai-text', 'openweathermap', 'rss', 'today', 'weather', 'weather-overlay', 'reminder-overlay', 'apod', 'wpotd', 'year_progress', 'comic-vine', 'comicvine', 'weather-image', 'thunderforest', 'thunderforest-map' })
+		self.assertEqual(set(by_id), { 'ai-image', 'calendar', 'calendar-sources', 'clock', 'open-meteo-api', 'comic', 'countdown', 'google-api', 'google-image', 'google-text', 'image-folder', 'image-url', 'newspaper', 'openai-api', 'openai-image', 'openai-text', 'openweathermap-api', 'rss', 'today', 'weather', 'weather-overlay', 'reminder-overlay', 'nasa-apod', 'wikipedia-potd', 'year-progress', 'comicvine-covers', 'comicvine-api', 'weather-image', 'thunderforest-api', 'thunderforest-map' })
 		self.assertEqual(by_id['clock']['class'], 'ClockAsync')
 		self.assertEqual(by_id['comic']['class'], 'ComicFeedAsync')
 		self.assertEqual(by_id['today']['class'], 'TodayAsync')
@@ -68,10 +68,10 @@ class TestConfigurationManager(unittest.TestCase):
 		plugins = cm.load_plugins(infos)
 		self.assertIsNotNone(plugins)
 		self.assertEqual(len(plugins), 3)  # priority update (id interstitial), overlay, slide-show
-		plugin = plugins.get('interstitial', None)
+		plugin = plugins.get('priority-update', None)
 		self.assertIsNotNone(plugin, 'plugin interstitial failed')
 		if plugin is not None:
-			self.assertEqual(plugin.id, 'interstitial')
+			self.assertEqual(plugin.id, 'priority-update')
 			self.assertEqual(plugin.name, 'Priority Update')
 
 	def test_load_datasources(self):
@@ -142,9 +142,9 @@ class TestConfigurationManager(unittest.TestCase):
 				json.dump({ "apiKey": "owm-secret", "units": "imperial", "currentCacheHours": 1, "forecastCacheHours": 3, "staleDays": 9, "other": True }, f)
 			with self.assertLogs("python.model.configuration_manager", level="INFO") as logged:
 				changed = cm.upgrade_settings()
-			self.assertIn("datasources/openweathermap", changed)
+			self.assertIn("datasources/openweathermap-api", changed)
 			self.assertNotIn("owm-secret", "\n".join(logged.output), "the names only, never a value")
-			_, moved = cm.datasource_manager("openweathermap").open().get()
+			_, moved = cm.datasource_manager("openweathermap-api").open().get()
 			assert moved is not None
 			self.assertEqual({ k: moved[k] for k in ("apiKey", "currentCacheHours", "forecastCacheHours", "staleDays") },
 				{ "apiKey": "owm-secret", "currentCacheHours": 1, "forecastCacheHours": 3, "staleDays": 9 })

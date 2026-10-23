@@ -7,8 +7,8 @@ import json
 import os
 import unittest
 
-from ..datasources.open_meteo.open_meteo import CREDIT as OPEN_METEO
-from ..datasources.openweathermap.openweathermap import CREDIT as OPENWEATHERMAP
+from ..datasources.open_meteo_api.open_meteo_api import CREDIT as OPEN_METEO
+from ..datasources.openweathermap_api.openweathermap_api import CREDIT as OPENWEATHERMAP
 from ..datasources.thunderforest_map.thunderforest_map import ATTRIBUTION
 from ..model.configuration_manager import FONT_FAMILIES
 from ..web.credits import FONT_AUTHORS, SOFTWARE, USERS_OWN
@@ -48,9 +48,9 @@ class TestEveryCreditIsDeclared(unittest.TestCase):
 
 	def test_the_panels_credits_are_the_descriptors_words(self):
 		found = descriptors()
-		self.assertEqual(found["open-meteo"]["credit"]["text"], OPEN_METEO)
-		self.assertEqual(found["openweathermap"]["credit"]["text"], OPENWEATHERMAP)
-		self.assertEqual(found["thunderforest"]["credit"]["text"], ATTRIBUTION)
+		self.assertEqual(found["open-meteo-api"]["credit"]["text"], OPEN_METEO)
+		self.assertEqual(found["openweathermap-api"]["credit"]["text"], OPENWEATHERMAP)
+		self.assertEqual(found["thunderforest-api"]["credit"]["text"], ATTRIBUTION)
 
 	def test_every_font_we_ship_is_credited_here_and_in_notice(self):
 		self.assertEqual(set(FONT_AUTHORS), set(FONT_FAMILIES))
@@ -69,11 +69,11 @@ class TestCreditsRoute(WebApiTestBase):
 	def test_the_page_gets_the_data_the_fonts_and_the_software(self):
 		body = self.client.get("/api/credits").json()
 		data = { d["id"]: d for d in body["data"] }
-		self.assertEqual(data["open-meteo"]["text"], OPEN_METEO)
-		self.assertEqual(data["open-meteo"]["name"], "Open-Meteo")
-		self.assertTrue(data["open-meteo"]["provider"])
-		self.assertFalse(data["apod"]["provider"])
-		self.assertNotIn("calendar", data)
+		self.assertEqual(data["open-meteo-api"]["text"], OPEN_METEO)
+		self.assertEqual(data["open-meteo-api"]["name"], "Open-Meteo")
+		self.assertTrue(data["open-meteo-api"]["provider"])
+		self.assertFalse(data["nasa-apod"]["provider"])
+		self.assertNotIn("calendar-sources", data)
 		self.assertEqual([d["name"].casefold() for d in body["data"]], sorted(d["name"].casefold() for d in body["data"]))
 		self.assertEqual({ f["name"] for f in body["fonts"] }, set(FONT_FAMILIES))
 		self.assertIn("Leaflet", { s["name"] for s in body["software"] })

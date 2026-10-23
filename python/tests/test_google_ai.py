@@ -91,8 +91,8 @@ class TestWhatGoogleSays(unittest.TestCase):
 			self.assertIsNone(KEY.match(other), other)
 
 def sources() -> dict:
-	return { "google-ai": GoogleApi("google-ai", "Google AI"), "google-text": GoogleTextAsync("google-text", "Google Text"), "google-image": GoogleImageAsync("google-image", "Google Image"),
-		"openai": OpenAIApi("openai", "OpenAI"), "openai-text": OpenAITextAsync("openai-text", "OpenAI Text") }
+	return { "google-api": GoogleApi("google-api", "Google AI"), "google-text": GoogleTextAsync("google-text", "Google Text"), "google-image": GoogleImageAsync("google-image", "Google Image"),
+		"openai-api": OpenAIApi("openai-api", "OpenAI"), "openai-text": OpenAITextAsync("openai-text", "OpenAI Text") }
 
 def storage(google_key: str|None = "AQ.good", openai_key: str|None = None, **settings) -> ConfigurationManager:
 	folder = tempfile.mkdtemp(prefix="eink-google-test-")
@@ -100,9 +100,9 @@ def storage(google_key: str|None = "AQ.good", openai_key: str|None = None, **set
 	cm = ConfigurationManager(storage_path=folder)
 	cm.hard_reset()
 	if google_key is not None:
-		save_datasource_settings(cm, "google-ai", { "apiKey": google_key, "modelsCacheHours": 24, "discoveryCacheHours": 168, "staleDays": 30, **settings })
+		save_datasource_settings(cm, "google-api", { "apiKey": google_key, "modelsCacheHours": 24, "discoveryCacheHours": 168, "staleDays": 30, **settings })
 	if openai_key is not None:
-		save_datasource_settings(cm, "openai", { "apiKey": openai_key, "modelsCacheHours": 24, "staleDays": 30 })
+		save_datasource_settings(cm, "openai-api", { "apiKey": openai_key, "modelsCacheHours": 24, "staleDays": 30 })
 	return cm
 
 def context(cm: ConfigurationManager, orientation="landscape", loaded: dict|None = None, now=NOW) -> DataSourceExecutionContext:
@@ -183,8 +183,8 @@ class TestTheParts(unittest.IsolatedAsyncioTestCase):
 			(context(storage()), { "imageModel": "gemini-3.5-flash" }, "not a Gemini image model"),
 			(context(storage()), { "imageModel": "../../models" }, "not a Google model name"),
 			(context(storage()), { "imageSource": "" }, "Choose the image source"),
-			(context(storage(), loaded={ "google-ai": GoogleApi("google-ai", "Google AI") }), {}, "Google-image data source is not available"),
-			(context(storage(), loaded={ "google-image": GoogleImageAsync("google-image", "Google Image") }), {}, "Google-ai data source is not available"),
+			(context(storage(), loaded={ "google-api": GoogleApi("google-api", "Google AI") }), {}, "The Google Image data source is not available"),
+			(context(storage(), loaded={ "google-image": GoogleImageAsync("google-image", "Google Image") }), {}, "The Google AI data source is not available"),
 		]
 		for dsec, params, words in cases:
 			with self.subTest(params=params, words=words), self.assertRaises(PermanentError) as refused:
@@ -251,7 +251,7 @@ class TestDiscoveryAndTheModelList(unittest.IsolatedAsyncioTestCase):
 		fake().requests.clear()
 
 	async def ask(self, dsec: DataSourceExecutionContext, **params):
-		provider, provider_dsec = dsec.use("google-ai", GoogleApi)
+		provider, provider_dsec = dsec.use("google-api", GoogleApi)
 		return await provider.open_async(provider_dsec, params)
 
 	async def test_the_model_list_is_paged_kept_and_shared_and_another_key_is_another_list(self):
@@ -262,15 +262,15 @@ class TestDiscoveryAndTheModelList(unittest.IsolatedAsyncioTestCase):
 		self.assertEqual(len(google_requests("/models")), 2, "kept for a day")
 		await self.ask(context(cm, now=NOW + timedelta(hours=25)), request="models")
 		self.assertEqual(len(google_requests("/models")), 4)
-		save_datasource_settings(cm, "google-ai", { "apiKey": "AQ.another-key", "modelsCacheHours": 24, "discoveryCacheHours": 168 })
+		save_datasource_settings(cm, "google-api", { "apiKey": "AQ.another-key", "modelsCacheHours": 24, "discoveryCacheHours": 168 })
 		with self.assertRaises(PermanentError):
 			await self.ask(context(cm, now=NOW + timedelta(hours=25)), request="models")
-		for name in cm.datasource_manager("google-ai").list_files("cache-"):
-			self.assertNotIn("AQ.good", json.dumps(cm.datasource_manager("google-ai").file(name).get()[1]))
+		for name in cm.datasource_manager("google-api").list_files("cache-"):
+			self.assertNotIn("AQ.good", json.dumps(cm.datasource_manager("google-api").file(name).get()[1]))
 
 	async def test_the_discovery_document_is_kept_and_needs_no_key(self):
 		cm = storage(None)
-		save_datasource_settings(cm, "google-ai", { "apiKey": None, "modelsCacheHours": 24, "discoveryCacheHours": 168, "staleDays": 30 })
+		save_datasource_settings(cm, "google-api", { "apiKey": None, "modelsCacheHours": 24, "discoveryCacheHours": 168, "staleDays": 30 })
 		found = await self.ask(context(cm), request="discovery")
 		await self.ask(context(cm, now=NOW + timedelta(hours=100)), request="discovery")
 		self.assertEqual((found.ratios, found.discovered), (VOCABULARY.ratios, True))
@@ -294,14 +294,14 @@ class TestDiscoveryAndTheModelList(unittest.IsolatedAsyncioTestCase):
 		assert image is not None
 
 class TestTheRoutes(WebApiTestBase):
-	BASE = "/api/datasource/google-ai"
+	BASE = "/api/datasource/google-api"
 
 	def setUp(self):
 		super().setUp()
 		logging.getLogger("python.datasources.google_api").setLevel(logging.CRITICAL)
 
 	def save_key(self, key="AQ.good"):
-		self.write_datasource_settings("google-ai", { "apiKey": key, "modelsCacheHours": 24, "discoveryCacheHours": 168, "staleDays": 30 })
+		self.write_datasource_settings("google-api", { "apiKey": key, "modelsCacheHours": 24, "discoveryCacheHours": 168, "staleDays": 30 })
 
 	def test_the_lookups_list_what_the_saved_key_may_use(self):
 		self.save_key()
@@ -351,7 +351,7 @@ class TestTheRoutes(WebApiTestBase):
 		self.assertEqual(len(google_requests()), asked)
 
 	def test_the_settings_refuse_an_older_key_and_the_mask_passes(self):
-		url = "/api/datasources/google-ai/settings"
+		url = "/api/datasources/google-api/settings"
 		# the factory seeding stored the defaults already: a save carries the revision it read
 		seeded = self.client.get(url).json()
 		refused = self.client.put(url, json={ **seeded, "apiKey": "AIzaSyA-1234567890" })

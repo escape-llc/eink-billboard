@@ -10,11 +10,11 @@ from fastapi import APIRouter, Body
 
 from ...web.deps import CM
 from ...web.documents import SECRET_MASK
-from .openweathermap import check_key
+from .openweathermap_api import check_key
 
 logger = logging.getLogger(__name__)
 
-DATASOURCE_ID = "openweathermap"
+DATASOURCE_ID = "openweathermap-api"
 
 # mounted under /api by the web application
 openweathermap_router = APIRouter(prefix=f"/datasource/{DATASOURCE_ID}")

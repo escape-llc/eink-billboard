@@ -5,9 +5,9 @@ import { stubMapTiles, watchProblems } from "./support"
 // lists them under it and refuses any other. Nothing is saved; the providers' lookups are answered here, in the browser.
 const choices = (...values: string[]) => values.map(value => ({ name: value, value }))
 async function stubProviders(page: Page) {
-	await page.route("**/api/datasource/openai/lookups/image-models", route => route.fulfill({ json: choices("gpt-image-2") }))
-	await page.route("**/api/datasource/openai/lookups/text-models", route => route.fulfill({ json: choices("gpt-5.6-sol") }))
-	await page.route("**/api/datasource/openai/lookups/qualities", route => route.fulfill({ json: [{ name: "Auto (the model chooses)", value: "auto" }] }))
+	await page.route("**/api/datasource/openai-api/lookups/image-models", route => route.fulfill({ json: choices("gpt-image-2") }))
+	await page.route("**/api/datasource/openai-api/lookups/text-models", route => route.fulfill({ json: choices("gpt-5.6-sol") }))
+	await page.route("**/api/datasource/openai-api/lookups/qualities", route => route.fulfill({ json: [{ name: "Auto (the model chooses)", value: "auto" }] }))
 }
 test.beforeEach(async ({ page }) => {
 	await stubMapTiles(page)

@@ -26,7 +26,7 @@ USER_SUPPLIED = {
 	("source", "clock", "clockFace"), ("source", "clock", "primaryColor"), ("source", "clock", "secondaryColor"),
 	("source", "countdown", "title"), ("source", "countdown", "targetDate"),
 	("source", "image-folder", "folder"), ("source", "ai-image", "prompt"), ("source", "rss", "feed"),
-	("source", "today", "customFormat"), ("source", "comic-vine", "series"), ("source", "image-url", "picture"),
+	("source", "today", "customFormat"), ("source", "comicvine-covers", "series"), ("source", "image-url", "picture"),
 }
 # one name, different shapes (each is one form at a time, and a change of plugin or data source resets the form's values):
 SAME_NAME_DIFFERENT = {
@@ -166,14 +166,14 @@ class TestUses(unittest.TestCase):
 								self.assertEqual({ p["name"] for p in properties(a) } & { p["name"] for p in properties(b) }, set())
 
 # a list source whose list is made fresh every slot (a view of now), so it is not kept; every other list is shown item by item until it is used up, then fetched again
-NOT_KEPT = { "calendar-pages": "its pages are views of now", "weather": "its pages are views of now" }
+NOT_KEPT = { "calendar": "its pages are views of now", "weather": "its pages are views of now" }
 
 class TestKeptLists(unittest.TestCase):
 	def test_every_list_source_is_kept_unless_it_is_a_view_of_now(self):
 		lists = { id_ for id_, info in DESCRIPTORS.sources.items() if "media-list" in (info.get("features") or []) }
 		kept = { id_ for id_ in lists if DESCRIPTORS.sources[id_].get("keepsList") is True }
 		self.assertEqual(lists - kept, set(NOT_KEPT), "a list source is kept (`keepsList`), or listed in NOT_KEPT with the reason")
-		self.assertEqual(kept, { "rss", "image-folder", "comic", "comic-vine" })
+		self.assertEqual(kept, { "rss", "image-folder", "comic", "comicvine-covers" })
 
 	def test_a_kept_list_is_fetched_again_only_when_used_up_unless_the_task_says_otherwise(self):
 		refresh = next(p for p in properties(DESCRIPTORS.plugins["slide-show"]) if p["name"] == "refreshHours")
@@ -230,7 +230,7 @@ class TestRunTimeDefaults(unittest.TestCase):
 		self.assertEqual(filled["listMode"], slide["listMode"]["default"])
 		self.assertEqual(filled["slideMax"], slide["slideMax"]["default"])
 		self.assertEqual(filled["slideMinutes"], 3)
-		single = content_with_defaults(plugins, sources, "slide-show", { "dataSource": "apod" })
+		single = content_with_defaults(plugins, sources, "slide-show", { "dataSource": "nasa-apod" })
 		self.assertNotIn("refreshHours", single)
 		self.assertNotIn("listMode", single)
 		self.assertNotIn("slideMax", single, "one picture is one slide: no count")

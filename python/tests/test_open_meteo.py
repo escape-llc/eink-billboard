@@ -11,8 +11,8 @@ import httpx
 
 from ..datasources.contracts.weather import IMPERIAL, METRIC, Report, WeatherApi
 from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager
-from ..datasources.open_meteo.open_meteo import CREDIT, OpenMeteoApi, condition, parse
-from ..datasources.openweathermap.openweathermap import OpenWeatherMapApi
+from ..datasources.open_meteo_api.open_meteo_api import CREDIT, OpenMeteoApi, condition, parse
+from ..datasources.openweathermap_api.openweathermap_api import OpenWeatherMapApi
 from ..datasources.weather.weather import Page, WeatherAsync, page_params
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
@@ -34,7 +34,7 @@ def context(cm: ConfigurationManager, sources: dict[str, Any]|None = None, own: 
 	root = ServiceContainer()
 	root.add_service(ConfigurationManager, cm)
 	root.add_service(DatasourceConfigurationManager, cm.datasource_manager(own))
-	root.add_service(DataSourceManager, DataSourceManager({ "open-meteo": OpenMeteoApi("open-meteo", "Open-Meteo") } if sources is None else sources))
+	root.add_service(DataSourceManager, DataSourceManager({ "open-meteo-api": OpenMeteoApi("open-meteo-api", "Open-Meteo") } if sources is None else sources))
 	root.add_service(SettingsConfigurationManager, cast(Any, FakeSettings("landscape", **system)))
 	root.add_service(StaticConfigurationManager, StaticConfigurationManager(STATIC))
 	return DataSourceExecutionContext(root, (800, 480), NOW)
@@ -42,7 +42,7 @@ def context(cm: ConfigurationManager, sources: dict[str, Any]|None = None, own: 
 def storage(**settings: Any) -> ConfigurationManager:
 	"""A private storage; Open-Meteo's answers are kept as the test asks (none by default: most tests count calls)."""
 	cm = weather_settings({ "apiKey": None })
-	save_datasource_settings(cm, "open-meteo", { "cacheHours": 0, "staleDays": 30, **settings })
+	save_datasource_settings(cm, "open-meteo-api", { "cacheHours": 0, "staleDays": 30, **settings })
 	return cm
 
 class TestCodes(unittest.TestCase):
@@ -99,7 +99,7 @@ class TestTheProvider(unittest.IsolatedAsyncioTestCase):
 
 	async def test_one_call_in_si_with_unix_times_and_no_key(self):
 		cm = storage()
-		provider = OpenMeteoApi("open-meteo", "Open-Meteo")
+		provider = OpenMeteoApi("open-meteo-api", "Open-Meteo")
 		dsec = context(cm)
 		r = await provider.open_async(dsec.context_for(provider), { "needs": ["current", "forecast"] })
 		self.assertEqual(len(self.fake.requests), 1)
@@ -110,24 +110,24 @@ class TestTheProvider(unittest.IsolatedAsyncioTestCase):
 		self.assertTrue(r.current and r.hours and r.days)
 
 	async def test_it_is_set_up_as_it_is_installed(self):
-		provider = OpenMeteoApi("open-meteo", "Open-Meteo")
+		provider = OpenMeteoApi("open-meteo-api", "Open-Meteo")
 		self.assertTrue(provider.configured(context(storage()).context_for(provider)))
 
 	async def test_an_answer_is_kept_for_its_hours_and_shared(self):
 		cm = storage(cacheHours=0.5)
-		provider = OpenMeteoApi("open-meteo", "Open-Meteo")
+		provider = OpenMeteoApi("open-meteo-api", "Open-Meteo")
 		await provider.open_async(context(cm).context_for(provider), { "needs": ["current"] })
 		await provider.open_async(context(cm).context_for(provider), { "needs": ["forecast"] })
 		self.assertEqual(len(self.fake.requests), 1, "one answer holds the weather now and the forecast")
 
 	async def test_no_location_is_for_the_user_to_fix(self):
-		provider = OpenMeteoApi("open-meteo", "Open-Meteo")
+		provider = OpenMeteoApi("open-meteo-api", "Open-Meteo")
 		with self.assertRaisesRegex(PermanentError, "no location"):
 			await provider.open_async(context(storage(), location=None).context_for(provider), { "needs": ["current"] })
 
 	async def test_a_refusal_is_our_words(self):
 		use_transport(self, httpx.MockTransport(lambda r: httpx.Response(429, json={ "error": True, "reason": "Daily API request limit exceeded" })))
-		provider = OpenMeteoApi("open-meteo", "Open-Meteo")
+		provider = OpenMeteoApi("open-meteo-api", "Open-Meteo")
 		with self.assertRaisesRegex(RuntimeError, "^Open-Meteo says too many requests") as caught:
 			await provider.open_async(context(storage()).context_for(provider), { "needs": ["current"] })
 		self.assertNotIn("Daily API", str(caught.exception))
@@ -138,7 +138,7 @@ class TestAWeatherProvider(unittest.IsolatedAsyncioTestCase):
 		use_transport(self, FakeInternet())
 
 	def both(self) -> dict[str, Any]:
-		return { "open-meteo": OpenMeteoApi("open-meteo", "Open-Meteo"), "openweathermap": OpenWeatherMapApi("openweathermap", "OpenWeatherMap") }
+		return { "open-meteo-api": OpenMeteoApi("open-meteo-api", "Open-Meteo"), "openweathermap-api": OpenWeatherMapApi("openweathermap-api", "OpenWeatherMap") }
 
 	async def test_without_a_key_the_weather_is_open_meteos(self):
 		pages = await WeatherAsync("weather", "Weather").open_async(context(storage(), self.both()), { "views": ["current", "days"] })
@@ -147,10 +147,10 @@ class TestAWeatherProvider(unittest.IsolatedAsyncioTestCase):
 
 	async def test_with_a_key_too_the_device_chooses(self):
 		cm = storage()
-		save_datasource_settings(cm, "openweathermap", { "apiKey": KEY, "currentCacheHours": 0, "forecastCacheHours": 0 })
+		save_datasource_settings(cm, "openweathermap-api", { "apiKey": KEY, "currentCacheHours": 0, "forecastCacheHours": 0 })
 		with self.assertRaisesRegex(PermanentError, "Several weather providers are set up"):
 			await WeatherAsync("weather", "Weather").open_async(context(cm, self.both()), { "views": ["current"] })
-		for chosen, credit in (("openweathermap", "Weather data: OpenWeatherMap"), ("open-meteo", CREDIT)):
+		for chosen, credit in (("openweathermap-api", "Weather data: OpenWeatherMap"), ("open-meteo-api", CREDIT)):
 			pages = await WeatherAsync("weather", "Weather").open_async(context(cm, self.both(), weatherProvider=chosen), { "views": ["current"] })
 			self.assertEqual(pages[0].report.credit, credit)
 

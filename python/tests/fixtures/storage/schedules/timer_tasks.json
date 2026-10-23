@@ -8,7 +8,7 @@
 			"enabled": true,
 			"title": "Quarter-hour clock",
 			"task": {
-				"plugin_name": "interstitial",
+				"plugin_name": "priority-update",
 				"content": { "dataSource": "clock", "clockFace": "Gradient Clock", "primaryColor": "#db3246", "secondaryColor": "#000000", "slideMinutes": 1 }
 			},
 			"trigger": {
@@ -22,8 +22,8 @@
 			"enabled": false,
 			"title": "Paused year progress",
 			"task": {
-				"plugin_name": "interstitial",
-				"content": { "dataSource": "year_progress", "slideMinutes": 5 }
+				"plugin_name": "priority-update",
+				"content": { "dataSource": "year-progress", "slideMinutes": 5 }
 			},
 			"trigger": {
 				"on_startup": false,

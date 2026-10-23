@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 def openai_client(api_key: str) -> openai.AsyncOpenAI:
 	"""A client on an HTTP client of ours: our TLS context (see `tls_context`), and in the tests the fake internet. Closing it closes both."""
-	http = metered_client("openai", timeout=TIMEOUT)
+	http = metered_client("openai-api", timeout=TIMEOUT)
 	# the SDK runs on `httpx2` and is typed for its client, but takes an `httpx` one too (`openai._httpx2`, the legacy client): ours is httpx, as the pool's is
 	return openai.AsyncOpenAI(api_key=api_key, timeout=TIMEOUT, max_retries=2, http_client=cast(Any, http))
 

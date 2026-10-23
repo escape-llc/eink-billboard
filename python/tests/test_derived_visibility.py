@@ -56,12 +56,12 @@ class TestTheSlideShow(unittest.TestCase):
 		self.assertIn(["content", "listMode"], paths({ **base, "dataSource": "rss", "feed": "x", "listMode": "sideways" }))
 		self.assertIn(["content", "refreshHours"], paths({ **base, "dataSource": "rss", "feed": "x", "listMode": "continue", "refreshHours": -5 }))
 		# a picture of the day has no list: its stored list settings are not applicable, so not wrong
-		stale = { **base, "dataSource": "apod", "listMode": "sideways", "refreshHours": -5 }
+		stale = { **base, "dataSource": "nasa-apod", "listMode": "sideways", "refreshHours": -5 }
 		self.assertEqual([p for p in paths(stale) if p[-1] in ("listMode", "refreshHours")], [])
 
 	def test_the_defaults_of_a_list_setting_are_added_only_for_a_source_with_a_list(self):
 		with_list = content_with_defaults(self.plugins, self.sources, "slide-show", { "dataSource": "comic" })
-		without = content_with_defaults(self.plugins, self.sources, "slide-show", { "dataSource": "apod" })
+		without = content_with_defaults(self.plugins, self.sources, "slide-show", { "dataSource": "nasa-apod" })
 		self.assertEqual((with_list["listMode"], with_list["refreshHours"]), ("continue", 0))
 		self.assertTrue("listMode" not in without and "refreshHours" not in without)
 		self.assertIn("slideMax", with_list, "a source of several pages has a count")

@@ -16,9 +16,9 @@ import httpx
 from PIL import Image
 
 from ..datasources.data_source import DataSourceApi, DataSourceExecutionContext, DataSourceManager
-from ..datasources.openweathermap import openweathermap as owm_module
+from ..datasources.openweathermap_api import openweathermap_api as owm_module
 from ..datasources.contracts.weather import IMPERIAL, METRIC, Report, Units, units_of
-from ..datasources.openweathermap.openweathermap import HideKey, OpenWeatherMapApi, api_error, parse_current, parse_forecast
+from ..datasources.openweathermap_api.openweathermap_api import HideKey, OpenWeatherMapApi, api_error, parse_current, parse_forecast
 from ..datasources.weather import weather as weather_module
 from ..datasources.weather.icons import icon_svg
 from ..datasources.weather.weather import Page, WeatherAsync, chosen_views, page_params
@@ -44,7 +44,7 @@ class FakeSettings:
 	def open(self, name: str):
 		return _Cob(self.docs.get(name))
 
-API_ID = "openweathermap"
+API_ID = "openweathermap-api"
 
 def weather_settings(settings: dict|None = None) -> ConfigurationManager:
 	"""A private storage with the OpenWeatherMap API data source's settings written (both times 0 unless a test asks: most tests count calls)."""

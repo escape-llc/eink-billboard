@@ -42,7 +42,7 @@ class TestTheDescriptorsAreAlike(WebApiTestBase):
 				self.assertIs(answer["ok"], False)
 
 class TestOpenWeatherMapKey(WebApiTestBase):
-	URL = "/api/datasource/openweathermap/test"
+	URL = "/api/datasource/openweathermap-api/test"
 
 	def ask(self, value) -> dict:
 		resp = self.client.post(self.URL, json={ "value": value })
@@ -59,10 +59,10 @@ class TestOpenWeatherMapKey(WebApiTestBase):
 		self.assertIn("too many requests", busy["message"])
 
 	def test_the_saved_key_is_used_when_the_field_shows_the_mask_or_nothing(self):
-		self.write_datasource_settings("openweathermap", { "apiKey": "good-key" })
+		self.write_datasource_settings("openweathermap-api", { "apiKey": "good-key" })
 		self.assertTrue(self.ask(SECRET_MASK)["ok"])
 		self.assertTrue(self.ask(None)["ok"])
-		self.write_datasource_settings("openweathermap", { "apiKey": "wrong-key" })
+		self.write_datasource_settings("openweathermap-api", { "apiKey": "wrong-key" })
 		self.assertFalse(self.ask(SECRET_MASK)["ok"])
 
 	def test_nothing_typed_and_nothing_saved_is_a_no(self):
@@ -74,14 +74,14 @@ class TestOpenWeatherMapKey(WebApiTestBase):
 			self.assertNotIn(key, str(self.ask(key)))
 
 	def test_the_settings_need_the_key(self):
-		self.write_datasource_settings("openweathermap", { "apiKey": "good-key" })
-		doc = self.client.get("/api/datasources/openweathermap/settings").json()
-		resp = self.client.put("/api/datasources/openweathermap/settings", json={ **doc, "apiKey": None })
+		self.write_datasource_settings("openweathermap-api", { "apiKey": "good-key" })
+		doc = self.client.get("/api/datasources/openweathermap-api/settings").json()
+		resp = self.client.put("/api/datasources/openweathermap-api/settings", json={ **doc, "apiKey": None })
 		self.assertEqual(resp.status_code, 422)
 		self.assertIn(["apiKey"], [e["path"] for e in resp.json()["errors"]])
 
 class TestComicVineKey(WebApiTestBase):
-	URL = "/api/datasource/comicvine/test-key"
+	URL = "/api/datasource/comicvine-api/test-key"
 
 	def ask(self, value) -> dict:
 		resp = self.client.post(self.URL, json={ "value": value })
@@ -94,12 +94,12 @@ class TestComicVineKey(WebApiTestBase):
 		self.assertIn("too many requests", self.ask("cv-busy")["message"])
 
 	def test_the_saved_key_is_used_when_the_field_shows_the_mask(self):
-		self.write_datasource_settings("comicvine", { "apiKey": "cv-good" })
+		self.write_datasource_settings("comicvine-api", { "apiKey": "cv-good" })
 		self.assertTrue(self.ask(SECRET_MASK)["ok"])
 
 	def test_nothing_typed_and_nothing_saved_is_a_no_and_the_series_test_is_still_its_own_route(self):
 		self.assertEqual(self.ask(""), { "ok": False, "message": "Enter an API key first." })
-		self.assertEqual(self.client.post("/api/datasource/comicvine/test", json={ "value": "" }).json(), { "ok": False, "message": "Enter a series to search for." })
+		self.assertEqual(self.client.post("/api/datasource/comicvine-api/test", json={ "value": "" }).json(), { "ok": False, "message": "Enter a series to search for." })
 
 	def test_the_key_is_not_in_the_answer(self):
 		for key in ("cv-good", "wrong", "cv-busy"):

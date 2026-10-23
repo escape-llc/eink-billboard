@@ -52,8 +52,17 @@ class DataSourceExecutionContext:
 		from ..plugins.plugin_base import PermanentError
 		source = self._isp.required(DataSourceManager).get_source(source_id)
 		if not isinstance(source, kind):
-			raise PermanentError(f"The {source_id.capitalize()} data source is not available. It is needed here: enable it, or choose another source.")
+			raise PermanentError(f"The {self._name_of(source_id)} data source is not available. It is needed here: enable it, or choose another source.")
 		return source, self.context_for(source)
+	def _name_of(self, source_id: str) -> str:
+		"""What people call a data source that is not loaded: its descriptor's name, or its id when there is no descriptor to read."""
+		from ..model.configuration_manager import ConfigurationManager
+		cm = self._isp.get_service(ConfigurationManager)
+		if cm is not None:
+			for found in cm.enum_datasources():
+				if found["info"].get("id") == source_id:
+					return str(found["info"].get("name") or source_id)
+		return source_id
 	def provide[T: "DataSource"](self, kind: type[T]) -> tuple[T, "DataSourceExecutionContext"]:
 		"""
 		A provider of a capability (#513): `kind` is its contract (`WeatherApi`), and any loaded data source that implements it may answer. The one chosen,

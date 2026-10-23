@@ -224,7 +224,7 @@ class TestRunTimeFetches(unittest.IsolatedAsyncioTestCase):
 		self.assertEqual(seen, ["a.test"])
 
 	async def test_the_calendar_download_goes_through_the_guard(self):
-		from ..datasources.calendar.sources import download
+		from ..datasources.calendar_sources.sources import download
 		async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, content=b"BEGIN:VCALENDAR"))) as client:
 			with self.assertRaises(UrlRefused):
 				await download(client, "GET", "http://127.0.0.1/cal.ics", {})

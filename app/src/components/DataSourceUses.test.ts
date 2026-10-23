@@ -14,7 +14,7 @@ describe("the data sources a source uses", () => {
 })
 
 describe("the capabilities a source requires", () => {
-	const available = [{ id: "openweathermap", features: ["internet", "api", "data-weather"] }, { id: "weather", features: ["api-client", "layer-foreground", "media-list"] }]
+	const available = [{ id: "openweathermap-api", features: ["internet", "api", "data-weather"] }, { id: "weather", features: ["api-client", "layer-foreground", "media-list"] }]
 	it("is met by a provider of each", () => {
 		expect(missingProviders(["data-weather"], available)).toEqual([])
 		expect(missingProviders(undefined, available)).toEqual([])

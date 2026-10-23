@@ -7,7 +7,7 @@ from ..openai_api.models import DEFAULT_TEXT_MODEL
 from ..openai_api.openai_api import OpenAIApi
 
 # the provider it asks: its descriptor's id, never a value from a request
-PROVIDER_ID = "openai"
+PROVIDER_ID = "openai-api"
 
 class OpenAITextAsync(AiTextApi):
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> str:
