@@ -47,7 +47,8 @@ check() {
 	shift
 	if "$@"; then passed=$((passed + 1)); echo "  ok    $what"; else failed=$((failed + 1)); echo "  FAIL  $what"; fi
 }
-kit() { (cd "$CLONE" && EINK_REGISTRY=${KIT_REGISTRY:-$REGISTRY} EINK_REGISTRY_TLS_VERIFY=false PATH="$SHIM:$PATH" deploy/eink-container.sh "$@"); }
+# the images here are unsigned: the signature check (#555) is off unless a test turns it on
+kit() { (cd "$CLONE" && EINK_VERIFY=${KIT_VERIFY:-0} EINK_REGISTRY=${KIT_REGISTRY:-$REGISTRY} EINK_REGISTRY_TLS_VERIFY=false PATH="$SHIM:$PATH" deploy/eink-container.sh "$@"); }
 label() { podman image inspect -f "{{index .Labels \"$2\"}}" "$1" 2>/dev/null; }
 short() { git -C "$CLONE" rev-parse --short=7 HEAD; }
 full() { git -C "$CLONE" rev-parse HEAD; }
@@ -215,7 +216,7 @@ snapshot() {
 	[ "${2:-}" = none ] || publish "sha-$(git -C "$WORK" rev-parse HEAD)" "$(git -C "$WORK" rev-parse --short=7 HEAD)"
 }
 # a person at the keyboard answers $1
-answer() { local reply=$1; shift; printf '%s\n' "$reply" | script -qec "cd $CLONE && EINK_REGISTRY=$REGISTRY EINK_REGISTRY_TLS_VERIFY=false PATH=$SHIM:\$PATH deploy/eink-container.sh $*" /dev/null 2>&1; }
+answer() { local reply=$1; shift; printf '%s\n' "$reply" | script -qec "cd $CLONE && EINK_VERIFY=0 EINK_REGISTRY=$REGISTRY EINK_REGISTRY_TLS_VERIFY=false PATH=$SHIM:\$PATH deploy/eink-container.sh $*" /dev/null 2>&1; }
 
 rm -f "$CHANNEL_FILE"
 was=$(at)
@@ -272,6 +273,20 @@ out=$(kit update --bogus 2>&1)
 check "an unknown option is refused by name" grep -q "no option '--bogus'" <<< "$out"
 out=$(kit update no-such-thing 2>&1)
 check "an unknown name is refused" grep -q "no release, snapshot or branch 'no-such-thing'" <<< "$out"
+
+echo "== with the signature check on, an image GitHub did not sign is refused (#555)"
+commit V
+V=$(short)
+check "published $V, unsigned" publish "sha-$(full)" "$V"
+before_app=$(label "$APP" eink.commit)
+out=$(KIT_VERIFY=1 kit get 2>&1)
+check "it fails" [ $? -ne 0 ]
+check "it says it could not be shown to be GitHub's" grep -q "could not be shown to be GitHub's for this version" <<< "$out"
+check "the app keeps the image it had" [ "$(label "$APP" eink.commit)" = "$before_app" ]
+check "the downloaded name is not kept" bash -c "! podman image exists '$REGISTRY:sha-$(full)'"
+check "cosign's words are in verify.log" [ -s /home/pi/.cache/eink-billboard/verify.log ]
+out=$(kit get 2>&1)
+check "EINK_VERIFY=0 says the signature is not checked" grep -q "EINK_VERIFY=0: the image's signature is not checked" <<< "$out"
 
 echo
 echo "$passed passed, $failed failed"
