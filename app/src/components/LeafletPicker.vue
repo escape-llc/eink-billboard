@@ -48,23 +48,18 @@
 			<!-- the search policy asks for the attribution beside the results -->
 			<div class="address-credit">Search by <a href="https://nominatim.org/" target="_blank" rel="noopener">Nominatim</a>, data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div>
 		</div>
-		<l-map
-			style="flex-grow:1"
-			v-model:zoom="zoom"
-			@click="onMapClick"
-			@ready="onMapReady"
-			:use-global-leaflet="false"
-		>
-			<!-- the tile policy asks for the attribution on the map itself; the Help drawer's Credits list it too -->
-			<l-tile-layer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" layer-type="base" name="OpenStreetMap" attribution="&copy; <a href=&quot;https://www.openstreetmap.org/copyright&quot;>OpenStreetMap</a> contributors"></l-tile-layer>
-			<l-marker v-if="markerPosition" :lat-lng="markerPosition" draggable @dragend="onMarkerDrag" />
-		</l-map>
+		<!-- the map is Leaflet's own (made in onMounted, removed before unmount); the tile policy asks for the attribution on the map itself, which the
+			tile layer puts there, and the Help drawer's Credits list it too -->
+		<div ref="mapElement" class="map" style="flex-grow:1"></div>
 	</div>
 </template>
 <script setup lang="ts">
 import "leaflet/dist/leaflet.css";
-import { ref, watch, provide } from 'vue';
-import { LMap, LTileLayer, LMarker } from "@vue-leaflet/vue-leaflet";
+import L from "leaflet";
+import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
+import iconUrl from "leaflet/dist/images/marker-icon.png";
+import shadowUrl from "leaflet/dist/images/marker-shadow.png";
+import { ref, watch, provide, onMounted, onBeforeUnmount } from 'vue';
 import { searchAddress, normalQuery, MIN_QUERY_LENGTH, type Place } from './AddressSearch';
 import Button from 'primevue/button';
 import { useToast } from 'primevue/usetoast';
@@ -93,9 +88,15 @@ const emit = defineEmits<{
 	(e: 'update:modelValue', coordinates: LatLng): void;
 	(e: 'change', event: { value: LatLng }): void;
 }>();
-const leafletMap = ref<any>(null);
+// Leaflet finds its marker images by a path a bundler does not keep: name the bundled files
+L.Marker.prototype.options.icon = L.icon({ ...L.Icon.Default.prototype.options, iconUrl, iconRetinaUrl, shadowUrl });
+const TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const mapElement = ref<HTMLElement|null>(null);
+// Leaflet's objects are not reactive: plain variables, never refs (a proxy around a map breaks it)
+let leafletMap: L.Map | null = null;
+let marker: L.Marker | null = null;
 const zoom = ref<number>(props.zoom);
-const center = ref<Coords|null>(null);
 const markerPosition = ref<Coords|null>(null);
 const loadingLocation = ref(false);
 const locatingByIp = ref(false);
@@ -115,13 +116,9 @@ function lngString(lng: number): string {
 watch(() => props.modelValue, (newLocation) => {
 	if (newLocation) {
 		const newCoords: Coords = [newLocation.latitude, newLocation.longitude];
-		center.value = newCoords;
 		markerPosition.value = newCoords;
-		if(leafletMap.value && center.value && zoom.value) {
-			leafletMap.value.setView(center.value, zoom.value);
-		}
-		if (leafletMap.value && markerPosition.value) {
-			leafletMap.value.flyTo(markerPosition.value, zoom.value);
+		if (leafletMap) {
+			leafletMap.setView(newCoords, zoom.value);
 		}
 	}
 }, { immediate: true });
@@ -148,41 +145,60 @@ const pick = (place: Place) => {
 	updateLocation(place.latitude, place.longitude, true);
 };
 
-const onMapReady = (mapInstance: any) => {
-	leafletMap.value = mapInstance; // Store the map instance for programmatic moves
-	if(mapInstance) {
-		const center = markerPosition.value || [45, 80]
-		mapInstance.setView(center, zoom.value);
-		if (markerPosition.value) {
-			mapInstance.flyTo(markerPosition.value, zoom.value);
-		}
+onMounted(() => {
+	if (!mapElement.value) return;
+	const map = L.map(mapElement.value, { zoomControl: true });
+	L.tileLayer(TILES, { attribution: ATTRIBUTION }).addTo(map);
+	map.setView(markerPosition.value || [45, 80], zoom.value);
+	map.on("click", onMapClick);
+	map.on("zoomend", () => { zoom.value = map.getZoom(); });
+	leafletMap = map;
+	showMarker();
+});
+onBeforeUnmount(() => {
+	leafletMap?.remove();
+	leafletMap = null;
+	marker = null;
+});
+/** The marker where the position is (draggable), none while there is no position. */
+function showMarker() {
+	const map = leafletMap;
+	if (!map) return;
+	const at = markerPosition.value;
+	if (!at) {
+		marker?.remove();
+		marker = null;
+		return;
 	}
-//	nextTick(() => {
-//		setTimeout(() => mapInstance.invalidateSize(), 100);
-//	});
-};
+	if (marker) {
+		marker.setLatLng(at);
+		return;
+	}
+	marker = L.marker(at, { draggable: true }).addTo(map);
+	marker.on("dragend", onMarkerDrag);
+}
+watch(markerPosition, showMarker);
 
 const updateLocation = (lat: number, lng: number, shouldMoveMap: boolean = false) => {
   const newCoords: Coords = [lat, lng];
   markerPosition.value = newCoords;
-	if (shouldMoveMap && leafletMap.value) {
-		leafletMap.value.flyTo(newCoords, zoom.value);
+	if (shouldMoveMap && leafletMap) {
+		leafletMap.flyTo(newCoords, zoom.value);
 	}
 	const mv = { latitude: lat, longitude: lng }
   emit('update:modelValue', mv);
   emit('change', { value: mv });
 };
 
-const onMapClick = (event: any) => {
-	// Leaflet events provide latlng in an object
+function onMapClick(event: L.LeafletMouseEvent) {
 	const { lat, lng } = event.latlng;
 	updateLocation(lat, lng);
-};
+}
 
-const onMarkerDrag = (event: any) => {
-	const { lat, lng } = event.target.getLatLng();
+function onMarkerDrag(event: L.DragEndEvent) {
+	const { lat, lng } = (event.target as L.Marker).getLatLng();
 	updateLocation(lat, lng);
-};
+}
 const locateUser = () => {
 	if (!navigator.geolocation) return;
 
@@ -190,9 +206,8 @@ const locateUser = () => {
 	navigator.geolocation.getCurrentPosition(
 		(position) => {
 			const { latitude, longitude } = position.coords;
-			updateLocation(latitude, longitude, true);
-//			center.value = [latitude, longitude];
 			zoom.value = 16;
+			updateLocation(latitude, longitude, true);
 			loadingLocation.value = false;
 		},
 		(error) => {
@@ -226,6 +241,9 @@ const locateByIp = async () => {
 };
 </script>
 <style scoped>
+.map {
+	min-height: 0;
+}
 .address-results {
 	display: flex;
 	flex-direction: column;

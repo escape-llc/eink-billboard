@@ -53,3 +53,24 @@ test("a search that finds nothing says so", async ({ page }) => {
 	await expect(page.getByTestId("address-results")).toContainText("No place found")
 	watch.expectNone()
 })
+
+test("clicking the map moves the marker; a map that moved closes without an error", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/settings")
+	const map = page.locator(".leaflet-container").first()
+	await expect(map).toBeVisible()
+	await expect(page.locator(".leaflet-marker-icon").first()).toBeVisible()
+	const before = await page.locator(".p-inputgroupaddon").filter({ hasText: /\d+\.\d{4}[NS]/ }).first().textContent()
+	// a click sets the position; zooming twice moves the map twice
+	await map.click({ position: { x: 200, y: 150 } })
+	await expect(page.locator(".p-inputgroupaddon").filter({ hasText: /\d+\.\d{4}[NS]/ }).first()).not.toHaveText(before ?? "")
+	await page.locator(".leaflet-control-zoom-in").first().click()
+	await page.locator(".leaflet-control-zoom-out").first().click()
+	await page.waitForTimeout(400)
+	// leaving unmounts the map: nothing it left pending may become an unhandled rejection
+	await page.evaluate(() => { location.hash = "#/schedule" })
+	await page.getByRole("button", { name: "Discard" }).click()
+	await expect(page).toHaveURL(/#\/schedule/)
+	await page.waitForTimeout(300)
+	watch.expectNone()
+})
