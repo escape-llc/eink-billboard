@@ -2,6 +2,9 @@
  * The Scheduler's data (#510 A6): the window shown (a day, a week or the list, from an offset in days from today), the timer tasks and their runs
  * in it, the task being edited, and every call that loads or saves them. The page keeps its template, its dialogs, the form and the calendar's
  * look; what goes wrong is told through `notify` (the page shows it as a toast), so this runs and is tested without a component.
+ *
+ * The task dialog's cycle is the editor machine's (#550, `useEditor`): the form's values compared with the first it reported for the task, so an edit
+ * put back is nothing to save; a stale save is a conflict whose Overwrite saves over the server's revision.
  */
 import { computed, ref, shallowRef, toRaw } from "vue"
 import { ApiError } from "../components/ApiClient"
@@ -11,6 +14,7 @@ import type { EventInfo } from "../components/AlCalendar.vue"
 import { browserZoneDifference, zonedParts } from "../components/CalendarTime"
 import type { Descriptor } from "../components/FormDefs"
 import type { PluginDef, TimerTasks } from "../components/ScheduleDefs"
+import { useEditor } from "./useEditor"
 
 export type Notify = (severity: "success" | "warn" | "error", summary: string, detail: string) => void
 /** What a delete came to: done, refused because the task changed (a conflict is shown), or failed (`notify` said why). */
@@ -75,14 +79,31 @@ export function useSchedule(notify: Notify) {
 	// the day the window was loaded on, in the device's zone: a page left open past midnight shows the new week
 	let loadedDay = ""
 
-	// what the dialog edits: a stored task (id) of a document, with the revision it was loaded at; id null is a new task
-	const editTarget = ref<{ schedule: string, id: string | null, rev: string | undefined } | null>(null)
+	// what the dialog edits: a stored task (id) of a document; id null is a new task. Its revision is the editor's
+	const editTarget = ref<{ schedule: string, id: string | null } | null>(null)
 	const editModel = ref<Record<string, any>>({})
+	// a new number for every task shown: the dialog's form starts afresh, so the first values it reports are that task's
+	const formKey = ref(0)
 	const newTaskDocument = ref<string | undefined>(undefined)
-	const conflict = ref<{ message: string, rev: string | undefined } | null>(null)
+	// a delete is not the dialog's save: refused because the task changed, it says so, and Reload is the way on
+	const refused = ref<string | null>(null)
+	const conflictMessage = ref("")
 	const serverProblems = ref<string[]>([])
-	const saving = ref(false)
+	const busy = ref(false)
 	let lastBody: Record<string, any> | undefined = undefined
+	const editor = useEditor<Record<string, any>>({
+		save: async (body, rev) => {
+			const target = editTarget.value!
+			if(target.id) await api.put("/api/schedule/timer/{doc_id}/items/{item_id}", taskPath(target.schedule, target.id), { ...body, _rev: rev })
+			else await api.post("/api/schedule/timer/{doc_id}/items", { path: { doc_id: await ensureDocument() } }, body)
+			// the dialog closes on a saved task: there is no revision to keep
+			return undefined
+		},
+	})
+	const taskRev = editor.rev
+	const saving = computed(() => busy.value || editor.isBusy.value)
+	const conflict = computed<{ message: string, rev: string | undefined } | null>(() =>
+		editor.inConflict.value ? { message: conflictMessage.value, rev: editor.theirs.value } : refused.value !== null ? { message: refused.value, rev: undefined } : null)
 
 	const zoneNote = computed(() => {
 		const difference = browserZoneDifference(timeZone.value, new Date())
@@ -165,7 +186,7 @@ export function useSchedule(notify: Notify) {
 
 	// --- the task in the dialog
 	function resetMessages() {
-		conflict.value = null
+		refused.value = null
 		serverProblems.value = []
 	}
 	/** Open a stored task (a run's or a row's `data`): its staged copy for the editor, or null when its plugin is not installed (a notice says so). */
@@ -176,9 +197,24 @@ export function useSchedule(notify: Notify) {
 			return null
 		}
 		resetMessages()
-		editTarget.value = { schedule: data.schedule, id: data.id, rev: data._rev }
+		editTarget.value = { schedule: data.schedule, id: data.id }
+		openedRev = data._rev
 		// a run's data is reactive (the event list): structuredClone cannot copy a proxy
 		return stageTask(structuredClone(toRaw(data)))
+	}
+	let openedRev: string | undefined = undefined
+	/** Show a task in the dialog (`openTask`'s copy, or the server's after a reload): the machine hears of it first, then a fresh form shows it. */
+	function showTask(staged: Record<string, any>, rev = openedRev) {
+		editor.loaded(rev)
+		editModel.value = staged
+		formKey.value++
+	}
+	/** The dialog closed: nothing is being edited. */
+	function closeTask() {
+		editor.unload()
+		editTarget.value = null
+		editModel.value = {}
+		resetMessages()
 	}
 	/** A new task with the first timer plugin, in the first document; false when no plugin can run on a timer. */
 	function newTask(): boolean {
@@ -186,8 +222,9 @@ export function useSchedule(notify: Notify) {
 		if(!first) return false
 		resetMessages()
 		newTaskDocument.value = documents.value[0]?.id
-		editTarget.value = { schedule: "", id: null, rev: undefined }
-		editModel.value = { title: "", enabled: true, trigger: structuredClone(DEFAULT_TRIGGER), plugin_name: first.id, content: {} }
+		editTarget.value = { schedule: "", id: null }
+		// a new task has nothing stored: saving it as it opened creates it
+		showTask({ title: "", enabled: true, trigger: structuredClone(DEFAULT_TRIGGER), plugin_name: first.id, content: {} }, undefined)
 		return true
 	}
 	const taskPath = (schedule: string, id: string) => ({ path: { doc_id: schedule, item_id: id } })
@@ -198,41 +235,32 @@ export function useSchedule(notify: Notify) {
 		return created.id
 	}
 	/**
-	 * Send the task; `rev` is the revision it was loaded at (a stale one is a conflict the person can resolve). A plugin field's problem is
+	 * Send the task over the revision it was loaded at (a stale one is a conflict the person can resolve). A plugin field's problem is
 	 * handed to `showOnField`, which answers how many it could show; the rest is listed in `serverProblems`. True when it was saved.
 	 */
-	async function saveTask(body: Record<string, any>, rev: string | undefined, showOnField: (errors: FieldError[]) => number): Promise<boolean> {
-		const target = editTarget.value
-		if(!target) return false
-		saving.value = true
+	async function saveTask(body: Record<string, any>, showOnField: (errors: FieldError[]) => number): Promise<boolean> {
+		if(!editTarget.value) return false
 		resetMessages()
 		lastBody = body
-		try {
-			if(target.id) await api.put("/api/schedule/timer/{doc_id}/items/{item_id}", taskPath(target.schedule, target.id), { ...body, _rev: rev })
-			else await api.post("/api/schedule/timer/{doc_id}/items", { path: { doc_id: await ensureDocument() } }, body)
+		const { outcome, error } = await editor.save(body)
+		const ex = error as any
+		if(outcome === "saved") {
 			notify("success", "Success", "Task saved")
 			return true
 		}
-		catch(ex: any) {
-			if(ex instanceof ApiError && ex.status === 409) {
-				conflict.value = { message: ex.message, rev: typeof ex.body?.rev === "string" ? ex.body.rev : undefined }
-			}
-			else if(ex instanceof ApiError && ex.status === 422 && Array.isArray(ex.body?.errors)) {
-				const { onField, listed } = splitTaskErrors(ex.body.errors)
-				const shown = onField.length > 0 ? showOnField(onField) : 0
-				serverProblems.value = shown < onField.length || listed.length > 0 ? [...listed, ...(shown < onField.length ? [ex.message] : [])] : []
-			}
-			else notify("error", "Error", `Failed to save the task: ${ex.message || "Unknown error"}`)
-			return false
+		if(outcome === "conflict") conflictMessage.value = ex.message
+		else if(outcome === "failed" && ex instanceof ApiError && ex.status === 422 && Array.isArray(ex.body?.errors)) {
+			const { onField, listed } = splitTaskErrors(ex.body.errors)
+			const shown = onField.length > 0 ? showOnField(onField) : 0
+			serverProblems.value = shown < onField.length || listed.length > 0 ? [...listed, ...(shown < onField.length ? [ex.message] : [])] : []
 		}
-		finally {
-			saving.value = false
-		}
+		else if(outcome === "failed") notify("error", "Error", `Failed to save the task: ${ex?.message || "Unknown error"}`)
+		return false
 	}
-	/** Keep my version: send it again at the revision the server has now. */
-	function overwriteTask(showOnField: (errors: FieldError[]) => number): Promise<boolean> {
-		if(!lastBody || !conflict.value?.rev) return Promise.resolve(false)
-		return saveTask(lastBody, conflict.value.rev, showOnField)
+	/** Keep my version: send it again over the revision the server has now. */
+	async function overwriteTask(showOnField: (errors: FieldError[]) => number): Promise<boolean> {
+		if(!lastBody || !editor.keep()) return false
+		return saveTask(lastBody, showOnField)
 	}
 	/** Someone else changed the task: take their version (the edits are dropped). False when it could not be read (a notice says so). */
 	async function reloadTask(): Promise<boolean> {
@@ -240,9 +268,8 @@ export function useSchedule(notify: Notify) {
 		if(!target?.id) return true
 		try {
 			const rx = await api.get("/api/schedule/timer/{doc_id}/items/{item_id}", taskPath(target.schedule, target.id))
-			editTarget.value = { ...target, rev: rx.task._rev }
 			resetMessages()
-			editModel.value = stageTask(rx.task)
+			showTask(stageTask(rx.task), rx.task._rev)
 			return true
 		}
 		catch(ex: any) {
@@ -252,31 +279,33 @@ export function useSchedule(notify: Notify) {
 	}
 	async function deleteTask(): Promise<DeleteOutcome> {
 		const target = editTarget.value
-		if(!target?.id || !target.rev) return "failed"
-		saving.value = true
+		const rev = taskRev.value
+		if(!target?.id || !rev) return "failed"
+		busy.value = true
 		try {
-			await api.delete("/api/schedule/timer/{doc_id}/items/{item_id}", { path: { doc_id: target.schedule, item_id: target.id }, query: { rev: target.rev } })
+			await api.delete("/api/schedule/timer/{doc_id}/items/{item_id}", { path: { doc_id: target.schedule, item_id: target.id }, query: { rev } })
 			notify("success", "Success", "Task deleted")
 			return "done"
 		}
 		catch(ex: any) {
 			if(ex instanceof ApiError && ex.status === 409) {
-				conflict.value = { message: "The task changed since it was loaded; reload it before deleting.", rev: undefined }
+				refused.value = "The task changed since it was loaded; reload it before deleting."
 				return "conflict"
 			}
 			notify("error", "Error", `Failed to delete the task: ${ex.message || "Unknown error"}`)
 			return "failed"
 		}
 		finally {
-			saving.value = false
+			busy.value = false
 		}
 	}
 
 	return {
 		mode, offset, today, firstDay, dayCount, timeZone, schedules, eventList, pluginList, dataSources, documents, loading,
-		editTarget, editModel, newTaskDocument, conflict, serverProblems, saving,
+		editTarget, editModel, formKey, newTaskDocument, conflict, serverProblems, saving, taskRev,
+		hasUnsaved: editor.hasUnsaved, canSave: editor.canSave, values: editor.values, stop: editor.stop,
 		zoneNote, rangeText, rows, selectedPlugin, timerPlugins, pluginOptions,
 		loadTimeline, start, setMode, move, goToday, checkDay,
-		openTask, newTask, saveTask, overwriteTask, reloadTask, deleteTask,
+		openTask, showTask, closeTask, newTask, saveTask, overwriteTask, reloadTask, deleteTask,
 	}
 }

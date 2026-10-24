@@ -76,7 +76,7 @@
 			</div>
 		</template>
 	</AlCalendar>
-	<Dialog v-model:visible="dialogOpen" modal :header="editTarget?.id ? 'Edit task' : 'New task'" style="width:60%; min-width:min(36rem, 95vw); font-size:90%">
+	<Dialog :visible="dialogOpen" @update:visible="onDialogVisible" modal :header="editTarget?.id ? 'Edit task' : 'New task'" style="width:60%; min-width:min(36rem, 95vw); font-size:90%">
 		<Message size="small" v-if="conflict" severity="warn" :closable="false" class="mb-2">
 			<div class="flex align-items-center gap-2">
 				<span>{{ conflict.message }}</span>
@@ -85,7 +85,7 @@
 			</div>
 		</Message>
 		<Message v-for="(problem, index) in serverProblems" :key="index" severity="error" size="small" variant="simple">{{ problem }}</Message>
-		<BasicForm v-if="selectedPlugin" ref="bf" :form="selectedPlugin.instanceSettings" :owner="{ kind: 'plugin', id: selectedPlugin.id }" :initialValues="editModel.content" :baseUrl="API_URL" :showHelp="showHelp" :showChanges="!!editTarget?.id"
+		<BasicForm v-if="selectedPlugin" :key="formKey" ref="bf" :form="selectedPlugin.instanceSettings" :owner="{ kind: 'plugin', id: selectedPlugin.id }" :initialValues="editModel.content" :baseUrl="API_URL" :showHelp="showHelp" :showChanges="!!editTarget?.id"
 			:beforeFieldsSchema="beforeFieldsSchema" :addInitialValues="addInitialValues"
 			@validate="onValidated" @submit="submitForm"
 			class="form">
@@ -99,7 +99,7 @@
 							<HelpToggle v-model="showHelp" />
 							<!-- a stored task can be deleted from here; the dialog's own close button leaves without saving -->
 							<Button v-if="editTarget?.id" size="small" icon="mi mi-delete" severity="danger" variant="outlined" aria-label="Delete" title="Delete this task" @click="deleteOpen = true" />
-							<Button size="small" icon="mi mi-check" severity="success" aria-label="Save" :title="saveTitle" :disabled="!editModelValid || saving || unchanged" @click="handleSubmit" />
+							<Button size="small" icon="mi mi-check" severity="success" aria-label="Save" :title="saveTitle" :disabled="!canSave || unchanged" @click="handleSubmit" />
 							<Button size="small" icon="mi mi-close" severity="danger" aria-label="Cancel" title="Close without saving" @click="handleCancel" />
 						</InputGroup>
 					</template>
@@ -162,6 +162,8 @@ import FormField from '@primevue/forms/formfield';
 import AlCalendar from "../components/AlCalendar.vue"
 import type { TimeRange } from "../components/AlCalendar.vue"
 import { ref, onMounted, onBeforeUnmount, nextTick, provide, computed } from "vue"
+import { onBeforeRouteLeave } from "vue-router"
+import { useConfirm } from "primevue/useconfirm"
 import { ProgressBar } from "primevue"
 import BasicForm, { type ValidateEventData } from "../components/BasicForm.vue"
 import HelpToggle from "../components/HelpToggle.vue"
@@ -173,10 +175,10 @@ const toast = useToast()
 // the window shown, the timer tasks and their runs in it, the task in the dialog, with every call that loads or saves them
 const {
 	mode, offset, firstDay, dayCount, timeZone, eventList, pluginList, dataSources, documents, loading,
-	editTarget, editModel, newTaskDocument, conflict, serverProblems, saving,
+	editTarget, editModel, formKey, newTaskDocument, conflict, serverProblems, saving, hasUnsaved, canSave, values, stop,
 	zoneNote, rangeText, rows, selectedPlugin, timerPlugins, pluginOptions,
 	loadTimeline, start, setMode, move, goToday, checkDay,
-	openTask, newTask, saveTask, overwriteTask: overwrite, reloadTask: reload, deleteTask: remove,
+	openTask, showTask, closeTask, newTask, saveTask, overwriteTask: overwrite, reloadTask: reload, deleteTask: remove,
 } = useSchedule((severity, summary, detail) => toast.add({ severity, summary, detail, life: severity === "success" ? 3000 : 5000 }))
 provide("settingsPluginsList", pluginList)
 provide("settingsDataSourcesList", dataSources)
@@ -193,7 +195,6 @@ const WEEKDAYS = (() => {
 })()
 const dialogOpen = ref(false)
 const deleteOpen = ref(false)
-const editModelValid = ref(false)
 const isTitleValid = ref(false)
 const titleErrorMessage = ref<string|undefined>(undefined)
 const isPluginValid = ref(false)
@@ -225,8 +226,48 @@ onMounted(() => {
 	start()
 	// a page left open past midnight (in the device's zone) shows the new week
 	dayWatch = setInterval(() => checkDay(), 60_000)
+	window.addEventListener("beforeunload", warnBeforeClose)
 })
-onBeforeUnmount(() => clearInterval(dayWatch))
+onBeforeUnmount(() => {
+	clearInterval(dayWatch)
+	window.removeEventListener("beforeunload", warnBeforeClose)
+	stop()
+})
+
+// --- the dialog's edits: closing it, leaving the page or closing the tab asks while they are not saved
+const confirm = useConfirm()
+const discardEdits = (): Promise<boolean> => {
+	if(!dialogOpen.value || !hasUnsaved.value) return Promise.resolve(true)
+	return new Promise(resolve => {
+		confirm.require({
+			header: "Unsaved changes",
+			message: "Close the task and discard your changes?",
+			icon: "mi mi-warning",
+			acceptLabel: "Discard",
+			rejectLabel: "Stay",
+			accept: () => resolve(true),
+			reject: () => resolve(false),
+		})
+	})
+}
+/** Close the dialog: nothing is being edited any more. */
+function closeDialog() {
+	dialogOpen.value = false
+	closeTask()
+}
+/** The dialog's own close (its button, Escape) asks first when there are edits; Cancel is "close without saving" and does not. */
+async function onDialogVisible(visible: boolean) {
+	if(visible) return
+	if(await discardEdits()) closeDialog()
+}
+onBeforeRouteLeave(async () => {
+	if(!await discardEdits()) return false
+	if(dialogOpen.value) closeDialog()
+	return true
+})
+const warnBeforeClose = (e: BeforeUnloadEvent) => {
+	if(dialogOpen.value && hasUnsaved.value) e.preventDefault()
+}
 
 // --- the dialog's form: the task's own fields around the plugin's
 const beforeFieldsSchema = (resv: Record<string, z.ZodTypeAny>) => {
@@ -244,15 +285,15 @@ const addInitialValues = () => {
 	}
 	return ox
 }
-const onValidated = ({ result }: ValidateEventData) => {
+const onValidated = ({ result, values: held }: ValidateEventData) => {
+	// the editor compares what the form holds with what it first reported for this task
+	values(held, result.success)
 	if(result.success) {
-		editModelValid.value = true
 		isTitleValid.value = true
 		titleErrorMessage.value = undefined
 		return;
 	}
 	else {
-		editModelValid.value = false
 		let issue = result.error.issues.find((ix) => ix.path[0] === 'title');
 		if(issue) {
 			isTitleValid.value = false
@@ -280,9 +321,7 @@ const handleEventClick = (_event: any, _day: any, event: any) => {
 	const staged = openTask(event.event.data)
 	if(!staged) return
 	dialogOpen.value = true
-	nextTick().then(_ => {
-		editModel.value = staged
-	})
+	nextTick().then(_ => showTask(staged))
 }
 function openRow(row: TaskRow) {
 	handleEventClick(null, null, { event: { data: row.data } })
@@ -293,14 +332,14 @@ const handleNew = () => {
 /** A save that went through closes the dialog on the schedule as it is now. */
 async function saved(done: Promise<boolean>) {
 	if(!await done) return
-	dialogOpen.value = false
+	closeDialog()
 	await loadTimeline()
 }
 const submitForm = ({ result }: { result?: { success: boolean, data?: Record<string, any> } }) => {
 	if(!result?.success || !result.data || !editTarget.value) return
 	// the fields the page adds around the plugin's own (see beforeFieldsSchema) are the task's; the rest is its content
 	const { title, enabled, plugin_name, trigger, ...content } = result.data
-	saved(saveTask({ title, enabled, trigger, task: { plugin_name, content } }, editTarget.value.rev, showOnField))
+	saved(saveTask({ title, enabled, trigger, task: { plugin_name, content } }, showOnField))
 }
 function overwriteTask() {
 	saved(overwrite(showOnField))
@@ -308,23 +347,23 @@ function overwriteTask() {
 /** Someone else changed the task: take their version; when it cannot be read, the dialog closes on a fresh schedule. */
 async function reloadTask() {
 	if(await reload()) return
-	dialogOpen.value = false
+	closeDialog()
 	await loadTimeline()
 }
 async function deleteTask() {
 	const outcome = await remove()
 	deleteOpen.value = false
 	if(outcome !== "done") return
-	dialogOpen.value = false
+	closeDialog()
 	await loadTimeline()
 }
-// a stored task can be saved once it is edited (the form knows what it opened with, defaults included); a new task has nothing to compare with
-const unchanged = computed(() => !!editTarget.value?.id && !bf.value?.isDirty)
+// a stored task can be saved once it differs from what the form first showed (defaults included); a new task has nothing to compare with
+const unchanged = computed(() => !!editTarget.value?.id && !hasUnsaved.value)
 const saveTitle = computed(() => unchanged.value ? "Nothing changed yet" : "Save the task")
 
 /** Close the dialog without saving: the edits are dropped (the next one starts from the stored task). */
 const handleCancel = () => {
-	dialogOpen.value = false
+	closeDialog()
 }
 const handleSubmit = () => {
 	bf.value?.submit()

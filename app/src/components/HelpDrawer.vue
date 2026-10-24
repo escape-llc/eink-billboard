@@ -23,7 +23,7 @@
 				<AccordionContent>
 					<dl>
 						<dt><i class="mi mi-schedule" aria-hidden="true"></i> Schedule</dt>
-						<dd>Timer tasks: things that happen at a time of day, such as a priority message for ten minutes at 8:00, or an overlay (the date, the weather) drawn over the picture. Shown as a day, a week or a list.</dd>
+						<dd>Timer tasks: things that happen at a time of day, such as a priority message for ten minutes at 8:00, or an overlay (the date, the weather) drawn over the picture. Shown as a day, a week or a list; click a task to change it. Closing it with changes not saved asks first (Cancel closes without saving).</dd>
 						<dt><i class="mi mi-play-arrow" aria-hidden="true"></i> Playlist</dt>
 						<dd>The tracks that play one after another, round and round. You can keep several playlists.</dd>
 						<dt><i class="mi mi-desktop-windows" aria-hidden="true"></i> System</dt>

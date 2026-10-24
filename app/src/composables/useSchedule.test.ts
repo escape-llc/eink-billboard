@@ -96,7 +96,10 @@ describe("a task in the dialog", () => {
 		const { sc } = await started()
 		const staged = sc.openTask(sc.eventList.value[0]!.data)
 		expect(staged).toEqual({ id: "t1", title: "Clock", enabled: true, trigger: DEFAULT_TRIGGER, plugin_name: "priority-update", content: { slideMinutes: 5 } })
-		expect(sc.editTarget.value).toEqual({ schedule: "tasks-a", id: "t1", rev: "r1" })
+		expect(sc.editTarget.value).toEqual({ schedule: "tasks-a", id: "t1" })
+		// shown, it is the editor's at that revision
+		sc.showTask(staged!)
+		expect(sc.taskRev.value).toBe("r1")
 	})
 
 	it("a task whose plugin is not installed is not opened, and says why", async () => {
@@ -109,19 +112,27 @@ describe("a task in the dialog", () => {
 		const { sc } = await started()
 		expect(sc.newTask()).toBe(true)
 		expect(sc.editModel.value).toEqual({ title: "", enabled: true, trigger: DEFAULT_TRIGGER, plugin_name: "priority-update", content: {} })
-		expect(sc.editTarget.value).toEqual({ schedule: "", id: null, rev: undefined })
+		expect(sc.editTarget.value).toEqual({ schedule: "", id: null })
 		expect(sc.newTaskDocument.value).toBe("tasks-a")
 	})
 })
+
+// what the page does: open a stored task, show it, and the form reports its values
+function opened(sc: ReturnType<typeof useSchedule>, index = 0) {
+	const staged = sc.openTask(sc.eventList.value[index]!.data)!
+	sc.showTask(staged)
+	sc.values(staged, true)
+	return staged
+}
 
 describe("saving", () => {
 	const body = { title: "Clock", enabled: true, trigger: DEFAULT_TRIGGER, task: { plugin_name: "priority-update", content: { slideMinutes: 6 } } }
 
 	it("a stored task is put at its revision", async () => {
 		const { sc, notices } = await started()
-		sc.openTask(sc.eventList.value[0]!.data)
+		opened(sc)
 		mocked.put.mockResolvedValue({})
-		expect(await sc.saveTask(body, "r1", showNone)).toBe(true)
+		expect(await sc.saveTask(body, showNone)).toBe(true)
 		expect(mocked.put.mock.calls[0]).toEqual(["/api/schedule/timer/{doc_id}/items/{item_id}", { path: { doc_id: "tasks-a", item_id: "t1" } }, { ...body, _rev: "r1" }])
 		expect(notices).toEqual(["success: Task saved"])
 	})
@@ -131,17 +142,18 @@ describe("saving", () => {
 		const sc = useSchedule(() => {})
 		await sc.start()
 		sc.newTask()
+		sc.values(sc.editModel.value, true)
 		mocked.post.mockResolvedValueOnce({ id: "tasks-new" }).mockResolvedValueOnce({})
-		expect(await sc.saveTask(body, undefined, showNone)).toBe(true)
+		expect(await sc.saveTask(body, showNone)).toBe(true)
 		expect(mocked.post.mock.calls[0]).toEqual(["/api/schedule/timer", {}, { name: "Timer tasks" }])
 		expect(mocked.post.mock.calls[1]).toEqual(["/api/schedule/timer/{doc_id}/items", { path: { doc_id: "tasks-new" } }, body])
 	})
 
 	it("a stale revision is a conflict; Overwrite sends the same task at the server's revision", async () => {
 		const { sc } = await started()
-		sc.openTask(sc.eventList.value[0]!.data)
+		opened(sc)
 		mocked.put.mockRejectedValueOnce(new ApiError(409, "Revision mismatch", { rev: "r9" }))
-		expect(await sc.saveTask(body, "r1", showNone)).toBe(false)
+		expect(await sc.saveTask(body, showNone)).toBe(false)
 		expect(sc.conflict.value).toEqual({ message: "Revision mismatch", rev: "r9" })
 		mocked.put.mockResolvedValueOnce({})
 		expect(await sc.overwriteTask(showNone)).toBe(true)
@@ -149,30 +161,64 @@ describe("saving", () => {
 		expect(sc.conflict.value).toBeNull()
 	})
 
+	it("a stored task is unsaved only while it differs from what the form first showed", async () => {
+		const { sc } = await started()
+		const staged = opened(sc)
+		expect([sc.hasUnsaved.value, sc.canSave.value]).toEqual([false, true])
+		sc.values({ ...staged, title: "Other" }, true)
+		expect(sc.hasUnsaved.value).toBe(true)
+		sc.values({ ...staged, title: "Other" }, false)
+		expect(sc.canSave.value).toBe(false)
+		sc.values(staged, true)
+		expect(sc.hasUnsaved.value).toBe(false)
+		sc.closeTask()
+		expect([sc.editTarget.value, sc.hasUnsaved.value, sc.canSave.value]).toEqual([null, false, false])
+	})
+
+	it("a conflict the server gave no revision for is not overwritten", async () => {
+		const { sc } = await started()
+		opened(sc)
+		mocked.put.mockRejectedValueOnce(new ApiError(409, "Revision mismatch"))
+		expect(await sc.saveTask(body, showNone)).toBe(false)
+		expect(sc.conflict.value).toEqual({ message: "Revision mismatch", rev: undefined })
+		expect(await sc.overwriteTask(showNone)).toBe(false)
+		expect(mocked.put).toHaveBeenCalledTimes(1)
+	})
+
+	it("a save that fails otherwise keeps the edits", async () => {
+		const { sc, notices } = await started()
+		const staged = opened(sc)
+		sc.values({ ...staged, title: "Other" }, true)
+		mocked.put.mockRejectedValueOnce(new Error("offline"))
+		expect(await sc.saveTask(body, showNone)).toBe(false)
+		expect(sc.hasUnsaved.value).toBe(true)
+		expect(notices).toEqual(["error: Failed to save the task: offline"])
+	})
+
 	it("a 422 shows a plugin field's problem on the field and lists the rest", async () => {
 		const { sc } = await started()
-		sc.openTask(sc.eventList.value[0]!.data)
+		opened(sc)
 		mocked.put.mockRejectedValue(new ApiError(422, "Invalid", { errors: [
 			{ path: ["task", "content", "slideMinutes"], message: "Minimum 1" },
 			{ path: ["trigger"], message: "Expected a trigger" },
 		] }))
 		const shown: unknown[] = []
-		expect(await sc.saveTask(body, "r1", errors => { shown.push(...errors); return errors.length })).toBe(false)
+		expect(await sc.saveTask(body, (errors: unknown[]) => { shown.push(...errors); return errors.length })).toBe(false)
 		expect(shown).toEqual([{ path: ["slideMinutes"], message: "Minimum 1" }])
 		expect(sc.serverProblems.value).toEqual(["trigger: Expected a trigger"])
 		// a field the form could not show is listed instead of lost
-		await sc.saveTask(body, "r1", showNone)
+		await sc.saveTask(body, showNone)
 		expect(sc.serverProblems.value).toEqual(["trigger: Expected a trigger", "Invalid"])
 	})
 
 	it("Reload takes the server's version of the task; one that cannot be read says so", async () => {
 		const { sc, notices } = await started()
-		sc.openTask(sc.eventList.value[0]!.data)
+		opened(sc)
 		const base = mocked.get.getMockImplementation() as (path: string) => Promise<unknown>
 		mocked.get.mockImplementation(async (path: string) => path === "/api/schedule/timer/{doc_id}/items/{item_id}" ? { task: { ...TASK, title: "Theirs", _rev: "r7" } } : base(path))
 		expect(await sc.reloadTask()).toBe(true)
 		expect(sc.editModel.value.title).toBe("Theirs")
-		expect(sc.editTarget.value?.rev).toBe("r7")
+		expect(sc.taskRev.value).toBe("r7")
 		mocked.get.mockRejectedValueOnce(new Error("gone"))
 		expect(await sc.reloadTask()).toBe(false)
 		expect(notices).toEqual(["error: Failed to reload the task: gone"])
@@ -180,7 +226,7 @@ describe("saving", () => {
 
 	it("a delete names the revision; a stale one is a conflict", async () => {
 		const { sc } = await started()
-		sc.openTask(sc.eventList.value[0]!.data)
+		opened(sc)
 		mocked.delete.mockResolvedValueOnce({})
 		expect(await sc.deleteTask()).toBe("done")
 		expect(mocked.delete.mock.calls[0]).toEqual(["/api/schedule/timer/{doc_id}/items/{item_id}", { path: { doc_id: "tasks-a", item_id: "t1" }, query: { rev: "r1" } }])
