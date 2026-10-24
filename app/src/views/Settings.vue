@@ -217,10 +217,6 @@
 		</Tabs>
 </template>
 <script setup lang="ts">
-import { ApiError } from "../components/ApiClient"
-import { api } from "../api/client"
-import type { Descriptor } from "../components/FormDefs"
-
 import ItemInfo from '../components/ItemInfo.vue';
 import Tabs from 'primevue/tabs';
 import TabList from 'primevue/tablist';
@@ -231,43 +227,42 @@ import Select from 'primevue/select';
 
 import type { ValidateEventData } from "../components/BasicForm.vue"
 import SettingsForm from "../components/SettingsForm.vue"
-import { computed, onMounted, provide, ref, toRaw, watch, type Ref } from 'vue';
+import { computed, onMounted, provide } from 'vue';
 import { useToast } from 'primevue';
+import { useSettings, useThemePreview } from "../composables/useSettings"
 
 const toast = useToast();
 
 const API_URL = import.meta.env.VITE_API_URL
-const schemaSystem = ref<any>(undefined)
-const settingsSystem = ref<any>(undefined)
-const schemaTheme = ref<any>(undefined)
-const settingsTheme = ref<any>(undefined)
-const schemaPrompts = ref<any>(undefined)
-const settingsPrompts = ref<any>(undefined)
-const schemaDevices = ref<any>(undefined)
-const settingsDevices = ref<any>(undefined)
-const schemaDisplay = ref<any>(undefined)
-const settingsDisplay = ref<any>(undefined)
+// what is installed, each device document, and the settings of the item chosen on the Plugins, Data Sources and Providers tabs
+const {
+	plugins, dataSources, displays,
+	schemaSystem, settingsSystem, schemaTheme, settingsTheme, schemaPrompts, settingsPrompts, schemaDevices, settingsDevices, schemaDisplay, settingsDisplay,
+	plugin, datasource, provider, pageSources, providerSources, usedBy, start,
+} = useSettings(detail => toast.add({ severity: 'error', summary: 'Error', detail, life: 5000 }))
+const { selected: selectedPlugin, schema: schemaPlugin, settings: settingsPlugin } = plugin
+const { selected: selectedDatasource, schema: schemaDatasource, settings: settingsDatasource } = datasource
+provide("settingsPluginsList", plugins)
+provide("settingsDataSourcesList", dataSources)
+provide("settingsDisplaysList", displays)
+onMounted(start)
 
-const previewScheme = ref("complementary")
-const previewBackground = ref("white")
-const previewHue = ref(0)
-const previewSaturation = ref(100)
-const previewLightness = ref(50)
-const previewFontBody = ref("Jost")
-const previewFontHeading = ref<string|null>(null)
-const previewFontOverlay = ref<string|null>(null)
-const previewFontScale = ref(1)
+// the Theme tab's preview: the stored theme, then the form's values as they change, and the palette the server computes for them
+const {
+	fontBody: previewFontBody, fontHeading: previewFontHeading, fontOverlay: previewFontOverlay, fontScale: previewFontScale,
+	paletteColors, refreshPalette, fromStored, fromForm,
+} = useThemePreview()
+onMounted(refreshPalette)
 // the families the device ships, loaded under names of their own so they cannot be mistaken for a font of the computer
 const FONTS = ["Jost", "Atkinson Hyperlegible", "Lexend", "League Spartan", "Literata", "Bitter", "Dogica", "DSEG7"].map(family => [family, ["normal", "bold"]] as const)
 const fontFaces = FONTS.flatMap(([family, weights]) => weights.map(weight =>
 	`@font-face { font-family: "eink-${family}"; font-weight: ${weight}; src: url("${API_URL}api/fonts/${encodeURIComponent(family)}?weight=${weight}") format("truetype"); }`)).join(" ")
 const fontStack = (family: string) => `"eink-${family}", sans-serif`
-// the palette: the roles are the CSS classes of themes.css (text-primary, bg-secondary-1-accent, ...), computed by the server from the form's values
+// the palette: the roles are the CSS classes of themes.css (text-primary, bg-secondary-1-accent, ...)
 const PALETTE_COLUMNS = [{ key: "primary", title: "Primary" }, { key: "secondary-1", title: "Secondary 1" }, { key: "secondary-2", title: "Secondary 2" }]
 const PALETTE_ROWS = [{ key: "text", title: "Text" }, { key: "text|light", title: "Text, light" }, { key: "bg", title: "Background" }, { key: "bg|accent", title: "Accent" }, { key: "bg|dark", title: "Background, dark" }]
 // "text|light" and "primary" make "text-primary-light"
 const roleName = (row: string, column: string) => { const [kind, tone] = row.split("|"); return `${kind}-${column}${tone ? `-${tone}` : ""}` }
-const paletteColors = ref<Record<string, string>>({})
 // the mock-up reads the palette through variables, named like the roles
 const mockVars = computed(() => ({
 	...Object.fromEntries(Object.entries(paletteColors.value).map(([role, color]) => [`--m-${role}`, color])),
@@ -275,210 +270,11 @@ const mockVars = computed(() => ({
 	"--m-heading": fontStack(previewFontHeading.value || previewFontBody.value),
 	"--m-scale": String(previewFontScale.value),
 }))
-let paletteTimer: ReturnType<typeof setTimeout> | undefined
-function refreshPalette() {
-	if (paletteTimer) clearTimeout(paletteTimer)
-	paletteTimer = setTimeout(() => {
-		api.post("/api/theme/palette", {}, { theme: previewScheme.value, hue: previewHue.value, saturation: previewSaturation.value, lightness: previewLightness.value, background: previewBackground.value })
-			.then(answer => { paletteColors.value = Object.fromEntries(answer.roles.map(r => [r.name, r.color])) })
-			.catch(() => { /* the swatches keep what they showed */ })
-	}, 120)
-}
-onMounted(refreshPalette)
-
-const plugins = ref<Descriptor[]>([])
-const dataSources = ref<Descriptor[]>([])
-// the display devices that are installed: what the Display tab's display type (a `schema` field) chooses among
-const displays = ref<Descriptor[]>([])
-const selectedPlugin = ref<any>(undefined)
-const schemaPlugin = ref<any>(undefined)
-const settingsPlugin = ref<any>(undefined)
-
-const selectedDatasource = ref<any>(undefined)
-const schemaDatasource = ref<any>(undefined)
-const settingsDatasource = ref<any>(undefined)
-
-// a provider (`api`) supplies data and draws nothing: it has a tab of its own, and the Data Sources tab lists what draws
-const isProvider = (item: any): boolean => (item?.features ?? []).includes("api")
-const pageSources = computed(() => (dataSources.value as any[]).filter(d => !isProvider(d)))
-const providerSources = computed(() => (dataSources.value as any[]).filter(isProvider))
-/** The data sources that rely on a provider: they require what it supplies, or use it by its id. */
-function usedBy(item: any): string[] {
-	const supplies = (item?.features ?? []).filter((f: string) => f.startsWith("data-"))
-	return (dataSources.value as any[])
-		.filter(d => d.id !== item?.id && ((d.requires ?? []).some((c: string) => supplies.includes(c)) || (d.uses ?? []).includes(item?.id)))
-		.map(d => d.id)
+const handleThemeSettings = (data: any) => fromStored(data)
+const handleThemeValidate = (e: ValidateEventData) => {
+	if(e.result.success) fromForm(e.result.data)
 }
 
-provide("settingsPluginsList", plugins)
-provide("settingsDataSourcesList", dataSources)
-provide("settingsDisplaysList", displays)
-
-function downloadToRef(asked: Promise<unknown>, vref: Ref<any>, errv: any = undefined) {
-	asked.then(data => {
-		vref.value = data
-	})
-	.catch(ex => {
-		console.error("downloadToRef.unhandled", ex)
-		vref.value = errv
-		toast.add({severity:'error', summary: 'Error', detail: `Failed to load: ${ex.message || 'Unknown error'}`, life: 5000});
-	})
-}
-/** A plugin's or data source's stored settings; none stored yet starts from its schema's defaults. */
-function fetchSettings(kind: "plugin" | "datasource", id: string, vref: Ref<any>, schema:any) {
-	const asked = kind === "plugin"
-		? api.get("/api/plugins/{plugin_id}/settings", { path: { plugin_id: id } })
-		: api.get("/api/datasources/{datasource_id}/settings", { path: { datasource_id: id } })
-	asked
-	.then(data => {
-		vref.value = data
-	})
-	.catch(ex => {
-		if(ex instanceof ApiError && ex.status === 404) {
-			// nothing stored yet: start from the defaults in the schema
-			const defv = toRaw(schema.settings.default)
-			vref.value = structuredClone(defv)
-			return
-		}
-		console.error("fetchSettings.unhandled", ex)
-		toast.add({severity:'error', summary: 'Error', detail: `Failed to load settings: ${ex.message || 'Unknown error'}`, life: 5000});
-	})
-}
-onMounted(() => {
-	// a descriptor's keys are its own (open in the API): read as FormDefs' Descriptor, which DescriptorSchema.test holds to every descriptor
-	const px0 = api.get("/api/plugins/list")
-	const px1 = api.get("/api/datasources/list")
-	const px2 = api.get("/api/displays/list")
-	const px3 = px0.then(json => {
-		plugins.value = json as Descriptor[]
-	})
-	.catch(ex => {
-		console.error("fetch.pl.unhandled", ex)
-		toast.add({severity:'error', summary: 'Error', detail: `Failed to load plugins list: ${ex.message || 'Unknown error'}`, life: 5000});
-	})
-	const px4 = px1.then(json2 => {
-		dataSources.value = json2 as Descriptor[]
-	})
-	.catch(ex => {
-		console.error("fetch.ds.unhandled", ex)
-		toast.add({severity:'error', summary: 'Error', detail: `Failed to load data sources list: ${ex.message || 'Unknown error'}`, life: 5000});
-	})
-	const px5 = px2.then(json3 => {
-		displays.value = json3 as Descriptor[]
-	})
-	.catch(ex => {
-		console.error("fetch.dp.unhandled", ex)
-		toast.add({severity:'error', summary: 'Error', detail: `Failed to load displays list: ${ex.message || 'Unknown error'}`, life: 5000});
-	})
-	Promise.all([px3, px4, px5]).then(_ => {
-		const schema = (name: string) => api.get("/api/schemas/{name}", { path: { name } })
-		const settings = (name: string) => api.get("/api/settings/{name}", { path: { name } })
-		downloadToRef(schema("theme"), schemaTheme)
-		downloadToRef(schema("display"), schemaDisplay)
-		downloadToRef(schema("system"), schemaSystem)
-		downloadToRef(schema("master-prompts"), schemaPrompts)
-		loadDevices()
-		downloadToRef(settings("system"), settingsSystem)
-		downloadToRef(settings("display"), settingsDisplay)
-		downloadToRef(settings("theme"), settingsTheme)
-		downloadToRef(settings("master-prompts"), settingsPrompts)
-	})
-})
-
-// the devices' settings: a storage that is older than them has none stored, which is not an error: the form starts from the schema's default (saving it creates the document)
-function loadDevices() {
-	api.get("/api/schemas/{name}", { path: { name: "devices" } }).then(schema => {
-		schemaDevices.value = schema
-		return api.get("/api/settings/{name}", { path: { name: "devices" } })
-			.then(data => { settingsDevices.value = data })
-			.catch(ex => {
-				if (ex instanceof ApiError && ex.status === 404) {
-					settingsDevices.value = structuredClone((schema as { default?: unknown }).default)
-					return
-				}
-				throw ex
-			})
-	}).catch(ex => {
-		console.error("loadDevices.unhandled", ex)
-		toast.add({severity:'error', summary: 'Error', detail: `Failed to load: ${ex.message || 'Unknown error'}`, life: 5000});
-	})
-}
-
-// a plugin or data source with no settings block, or an empty one, has nothing to edit
-const hasSettings = (item: any): boolean => (item?.settings?.schema?.properties?.length ?? 0) > 0
-watch(selectedPlugin, (nv) => {
-	if(nv) {
-		if(hasSettings(nv)) {
-			schemaPlugin.value = nv.settings
-			fetchSettings("plugin", nv.id, settingsPlugin, nv)
-		}
-		else {
-			schemaPlugin.value = undefined
-			settingsPlugin.value = undefined
-		}
-	}
-})
-/** The state of a tab that edits one item's settings at a time: the item chosen, its settings schema and document, and where they are. */
-function itemSettings(kind: "plugin" | "datasource") {
-	const selected = ref<any>(undefined)
-	const schema = ref<any>(undefined)
-	const settings = ref<any>(undefined)
-	watch(selected, (nv) => {
-		if(!nv) return
-		if(hasSettings(nv)) {
-			schema.value = nv.settings
-			fetchSettings(kind, nv.id, settings, nv)
-		}
-		else {
-			schema.value = undefined
-			settings.value = undefined
-		}
-	})
-	return { selected, schema, settings }
-}
-const provider = itemSettings("datasource")
-
-watch(selectedDatasource, (nv) => {
-	if(nv) {
-		if(hasSettings(nv)) {
-			schemaDatasource.value = nv.settings
-			fetchSettings("datasource", nv.id, settingsDatasource, nv)
-		}
-		else {
-			schemaDatasource.value = undefined
-			settingsDatasource.value = undefined
-		}
-	}
-})
-const handleThemeSettings = (data:any) => {
-	if(!data) return;
-	if(typeof data.theme === "string") {
-		previewScheme.value = data.theme
-	}
-	if("hue" in data) {
-		previewHue.value = data.hue
-	}
-	if("saturation" in data) {
-		previewSaturation.value = data.saturation
-	}
-	if("lightness" in data) {
-		previewLightness.value = data.lightness
-	}
-	if("fontBody" in data && typeof data.fontBody === "string") {
-		previewFontBody.value = data.fontBody
-	}
-	if("fontHeading" in data) {
-		previewFontHeading.value = typeof data.fontHeading === "string" ? data.fontHeading : null
-	}
-	if("fontOverlay" in data) {
-		previewFontOverlay.value = typeof data.fontOverlay === "string" ? data.fontOverlay : null
-	}
-	if(typeof data.fontScale === "number") {
-		previewFontScale.value = data.fontScale
-	}
-	previewBackground.value = typeof data.background === "string" ? data.background : "white"
-	refreshPalette()
-}
 const submitForm = (data:any) => {
 	if(data.handled) {
 		return
@@ -488,37 +284,6 @@ const submitForm = (data:any) => {
 	}
 	else {
 		toast.add({severity:'success', summary: 'Success', detail: `Settings saved successfully`, life: 3000});
-	}
-}
-const handleThemeValidate = (e: ValidateEventData) => {
-	if(e.result.success) {
-		const data = e.result.data
-		if(typeof data.theme === "string") {
-			previewScheme.value = data.theme
-		}
-		if(typeof data.hue === "number") {
-			previewHue.value = data.hue
-		}
-		if(typeof data.saturation === "number") {
-			previewSaturation.value = data.saturation
-		}
-		if(typeof data.lightness === "number") {
-			previewLightness.value = data.lightness
-		}
-		if("fontBody" in data && typeof data.fontBody === "string") {
-			previewFontBody.value = data.fontBody
-		}
-		if("fontHeading" in data) {
-			previewFontHeading.value = typeof data.fontHeading === "string" ? data.fontHeading : null
-		}
-		if("fontOverlay" in data) {
-			previewFontOverlay.value = typeof data.fontOverlay === "string" ? data.fontOverlay : null
-		}
-		if(typeof data.fontScale === "number") {
-			previewFontScale.value = data.fontScale
-		}
-		previewBackground.value = typeof data.background === "string" ? data.background : "white"
-		refreshPalette()
 	}
 }
 </script>
