@@ -111,6 +111,9 @@ class MediaRenderResult:
 	"""Result of MediaRender.render()"""
 	image: Image.Image
 	title: str|None
+	# the layer this page asks for when the task leaves it to the source (Show As `auto`): `foreground` (text that overlays must not cover) or
+	# `background`; None: the descriptor's features decide. A source whose pages differ (a picture with or without a caption) declares both layers
+	layer: str|None = None
 
 @runtime_checkable
 class DataSourceMessage(Protocol):

@@ -148,6 +148,8 @@ class TestRender(unittest.IsolatedAsyncioTestCase):
 				assert result is not None and FakeRenderSession.last is not None
 				self.assertEqual(result.image.size, size)
 				self.assertEqual(FakeRenderSession.last.params["museum"], "The Met")
+				# a caption is text on the picture: a foreground page, which no overlay covers
+				self.assertEqual(result.layer, "foreground")
 				self.assertTrue(FakeRenderSession.last.params["picture"].startswith("data:image/jpeg;base64,"))
 
 	async def test_without_the_caption_the_picture_is_not_rendered_again(self):
@@ -158,6 +160,8 @@ class TestRender(unittest.IsolatedAsyncioTestCase):
 		assert result is not None
 		self.assertEqual(result.image.size, (800, 480))
 		self.assertIsNone(FakeRenderSession.last)
+		# the picture alone: a background page, which overlays may draw on
+		self.assertEqual(result.layer, "background")
 
 	async def test_a_picture_that_does_not_load_is_our_words(self):
 		use_transport(self, httpx.MockTransport(lambda request: httpx.Response(200, content=b"not a picture", headers={ "Content-Type": "image/jpeg" })))
