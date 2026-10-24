@@ -242,121 +242,33 @@
  * The System page (#390): how the device is (its parts, the machine, a Raspberry Pi's own readings, the storage by plugin and data source) and what it is doing
  * (the playlist's transport, what the panel shows, and what the tasks report over the telemetry link).
  */
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import { onBeforeUnmount, onMounted, ref } from "vue"
 import { Button, Dialog, InputGroup, Select, Tag, Toolbar, ToggleSwitch, useToast } from "primevue"
-import { api } from "../api/client"
-import type { components } from "../api/schema"
-import { LAYERS, clockOf, isProblem, layerOf, layersOf, useTelemetry, type TelemetryEvent } from "../components/TelemetryLink"
-import { useTransport, type TransportCommand } from "../components/Transport"
+import { LAYERS, clockOf, isProblem, type TelemetryEvent } from "../components/TelemetryLink"
 import BackupRestore from "../components/BackupRestore.vue"
 import PasswordForm from "../components/PasswordForm.vue"
 import { deviceMoment, failedCalls, formatBytes, formatShare, formatUptime, gaugeSeverity, statusSummary, temperatureSeverity } from "../components/SystemFormat"
+import { SOURCES as sources, describeEvent as describe, eventIcon as iconOf, useSystem } from "../composables/useSystem"
 
-type Schemas = components["schemas"]
-type Status = Schemas["Status"]
-type SystemInfo = Schemas["SystemInfo"]
 const periods = [{ key: "today", label: "Today" }, { key: "week", label: "7 days" }, { key: "month", label: "Month" }] as const
-
-const POLL_MS = 10000
 const TITLES: Record<string, string> = { "display": "Display", "playlist-layer": "Playlist", "timer-layer": "Timer tasks" }
-const status = ref<Status | null>(null)
-const info = ref<SystemInfo | null>(null)
-const failed = ref(false)
-// the build this page's code is from, and the server's: they differ when the page was opened before an update (the server's is 'unknown' outside the container)
-const webCommit = __APP_COMMIT__
-const mismatch = computed(() => !!info.value && info.value.host.commit !== "unknown" && webCommit !== "dev" && info.value.host.commit !== webCommit)
-let timer: ReturnType<typeof setInterval> | undefined
-function load(): Promise<unknown> {
-	const asked = api.get("/api/status").then(s => { status.value = s }).catch(() => {})
-	api.get("/api/system").then(s => { info.value = s; failed.value = false }).catch(() => { failed.value = true })
-	return asked
-}
-
-const deviceFailed = computed(() => Object.values(status.value?.components ?? {}).some(c => c.state === "failed"))
-const deviceState = computed(() => deviceFailed.value ? "failed" : status.value?.ok ? "ok" : "starting")
-const deviceSeverity = computed(() => deviceFailed.value ? "danger" : status.value?.ok ? "success" : "secondary")
-const deviceLabel = computed(() => deviceFailed.value ? "A part did not start" : status.value?.ok ? "Running" : "Starting")
-const owners = computed(() => info.value ? [
-	{ title: "Data sources", items: info.value.storage.datasources },
-	{ title: "Plugins", items: info.value.storage.plugins },
-] : [])
-
-const link = useTelemetry()
-const transport = useTransport()
 const toast = useToast()
-// the state when the link comes up (and again when it comes back), then the layer's own events keep it right
-watch(() => link.state.status, state => { if (state === "live") void transport.load() }, { immediate: true })
-watch(() => link.state.events[0], () => transport.follow(link.state.events))
-async function press(command: TransportCommand): Promise<void> {
-	try {
-		await transport.send(command)
-	} catch (ex: any) {
-		toast.add({ severity: "error", summary: "Playback", detail: ex?.message || "The command was not accepted.", life: 5000 })
-	}
-}
+// the status and the readings (asked again every few seconds), the transport, and the telemetry link's events as the panels show them
+const {
+	link, transport, status, info, failed, source, problemsOnly,
+	mismatch, deviceState, deviceSeverity, deviceLabel, owners,
+	current, currentLayers, recent, shownEvents, problems, statusText, statusSeverity,
+	start, stop, press,
+} = useSystem(detail => toast.add({ severity: "error", summary: "Playback", detail, life: 5000 }))
+// the build this page's code is from (the Machine card says it beside the server's)
+const webCommit = __APP_COMMIT__
 const full = ref<TelemetryEvent | null>(null)
 // the dialog the toolbar opened (backup, restore, password)
 const dialog = ref<"backup" | "restore" | "password" | null>(null)
-const source = ref<string>("all")
-const problemsOnly = ref(false)
-const sources = [
-	{ label: "Everything", value: "all" },
-	{ label: "Playlist", value: "playlist_layer" },
-	{ label: "Timer tasks", value: "timer_layer" },
-	{ label: "Display", value: "display" },
-	{ label: "Data sources", value: "data-source" },
-	{ label: "Settings", value: "application" },
-]
-// the link starts once the first request has been answered: on a device that asks for a sign-in, that is after it (a WebSocket cannot ask, it is refused)
-onMounted(() => { void load().finally(() => link.start()); timer = setInterval(load, POLL_MS) })
-onBeforeUnmount(() => { link.stop(); if (timer) clearInterval(timer) })
-
-const current = computed(() => link.state.current?.values?.digest ? link.state.current : null)
-const currentLayers = computed(() => layersOf(current.value))
-const recent = computed(() => {
-	const seen = new Set<string>()
-	return [current.value, ...link.state.events.filter(e => e.kind === "shown")]
-		.filter((e): e is TelemetryEvent => !!e && !!e.values?.digest && !seen.has(e.values.digest) && !!seen.add(e.values.digest))
-		.slice(0, 7)
-})
-const shownEvents = computed(() => link.state.events.filter(e =>
-	(source.value === "all" || e.source === source.value) && (!problemsOnly.value || isProblem(e))))
-// the latest few things that went wrong, at the top where they are seen
-const problems = computed(() => link.state.events.filter(isProblem).slice(0, 5))
-
-const statusText = computed(() => ({ live: "Live", connecting: "Connecting", offline: "Offline", "signed-out": "Sign in" })[link.state.status])
-const statusSeverity = computed(() => ({ live: "success", connecting: "info", offline: "warn", "signed-out": "danger" })[link.state.status])
+onMounted(start)
+onBeforeUnmount(stop)
 
 const title = (e: TelemetryEvent): string => String(e.values?.title ?? "")
-function iconOf(e: TelemetryEvent): string {
-	// what was sent to the panel: a screen, which no layer's glyph is (they are a picture, a stack and a page)
-	if (e.kind === "shown") return "mi mi-screenshot-monitor"
-	// the first and last markers of a slot, not "play"
-	if (e.kind === "track-started" || e.kind === "task-started") return "mi mi-play-circle"
-	if (e.kind === "track-ended" || e.kind === "task-ended") return "mi mi-stop-circle"
-	if (e.kind === "stopped") return "mi mi-stop"
-	if (e.kind === "transport") return e.values?.state === "halted" ? "mi mi-stop" : "mi mi-play-arrow"
-	// a page is shown on a layer: the layer's own glyph, as in Now showing
-	if (e.kind === "showing") return LAYERS[layerOf(e.values?.layer)].glyph
-	return { playlist_layer: "mi mi-play-arrow", timer_layer: "mi mi-schedule", display: "mi mi-image", "data-source": "mi mi-database", application: "mi mi-settings", telemetry: "mi mi-wifi" }[e.source] ?? "mi mi-circle"
-}
-/** Our own words for an event: its message when it has one, else what its values say. */
-function describe(e: TelemetryEvent): string {
-	if (e.message) return e.message
-	const v = e.values ?? {}
-	switch (e.kind) {
-		case "track-started": return `Track started: '${v.current_track ?? "a track"}'`
-		case "track-ended": return `Track ended: '${v.current_track ?? "a track"}'`
-		case "task-started": return `Task started: '${v.current_track ?? "a task"}'`
-		case "task-ended": return `Task ended: '${v.current_track ?? "a task"}'`
-		case "showing": return `On deck: '${v.title ?? ""}'`
-		case "waiting": return `Waiting ${Math.round(Number(v.delta ?? 0) / 60)} min for the next timer task`
-		case "shown": return `Sent to panel: '${v.title ?? ""}'`
-		case "stopped": return "The playlist stopped"
-		case "faulted": return "Every track failed: playback is stopped"
-		default: return e.kind
-	}
-}
 </script>
 <style scoped>
 .system {
