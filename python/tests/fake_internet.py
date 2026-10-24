@@ -408,7 +408,47 @@ def _comicvine(request: httpx.Request) -> httpx.Response | None:
 		return httpx.Response(200, json={ "error": "OK", "status_code": 1, "number_of_total_results": COMICVINE_ISSUES, "results": results })
 	return httpx.Response(404, text="Not found")
 
-ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _apod, _apod_image, _rss_feed, _rss_image, _picture_at_an_address, _calendar, _caldav, _weather, _open_meteo, _thunderforest, _ip_location, _openai, _google, _comicvine]
+# Museum Art's museums, from fixtures in their shapes (each with a work still in copyright and one without a picture, which are never shown). A search for
+# "nothing" matches nothing; the Art Institute refuses a page from 1,000 on and a search in the query string; The Met's v1 search is retired (410)
+MUSEUM_NOTHING = "nothing"
+
+def _museums(request: httpx.Request) -> httpx.Response | None:
+	host, path = request.url.host, request.url.path
+	if host == "api.artic.edu" and path == "/api/v1/artworks/search":
+		if request.method != "POST":
+			return httpx.Response(400, json={ "status": 400, "error": "this fake answers the search in a JSON body only" })
+		body = json.loads(request.content or b"{}")
+		if int(body.get("from") or 0) + int(body.get("limit") or 0) > 1000:
+			return httpx.Response(403, json={ "status": 403, "error": "Invalid number of results", "detail": "You have requested too many results. Please refine your parameters." })
+		if MUSEUM_NOTHING in json.dumps(body.get("query")):
+			return httpx.Response(200, json={ "pagination": { "total": 0, "limit": 25, "offset": 0 }, "data": [] })
+		return httpx.Response(200, text=fixture_text("museum-aic-search.json"), headers={ "Content-Type": "application/json" })
+	if host == "www.artic.edu" and path.startswith("/iiif/2/") and path.endswith("/full/843,/0/default.jpg"):
+		return _image(843, 640, path.split("/")[3], "JPEG")
+	if host == "collectionapi.metmuseum.org":
+		if path == "/public/collection/v1/search":
+			return httpx.Response(410, json={ "message": "/public/collection/v1/search was retired on 2026-10-01.", "replacement": "/public/collection/v1.1/search" })
+		if path == "/public/collection/v1.1/search":
+			query = parse_qs(request.url.query.decode())
+			if (query.get("q") or [""])[0] == MUSEUM_NOTHING:
+				return httpx.Response(200, json={ "total": 0, "objectIDs": None })
+			ids = [int(i) for i in json.loads(fixture_text("museum-met-objects.json"))]
+			return httpx.Response(200, json={ "total": len(ids), "objectIDs": ids })
+		if path.startswith("/public/collection/v1/objects/"):
+			record = json.loads(fixture_text("museum-met-objects.json")).get(path.rsplit("/", 1)[-1])
+			return httpx.Response(200, json=record) if record is not None else httpx.Response(404, json={ "message": "ObjectID not found" })
+	if host == "images.metmuseum.org" and path.endswith(".jpg"):
+		return _image(700, 900, path.rsplit("/", 1)[-1], "JPEG")
+	if host == "openaccess-api.clevelandart.org" and path == "/api/artworks/":
+		query = parse_qs(request.url.query.decode())
+		if (query.get("q") or [""])[0] == MUSEUM_NOTHING:
+			return httpx.Response(200, json={ "info": { "total": 0 }, "data": [] })
+		return httpx.Response(200, text=fixture_text("museum-cleveland-search.json"), headers={ "Content-Type": "application/json" })
+	if host == "openaccess-cdn.clevelandart.org" and path.endswith(".jpg"):
+		return _image(723, 900, path.rsplit("/", 1)[-1], "JPEG")
+	return None
+
+ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _apod, _apod_image, _rss_feed, _rss_image, _picture_at_an_address, _calendar, _caldav, _weather, _open_meteo, _thunderforest, _ip_location, _openai, _google, _comicvine, _museums]
 
 def install() -> FakeInternet | None:
 	"""Make every `AsyncHttpWorkerPool` talk to the fake (unless EINK_TEST_LIVE is set)."""

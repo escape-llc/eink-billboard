@@ -1,0 +1,14 @@
+{
+	"info": { "total": 3, "parameters": { "skip": 0, "limit": 25, "cc0": "1", "has_image": "1" } },
+	"data": [
+		{ "id": 135382, "title": "The Red Kerchief", "creation_date": "c. 1868–73", "share_license_status": "CC0",
+			"creators": [{ "id": 1844, "description": "Claude Monet (French, 1840–1926)", "role": "artist" }],
+			"images": { "web": { "url": "https://openaccess-cdn.clevelandart.org/1958.39/1958.39_web.jpg", "width": "723", "height": "900", "filename": "1958.39_web.jpg" } } },
+		{ "id": 90003, "title": "A Work Still in Copyright", "creation_date": "1990", "share_license_status": "Copyrighted",
+			"creators": [{ "id": 1, "description": "Someone (American, born 1950)", "role": "artist" }],
+			"images": { "web": { "url": "https://openaccess-cdn.clevelandart.org/x/x_web.jpg", "width": "800", "height": "600", "filename": "x_web.jpg" } } },
+		{ "id": 151904, "title": "Water Lilies (Agapanthus)", "creation_date": "1915–26", "share_license_status": "CC0",
+			"creators": [{ "id": 1844, "description": "Claude Monet (French, 1840–1926)", "role": "artist" }],
+			"images": { "web": { "url": "https://openaccess-cdn.clevelandart.org/1960.81/1960.81_web.jpg", "width": "1200", "height": "600", "filename": "1960.81_web.jpg" } } }
+	]
+}

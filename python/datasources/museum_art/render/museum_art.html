@@ -1,0 +1,56 @@
+{% extends "plugin.html" %}
+
+{% block style %}
+	<style>
+		/* every size is in rem: the root's font size is the page's (an em would follow the element it is on) */
+		html {
+			font-size: calc(min(3.2dvh, 3.2dvw) * var(--font-scale));
+		}
+		.art {
+			position: relative;
+			width: 100%;
+			height: 100%;
+			overflow: hidden;
+		}
+		.art-picture {
+			display: block;
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+		}
+		/* the caption: a solid label in a corner (a colour panel dithers a tint), as small as it can be read */
+		.art-caption {
+			position: absolute;
+			left: 0;
+			bottom: 0;
+			max-width: 70%;
+			box-sizing: border-box;
+			padding: .35rem .7rem .4rem .7rem;
+			line-height: 1.25;
+		}
+		.art-title {
+			font-family: var(--font-heading);
+			font-weight: bold;
+			font-size: 1rem;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+		.art-more {
+			font-size: .8rem;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+	</style>
+{% endblock %}
+{% block content %}
+<div class="art bg-page">
+	<img class="art-picture" src="{{ picture }}" alt="">
+	<div class="art-caption bg-page">
+		<div class="art-title text-primary">{{ title }}</div>
+		<div class="art-more text-secondary-1">{% if artist %}{{ artist }}{% endif %}{% if artist and date %}, {% endif %}{{ date }}</div>
+		<div class="art-more text-secondary-2">{{ museum }}</div>
+	</div>
+</div>
+{% endblock %}
