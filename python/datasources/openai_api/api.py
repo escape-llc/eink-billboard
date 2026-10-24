@@ -22,7 +22,7 @@ from ...web.documents import SECRET_MASK
 from ...web.errors import ApiError
 from ...web.openapi import Choice, answers, test_route
 from ..data_source import DataSourceExecutionContext
-from .models import QUALITIES, describe_models, image_models, text_models
+from .models import QUALITIES, describe_models, family_of, image_models, text_models
 from .openai_api import OpenAIApi, list_model_ids, stored_api_key
 
 logger = logging.getLogger(__name__)
@@ -75,9 +75,14 @@ def text_model_choices(cm: CM):
 	return _choices(text_models(_stored_ids(cm)))
 
 @openai_router.get('/lookups/qualities', **answers(list[Choice]))
-def quality_choices():
-	"""Every quality an image model takes; a model asked for one it does not take uses the nearest one below it."""
-	return [{ "name": QUALITY_NAMES[q], "value": q } for q in QUALITIES]
+def quality_choices(imageModel: str | None = None):
+	"""
+	The qualities the chosen image model takes (the lookup's `with`: the form sends the task's `imageModel`); with no model, or one of no
+	family we know, every quality. A stored quality the model lacks still works: it uses the nearest one below it.
+	"""
+	family = family_of(imageModel) if imageModel else None
+	offered = family.qualities if family else QUALITIES
+	return [{ "name": QUALITY_NAMES[q], "value": q } for q in QUALITIES if q in offered]
 
 @openai_router.get('/models')
 def models(cm: CM):

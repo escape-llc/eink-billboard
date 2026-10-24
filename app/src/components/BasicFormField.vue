@@ -59,9 +59,15 @@
 					:placeholder="field.title" fluid />
 			</template>
 			<template v-else-if="'lookup' in field">
-				<Select size="small" :name="field.name" :inputId="field.name" :invalid="isInvalid" :options="field.list"
+				<Select size="small" :name="field.name" :inputId="field.name" :invalid="isInvalid" :options="lookupChoices"
 					optionLabel="name" optionValue="value" :showClear="field.required === false"
 					:placeholder="field.title" fluid />
+				<!-- a search lookup: what is typed is sent on Enter or Search, never per keystroke; the answer is the Select's choices -->
+				<template v-if="field.lookupSearch">
+					<InputText size="small" v-model="searchText" :aria-label="`Search ${field.title}`" placeholder="Search" class="lookup-search"
+						@keydown.enter.prevent="search" />
+					<Button type="button" size="small" severity="secondary" icon="mi mi-search" :aria-label="`Search for ${field.title}`" :loading="fetching" @click="search" />
+				</template>
 			</template>
 			<template v-else-if="field.type === 'number' || field.type === 'integer'">
 				<InputNumber style="flex-grow:1" :name="field.name" :inputId="field.name" :invalid="isInvalid" size="small"
@@ -105,6 +111,8 @@
 				severity="error" size="small" variant="simple">{{ errorMessage }}</Message>
 		</slot>
 		<Message v-if="field.lookupError" severity="warn" size="small" variant="simple">{{ field.lookupError }}</Message>
+		<Message v-if="ownLookup.error" severity="warn" size="small" variant="simple" data-testid="lookup-error">{{ ownLookup.error }}</Message>
+		<Message v-if="ownLookup.hint" severity="secondary" size="small" variant="simple" data-testid="lookup-hint">{{ ownLookup.hint }}</Message>
 		<Message v-if="field.providersMissing?.length" severity="warn" size="small" variant="simple" data-testid="providers-missing">This needs a {{ field.providersMissing.join(", ") }} provider, and none is available: it will fail until one is enabled.</Message>
 		<Message v-if="field.usesMissing?.length" severity="warn" size="small" variant="simple" data-testid="uses-missing">This needs the {{ field.usesMissing.join(", ") }} data source, which is not available: it will fail until it is.</Message>
 		<Message v-if="showHelp && field.description" severity="secondary" size="small" variant="simple" class="field-help">{{ field.description }}</Message>
@@ -146,9 +154,11 @@ import ColorField from './ColorField.vue';
 import TestUrlButton, { type TestResult } from './TestUrlButton.vue';
 import { isoToDate, dateToIso } from './FormDates';
 import { derivedValues, isVisible } from './FormVisibility';
+import { apiJson, joinUrl } from './ApiClient';
+import { lookupAddress, withStored } from './LookupQuery';
 // a settings form that can restore a field's factory text provides this (SettingsForm)
 const restoreField = inject<((name: string) => void)|null>('restoreField', null);
-import { computed, inject, nextTick, onMounted, ref, toRaw, watch } from 'vue';
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch } from 'vue';
 import type { FormFieldState } from '@primevue/forms/form';
 import type { LookupValue, ResolvedField, SchemaChoice } from './FormDefs';
 /** PrimeVue's state of each field of the form (its `v-slot="$form"`), by name; a list's problems carry the row and field in `path` */
@@ -228,6 +238,98 @@ const choices = computed<LookupValue[]>(() => {
 	const items = props.field.type === 'header' ? undefined : props.field.items
 	return items?.type === 'string' && items.enum ? items.enum.map(v => ({ name: v, value: v })) : (props.field.list ?? [])
 });
+// --- a lookup with parameters (`with`, `search`): the field fetches its own list, for the values it needs (#510 A8)
+const ownsLookup = computed(() => props.field.type !== 'header' && !!props.field.lookupUrl && (!!props.field.lookupWith || !!props.field.lookupSearch))
+const ownLookup = reactive<{ list: LookupValue[], error?: string, hint?: string }>({ list: [] })
+// the name of each entry an answer has had: a choice a later search does not find keeps its name
+const names = reactive(new Map<unknown, string>())
+const searchText = ref("")
+// the text last searched for; null: no search yet, so nothing is fetched
+const searched = ref<string | null>(null)
+const fetching = ref(false)
+/** A field's title, among the form's fields and the fields of the sources they chose; its name when it is not found. */
+function titleOf(name: string, fields: ResolvedField[] = props.fields ?? []): string {
+	for (const f of fields) {
+		if (f.name === name && f.title) return f.title
+		const inner = f.children ? titleOf(name, f.children) : name
+		if (inner !== name) return inner
+	}
+	return name
+}
+const readValue = (name: string) => props.formContext?.[name]?.value
+// what the `with` fields hold now: the list is fetched again when it changes
+const withKey = computed(() => {
+	if (!ownsLookup.value || props.field.type === 'header' || !props.field.lookupWith) return ""
+	const wanted = lookupAddress(props.field.lookupUrl ?? "", props.field.lookupWith, readValue)
+	return wanted.address ?? `missing:${wanted.missing}`
+})
+let asked = 0
+let lastAddress: string | undefined
+function fetchOwn() {
+	const field = props.field
+	if (field.type === 'header' || !field.lookupUrl) return
+	// before a search, a search field asks only for its stored value's own entry (a search route finds an entry by its value too), so the choice
+	// shows its name; with nothing stored it fetches nothing until a search is made
+	const stored = fieldState.value.value
+	const naming = field.lookupSearch && searched.value === null
+	if (naming && (stored === undefined || stored === null || stored === "")) {
+		const wanted = lookupAddress(field.lookupUrl, field.lookupWith, readValue)
+		ownLookup.hint = wanted.missing ? `Choose ${titleOf(wanted.missing)} first.` : undefined
+		return
+	}
+	const q = field.lookupSearch ? (naming ? String(stored) : searched.value ?? "") : undefined
+	const wanted = lookupAddress(field.lookupUrl, field.lookupWith, readValue, q)
+	const ticket = ++asked
+	if (wanted.address === undefined) {
+		lastAddress = undefined
+		ownLookup.list = []
+		ownLookup.error = undefined
+		ownLookup.hint = `Choose ${titleOf(wanted.missing)} first.`
+		return
+	}
+	// the same question twice (the stored value registering after the first ask, a search repeated) is asked once; a failed one may be asked again
+	if (wanted.address === lastAddress && !ownLookup.error) {
+		asked--
+		return
+	}
+	lastAddress = wanted.address
+	fetching.value = true
+	apiJson<LookupValue[]>(joinUrl(props.baseUrl ?? "", wanted.address)).then(list => {
+		// an answer to an older question (the value changed again meanwhile) is dropped
+		if (ticket !== asked) return
+		ownLookup.list = naming ? list.filter(x => x.value === stored) : list
+		for (const entry of list) names.set(entry.value, entry.name)
+		ownLookup.error = undefined
+		ownLookup.hint = field.lookupSearch && !naming && list.length === 0 ? `Nothing found for "${searched.value}".` : undefined
+	}).catch(ex => {
+		if (ticket !== asked) return
+		console.error("lookup", ex)
+		// the message is shown under the field; it is never a choice that could be saved
+		ownLookup.list = []
+		ownLookup.error = `The choices could not be loaded: ${ex.message}`
+		ownLookup.hint = undefined
+	}).finally(() => { if (ticket === asked) fetching.value = false })
+}
+let withTimer: ReturnType<typeof setTimeout> | undefined
+// a changed value is asked about once it has been still a moment (a typed one changes per keystroke); the first time, at once
+watch(withKey, (_, before) => {
+	if (!ownsLookup.value) return
+	clearTimeout(withTimer)
+	withTimer = setTimeout(fetchOwn, before === undefined ? 0 : 300)
+}, { immediate: true })
+onBeforeUnmount(() => clearTimeout(withTimer))
+// a search field before any search names its stored value; another stored value (another track opened in the same form) is named again
+watch(() => fieldState.value.value, () => {
+	if (props.field.type !== 'header' && props.field.lookupSearch && searched.value === null) fetchOwn()
+})
+/** Search: what is typed goes as `q`, now (Enter or the button), never per keystroke. */
+function search() {
+	searched.value = searchText.value.trim()
+	clearTimeout(withTimer)
+	fetchOwn()
+}
+// a lookup's choices: a field that fetches its own shows its answer, with the stored value kept when the answer lacks it
+const lookupChoices = computed<LookupValue[]>(() => ownsLookup.value ? withStored(ownLookup.list, fieldState.value.value, v => names.get(v)) : (props.field.list ?? []) as LookupValue[])
 // a problem with one row of a list is shown on that row (by `ArrayField`); the message under the field is for the field as a whole
 const errorMessage = computed(() => {
 	const errors: { message?: string, path?: string[] }[] = fieldState.value.errors ?? []
@@ -261,6 +363,11 @@ const errorMessage = computed(() => {
 	margin-top: -.25rem;
 }
 /* the title and its "new" tag share one centred line (.field-title, main.css): the tag is taller than the text, so inline it pushed the text up */
+/* the search box of a search lookup: beside the choice, narrower than it */
+.lookup-search {
+	flex: 0 1 10rem;
+	min-width: 6rem;
+}
 .new-tag {
 	margin-left: .4rem;
 	line-height: 1;

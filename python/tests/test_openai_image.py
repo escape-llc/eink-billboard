@@ -233,6 +233,17 @@ class TestTheRoutes(WebApiTestBase):
 		self.assertEqual([c["value"] for c in self.client.get(f"{self.BASE}/lookups/text-models").json()], text_models(ALL_IDS))
 		self.assertEqual([c["value"] for c in self.client.get(f"{self.BASE}/lookups/qualities").json()], list(models.QUALITIES))
 
+	def test_the_qualities_are_those_of_the_chosen_model(self):
+		# the lookup's `with`: the form sends the task's imageModel, and the list is what that model's family takes
+		def qualities(query: str = "") -> list[str]:
+			return [c["value"] for c in self.client.get(f"{self.BASE}/lookups/qualities{query}").json()]
+		self.assertEqual(qualities("?imageModel=gpt-image-2"), ["auto", "low", "medium", "high"])
+		self.assertEqual(qualities("?imageModel=gpt-image-2.5-flare"), list(models.QUALITIES))
+		# no model chosen yet, or one of no family we know: every quality
+		self.assertEqual(qualities(), list(models.QUALITIES))
+		self.assertEqual(qualities("?imageModel="), list(models.QUALITIES))
+		self.assertEqual(qualities("?imageModel=not-a-model"), list(models.QUALITIES))
+
 	def test_the_models_route_says_what_each_takes(self):
 		self.write_datasource_settings("openai-api", { "apiKey": "sk-good" })
 		body = self.client.get(f"{self.BASE}/models").json()

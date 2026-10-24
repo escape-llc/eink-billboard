@@ -357,7 +357,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Plugin Newspaper Slugs */
+        /**
+         * Plugin Newspaper Slugs
+         * @description The newspapers. With `q` (the lookup's `search`: what was typed in the field's search box), those whose name, city or slug holds it, ignoring case,
+         *     at most MOST_FOUND; without it, every one.
+         */
         get: operations["plugin_newspaper_slugs_api_datasource_newspaper_lookups_newspaperSlug_get"];
         put?: never;
         post?: never;
@@ -396,7 +400,8 @@ export interface paths {
         };
         /**
          * Quality Choices
-         * @description Every quality an image model takes; a model asked for one it does not take uses the nearest one below it.
+         * @description The qualities the chosen image model takes (the lookup's `with`: the form sends the task's `imageModel`); with no model, or one of no
+         *     family we know, every quality. A stored quality the model lacks still works: it uses the nearest one below it.
          */
         get: operations["quality_choices_api_datasource_openai_api_lookups_qualities_get"];
         put?: never;
@@ -2513,7 +2518,9 @@ export interface operations {
     };
     plugin_newspaper_slugs_api_datasource_newspaper_lookups_newspaperSlug_get: {
         parameters: {
-            query?: never;
+            query?: {
+                q?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2527,6 +2534,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Choice"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -2553,7 +2569,9 @@ export interface operations {
     };
     quality_choices_api_datasource_openai_api_lookups_qualities_get: {
         parameters: {
-            query?: never;
+            query?: {
+                imageModel?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2567,6 +2585,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Choice"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

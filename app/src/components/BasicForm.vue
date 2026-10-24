@@ -149,7 +149,8 @@ function ensureInitializeForm(schema: SchemaType|undefined): void {
 }
 function startLookups(schema: SchemaType, values: ResolvedField[]): void {
 	values.forEach(px => {
-		if(px.type !== "header" && px.lookup && px.listType === "url") {
+		// a lookup with parameters is fetched by its field (or its row) for the values it needs, not once here
+		if(px.type !== "header" && px.lookup && px.listType === "url" && !px.lookupWith && !px.lookupSearch) {
 			lookupUrl(px)
 		}
 		if(px.children) {
@@ -184,6 +185,10 @@ function formProperties(schema: SchemaType|undefined, owner: Owner|undefined): R
 					fx.listType = "url"
 					const urlLookup = schema.lookups ? schema.lookups[px.lookup] : undefined
 					fx.lookupUrl = urlLookup && 'url' in urlLookup ? urlLookup.url : null
+					if(urlLookup && 'url' in urlLookup) {
+						if(urlLookup.with?.length) fx.lookupWith = [...urlLookup.with]
+						if(urlLookup.search) fx.lookupSearch = true
+					}
 				}
 				else if(isLookupItems(schema, px.lookup, "settings")) {
 					// the choices are a list the owner keeps in its own settings: served by the owner's lookup route

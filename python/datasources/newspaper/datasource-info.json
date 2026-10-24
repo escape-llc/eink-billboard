@@ -67,7 +67,8 @@
 		"schema": {
 			"lookups": {
 				"newspaperSlug": {
-					"url": "/api/datasource/newspaper/lookups/newspaperSlug"
+					"url": "/api/datasource/newspaper/lookups/newspaperSlug",
+					"search": true
 				}
 			},
 			"properties": [
@@ -78,7 +79,7 @@
 					"default": "ny_nyt",
 					"title": "Newspaper",
 					"lookup": "newspaperSlug",
-					"description": "Select the newspaper."
+					"description": "Search for the paper by its name, its city or its code (such as ny_nyt), then choose it."
 				}
 			]
 		}

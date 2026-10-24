@@ -890,6 +890,20 @@ class TestLookups(WebApiTestBase):
 		self.assertEqual(resp.status_code, 200)
 		self.assertTrue(all({"name", "value"} <= x.keys() for x in resp.json()))
 
+	def test_a_search_lookup_answers_what_the_text_finds(self):
+		# the lookup's `search`: the typed text is `q`; it finds a paper by its name, its city or its slug, ignoring case, at most MOST_FOUND
+		from ..datasources.newspaper.api import MOST_FOUND
+		from ..datasources.newspaper.constants import NEWSPAPERS
+		def found(q: str) -> list[str]:
+			return [x["value"] for x in self.client.get("/api/datasource/newspaper/lookups/newspaperSlug", params={ "q": q }).json()]
+		self.assertIn("ny_nyt", found("NEW YORK TIMES"))
+		self.assertEqual(found("ny_nyt"), ["ny_nyt"])
+		self.assertIn("co_tg", found("colorado springs"))
+		self.assertEqual(found("no paper is called this"), [])
+		# no text: every paper, as before the search existed
+		self.assertEqual(len(found("  ")), len(NEWSPAPERS))
+		self.assertLessEqual(len(found("a")), MOST_FOUND)
+
 class TestSchedule(WebApiTestBase):
 	def test_lists(self):
 		pl = self.client.get("/api/schedule/playlist/list").json()

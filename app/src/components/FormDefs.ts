@@ -74,6 +74,13 @@ export type LookupSchema = {
 }
 export type LookupUrl = {
 	url: string
+	/** fields whose values go as query parameters (the form's, or in a list row the row's): the list is fetched again when one changes, and waits while one is empty */
+	with?: string[]
+	/**
+	 * the field gets a search box: what is typed goes as `q`, on Enter or Search (never per keystroke). Before a search only a stored value is asked
+	 * for (as `q`: the route finds an entry by its own value too), so it shows its name. Not in a row
+	 */
+	search?: boolean
 }
 export type LookupSettings = {
 	/** the array property of the declaring plugin's or data source's own settings that holds the choices */
@@ -135,6 +142,9 @@ type Resolved = {
 	lookupUrl?: string | null
 	/** why the list could not be loaded, shown under the field (never a choice) */
 	lookupError?: string
+	/** a `url` lookup's `with` and `search`: the field fetches its list itself, for the values it needs (LookupQuery.ts) */
+	lookupWith?: string[]
+	lookupSearch?: boolean
 	/** a `schema` field's: the fields of the chosen source */
 	children?: ResolvedField[]
 	/** a `schema` field's: the data sources the chosen one uses that the device lacks, and the capabilities no provider supplies */
