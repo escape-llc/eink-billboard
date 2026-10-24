@@ -12,7 +12,7 @@ from ...model.theme import ThemeInputs, current_inputs
 from ...plugins.plugin_base import PermanentError, RenderSession
 from ..contracts.provider import device_now
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
-from ..sky.draw import arc_svg, moon_svg
+from ..sky.draw import Mark, arc_svg, moon_svg, sparkline_svg, timeline_svg
 from ..sky.sky import Sky, depression_of, device_place, sky_of
 
 VIEWS = ("today", "arc")
@@ -100,6 +100,11 @@ def page_params(page: Page, params: Mapping[str, Any]) -> dict:
 	# the big times: the digits big, what follows them ("PM", "(+1)") small beside them; the page sizes both so they fit their halves of the column
 	body["sunrise_big"], body["sunset_big"] = big_time(body["sunrise"]), big_time(body["sunset"])
 	body["big_chars"] = max(big_width(body["sunrise_big"]), big_width(body["sunset_big"]), 5)
+	if page.view == "today":
+		body["sparkline"] = sparkline_svg(sky.week, sky.now.date())
+		marks = [Mark(when, name, clock(when, h12), "sun") for when, name in ((sun.dawn, "Dawn"), (sun.sunrise, "Sunrise"), (sun.noon, "Noon"), (sun.sunset, "Sunset"), (sun.dusk, "Dusk")) if when is not None]
+		marks += [Mark(when, name, clock(when, h12), "moon") for when, name in ((moon.moonrise, "Moonrise"), (moon.moonset, "Moonset")) if when is not None]
+		body["timeline"] = timeline_svg(sky, marks, tall=page.tall)
 	if page.view == "arc":
 		body["arc_svg"] = arc_svg(sky, body["sunrise"], body["sunset"], tall=page.tall)
 		# the line under the arc: a polar day in a few words, and when a moon that is down rises

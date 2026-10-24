@@ -215,6 +215,69 @@ class TestDrawing(unittest.TestCase):
 			x0, x1 = float(segment.split(" ")[0]), float(segment.split("L")[1].split(" ")[0])
 			self.assertLess(abs(x1 - x0), draw.ARC_W / 2)
 
+	def test_the_week_is_seven_days_centred_on_today(self):
+		sky = sky_of(NEW_YORK, NOW)
+		self.assertEqual([day for day, _ in sky.week], [NOW.date() + timedelta(days=d) for d in range(-3, 4)])
+		self.assertEqual(sky.week[3][1], sky.sun.length)
+		self.assertEqual(sky.week[2][1], sky.yesterday)
+		# autumn in the north: each day is shorter than the one before
+		lengths = [length for _, length in sky.week]
+		self.assertTrue(all(a is not None and b is not None and b < a for a, b in zip(lengths, lengths[1:], strict=False)))
+
+	def test_the_sparkline_marks_today_and_breaks_where_a_day_has_no_length(self):
+		today = date(2026, 10, 24)
+		week = tuple((today + timedelta(days=d), timedelta(hours=10, minutes=d)) for d in range(-3, 4))
+		svg = draw.sparkline_svg(week, today)
+		self.assertEqual(svg.count("<circle"), 7)
+		self.assertEqual(svg.count('r="7"'), 1, "today's point is the larger one")
+		self.assertEqual(svg.count("spark-line"), 1)
+		self.assertIn(">S</text>", svg)
+		# a day with no length (a polar day begins) is a gap: two lines, six points
+		gapped = week[:2] + ((week[2][0], None),) + week[3:]
+		svg = draw.sparkline_svg(gapped, today)
+		self.assertEqual(svg.count("<circle"), 6)
+		self.assertEqual(svg.count("spark-line"), 2)
+		# a week of one length is a level line, not a division by nothing
+		level = tuple((day, timedelta(hours=24)) for day, _ in week)
+		self.assertIn("spark-line", draw.sparkline_svg(level, today))
+
+	def test_the_timeline_marks_the_days_times_in_order_and_leaves_out_another_days(self):
+		zone = ZoneInfo("America/New_York")
+		sky = sky_of(NEW_YORK, NOW)
+		at = lambda h, m: datetime(2026, 10, 24, h, m, tzinfo=zone)
+		marks = [draw.Mark(at(18, 2), "Sunset", "18:02", "sun"), draw.Mark(at(7, 17), "Sunrise", "07:17", "sun"),
+			draw.Mark(at(17, 0), "Moonrise", "17:00", "moon"), draw.Mark(at(23, 59) + timedelta(hours=2), "Moonset", "01:59", "moon")]
+		svg = draw.timeline_svg(sky, marks)
+		names = [part.split("<")[0] for part in svg.split('class="tl-name ')[1:]]
+		self.assertEqual([name.split(">")[1] for name in names], ["Sunrise", "Moonrise", "Sunset"], "in time order, tomorrow's moonset left out")
+		self.assertIn("tl-day", svg)
+		self.assertIn("tl-twilight", svg)
+		self.assertIn("tl-now", svg)
+
+	def test_timeline_labels_never_overlap_a_label_or_a_mark(self):
+		# the crowded case: dawn, sunrise, the moon's two times and dusk close together, on the narrow (tall) drawing
+		xs = [140.0, 150.0, 194.0, 437.0, 453.0, 481.0, 493.0]
+		widths = [99.0] * len(xs)
+		places = draw._place_labels(xs, widths, 640.0)
+		self.assertEqual(len(places), len(xs))
+		for i, (side, tier, cx) in enumerate(places):
+			self.assertLessEqual(cx + widths[i] / 2, 640.0)
+			self.assertGreaterEqual(cx - widths[i] / 2, 0.0)
+			for j, (s2, t2, c2) in enumerate(places):
+				if i == j or side != s2:
+					continue
+				if tier == t2:
+					self.assertGreaterEqual(abs(cx - c2), (widths[i] + widths[j]) / 2, f"labels {i} and {j} overlap")
+				if t2 > tier:
+					self.assertFalse(cx - widths[i] / 2 < xs[j] < cx + widths[i] / 2, f"label {i} covers the mark of {j}")
+
+	def test_the_today_page_has_the_sparkline_and_the_timeline(self):
+		page = page_params(Page("today", sky_of(NEW_YORK, NOW), False), {})
+		self.assertIn('class="spark"', page["sparkline"])
+		for name in ("Dawn", "Sunrise", "Noon", "Sunset", "Dusk", "Moonrise", "Moonset"):
+			self.assertIn(f">{name}</text>", page["timeline"])
+		self.assertNotIn("timeline", page_params(Page("arc", sky_of(NEW_YORK, NOW), False), {}))
+
 class FakeSettings:
 	THEME = { "theme": "analogous", "hue": 200, "saturation": 60, "lightness": 50 }
 	def __init__(self, orientation: str = "landscape", **system):

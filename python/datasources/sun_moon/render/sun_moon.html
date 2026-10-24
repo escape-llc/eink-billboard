@@ -180,9 +180,76 @@
 			font-weight: bold;
 			white-space: nowrap;
 		}
+		/* the day's length over the week around today, under today's */
+		.spark {
+			display: block;
+			width: 9rem;
+			height: 2.3rem;
+			margin-top: .2rem;
+		}
+		.spark-line {
+			fill: none;
+			stroke: currentColor;
+			stroke-width: 3;
+			stroke-linejoin: round;
+		}
+		.spark-dot {
+			fill: currentColor;
+		}
+		.spark-day {
+			fill: currentColor;
+			font-size: 16px;
+			text-anchor: middle;
+		}
+		.spark-today {
+			font-weight: bold;
+		}
+		/* today from midnight to midnight, along the foot of the page */
+		.timeline {
+			flex: none;
+			width: 100%;
+			height: auto;
+			max-height: 40%;
+			margin-top: .4rem;
+		}
+		.tl-night, .tl-twilight, .tl-day, .tl-now {
+			fill: currentColor;
+		}
+		.tl-hour, .tl-mark {
+			stroke: currentColor;
+			stroke-width: 3;
+		}
+		.tl-name, .tl-time {
+			fill: currentColor;
+			text-anchor: middle;
+		}
+		/* the sizes are the drawing's own (draw.py's TIMELINE_NAME_PX and TIMELINE_TIME_PX, which place the labels) */
+		.tl-time {
+			font-weight: bold;
+		}
 		@media (orientation: portrait) {
+			/* one above the other, each centred across the page, the space shared out above, between and below them */
 			.sm-today {
 				flex-direction: column;
+				justify-content: space-evenly;
+				gap: .8rem;
+			}
+			.sm-sun, .sm-moon {
+				flex: none;
+				align-items: center;
+				text-align: center;
+			}
+			.sm-sun > *, .sm-moon > * {
+				width: 100%;
+			}
+			.spark {
+				margin: .2rem auto 0 auto;
+			}
+			.sm-moon-main {
+				justify-content: center;
+			}
+			.sm-moon-main > div {
+				text-align: left;
 			}
 			/* a narrow page: the date and the moon's line go under, not off the edge */
 			.sm-heading, .sm-arc-line {
@@ -217,12 +284,9 @@
 			<div>
 				<div class="sm-label text-secondary-1">Daylight</div>
 				<div class="sm-mid text-primary">{{ length or "–" }}{% if change %} <span class="sm-small text-secondary-2">{{ change }}</span>{% endif %}</div>
+				{{ sparkline | safe }}
 			</div>
-			<div class="sm-pair sm-small text-primary">
-				<div><b class="text-secondary-1">Dawn</b> <span class="sm-time">{{ dawn or "–" }}</span></div>
-				<div><b class="text-secondary-1">Noon</b> <span class="sm-time">{{ noon }}</span></div>
-				<div><b class="text-secondary-1">Dusk</b> <span class="sm-time">{{ dusk or "–" }}</span></div>
-			</div>
+			{# dawn, noon and dusk are on the timeline #}
 		</div>
 		<div class="sm-moon">
 			<div class="sm-moon-main">
@@ -242,6 +306,7 @@
 			</div>
 		</div>
 	</div>
+	{% if timeline %}{{ timeline | safe }}{% endif %}
 	{% endif %}
 </div>
 {% endblock %}
