@@ -121,11 +121,13 @@ class MuseumArtAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		caption = caption_of(state)
 		title = f"{caption['title']}, {caption['artist']}" if caption["artist"] else caption["title"]
 		if params.get("showCaption") is False:
-			return MediaRenderResult(image=picture, title=title)
+			# the picture alone: a background page, which overlays may draw on
+			return MediaRenderResult(image=picture, title=title, layer="background")
 		scm = dsec.provider.required(SettingsConfigurationManager)
 		stm = dsec.provider.required(StaticConfigurationManager)
 		render_dir = dsec.provider.required(ConfigurationManager).datasource_render_dir("museum_art")
 		page = await asyncio.to_thread(render_page, stm, render_dir, size, { "picture": picture_data_uri(picture), **caption, "settings": dict(params) }, current_inputs(scm))
-		# a page Chromium could not draw still shows the work, without its caption
-		return MediaRenderResult(image=page if page is not None else picture, title=title)
+		# with its caption: a foreground page, so no overlay covers the caption; a page Chromium could not draw still shows the work, without its
+		# caption, as a background page
+		return MediaRenderResult(image=page if page is not None else picture, title=title, layer="foreground" if page is not None else "background")
 

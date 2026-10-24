@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Mapping, TypedDict, cast
 
 from ..plugin_base import PluginAsync, PluginExecutionContext, TrackType
-from ...datasources.data_source import DataSourceManager, MediaListAsync, MediaRenderAsync
+from ...datasources.data_source import DataSourceManager, MediaListAsync, MediaRenderAsync, MediaRenderResult
 from ..kept_list import NoItem, fingerprint_of, open_list
 from ...model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager
 from ...model.schedule import PlaylistSchedule
@@ -22,6 +22,12 @@ class SettingsDict(TypedDict):
 	showAs: str
 	listMode: str
 	refreshHours: int
+
+def result_layer(chosen: DisplayLayer, show_as: str|None, mrr: MediaRenderResult) -> DisplayLayer:
+	"""The layer of one page: the task's own choice stands; with `auto`, a page that says what it is (`MediaRenderResult.layer`) decides, else `chosen`."""
+	if show_as in DISPLAY_LAYERS or mrr.layer is None:
+		return chosen
+	return "override" if mrr.layer == "foreground" else "background"
 
 def page_layer(context: PluginExecutionContext, datasource_id: str, show_as: str|None) -> DisplayLayer:
 	"""
@@ -136,7 +142,7 @@ class SlideShowAsync(PluginAsync):
 						continue
 					count += 1
 					if mrr is not None:
-						router.send("display", DisplayImage(context.timestamp, mrr.title if mrr.title is not None else track.title, mrr.image, layer=layer))
+						router.send("display", DisplayImage(context.timestamp, mrr.title if mrr.title is not None else track.title, mrr.image, layer=result_layer(layer, settings.get("showAs"), mrr)))
 					# shown: off the list now, so a restart or a cancel during the wait does not show it twice
 					kept.drop()
 					if mrr is not None:

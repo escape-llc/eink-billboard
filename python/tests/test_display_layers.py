@@ -13,7 +13,7 @@ from PIL import Image
 
 from ..model.service_container import ServiceContainer
 from ..plugins.plugin_base import PluginExecutionContext
-from ..plugins.slide_show.slide_show import page_layer
+from ..plugins.slide_show.slide_show import page_layer, result_layer
 from ..task.display import Display
 from ..task.display_messages import BlendImage, DisplayImage, PriorityImage
 from ..task.message_router import MessageRouter
@@ -234,6 +234,18 @@ class TestShowAs(unittest.TestCase):
 		self.assertEqual(page_layer(self.context(["layer-background", "media-image"]), "ds", "auto"), "background")
 		self.assertEqual(page_layer(self.context(["layer-foreground"]), "other", None), "background")
 		self.assertEqual(page_layer(self.context(None), "ds", "auto"), "background")
+
+	def test_with_auto_a_page_that_says_its_layer_decides(self):
+		from ..datasources.data_source import MediaRenderResult
+		def said(layer):
+			return MediaRenderResult(image=solid("white"), title=None, layer=layer)
+		# Museum Art: a captioned work is a foreground page, the picture alone a background one, whatever its descriptor chose for auto
+		self.assertEqual(result_layer("override", "auto", said("background")), "background")
+		self.assertEqual(result_layer("background", None, said("foreground")), "override")
+		# a page that says nothing keeps the descriptor's choice, and the task's own choice always wins
+		self.assertEqual(result_layer("override", "auto", said(None)), "override")
+		for choice in ("background", "blend", "override"):
+			self.assertEqual(result_layer(choice, choice, said("foreground" if choice == "background" else "background")), choice)
 
 class TestPriorityUpdateShowAs(unittest.TestCase):
 	"""The timer layer's two ways to show an image: over everything (priority), or washing over what the playlist shows (blend)."""
