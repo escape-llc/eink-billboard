@@ -1,0 +1,230 @@
+{% extends "plugin.html" %}
+
+{% block style %}
+	<style>
+		/* every size is in rem: the root's font size is the page's (an em would follow the element it is on) */
+		html {
+			font-size: calc(min(4.8dvh, 4.8dvw) * var(--font-scale));
+		}
+		.sm {
+			box-sizing: border-box;
+			height: 100%;
+			width: 100%;
+			padding: 4dvh 4dvw;
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+		}
+		.sm-heading {
+			font-family: var(--font-heading);
+			flex: none;
+			display: flex;
+			justify-content: space-between;
+			gap: 1rem;
+			margin: 0 0 .4rem 0;
+			padding-bottom: .24rem;
+			font-size: .8rem;
+			font-weight: bold;
+			letter-spacing: .12rem;
+			text-transform: uppercase;
+			border-bottom: .128rem solid currentColor;
+			white-space: nowrap;
+			overflow: hidden;
+		}
+		.sm-heading span {
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+		.sm-body {
+			flex: 1 1 auto;
+			min-height: 0;
+			display: flex;
+			align-items: stretch;
+			justify-content: center;
+			gap: 1.4rem;
+		}
+		/* today: the sun on one side, the moon on the other (one above the other on a tall panel) */
+		.sm-sun, .sm-moon {
+			flex: 1 1 0;
+			min-width: 0;
+			display: flex;
+			flex-direction: column;
+			justify-content: center;
+			gap: .5rem;
+		}
+		.sm-pair {
+			display: flex;
+			gap: 1.2rem;
+		}
+		.sm-pair > div {
+			flex: 1 1 0;
+			min-width: 0;
+		}
+		.sm-label {
+			font-size: .75rem;
+			font-weight: bold;
+			letter-spacing: .06rem;
+			text-transform: uppercase;
+		}
+		.sm-big {
+			font-family: var(--font-heading);
+			font-size: 2.6rem;
+			font-weight: bold;
+			line-height: 1.05;
+			white-space: nowrap;
+		}
+		.sm-mid {
+			font-size: 1.15rem;
+			font-weight: bold;
+			white-space: nowrap;
+		}
+		.sm-small {
+			font-size: .9rem;
+		}
+		.sm-note {
+			font-size: 1.3rem;
+			font-weight: bold;
+		}
+		.sm-moon-main {
+			display: flex;
+			align-items: center;
+			gap: .8rem;
+		}
+		.moon {
+			width: 5.4rem;
+			height: 5.4rem;
+			flex: none;
+		}
+		.moon-dark, .moon-lit, .arc-ground, .arc-cross, .arc-sun-now {
+			fill: currentColor;
+		}
+		.moon-edge {
+			stroke: currentColor;
+			stroke-width: 2;
+		}
+		.sm-arc {
+			flex-direction: column;
+			gap: .3rem;
+		}
+		.arc {
+			flex: 1 1 auto;
+			min-height: 0;
+			width: 100%;
+		}
+		.arc path {
+			fill: none;
+			stroke: currentColor;
+			stroke-linecap: round;
+		}
+		/* the moon's lit part is a path too: filled, not stroked */
+		.arc .moon-lit path {
+			fill: currentColor;
+			stroke: none;
+		}
+		.arc-sun {
+			stroke-width: 9;
+		}
+		.arc-moon {
+			stroke-width: 6;
+		}
+		.arc-sun-below, .arc-moon-below {
+			stroke-width: 3;
+			stroke-dasharray: 2 12;
+		}
+		.arc-horizon {
+			stroke: currentColor;
+			stroke-width: 4;
+		}
+		.arc-tick {
+			stroke: currentColor;
+			stroke-width: 3;
+		}
+		.arc-compass {
+			fill: currentColor;
+			font-size: 26px;
+			text-anchor: middle;
+		}
+		.arc-cardinal {
+			font-size: 34px;
+			font-weight: bold;
+		}
+		.arc-time {
+			fill: currentColor;
+			font-size: 30px;
+			font-weight: bold;
+			text-anchor: middle;
+		}
+		.sm-arc-line {
+			flex: none;
+			display: flex;
+			justify-content: space-between;
+			gap: 1rem;
+			font-size: .95rem;
+			font-weight: bold;
+			white-space: nowrap;
+		}
+		@media (orientation: portrait) {
+			.sm-today {
+				flex-direction: column;
+			}
+			/* a narrow page: the date and the moon's line go under, not off the edge */
+			.sm-heading, .sm-arc-line {
+				flex-direction: column;
+				gap: .2rem;
+			}
+		}
+	</style>
+{% endblock %}
+{% block content %}
+<div class="sm bg-page">
+	<div class="sm-heading text-primary"><span>{{ heading }}</span><span>{{ date }}</span></div>
+	{% if view == "arc" %}
+	<div class="sm-body sm-arc">
+		{{ arc_svg | safe }}
+		<div class="sm-arc-line">
+			<span class="text-secondary-1">{% if polar_short %}{{ polar_short }}{% else %}Day {{ length }}{% endif %}</span>
+			<span class="text-secondary-2">{{ moon_line }}</span>
+		</div>
+	</div>
+	{% else %}
+	<div class="sm-body sm-today">
+		<div class="sm-sun">
+			{% if polar %}
+			<div class="sm-note text-secondary-1">{{ polar }}</div>
+			{% else %}
+			<div class="sm-pair">
+				<div><div class="sm-label text-secondary-1">Sunrise</div><div class="sm-big text-primary">{{ sunrise or "–" }}</div></div>
+				<div><div class="sm-label text-secondary-1">Sunset</div><div class="sm-big text-primary">{{ sunset or "–" }}</div></div>
+			</div>
+			{% endif %}
+			<div>
+				<div class="sm-label text-secondary-1">Daylight</div>
+				<div class="sm-mid text-primary">{{ length or "–" }}{% if change %} <span class="sm-small text-secondary-2">{{ change }}</span>{% endif %}</div>
+			</div>
+			<div class="sm-pair sm-small text-primary">
+				<div><b class="text-secondary-1">Dawn</b> {{ dawn or "–" }}</div>
+				<div><b class="text-secondary-1">Noon</b> {{ noon }}</div>
+				<div><b class="text-secondary-1">Dusk</b> {{ dusk or "–" }}</div>
+			</div>
+		</div>
+		<div class="sm-moon">
+			<div class="sm-moon-main">
+				{{ moon_svg | safe }}
+				<div>
+					<div class="sm-mid text-primary">{{ moon_name }}</div>
+					<div class="sm-small text-secondary-2">{{ moon_lit }}</div>
+				</div>
+			</div>
+			<div class="sm-pair sm-small text-primary">
+				<div><b class="text-secondary-2">Moonrise</b> {{ moonrise or "–" }}</div>
+				<div><b class="text-secondary-2">Moonset</b> {{ moonset or "–" }}</div>
+			</div>
+			<div class="sm-pair sm-small text-primary">
+				<div><b class="text-secondary-2">Full</b> {{ next_full }}</div>
+				<div><b class="text-secondary-2">New</b> {{ next_new }}</div>
+			</div>
+		</div>
+	</div>
+	{% endif %}
+</div>
+{% endblock %}

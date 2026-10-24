@@ -217,6 +217,14 @@
 			}
 		}
 	},
+	"urn:inky:storage:schema:datasource:sun-moon": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:datasource:sun-moon-overlay": {
+		"version": 1,
+		"properties": {}
+	},
 	"urn:inky:storage:schema:datasource:thunderforest-api": {
 		"version": 1,
 		"properties": {

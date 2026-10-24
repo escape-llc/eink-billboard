@@ -138,6 +138,8 @@
 						<dd>Today's front page of the newspaper you choose: type part of its name, its city or its code in the search box beside the choice, press Enter or Search, then pick it from the list.</dd>
 						<dt>Thunderforest Map</dt>
 						<dd>A map of a place (kept in its settings, chosen on the map picker) or of the device's location, in a <b>style</b> (<b>transport</b> shows the bus and rail lines; not live transit) and a <b>zoom</b>. The free key is in <b>Settings, Providers, Thunderforest</b>; a map is kept for a week, since the free plan has a monthly quota.</dd>
+						<dt>Sun and Moon</dt>
+						<dd>Worked out on the device for its <b>Location</b> (Settings, System), with no internet or key. <b>today</b>: sunrise, sunset, the day's length and its change since yesterday, dawn and dusk, the moon's phase, its rise and set and the next full and new moons. <b>arc</b>: the sky as the device sees it, the compass points along the horizon, the sun's path today and the moon's, and where each is when it is up. <b>Twilight</b> says when dawn begins and dusk ends (civil, nautical, astronomical). Near the poles a day may have no sunrise or sunset, and the page says so.</dd>
 						<dt>Clock, Countdown, Year Progress</dt>
 						<dd>A clock face, the days to a date you choose, and how far through the year it is. Also usable as a Priority Update.</dd>
 					</dl>
@@ -153,6 +155,8 @@
 						<dd>The date (<b>long</b>, <b>full</b>, <b>short</b>, <b>numeric</b>, or a pattern of your own), the weekday highlighted.</dd>
 						<dt>Weather Overlay</dt>
 						<dd><b>now</b> (the temperature and the sky), <b>today</b> (the high, the low, the chance of rain) or <b>outlook</b> (the next three days). Needs a weather provider (see Providers).</dd>
+						<dt>Sun and Moon Overlay</dt>
+						<dd><b>sun</b> (today's sunrise and sunset), <b>daylight</b> (the day's length and its change since yesterday) or <b>moon</b> (its phase and how much is lit, drawn at its phase), for the device's <b>Location</b>. No internet or key.</dd>
 						<dt>Reminder Overlay</dt>
 						<dd>The events on now or starting within the task's window, nearest first, from the device's calendar provider (the Calendar Sources). Nothing in the window takes it down. A calendar edit shows once the kept answer expires (15 minutes by default).</dd>
 					</dl>

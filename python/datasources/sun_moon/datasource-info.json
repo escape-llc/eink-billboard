@@ -1,0 +1,57 @@
+{
+	"id": "sun-moon",
+	"name": "Sun and Moon",
+	"version": "0.0.1",
+	"class": "SunMoonAsync",
+	"file": "sun_moon.py",
+	"module": "python.datasources.sun_moon.sun_moon",
+	"description": "Sunrise, sunset, the day's length and the moon's phase at the device's location, or the sky's arc: the paths of the sun and the moon across the sky and where each is now. One page per view. Calculated on the device: no internet, no key.",
+	"describe": "Sun and moon {views}",
+	"disabled": false,
+	"features": ["layer-foreground", "media-list"],
+	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:sun-moon:1",
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {},
+			"properties": [
+				{
+					"name": "views",
+					"type": "array",
+					"required": false,
+					"default": ["today"],
+					"title": "Views",
+					"description": "One page per view, in this order: today (sunrise, sunset, the day's length, the moon's phase and the next full and new moons), arc (the sun's and the moon's paths across the sky, the horizon's compass points along the bottom, and where each is now). The place is the device's location (System settings).",
+					"items": {
+						"type": "string",
+						"enum": ["today", "arc"]
+					}
+				},
+				{
+					"name": "twilight",
+					"type": "string",
+					"required": false,
+					"default": "civil",
+					"title": "Twilight",
+					"description": "When dawn begins and dusk ends: civil (the sun 6° below the horizon: light enough to see by), nautical (12°) or astronomical (18°: a dark sky).",
+					"enum": ["civil", "nautical", "astronomical"]
+				},
+				{
+					"name": "title",
+					"type": "string",
+					"required": false,
+					"default": null,
+					"title": "Title",
+					"description": "The heading above each page. Empty: Sun and Moon.",
+					"maxLength": 80
+				}
+			]
+		}
+	}
+}

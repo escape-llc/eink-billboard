@@ -27,6 +27,7 @@ dependencies = [
     "uvicorn>=0.32",
     "watchdog==6.0.0",
     "websockets==17.2",
+    "astral==3.2",
 ]
 
 [dependency-groups]

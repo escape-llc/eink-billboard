@@ -46,6 +46,7 @@ SOFTWARE: list[Credit] = [
 	{ "name": "Leaflet", "by": "Volodymyr Agafonkin and contributors", "license": "BSD 2-Clause", "url": "https://leafletjs.com/", "what": "The location picker's map" },
 	{ "name": "holidays", "by": "The holidays authors", "license": "MIT", "url": "https://github.com/vacanza/holidays", "what": "The calendars' holidays" },
 	{ "name": "Vue and PrimeVue", "by": "Evan You; PrimeTek", "license": "MIT", "url": "https://vuejs.org/", "what": "The web app" },
+	{ "name": "Astral", "by": "Simon Kennedy", "license": "Apache License 2.0", "url": "https://github.com/sffjunkie/astral", "what": "The sun's and the moon's times and positions, calculated on the device" },
 	{ "name": "FastAPI", "by": "Sebastián Ramírez", "license": "MIT", "url": "https://fastapi.tiangolo.com/", "what": "The web API" },
 	{ "name": "Pillow", "by": "Jeffrey A. Clark and contributors", "license": "MIT-CMU", "url": "https://python-pillow.github.io/", "what": "Pictures on the device" },
 	{ "name": "Chromium", "by": "The Chromium Authors", "license": "BSD 3-Clause", "url": "https://www.chromium.org/", "what": "Draws the pages for the panel" },
