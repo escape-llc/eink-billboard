@@ -13,7 +13,7 @@
 		"schema": {
 			"lookups": {
 				"imageModel": { "url": "/api/datasource/openai-api/lookups/image-models" },
-				"quality": { "url": "/api/datasource/openai-api/lookups/qualities" }
+				"quality": { "url": "/api/datasource/openai-api/lookups/qualities", "with": ["imageModel"] }
 			},
 			"properties": [
 				{

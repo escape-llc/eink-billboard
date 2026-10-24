@@ -18,8 +18,9 @@
 						:showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
 						@update:modelValue="(v: unknown) => change(index, f.name, v ?? null)" />
 					<Select v-else-if="f.lookup" size="small" fluid :options="choices(f, row)" optionLabel="name" optionValue="value" :modelValue="row[f.name]"
-						:placeholder="f.title" :aria-label="`${f.title} ${index + 1}`" :showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
+						:placeholder="placeholder(f, row)" :aria-label="`${f.title} ${index + 1}`" :showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
 						@update:modelValue="(v: unknown) => change(index, f.name, v ?? null)" />
+					<Message v-if="f.lookup && rowLookup(f, row)?.error" severity="warn" size="small" variant="simple">{{ rowLookup(f, row)?.error }}</Message>
 					<InputNumber v-else-if="f.type === 'number' || f.type === 'integer'" size="small" fluid :modelValue="numeric(row, f.name)" :aria-label="`${f.title} ${index + 1}`"
 						:min="f.minimum" :max="f.maximum" :step="f.step" :invalid="!!cellError(index, f.name)"
 						:minFractionDigits="f.type === 'integer' ? 0 : f.minFractionDigits" :maxFractionDigits="f.type === 'integer' ? 0 : f.maxFractionDigits"
@@ -51,7 +52,9 @@
 	</div>
 </template>
 <script setup lang="ts">
-import { computed } from "vue"
+import { computed, onBeforeUnmount, reactive, watch } from "vue"
+import { apiJson, joinUrl } from "./ApiClient"
+import { lookupAddress, withStored } from "./LookupQuery"
 import { Button, InputNumber, InputText, Message, Select, ToggleSwitch } from "primevue"
 import ColorField from "./ColorField.vue"
 import LeafletPicker from "./LeafletPicker.vue"
@@ -84,13 +87,54 @@ const stacked = computed(() => itemFields.value.length > 4 || itemFields.value.s
 
 const text = (row: Row, name: string): string => typeof row[name] === "string" ? row[name] : ""
 const numeric = (row: Row, name: string): number|null => typeof row[name] === "number" ? row[name] : null
+// a row field's lookup sent with the row's own fields (`with`, #510 A8): a list per row, kept by its address, so rows that send the same values share it
+const rowLists = reactive(new Map<string, { list: Choice[], error?: string }>())
+/** Where a row's lookup is asked (or which of the row's fields it waits for); null: a lookup without `with`, whose one list is the field's. */
+function rowAddress(f: ResolvedFieldDef, row: Row) {
+	return f.lookupWith?.length && f.lookupUrl ? lookupAddress(f.lookupUrl, f.lookupWith, name => row[name]) : null
+}
+function rowLookup(f: ResolvedFieldDef, row: Row) {
+	const wanted = rowAddress(f, row)
+	return wanted?.address !== undefined ? rowLists.get(wanted.address) : undefined
+}
 /** A lookup's choices, with the row's value kept when the list does not offer it (renamed, deleted, or not loaded): it must not look unset. */
 function choices(f: ResolvedFieldDef, row: Row): Choice[] {
-	const list: Choice[] = Array.isArray(f.list) ? f.list : []
-	const current = row[f.name]
-	if (current === undefined || current === null || current === "" || list.some(c => c.value === current)) return list
-	return [...list, { name: String(current), value: current }]
+	const wanted = rowAddress(f, row)
+	const list: Choice[] = wanted ? (rowLookup(f, row)?.list ?? []) : Array.isArray(f.list) ? f.list : []
+	return withStored(list, row[f.name])
 }
+/** A row's lookup that waits for a field of the row says which; any other shows its title. */
+function placeholder(f: ResolvedFieldDef, row: Row): string {
+	const missing = rowAddress(f, row)?.missing
+	return missing ? `Choose ${itemFields.value.find(x => x.name === missing)?.title ?? missing} first` : f.title
+}
+// the addresses the rows need now: each is asked once, after the rows have been still a moment (a typed value changes per keystroke)
+const wantedAddresses = computed(() => {
+	const all = new Set<string>()
+	for (const row of rows.value) for (const f of itemFields.value) {
+		const address = rowAddress(f, row)?.address
+		if (address !== undefined) all.add(address)
+	}
+	return [...all].sort()
+})
+let rowTimer: ReturnType<typeof setTimeout> | undefined
+watch(wantedAddresses, (addresses, before) => {
+	clearTimeout(rowTimer)
+	rowTimer = setTimeout(() => {
+		for (const address of addresses) {
+			if (rowLists.has(address)) continue
+			rowLists.set(address, { list: [] })
+			apiJson<Choice[]>(joinUrl(props.baseUrl ?? "", address))
+				.then(list => rowLists.set(address, { list }))
+				.catch(ex => {
+					console.error("lookup", ex)
+					// the message is shown under the cell; it is never a choice that could be saved
+					rowLists.set(address, { list: [], error: `The choices could not be loaded: ${ex.message}` })
+				})
+		}
+	}, before === undefined ? 0 : 300)
+}, { immediate: true })
+onBeforeUnmount(() => clearTimeout(rowTimer))
 function emptyRow(): Row {
 	const row: Row = {}
 	for (const f of itemFields.value) {

@@ -76,7 +76,7 @@ export const propertySchema = z.discriminatedUnion("type", [groupSchema, fieldSc
 /** The four kinds of lookup; an object that is none of them is an error. */
 export const lookupSchema = z.union([
 	z.strictObject({ items: z.array(z.strictObject({ name: z.string(), value: z.unknown() })) }),
-	z.strictObject({ url: z.string() }),
+	z.strictObject({ url: z.string(), with: z.array(z.string()).min(1).optional(), search: z.boolean().optional() }),
 	z.strictObject({ schema: z.string(), features: z.array(z.string()).optional() }),
 	z.strictObject({ settings: z.string(), value: z.string().optional(), label: z.string().optional(), from: z.string().optional() }),
 ])
@@ -112,12 +112,27 @@ export function sectionProblems(section: unknown, where: string): string[] {
 	// a lookup a field names is one its schema defines (a row's fields included), or the form offers nothing
 	const lookups = parsed.data.schema.lookups ?? {}
 	const problems: string[] = []
+	// a lookup's `with` names fields where it is used: the schema's own fields, or in a row that row's; a row has no search box
+	const formNames = parsed.data.schema.properties.map(px => px.name)
 	parsed.data.schema.properties.forEach((px, ix) => {
 		if (px.type === "header") return
-		const fields: [string, { lookup?: string }][] = [[`${ix}`, px]]
-		if (px.items?.type === "object") px.items.properties.forEach((rx, rix) => fields.push([`${ix}/items/properties/${rix}`, rx]))
-		for (const [at, fx] of fields) {
-			if (fx.lookup !== undefined && !(fx.lookup in lookups)) problems.push(`${where}/schema/properties/${at}/lookup: "${fx.lookup}" is not one of the schema's lookups`)
+		const fields: [string, { lookup?: string }, string[] | null][] = [[`${ix}`, px, formNames]]
+		if (px.items?.type === "object") {
+			const rowNames = px.items.properties.map(rx => rx.name)
+			px.items.properties.forEach((rx, rix) => fields.push([`${ix}/items/properties/${rix}`, rx, rowNames]))
+		}
+		for (const [at, fx, names] of fields) {
+			if (fx.lookup === undefined) continue
+			const lookup = lookups[fx.lookup]
+			if (lookup === undefined) {
+				problems.push(`${where}/schema/properties/${at}/lookup: "${fx.lookup}" is not one of the schema's lookups`)
+				continue
+			}
+			if (!("url" in lookup)) continue
+			for (const name of lookup.with ?? []) {
+				if (!names?.includes(name) || name === (fx as { name?: string }).name) problems.push(`${where}/schema/properties/${at}/lookup: "${fx.lookup}" is sent with "${name}", which is not another field ${at.includes("/items/") ? "of the row" : "of the schema"}`)
+			}
+			if (lookup.search && at.includes("/items/")) problems.push(`${where}/schema/properties/${at}/lookup: "${fx.lookup}" is a search, which a list row cannot have`)
 		}
 	})
 	return problems

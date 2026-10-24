@@ -245,3 +245,35 @@ test("a list row with a location is chosen on a map, as everywhere else, and the
 	await expect(places.getByRole("spinbutton")).toHaveCount(0)
 	watch.expectNone()
 })
+
+// A row's lookup sent with another field of the same row (#510 A8, `with`): each row has the list for its own value, and waits while that is empty.
+test("each row of a list has the choices for its own values", async ({ page }) => {
+	const watch = watchProblems(page)
+	const asked: string[] = []
+	await page.route("**/api/e2e/stops**", route => {
+		const line = new URL(route.request().url()).searchParams.get("line") ?? ""
+		asked.push(line)
+		return route.fulfill({ json: [{ name: `${line} North`, value: `${line}-n` }, { name: `${line} South`, value: `${line}-s` }] })
+	})
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "Display" }).click()
+	const add = page.getByRole("button", { name: "Add to E2E Stops" })
+	await add.click()
+	await add.click()
+	const stop = (n: number) => page.getByRole("combobox", { name: `Stop ${n}` })
+	// no line yet: the stop says what it waits for, and nothing is asked
+	await expect(stop(1)).toContainText("Choose Line first")
+	expect(asked).toEqual([])
+	await page.getByRole("textbox", { name: "Line 1", exact: true }).fill("Red")
+	await page.getByRole("textbox", { name: "Line 2", exact: true }).fill("Blue")
+	// asked once each, after the typing stopped
+	await expect.poll(() => [...asked].sort()).toEqual(["Blue", "Red"])
+	await stop(1).click()
+	await expect(page.getByRole("option")).toHaveText(["Red North", "Red South"])
+	await page.getByRole("option", { name: "Red South" }).click()
+	await stop(2).click()
+	await expect(page.getByRole("option")).toHaveText(["Blue North", "Blue South"])
+	await page.keyboard.press("Escape")
+	await expect(stop(1)).toContainText("Red South")
+	watch.expectNone()
+})

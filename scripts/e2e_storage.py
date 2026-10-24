@@ -35,7 +35,13 @@ def _add_visibility_fields(target: str) -> None:
 			{ "name": "name", "type": "string", "title": "Name", "required": True },
 			{ "name": "url", "type": "string", "format": "uri", "title": "URL", "required": False, "test": { "url": "/api/e2e/test-url" } },
 		] } },
+		# a row whose lookup is sent with another field of the same row (`with`): each row has its own list (the browser test answers /api/e2e/stops)
+		{ "name": "e2eStops", "type": "array", "title": "E2E Stops", "required": False, "items": { "type": "object", "properties": [
+			{ "name": "line", "type": "string", "title": "Line", "required": False },
+			{ "name": "stop", "type": "string", "title": "Stop", "required": False, "lookup": "e2eStop" },
+		] } },
 	]
+	schema["schema"].setdefault("lookups", {})["e2eStop"] = { "url": "/api/e2e/stops", "with": ["line"] }
 	with open(schema_file, "w", encoding="utf-8", newline="\n") as f:
 		json.dump(schema, f, indent=2)
 

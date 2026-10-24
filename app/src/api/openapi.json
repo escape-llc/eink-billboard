@@ -2710,7 +2710,26 @@
 		},
 		"/api/datasource/newspaper/lookups/newspaperSlug": {
 			"get": {
+				"description": "The newspapers. With `q` (the lookup's `search`: what was typed in the field's search box), those whose name, city or slug holds it, ignoring case,\nat most MOST_FOUND; without it, every one.",
 				"operationId": "plugin_newspaper_slugs_api_datasource_newspaper_lookups_newspaperSlug_get",
+				"parameters": [
+					{
+						"in": "query",
+						"name": "q",
+						"required": false,
+						"schema": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"title": "Q"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"content": {
@@ -2725,6 +2744,16 @@
 							}
 						},
 						"description": "Successful Response"
+					},
+					"422": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPValidationError"
+								}
+							}
+						},
+						"description": "Validation Error"
 					}
 				},
 				"summary": "Plugin Newspaper Slugs"
@@ -2755,8 +2784,26 @@
 		},
 		"/api/datasource/openai-api/lookups/qualities": {
 			"get": {
-				"description": "Every quality an image model takes; a model asked for one it does not take uses the nearest one below it.",
+				"description": "The qualities the chosen image model takes (the lookup's `with`: the form sends the task's `imageModel`); with no model, or one of no\nfamily we know, every quality. A stored quality the model lacks still works: it uses the nearest one below it.",
 				"operationId": "quality_choices_api_datasource_openai_api_lookups_qualities_get",
+				"parameters": [
+					{
+						"in": "query",
+						"name": "imageModel",
+						"required": false,
+						"schema": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"title": "Imagemodel"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"content": {
@@ -2771,6 +2818,16 @@
 							}
 						},
 						"description": "Successful Response"
+					},
+					"422": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPValidationError"
+								}
+							}
+						},
+						"description": "Validation Error"
 					}
 				},
 				"summary": "Quality Choices"

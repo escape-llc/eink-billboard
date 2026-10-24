@@ -135,7 +135,7 @@
 						<dt>Comic Vine Covers</dt>
 						<dd>The covers of a comic series, in a random order. The free key is in <b>Settings, Providers, Comic Vine</b>; <b>Test</b> on the series says which one the search matches (the first match is used). Comic Vine limits requests an hour.</dd>
 						<dt>Newspaper Picture of the Day</dt>
-						<dd>Today's front page of the newspaper you choose.</dd>
+						<dd>Today's front page of the newspaper you choose: type part of its name, its city or its code in the search box beside the choice, press Enter or Search, then pick it from the list.</dd>
 						<dt>Thunderforest Map</dt>
 						<dd>A map of a place (kept in its settings, chosen on the map picker) or of the device's location, in a <b>style</b> (<b>transport</b> shows the bus and rail lines; not live transit) and a <b>zoom</b>. The free key is in <b>Settings, Providers, Thunderforest</b>; a map is kept for a week, since the free plan has a monthly quota.</dd>
 						<dt>Clock, Countdown, Year Progress</dt>

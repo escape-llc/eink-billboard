@@ -37,26 +37,29 @@ def _descriptors() -> Iterator[tuple[str, Any]]:
 		with open(path, encoding="utf-8") as f:
 			yield os.path.relpath(path, ROOT), json.load(f)
 
-def _addresses(node: Any) -> Iterator[tuple[str, str]]:
-	"""(kind, address) for each address a descriptor names: a Test button's (`test.url`), a row action's (`action.url`), a URL lookup's (in `lookups`)."""
+def _addresses(node: Any) -> Iterator[tuple[str, str, list[str]]]:
+	"""
+	(kind, address, query) for each address a descriptor names: a Test button's (`test.url`), a row action's (`action.url`), a URL lookup's
+	(in `lookups`). `query` is what a lookup sends: its `with` fields, and `q` for a `search`.
+	"""
 	if isinstance(node, list):
 		for item in node:
 			yield from _addresses(item)
 	elif isinstance(node, dict):
 		for key, value in node.items():
 			if key in ("test", "action") and isinstance(value, dict) and isinstance(value.get("url"), str):
-				yield key, value["url"]
+				yield key, value["url"], []
 			elif key == "lookups" and isinstance(value, dict):
 				for lookup in value.values():
 					if isinstance(lookup, dict) and isinstance(lookup.get("url"), str):
-						yield "lookup", lookup["url"]
+						yield "lookup", lookup["url"], [*lookup.get("with", []), *(["q"] if lookup.get("search") else [])]
 			yield from _addresses(value)
 
 class TestDescriptorAddresses(unittest.TestCase):
 	"""
 	The form calls the addresses a descriptor names (a Test, a row action, a URL lookup) by address, so the web app cannot type them by path (#590): each must be a route of the
 	document that declares the answer the form reads (TestUrlButton: `TestAnswer`; RowAction: `RowStep` for each step; a lookup: a list of choices,
-	each a `name` and a `value` that are strings).
+	each a `name` and a `value` that are strings), and a lookup's route takes what the form sends it as query parameters (its `with` fields, `q` for a `search`).
 	"""
 	paths: dict[str, Any]
 	schemas: dict[str, Any]
@@ -77,10 +80,11 @@ class TestDescriptorAddresses(unittest.TestCase):
 		return self.operation(address, method)["responses"]["200"]["content"]["application/json"]["schema"]
 
 	def test_every_address_a_descriptor_names_answers_what_the_form_reads(self):
-		found = { "test": 0, "action": 0, "lookup": 0 }
+		found = { "test": 0, "action": 0, "lookup": 0, "query": 0 }
 		for name, descriptor in _descriptors():
-			for kind, address in _addresses(descriptor):
+			for kind, address, query in _addresses(descriptor):
 				found[kind] += 1
+				found["query"] += len(query)
 				with self.subTest(file=name, address=address):
 					if kind == "test":
 						self.assertEqual(self.answer(address, "post").get("$ref"), "#/components/schemas/TestAnswer")
@@ -93,6 +97,8 @@ class TestDescriptorAddresses(unittest.TestCase):
 						item = self.schemas[schema["items"]["$ref"].rsplit("/", 1)[-1]]
 						self.assertEqual({ field: item["properties"][field]["type"] for field in ("name", "value") }, { "name": "string", "value": "string" })
 						self.assertLessEqual({ "name", "value" }, set(item.get("required", [])))
+						declared = { p["name"] for p in self.operation(address, "get").get("parameters", []) if p.get("in") == "query" }
+						self.assertLessEqual(set(query), declared, "a lookup's `with` fields and a search's `q` are query parameters of its route")
 		# the walk finds them: a descriptor that moved its addresses elsewhere would make this test pass with nothing checked
 		self.assertTrue(all(found.values()), found)
 
