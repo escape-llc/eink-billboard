@@ -123,6 +123,26 @@
 			}
 		}
 	},
+	"urn:inky:storage:schema:datasource:museum-art": {
+		"version": 1,
+		"properties": {
+			"searchCacheHours": {
+				"type": "number"
+			},
+			"recordCacheHours": {
+				"type": "number"
+			},
+			"contentCacheHours": {
+				"type": "number"
+			},
+			"contentCacheMB": {
+				"type": "number"
+			},
+			"staleDays": {
+				"type": "integer"
+			}
+		}
+	},
 	"urn:inky:storage:schema:datasource:nasa-apod": {
 		"version": 1,
 		"properties": {

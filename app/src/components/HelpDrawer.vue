@@ -109,6 +109,8 @@
 						<dd>Today's, a day you choose, or a random day.</dd>
 						<dt>NASA Picture of the Day</dt>
 						<dd>NASA's Astronomy Picture of the Day: today's (or the latest picture when today's is a video), a day you choose, or a random day since 1995. No key needed.</dd>
+						<dt>Museum Art</dt>
+						<dd>Works from a museum's open collection: the Art Institute of Chicago, The Met or the Cleveland Museum of Art. Only works the museum marks public domain are shown. <b>Search</b> narrows them (an artist, a title, a subject); empty shows any work. The Met can also be narrowed to one <b>Department</b>. A track shows a random handful, one per page, and does not repeat one until it has shown them all. <b>Show Caption</b> adds the title, artist, date and museum in small text. No key needed.</dd>
 						<dt>Generated Image</dt>
 						<dd>Drawn by an AI model from your prompt, which a text model can rewrite first so no two are alike. Its <b>Image Source</b> draws and its <b>Text Source</b> rewrites; each is OpenAI's or Google's, and they can be mixed, each with its own fields (model, quality). The keys are under <b>Settings, Providers</b>, OpenAI or Google AI (<b>Test</b> says which models the key may use; a Google key is an AI Studio key starting with <code>AQ.</code>). The newest models draw in the panel's shape. Paid by use: see API usage on the System page.</dd>
 						<dt>Weather Visualizer</dt>
