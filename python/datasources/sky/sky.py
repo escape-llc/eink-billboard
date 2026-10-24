@@ -33,6 +33,8 @@ PHASE_NAMES = (
 PATH_STEP = 10
 # from one of the moon's highest points to the next
 LUNAR_DAY = timedelta(hours=24, minutes=50)
+# the days on each side of today in the week of day lengths (Sky.week)
+WEEK_BEFORE = 3
 
 @dataclass(frozen=True, slots=True)
 class Place:
@@ -99,6 +101,8 @@ class Sky:
 	moon_now: SkyPoint
 	sun_path: tuple[tuple[datetime, SkyPoint], ...]
 	moon_path: tuple[tuple[datetime, SkyPoint], ...]
+	# the day's length for the week around today (WEEK_BEFORE days before it to as many after; today in the middle), for the sparkline
+	week: tuple[tuple[date, timedelta|None], ...] = ()
 
 def device_place(system: Mapping[str, Any]|None) -> Place:
 	"""The device's location from the system settings; none is a PermanentError that says where to set it."""
@@ -211,10 +215,12 @@ def sky_of(place: Place, now: datetime, depression: float = TWILIGHTS["civil"]) 
 	today = now.date()
 	sun = sun_day(place, today, zone, depression)
 	yesterday = sun_day(place, today - timedelta(days=1), zone, depression)
+	days = [today + timedelta(days=offset) for offset in range(-WEEK_BEFORE, WEEK_BEFORE + 1)]
+	week = tuple((day, sun.length if day == today else yesterday.length if day == today - timedelta(days=1) else sun_day(place, day, zone, depression).length) for day in days)
 	midnight = datetime(today.year, today.month, today.day, tzinfo=zone)
 	# the sun's path is today's, midnight to midnight (it ends about where it began). The moon rises some 50 minutes later each day, so a day's path breaks
 	# where its two ends meet: its path is the lunar day around its highest point nearest now, whose ends are at its lowest, below the horizon
 	high = max(path(place, now - timedelta(hours=12), now + timedelta(hours=12), moon_at), key=lambda item: item[1].elevation)[0]
 	return Sky(now, place, sun, moon_day(place, today, zone), yesterday.length, next_phase(today, 14.0), next_phase(today, 0.0),
 		sun_at(place, now), moon_at(place, now), path(place, midnight, datetime.combine(today + timedelta(days=1), datetime.min.time(), zone), sun_at),
-		path(place, high - LUNAR_DAY / 2, high + LUNAR_DAY / 2, moon_at))
+		path(place, high - LUNAR_DAY / 2, high + LUNAR_DAY / 2, moon_at), week)
