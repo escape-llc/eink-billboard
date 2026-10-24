@@ -138,6 +138,42 @@ test("leaving with unsaved edits asks first; Stay keeps them, Discard leaves", a
 	watch.expectNone()
 })
 
+test("an edit that is put back is not unsaved: leaving does not ask", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/settings")
+	const locale = page.getByRole("combobox").nth(1)
+	await expect(locale).not.toHaveAttribute("aria-label", "Locale")
+	const current = (await locale.getAttribute("aria-label"))!
+	const other = current === "Français" ? "Deutsch" : "Français"
+	await choose(page, current, other)
+	await choose(page, other, current)
+	await page.evaluate(() => { location.hash = "#/schedule" })
+	await expect(page).toHaveURL(/#\/schedule/)
+	await expect(page.getByText("Leave this page and discard your changes?")).toBeHidden()
+	watch.expectNone()
+})
+
+test("a settings form that only opened is not unsaved, whatever it filled in itself", async ({ page }) => {
+	const watch = watchProblems(page)
+	// each tab's form, and an item's settings on the item tabs (the calendar's rows hold secrets and choices; a form fills defaults and masks as it opens)
+	const forms: [string, string | null][] = [["System", null], ["Display", null], ["Theme", null], ["Master Prompts", null], ["Devices", null],
+		["Plugins", "slide-show"], ["Data Sources", "image-folder"], ["Providers", "calendar-sources"], ["Providers", "openai-api"]]
+	for (const [tab, item] of forms) {
+		await page.goto("/#/settings")
+		await page.getByRole("tab", { name: tab }).click()
+		if (item) {
+			await page.getByRole("tabpanel").locator(".p-select").first().click()
+			await page.getByRole("option", { name: item, exact: true }).click()
+		}
+		await expect(saveButton(page)).toBeVisible()
+		await page.waitForLoadState("networkidle")
+		await page.evaluate(() => { location.hash = "#/schedule" })
+		await expect(page, `${tab} ${item ?? ""}`).toHaveURL(/#\/schedule/)
+	}
+	await expect(page.getByText("Leave this page and discard your changes?")).toBeHidden()
+	watch.expectNone()
+})
+
 test("the weather provider is chosen from the providers of the weather, which say whether they are set up", async ({ page, request }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/settings")
