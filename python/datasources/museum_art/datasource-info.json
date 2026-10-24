@@ -10,7 +10,7 @@
 	"credit": { "text": "Artworks and their data from the Art Institute of Chicago, The Metropolitan Museum of Art and the Cleveland Museum of Art", "license": "Public domain (CC0)" },
 	"keepsList": true,
 	"disabled": false,
-	"features": ["internet", "layer-background", "media-image", "media-list"],
+	"features": ["internet", "layer-foreground", "media-image", "media-list"],
 	"settings": {
 		"_schema": "urn:inky:storage:schema:datasource:museum-art:1",
 		"schema": {

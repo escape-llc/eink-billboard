@@ -18,36 +18,44 @@
 			height: 100%;
 			object-fit: cover;
 		}
-		/* the caption: a solid label in a corner (a colour panel dithers a tint), as small as it can be read */
+		/*
+		 * the caption: text on the picture, outlined as the overlays' text is (overlay_text.py): the theme's outline color stroked under the letters,
+		 * a hard edge with no blur (a colour panel dithers a soft one into dots), its whole width a fifth of the text size (OUTLINE_WIDTH), half of it outside
+		 */
 		.art-caption {
 			position: absolute;
-			left: 0;
-			bottom: 0;
+			left: .8rem;
+			bottom: .6rem;
 			max-width: 70%;
-			box-sizing: border-box;
-			padding: .35rem .7rem .4rem .7rem;
-			line-height: 1.25;
+			line-height: 1.3;
+			font-family: var(--font-overlay);
+			font-weight: bold;
+			/* the font's own face: Chromium must not make a bold of its own */
+			font-synthesis: none;
+		}
+		.art-caption div {
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			/* room for the outline's outer half, which the overflow would cut */
+			padding: 0 calc(.1 * var(--fs));
+			font-size: var(--fs);
+			-webkit-text-stroke: calc(.2 * var(--fs)) var(--outline-color, hsl(0 0% 100%));
+			paint-order: stroke fill;
+			stroke-linejoin: round;
 		}
 		.art-title {
-			font-family: var(--font-heading);
-			font-weight: bold;
-			font-size: 1rem;
-			overflow: hidden;
-			text-overflow: ellipsis;
-			white-space: nowrap;
+			--fs: 1rem;
 		}
 		.art-more {
-			font-size: .8rem;
-			overflow: hidden;
-			text-overflow: ellipsis;
-			white-space: nowrap;
+			--fs: .8rem;
 		}
 	</style>
 {% endblock %}
 {% block content %}
 <div class="art bg-page">
 	<img class="art-picture" src="{{ picture }}" alt="">
-	<div class="art-caption bg-page">
+	<div class="art-caption">
 		<div class="art-title text-primary">{{ title }}</div>
 		<div class="art-more text-secondary-1">{% if artist %}{{ artist }}{% endif %}{% if artist and date %}, {% endif %}{{ date }}</div>
 		<div class="art-more text-secondary-2">{{ museum }}</div>
