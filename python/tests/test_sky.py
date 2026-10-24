@@ -348,7 +348,9 @@ class TestRealPage(unittest.IsolatedAsyncioTestCase):
 		folder = Path(test_output_path_for("sun_moon"))
 		ds = SunMoonAsync("sun-moon", "Sun and Moon")
 		places = (("new-york", NOW, {}), ("new-york-night", NOW.replace(hour=21), {}), ("sydney", datetime(2026, 10, 24, 18, 0, tzinfo=ZoneInfo("Australia/Sydney")), { "location": { "latitude": -33.8688, "longitude": 151.2093 } }),
-			("tromso", datetime(2026, 6, 21, 12, 0, tzinfo=ZoneInfo("Europe/Oslo")), { "location": { "latitude": 69.6492, "longitude": 18.9553 } }))
+			("tromso", datetime(2026, 6, 21, 12, 0, tzinfo=ZoneInfo("Europe/Oslo")), { "location": { "latitude": 69.6492, "longitude": 18.9553 } }),
+			# the longest big times: a 12-hour clock and a sunset after midnight ("12:04 AM (+1)") are made smaller to fit, not cut
+			("reykjavik-12h", datetime(2026, 6, 21, 12, 0, tzinfo=ZoneInfo("Atlantic/Reykjavik")), { "location": { "latitude": 64.1466, "longitude": -21.9426 }, "timeFormat": "12h" }))
 		for name, now, system in places:
 			for orientation, size in (("landscape", (800, 480)), ("portrait", (480, 800))):
 				pages = await ds.open_async(make_context(orientation, now, **system), { "views": ["today", "arc"] })
