@@ -61,6 +61,21 @@ def change(today: timedelta|None, yesterday: timedelta|None, short: bool = False
 		return "same as yesterday"
 	return f"{sign}{abs(minutes)}m on yesterday"
 
+# what follows a big time's digits is drawn at this share of their size (the template's .sm-suffix)
+SUFFIX_SCALE = 0.42
+
+def big_time(text: str) -> tuple[str, str]:
+	"""A time as its digits and what follows them ("12:02", "AM (+1)"); none is ("–", "")."""
+	if not text:
+		return ("–", "")
+	digits, _, rest = text.partition(" ")
+	return (digits, rest)
+
+def big_width(parts: tuple[str, str]) -> float:
+	"""How wide a big time is, in characters of the digits' size (the suffix and its space are smaller)."""
+	digits, rest = parts
+	return len(digits) + (SUFFIX_SCALE * (len(rest) + 1) if rest else 0)
+
 def page_params(page: Page, params: Mapping[str, Any]) -> dict:
 	"""What the template draws: text and drawings ready to place (the template decides nothing about clocks or the sky)."""
 	sky, h12 = page.sky, page.twelve_hour
@@ -82,6 +97,9 @@ def page_params(page: Page, params: Mapping[str, Any]) -> dict:
 		"next_new": "Today" if sky.next_new == sky.now.date() else sky.next_new.strftime("%a %b ") + str(sky.next_new.day),
 		"moon_svg": moon_svg(moon.phase, sky.place.southern),
 	}
+	# the big times: the digits big, what follows them ("PM", "(+1)") small beside them; the page sizes both so they fit their halves of the column
+	body["sunrise_big"], body["sunset_big"] = big_time(body["sunrise"]), big_time(body["sunset"])
+	body["big_chars"] = max(big_width(body["sunrise_big"]), big_width(body["sunset_big"]), 5)
 	if page.view == "arc":
 		body["arc_svg"] = arc_svg(sky, body["sunrise"], body["sunset"], tall=page.tall)
 		# the line under the arc: a polar day in a few words, and when a moon that is down rises

@@ -52,6 +52,10 @@
 			justify-content: center;
 			gap: .5rem;
 		}
+		/* the column's width is what the big times are sized by */
+		.sm-sun {
+			container-type: inline-size;
+		}
 		.sm-pair {
 			display: flex;
 			gap: 1.2rem;
@@ -66,11 +70,24 @@
 			letter-spacing: .06rem;
 			text-transform: uppercase;
 		}
+		/*
+		 * a big time fills at most its half of the column: its characters (big_chars, the longer time) are about .62 of the text size wide each
+		 * (bold digits, a little over for a theme font with wide ones), so a 12-hour clock or a "(+1)" mark is made smaller, never cut
+		 */
 		.sm-big {
 			font-family: var(--font-heading);
-			font-size: 2.6rem;
+			--big: min(2.6rem, calc((50cqi - .6rem) / ({{ big_chars | default(5) }} * .62)));
+			font-size: var(--big);
 			font-weight: bold;
 			line-height: 1.05;
+			white-space: nowrap;
+		}
+		/* what follows the digits ("PM", "(+1)"): SUFFIX_SCALE of their size (sun_moon.py counts it so) */
+		.sm-suffix {
+			font-size: calc(.42 * var(--big));
+		}
+		/* a time is never broken across lines ("1:29 PM") */
+		.sm-time {
 			white-space: nowrap;
 		}
 		.sm-mid {
@@ -193,8 +210,8 @@
 			<div class="sm-note text-secondary-1">{{ polar }}</div>
 			{% else %}
 			<div class="sm-pair">
-				<div><div class="sm-label text-secondary-1">Sunrise</div><div class="sm-big text-primary">{{ sunrise or "–" }}</div></div>
-				<div><div class="sm-label text-secondary-1">Sunset</div><div class="sm-big text-primary">{{ sunset or "–" }}</div></div>
+				<div><div class="sm-label text-secondary-1">Sunrise</div><div class="sm-big text-primary">{{ sunrise_big[0] }}{% if sunrise_big[1] %}<span class="sm-suffix"> {{ sunrise_big[1] }}</span>{% endif %}</div></div>
+				<div><div class="sm-label text-secondary-1">Sunset</div><div class="sm-big text-primary">{{ sunset_big[0] }}{% if sunset_big[1] %}<span class="sm-suffix"> {{ sunset_big[1] }}</span>{% endif %}</div></div>
 			</div>
 			{% endif %}
 			<div>
@@ -202,9 +219,9 @@
 				<div class="sm-mid text-primary">{{ length or "–" }}{% if change %} <span class="sm-small text-secondary-2">{{ change }}</span>{% endif %}</div>
 			</div>
 			<div class="sm-pair sm-small text-primary">
-				<div><b class="text-secondary-1">Dawn</b> {{ dawn or "–" }}</div>
-				<div><b class="text-secondary-1">Noon</b> {{ noon }}</div>
-				<div><b class="text-secondary-1">Dusk</b> {{ dusk or "–" }}</div>
+				<div><b class="text-secondary-1">Dawn</b> <span class="sm-time">{{ dawn or "–" }}</span></div>
+				<div><b class="text-secondary-1">Noon</b> <span class="sm-time">{{ noon }}</span></div>
+				<div><b class="text-secondary-1">Dusk</b> <span class="sm-time">{{ dusk or "–" }}</span></div>
 			</div>
 		</div>
 		<div class="sm-moon">
@@ -216,8 +233,8 @@
 				</div>
 			</div>
 			<div class="sm-pair sm-small text-primary">
-				<div><b class="text-secondary-2">Moonrise</b> {{ moonrise or "–" }}</div>
-				<div><b class="text-secondary-2">Moonset</b> {{ moonset or "–" }}</div>
+				<div><b class="text-secondary-2">Moonrise</b> <span class="sm-time">{{ moonrise or "–" }}</span></div>
+				<div><b class="text-secondary-2">Moonset</b> <span class="sm-time">{{ moonset or "–" }}</span></div>
 			</div>
 			<div class="sm-pair sm-small text-primary">
 				<div><b class="text-secondary-2">Full</b> {{ next_full }}</div>
