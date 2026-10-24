@@ -162,6 +162,45 @@ test("leaving a playlist with unsaved changes asks first", async ({ page }) => {
 	watch.expectNone()
 })
 
+test("leaving the page with unsaved changes asks first, and discarding drops them", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/playlist")
+	await expect(row(page, "Morning slides")).toBeVisible()
+	await row(page, "Morning slides").getByRole("button", { name: "Remove track" }).click()
+	await expect(page.getByTestId("unsaved-banner")).toBeVisible()
+	await page.evaluate(() => { location.hash = "#/settings" })
+	const ask = page.getByRole("dialog", { name: "Discard unsaved changes?" })
+	await ask.getByRole("button", { name: "Keep editing" }).click()
+	await expect(page).toHaveURL(/#\/playlist/)
+	await expect(page.getByTestId("unsaved-banner")).toBeVisible()
+	await page.evaluate(() => { location.hash = "#/settings" })
+	await ask.getByRole("button", { name: "Discard" }).click()
+	await expect(page).toHaveURL(/#\/settings/)
+	await page.evaluate(() => { location.hash = "#/playlist" })
+	// nothing was saved, and nothing is unsaved
+	await expect(row(page, "Morning slides")).toBeVisible()
+	await expect(page.getByTestId("unsaved-banner")).toHaveCount(0)
+	watch.expectNone()
+})
+
+test("a change put back is no change: no warning, nothing to save, leaving does not ask", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/playlist")
+	const first = page.locator(".track-row").first()
+	const title = await first.locator(".title").textContent()
+	await first.getByRole("button", { name: "Move down" }).click()
+	await expect(page.getByTestId("unsaved-banner")).toBeVisible()
+	await expect(save(page)).toBeEnabled()
+	await page.locator(".track-row").nth(1).getByRole("button", { name: "Move up" }).click()
+	await expect(page.locator(".track-row").first().locator(".title")).toHaveText(title ?? "")
+	await expect(page.getByTestId("unsaved-banner")).toHaveCount(0)
+	await expect(save(page)).toBeDisabled()
+	await page.evaluate(() => { location.hash = "#/settings" })
+	await expect(page).toHaveURL(/#\/settings/)
+	await expect(page.getByRole("dialog", { name: "Discard unsaved changes?" })).toHaveCount(0)
+	watch.expectNone()
+})
+
 // the panels are surfaces of the theme (PrimeVue tokens): in dark mode they are dark, with text that can be read on them
 function luminance(rgb: string): number {
 	const [r, g, b] = (rgb.match(/[\d.]+/g) ?? ["0", "0", "0"]).slice(0, 3).map(Number).map(v => v / 255)

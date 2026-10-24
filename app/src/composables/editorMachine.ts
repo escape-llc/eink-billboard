@@ -52,6 +52,8 @@ export type EditorEvent =
 	| { type: "DISCARD" }
 	/** the editor has nothing loaded (none chosen) */
 	| { type: "UNLOAD" }
+	/** the stored document has a new revision with the edits still the editor's (a playlist renamed on its own): what is unsaved does not change */
+	| { type: "REVISED", rev: string }
 
 /** The tag of every state that holds work the server does not have: leaving the page asks first. */
 export const UNSAVED = "unsaved"
@@ -86,6 +88,7 @@ export const editorMachine = setup({
 		edit: assign({ sticky: true }),
 		failed: assign({ saving: null }),
 		clear: assign(() => initial()),
+		revised: assign(({ event }) => event.type === "REVISED" ? { rev: event.rev } : {}),
 	},
 }).createMachine({
 	id: "editor",
@@ -111,6 +114,7 @@ export const editorMachine = setup({
 				VALUES: { target: "clean", actions: "settle" },
 				EDIT: { target: "dirty", actions: "edit" },
 				LOAD: "loading",
+				REVISED: { actions: "revised" },
 			},
 		},
 		clean: {
@@ -120,6 +124,7 @@ export const editorMachine = setup({
 				// saving what was loaded is allowed: a document that is not stored yet is created from its defaults
 				SAVE: { guard: "valid", target: "saving", actions: "startSave" },
 				LOAD: "loading",
+				REVISED: { actions: "revised" },
 			},
 		},
 		dirty: {
@@ -129,6 +134,7 @@ export const editorMachine = setup({
 				EDIT: { actions: "edit" },
 				SAVE: { guard: "valid", target: "saving", actions: "startSave" },
 				DISCARD: "loading",
+				REVISED: { actions: "revised" },
 			},
 		},
 		saving: {

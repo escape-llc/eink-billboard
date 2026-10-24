@@ -13,7 +13,7 @@
 					<Button title="Rename playlist" aria-label="Rename playlist" icon="mi mi-edit" size="small" severity="secondary" :disabled="!currentId" @click="startRename" />
 					<Button title="Delete playlist" aria-label="Delete playlist" icon="mi mi-delete" size="small" severity="danger" :disabled="!currentId" @click="deleteOpen = true" />
 					<Button title="Add Track" aria-label="Add track" icon="mi mi-add" size="small" :disabled="!currentId" @click="addTrack" />
-					<Button title="Save playlist" aria-label="Save playlist" icon="mi mi-save" size="small" severity="success" :disabled="!currentId || !dirty || saving" @click="savePlaylist(docRev)" />
+					<Button title="Save playlist" aria-label="Save playlist" icon="mi mi-save" size="small" severity="success" :disabled="!currentId || !dirty || saving" @click="savePlaylist" />
 				</InputGroup>
 			</template>
 		</Toolbar>
@@ -26,7 +26,7 @@
 			<div class="flex align-items-center gap-2">
 				<span>{{ conflict.message }}</span>
 				<Button size="small" label="Reload" icon="mi mi-refresh" severity="secondary" @click="reloadPlaylist" />
-				<Button v-if="conflict.rev" size="small" label="Overwrite" icon="mi mi-upload" severity="danger" @click="savePlaylist(conflict.rev)" />
+				<Button v-if="conflict.rev" size="small" label="Overwrite" icon="mi mi-upload" severity="danger" @click="overwrite" />
 			</div>
 		</Message>
 		<Message v-for="(problem, index) in serverProblems" :key="index" severity="error" size="small" variant="simple">{{ problem }}</Message>
@@ -131,7 +131,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, provide } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, provide } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import { InputGroup, InputGroupAddon, Toolbar, Button, Select, InputText, Dialog, Message, ProgressBar, useToast } from 'primevue'
 import BasicForm, { type ValidateEventData } from '../components/BasicForm.vue'
 import HelpToggle from '../components/HelpToggle.vue'
@@ -140,10 +141,10 @@ const API_URL = import.meta.env.VITE_API_URL
 const toast = useToast()
 // the playlists, the working copy and the track in the editor, with every call that loads or saves them
 const {
-	plugins, dataSources, playlists, currentId, playlistName, docRev, tracks, dirty, saving, conflict, serverProblems, selectedIndex, draft, loading, editModel,
+	plugins, dataSources, playlists, currentId, playlistName, tracks, dirty, saving, conflict, serverProblems, selectedIndex, draft, loading, editModel,
 	selectedTrack, selectedPlugin, pluginOptions,
 	describeOf, selectTrack, cancelEdit, applyEdit, addTrack, removeTrack, moveTrack,
-	start, loadPlaylists, createPlaylist, renamePlaylist, deletePlaylist: removePlaylist, savePlaylist: save, reloadPlaylist,
+	start, loadPlaylists, createPlaylist, renamePlaylist, deletePlaylist: removePlaylist, savePlaylist: save, overwritePlaylist, reloadPlaylist, discardChanges, stop,
 } = usePlaylists((severity, detail) => toast.add(severity === "success"
 	? { severity, summary: "Success", detail, life: 3000 }
 	: { severity, summary: "Error", detail, life: 5000 }))
@@ -188,10 +189,12 @@ const handleReset = () => {
 const handleSubmit = () => {
 	bf.value?.submit()
 }
-/** Save the playlist at `rev`; a problem in a field of the track in the editor shows on that field. */
-function savePlaylist(rev: string|undefined) {
-	return save(rev, errors => bf.value?.setServerErrors(errors) ?? 0)
-}
+// a problem in a field of the track in the editor shows on that field
+const onField = (errors: { path: unknown[], message: string }[]) => bf.value?.setServerErrors(errors) ?? 0
+/** Save the playlist over the revision it was loaded at. */
+const savePlaylist = () => save(onField)
+/** In a conflict: save the working copy over what the server has now. */
+const overwrite = () => overwritePlaylist(onField)
 
 // --- the dialogs
 async function openPlaylist(id: string) {
@@ -207,15 +210,30 @@ function guard(action: () => void) {
 		action()
 	}
 }
+// leaving the page (another page of the app, or closing the tab) asks too
+let leaveAnswer: ((leave: boolean) => void)|undefined = undefined
+onBeforeRouteLeave(() => {
+	if(!dirty.value) return true
+	return new Promise<boolean>(resolve => {
+		leaveAnswer = resolve
+		guard(() => resolve(true))
+	})
+})
+const warnBeforeClose = (e: BeforeUnloadEvent) => {
+	if(dirty.value) e.preventDefault()
+}
 function onDiscardHide() {
 	pendingAction = undefined
+	leaveAnswer?.(false)
+	leaveAnswer = undefined
 	selectKey.value++
 }
 function confirmDiscard() {
-	discardOpen.value = false
-	dirty.value = false
 	const action = pendingAction
 	pendingAction = undefined
+	leaveAnswer = undefined
+	discardOpen.value = false
+	discardChanges()
 	action?.()
 }
 function startNew() {
@@ -239,7 +257,14 @@ async function deletePlaylist() {
 	await removePlaylist()
 	deleteOpen.value = false
 }
-onMounted(start)
+onMounted(() => {
+	window.addEventListener("beforeunload", warnBeforeClose)
+	start()
+})
+onBeforeUnmount(() => {
+	window.removeEventListener("beforeunload", warnBeforeClose)
+	stop()
+})
 </script>
 <style scoped>
 .unsaved-banner :deep(.p-message-content) {

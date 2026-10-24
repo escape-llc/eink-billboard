@@ -123,6 +123,31 @@ describe("the working copy", () => {
 	})
 })
 
+describe("unsaved is a comparison", () => {
+	it("a track moved and moved back, or added and removed, is no change", async () => {
+		const { pl } = await started()
+		pl.moveTrack(0, 1)
+		expect(pl.dirty.value).toBe(true)
+		pl.moveTrack(1, -1)
+		expect(pl.dirty.value).toBe(false)
+		pl.addTrack()
+		pl.applyEdit({})
+		expect(pl.dirty.value).toBe(true)
+		pl.removeTrack(3)
+		expect(pl.dirty.value).toBe(false)
+	})
+
+	it("discarding puts the playlist back as it was loaded, without asking the server", async () => {
+		const { pl } = await started()
+		pl.removeTrack(0)
+		const calls = mocked.get.mock.calls.length
+		pl.discardChanges()
+		expect(pl.tracks.value.map(t => t.id)).toEqual(["t1", "t2", "t3"])
+		expect(pl.dirty.value).toBe(false)
+		expect(mocked.get.mock.calls.length).toBe(calls)
+	})
+})
+
 describe("saving", () => {
 	it("sends the whole playlist at the loaded revision, and keeps the track in the editor", async () => {
 		const { pl, notices } = await started()
@@ -130,7 +155,7 @@ describe("saving", () => {
 		pl.applyEdit({})
 		pl.selectTrack(1)
 		mocked.put.mockResolvedValue({ schedule: doc("a", [track("t1"), track("t2"), track("t3"), track("t4", "Untitled")], "r2"), rev: "r2" })
-		await pl.savePlaylist("r1", () => 0)
+		await pl.savePlaylist(() => 0)
 		const [path, options, body] = mocked.put.mock.calls[0]!
 		expect([path, options]).toEqual(["/api/schedule/playlist/{doc_id}", { path: { doc_id: "a" } }])
 		expect(body._rev).toBe("r1")
@@ -145,9 +170,42 @@ describe("saving", () => {
 	it("a stale revision is a conflict that carries the server's", async () => {
 		const { pl } = await started()
 		mocked.put.mockRejectedValue(new ApiError(409, "Revision mismatch", { rev: "r9" }))
-		await pl.savePlaylist("r1", () => 0)
+		await pl.savePlaylist(() => 0)
 		expect(pl.conflict.value).toEqual({ message: "Revision mismatch", rev: "r9" })
 		expect(pl.saving.value).toBe(false)
+	})
+
+	it("overwrite saves the working copy over the server's revision, and is then saved", async () => {
+		const { pl } = await started()
+		pl.removeTrack(0)
+		mocked.put.mockRejectedValueOnce(new ApiError(409, "Revision mismatch", { rev: "r9" }))
+		await pl.savePlaylist(() => 0)
+		expect(pl.dirty.value).toBe(true)
+		mocked.put.mockResolvedValueOnce({ schedule: doc("a", [track("t2"), track("t3")], "r10"), rev: "r10" })
+		await pl.overwritePlaylist(() => 0)
+		expect(mocked.put.mock.calls[1]![2]._rev).toBe("r9")
+		expect([pl.conflict.value, pl.dirty.value, pl.docRev.value]).toEqual([null, false, "r10"])
+	})
+
+	it("a conflict the server did not give a revision for can only be reloaded", async () => {
+		const { pl } = await started()
+		pl.removeTrack(0)
+		mocked.put.mockRejectedValueOnce(new ApiError(409, "Revision mismatch"))
+		await pl.savePlaylist(() => 0)
+		expect(pl.conflict.value).toEqual({ message: "Revision mismatch", rev: undefined })
+		await pl.overwritePlaylist(() => 0)
+		expect(mocked.put).toHaveBeenCalledTimes(1)
+		await pl.reloadPlaylist()
+		expect([pl.conflict.value, pl.dirty.value, pl.tracks.value.length]).toEqual([null, false, 3])
+	})
+
+	it("a save that fails otherwise keeps the edits", async () => {
+		const { pl, notices } = await started()
+		pl.removeTrack(0)
+		mocked.put.mockRejectedValueOnce(new Error("offline"))
+		await pl.savePlaylist(() => 0)
+		expect([pl.dirty.value, pl.tracks.value.length]).toEqual([true, 2])
+		expect(notices).toEqual(["error: Failed to save the playlist: offline"])
 	})
 
 	it("a 422 shows on the selected track's fields, and lists the rest with their track", async () => {
@@ -158,7 +216,7 @@ describe("saving", () => {
 			{ path: ["items", "2", "content", "folder"], message: "Required" },
 		] }))
 		const shown: unknown[] = []
-		await pl.savePlaylist("r1", errors => { shown.push(...errors); return errors.length })
+		await pl.savePlaylist((errors: unknown[]) => { shown.push(...errors); return errors.length })
 		expect(shown).toEqual([{ path: ["slideMinutes"], message: "Minimum 1" }])
 		expect(pl.serverProblems.value).toEqual(['Track "t3": content / folder: Required'])
 	})
@@ -167,7 +225,7 @@ describe("saving", () => {
 		const { pl } = await started()
 		pl.selectTrack(0)
 		mocked.put.mockRejectedValue(new ApiError(422, "Invalid", { errors: [{ path: ["items", "0", "content", "gone"], message: "Required" }] }))
-		await pl.savePlaylist("r1", () => 0)
+		await pl.savePlaylist(() => 0)
 		expect(pl.serverProblems.value).toEqual(["Invalid"])
 	})
 })
@@ -183,6 +241,10 @@ describe("the playlists", () => {
 		expect(pl.playlists.value[0]).toEqual({ id: "a", name: "New name" })
 		expect(pl.dirty.value).toBe(true)
 		expect(pl.tracks.value.length).toBe(2)
+		// the next save is made over the rename's revision
+		mocked.put.mockResolvedValueOnce({ schedule: doc("a", [track("t2"), track("t3")], "r6"), rev: "r6" })
+		await pl.savePlaylist(() => 0)
+		expect(mocked.put.mock.calls[0]![2]._rev).toBe("r5")
 	})
 
 	it("a new playlist is created and opened; a conflict and a failure say which", async () => {

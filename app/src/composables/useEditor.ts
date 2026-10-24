@@ -35,6 +35,8 @@ export function useEditor<TPayload = unknown>(ops: EditorOperations<TPayload>) {
 	/** in a conflict: whether my edits can be kept (the server said its revision) */
 	const canKeep = computed(() => state.value.can({ type: "KEEP" }))
 	const rev = computed(() => state.value.context.rev)
+	/** in a conflict: the server's revision, when it said */
+	const theirs = computed(() => state.value.context.theirs)
 
 	/** The form re-checked its values: compared with the baseline (several reports of the same values change nothing). */
 	function values(held: unknown, valid: boolean) {
@@ -47,6 +49,10 @@ export function useEditor<TPayload = unknown>(ops: EditorOperations<TPayload>) {
 	/** The editor was handed a document at revision `rev` (by its page); its first values become the baseline. */
 	function loaded(revision: string | undefined) {
 		actor.send({ type: "LOADED", rev: revision })
+	}
+	/** The stored document has a new revision and the editor's edits stay on top of it (a rename saved on its own). */
+	function revised(revision: string) {
+		actor.send({ type: "REVISED", rev: revision })
 	}
 	/** Nothing is loaded (none chosen). */
 	function unload() {
@@ -96,5 +102,5 @@ export function useEditor<TPayload = unknown>(ops: EditorOperations<TPayload>) {
 	const discard = () => load("DISCARD")
 	const stop = () => actor.stop()
 
-	return { state, hasUnsaved, isBusy, canSave, inConflict, canKeep, rev, values, edit, loaded, unload, load, save, keep, takeTheirs, discard, stop }
+	return { state, hasUnsaved, isBusy, canSave, inConflict, canKeep, rev, theirs, values, edit, loaded, revised, unload, load, save, keep, takeTheirs, discard, stop }
 }

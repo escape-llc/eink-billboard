@@ -2,13 +2,17 @@
  * The playlist page's data (#510 A6): the stored playlists, the one being edited (a working copy saved whole), the track in the editor,
  * and every call that loads or saves them. The page keeps its template, its dialogs and the form; what goes wrong is told through `notify`
  * (the page shows it as a toast), so this runs and is tested without a component.
+ *
+ * The working copy's cycle is the editor machine's (#550, `useEditor`): unsaved is the tracks compared with what was loaded or last saved, so a
+ * track moved and moved back, or added and removed, is no change; a stale save is a conflict whose Overwrite saves over the server's revision.
  */
-import { computed, reactive, ref } from "vue"
+import { computed, reactive, ref, watch } from "vue"
 import { ApiError } from "../components/ApiClient"
 import { api } from "../api/client"
 import type { PlaylistItem, PlaylistSchedule, PluginDef } from "../components/ScheduleDefs"
 import type { Descriptor } from "../components/FormDefs"
 import { describeTrack, type Describable } from "../components/Describe"
+import { useEditor } from "./useEditor"
 
 export type Notify = (severity: "success" | "error", detail: string) => void
 /** What a rename or a new playlist came to: done, refused because the playlist changed (a conflict is shown), or failed (`notify` said why). */
@@ -64,11 +68,30 @@ export function usePlaylists(notify: Notify) {
 	const playlists = ref<{ id: string, name: string }[]>([])
 	const currentId = ref<string | undefined>(undefined)
 	const playlistName = ref<string>()
-	const docRev = ref<string | undefined>(undefined)
 	const tracks = ref<PlaylistItem[]>([])
-	const dirty = ref(false)
-	const saving = ref(false)
-	const conflict = ref<{ message: string, rev: string | undefined } | null>(null)
+	// a rename or a delete is not the working copy's save: refused because the playlist changed, it says so, and Reload is the way on
+	const refused = ref<string | null>(null)
+	const busy = ref(false)
+	const conflictMessage = ref("")
+	// what a save came back with: the stored playlist, with the ids the server gave the new tracks
+	let savedDoc: PlaylistSchedule | undefined = undefined
+	// what was loaded or last saved, so the changes can be dropped without asking the server again
+	let storedDoc: PlaylistSchedule | undefined = undefined
+	const editor = useEditor<ReturnType<typeof documentBody>>({
+		save: async (body, rev) => {
+			const rx = await api.put("/api/schedule/playlist/{doc_id}", { path: { doc_id: currentId.value! } }, { ...body, _rev: rev })
+			savedDoc = rx.schedule
+			return rx.rev
+		},
+	})
+	const docRev = editor.rev
+	const dirty = editor.hasUnsaved
+	const saving = computed(() => busy.value || editor.isBusy.value)
+	const conflict = computed<{ message: string, rev: string | undefined } | null>(() =>
+		editor.inConflict.value ? { message: conflictMessage.value, rev: editor.theirs.value } : refused.value !== null ? { message: refused.value, rev: undefined } : null)
+	// the working copy is the editor's values: every change to the tracks is compared with what was loaded
+	const report = () => editor.values(tracks.value, true)
+	watch(tracks, report, { deep: true, flush: "sync" })
 	const serverProblems = ref<string[]>([])
 	const selectedIndex = ref<number | null>(null)
 	// a track being added: edited like the others, but not in the playlist (nor an unsaved change) until it is applied; cancel drops it
@@ -89,7 +112,7 @@ export function usePlaylists(notify: Notify) {
 		return describeTrack(plugin, t.content ?? {}, dataSources.value as Describable[]) || "Unknown Plugin"
 	}
 	function resetMessages() {
-		conflict.value = null
+		refused.value = null
 		serverProblems.value = []
 	}
 
@@ -139,7 +162,6 @@ export function usePlaylists(notify: Notify) {
 			if(!old) return
 			tracks.value[selectedIndex.value] = { ...old, ...edited }
 		}
-		dirty.value = true
 		serverProblems.value = []
 	}
 
@@ -156,7 +178,6 @@ export function usePlaylists(notify: Notify) {
 	function removeTrack(idx: number) {
 		if(idx < 0 || idx >= tracks.value.length) return
 		tracks.value.splice(idx, 1)
-		dirty.value = true
 		if(selectedIndex.value === idx) selectedIndex.value = null
 		else if(selectedIndex.value !== null && selectedIndex.value > idx) selectedIndex.value--
 	}
@@ -165,7 +186,6 @@ export function usePlaylists(notify: Notify) {
 		if(to < 0 || to >= tracks.value.length) return
 		const moved = tracks.value.splice(idx, 1)
 		tracks.value.splice(to, 0, ...moved)
-		dirty.value = true
 		if(selectedIndex.value === idx) selectedIndex.value = to
 		else if(selectedIndex.value === to) selectedIndex.value = idx
 	}
@@ -189,12 +209,14 @@ export function usePlaylists(notify: Notify) {
 	}
 	/** Put a stored playlist into the working copy. */
 	function adopt(doc: PlaylistSchedule, keepSelection = false) {
+		storedDoc = structuredClone(doc)
 		currentId.value = doc.id
 		playlistName.value = doc.name
-		docRev.value = doc._rev
+		// the machine hears of the document first: the tracks it then reports are its baseline
+		editor.loaded(doc._rev)
 		tracks.value = structuredClone(doc.items)
+		report()
 		draft.value = null
-		dirty.value = false
 		resetMessages()
 		const keep = keepSelection ? selectedIndex.value : null
 		selectedIndex.value = null
@@ -210,11 +232,11 @@ export function usePlaylists(notify: Notify) {
 			else {
 				currentId.value = undefined
 				playlistName.value = undefined
-				docRev.value = undefined
+				editor.unload()
+				storedDoc = undefined
 				tracks.value = []
 				draft.value = null
 				selectedIndex.value = null
-				dirty.value = false
 			}
 		}
 		catch(err: any) {
@@ -251,75 +273,77 @@ export function usePlaylists(notify: Notify) {
 		return named(async () => {
 			const rx = await api.patch("/api/schedule/playlist/{doc_id}", { path: { doc_id: id } }, { name, _rev: docRev.value })
 			playlistName.value = rx.schedule.name
-			docRev.value = rx.rev
+			editor.revised(rx.rev)
+			if(storedDoc) storedDoc = { ...storedDoc, name: rx.schedule.name, _rev: rx.rev }
 			playlists.value = playlists.value.map(p => p.id === id ? { id: p.id, name: rx.schedule.name } : p)
 		})
 	}
 	async function named(call: () => Promise<void>): Promise<NameOutcome> {
-		saving.value = true
+		busy.value = true
 		try {
 			await call()
 			return "done"
 		}
 		catch(ex: any) {
 			if(ex instanceof ApiError && ex.status === 409) {
-				conflict.value = { message: "The playlist changed since it was loaded.", rev: undefined }
+				refused.value = "The playlist changed since it was loaded."
 				return "conflict"
 			}
 			notify("error", `Failed: ${ex.message || "Unknown error"}`)
 			return "failed"
 		}
 		finally {
-			saving.value = false
+			busy.value = false
 		}
 	}
 	async function deletePlaylist() {
 		if(!currentId.value || !docRev.value) return
-		saving.value = true
+		busy.value = true
 		try {
 			await api.delete("/api/schedule/playlist/{doc_id}", { path: { doc_id: currentId.value }, query: { rev: docRev.value } })
 			notify("success", "Playlist deleted")
-			dirty.value = false
 			await loadPlaylists()
 		}
 		catch(ex: any) {
 			if(ex instanceof ApiError && ex.status === 409) {
-				conflict.value = { message: "The playlist changed since it was loaded; reload it before deleting.", rev: undefined }
+				refused.value = "The playlist changed since it was loaded; reload it before deleting."
 			}
 			else notify("error", `Failed to delete the playlist: ${ex.message || "Unknown error"}`)
 		}
 		finally {
-			saving.value = false
+			busy.value = false
 		}
 	}
 	/**
-	 * Save the whole playlist; `rev` is the revision it was loaded at (a stale one is a conflict the person can resolve). A problem in a field
+	 * Save the whole playlist over the revision the editor holds (a stale one is a conflict the person can resolve). A problem in a field
 	 * of the selected track is handed to `showOnField`, which answers how many it could show; the rest is listed in `serverProblems`.
 	 */
-	async function savePlaylist(rev: string | undefined, showOnField: (errors: { path: unknown[], message: string }[]) => number) {
+	async function savePlaylist(showOnField: (errors: { path: unknown[], message: string }[]) => number) {
 		if(!currentId.value) return
-		saving.value = true
 		resetMessages()
-		try {
-			const rx = await api.put("/api/schedule/playlist/{doc_id}", { path: { doc_id: currentId.value } }, documentBody(playlistName.value, tracks.value, rev))
+		const { outcome, error } = await editor.save(documentBody(playlistName.value, tracks.value, undefined))
+		const ex = error as any
+		if(outcome === "saved" && savedDoc) {
 			notify("success", "Playlist saved")
-			adopt(rx.schedule, true)
+			adopt(savedDoc, true)
 		}
-		catch(ex: any) {
-			if(ex instanceof ApiError && ex.status === 409) {
-				conflict.value = { message: ex.message, rev: typeof ex.body?.rev === "string" ? ex.body.rev : undefined }
-			}
-			else if(ex instanceof ApiError && ex.status === 422 && Array.isArray(ex.body?.errors)) {
-				const { onField, listed } = splitServerErrors(ex.body.errors, tracks.value, selectedIndex.value, ex.message)
-				const shown = onField.length > 0 ? showOnField(onField) : 0
-				if(shown < onField.length) listed.push(ex.message)
-				serverProblems.value = listed
-			}
-			else notify("error", `Failed to save the playlist: ${ex.message || "Unknown error"}`)
+		else if(outcome === "conflict") conflictMessage.value = ex.message
+		else if(outcome === "failed" && ex instanceof ApiError && ex.status === 422 && Array.isArray(ex.body?.errors)) {
+			const { onField, listed } = splitServerErrors(ex.body.errors, tracks.value, selectedIndex.value, ex.message)
+			const shown = onField.length > 0 ? showOnField(onField) : 0
+			if(shown < onField.length) listed.push(ex.message)
+			serverProblems.value = listed
 		}
-		finally {
-			saving.value = false
-		}
+		else if(outcome === "failed") notify("error", `Failed to save the playlist: ${ex?.message || "Unknown error"}`)
+		savedDoc = undefined
+	}
+	/** In a conflict: save my working copy over the server's revision. */
+	async function overwritePlaylist(showOnField: (errors: { path: unknown[], message: string }[]) => number) {
+		if(editor.keep()) await savePlaylist(showOnField)
+	}
+	/** Drop the unsaved changes: the working copy is the playlist as it was loaded or last saved. */
+	function discardChanges() {
+		if(storedDoc) adopt(storedDoc)
 	}
 	/** Someone else changed the playlist: take their version (the unsaved edits are dropped). */
 	async function reloadPlaylist() {
@@ -330,6 +354,6 @@ export function usePlaylists(notify: Notify) {
 		plugins, dataSources, playlists, currentId, playlistName, docRev, tracks, dirty, saving, conflict, serverProblems, selectedIndex, draft, loading, editModel,
 		selectedTrack, selectedPlugin, playlistPlugins, pluginOptions,
 		describeOf, selectTrack, cancelEdit, applyEdit, addTrack, removeTrack, moveTrack,
-		start, loadPlaylists, createPlaylist, renamePlaylist, deletePlaylist, savePlaylist, reloadPlaylist,
+		start, loadPlaylists, createPlaylist, renamePlaylist, deletePlaylist, savePlaylist, overwritePlaylist, reloadPlaylist, discardChanges, stop: editor.stop,
 	}
 }
