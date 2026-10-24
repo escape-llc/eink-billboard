@@ -11,7 +11,7 @@ const EVENTS: EditorEvent[] = [
 	{ type: "VALUES", key: "A", valid: true }, { type: "VALUES", key: "B", valid: true }, { type: "VALUES", key: "B", valid: false },
 	{ type: "EDIT" }, { type: "SAVE" }, { type: "SAVED", rev: "r2" },
 	{ type: "CONFLICT", rev: "r9" }, { type: "CONFLICT" }, { type: "SAVE_FAILED" },
-	{ type: "KEEP" }, { type: "TAKE_THEIRS" }, { type: "DISCARD" }, { type: "UNLOAD" },
+	{ type: "KEEP" }, { type: "TAKE_THEIRS" }, { type: "DISCARD" }, { type: "UNLOAD" }, { type: "REVISED", rev: "r5" },
 ]
 
 /** What must hold in every state any path reaches. */
@@ -64,6 +64,10 @@ describe("editorMachine", () => {
 		})
 	}
 
+	it("takes a new revision without touching what is unsaved", () => {
+		const snap = replay([{ type: "LOADED", rev: "r1" }, { type: "VALUES", key: "A", valid: true }, { type: "VALUES", key: "B", valid: true }, { type: "REVISED", rev: "r5" }])
+		expect([snap.matches("dirty"), snap.context.rev, snap.context.baseline]).toEqual([true, "r5", "A"])
+	})
 	it("is clean again when an edit is put back", () => {
 		const snap = replay([{ type: "LOADED", rev: "r1" }, { type: "VALUES", key: "A", valid: true }, { type: "VALUES", key: "B", valid: true }, { type: "VALUES", key: "A", valid: true }])
 		expect(snap.matches("clean")).toBe(true)
