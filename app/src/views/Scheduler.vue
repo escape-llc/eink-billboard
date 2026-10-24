@@ -10,12 +10,12 @@
 		<template #end>
 			<!-- one group: the view (a day or a week from today's weekday, or each task once), back / today / forward (never before today), a new task -->
 			<InputGroup class="scheduler-actions">
-				<Button v-for="m in MODES" :key="m.value" size="small" :icon="m.icon" :label="m.label" :aria-pressed="mode === m.value"
+				<Button v-for="m in MODES" :key="m.value" class="short-on-phone" size="small" :icon="m.icon" :label="m.label" :aria-label="m.label" :aria-pressed="mode === m.value"
 					:severity="mode === m.value ? 'contrast' : 'secondary'" @click="setMode(m.value)" />
 				<Button size="small" icon="mi mi-chevron-left" severity="secondary" aria-label="Back" :title="mode === 'day' ? 'The day before' : 'The week before'" :disabled="offset === 0" @click="move(-1)" />
 				<Button size="small" label="Today" severity="secondary" :disabled="offset === 0" @click="goToday" />
 				<Button size="small" icon="mi mi-chevron-right" severity="secondary" aria-label="Forward" :title="mode === 'day' ? 'The next day' : 'The next week'" @click="move(1)" />
-				<Button size="small" label="New task" icon="mi mi-add" :disabled="timerPlugins.length === 0" @click="handleNew" />
+				<Button class="short-on-phone" size="small" label="New task" aria-label="New task" icon="mi mi-add" :disabled="timerPlugins.length === 0" @click="handleNew" />
 			</InputGroup>
 		</template>
 	</Toolbar>
@@ -76,7 +76,7 @@
 			</div>
 		</template>
 	</AlCalendar>
-	<Dialog v-model:visible="dialogOpen" modal :header="editTarget?.id ? 'Edit task' : 'New task'" style="width:60%; font-size:90%">
+	<Dialog v-model:visible="dialogOpen" modal :header="editTarget?.id ? 'Edit task' : 'New task'" style="width:60%; min-width:min(36rem, 95vw); font-size:90%">
 		<Message size="small" v-if="conflict" severity="warn" :closable="false" class="mb-2">
 			<div class="flex align-items-center gap-2">
 				<span>{{ conflict.message }}</span>
@@ -109,23 +109,23 @@
 				<h3 class="mb-0">{{ slotProps.title }}</h3>
 			</template>
 			<template #before-fields>
-				<InputGroup v-if="!editTarget?.id && documents.length > 1">
-					<InputGroupAddon>
-						<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" style="flex-shrink:0;flex-grow:1">Schedule</label>
+				<InputGroup class="field-row" v-if="!editTarget?.id && documents.length > 1">
+					<InputGroupAddon class="field-label">
+						<label class="field-title" :style="{ '--label-width': fieldNameWidth }">Schedule</label>
 					</InputGroupAddon>
 					<Select size="small" :options="documents" optionLabel="name" optionValue="id" v-model="newTaskDocument" />
 				</InputGroup>
-				<InputGroup>
-					<InputGroupAddon>
-						<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" fluid style="flex-shrink:0;flex-grow:1">Title</label>
+				<InputGroup class="field-row">
+					<InputGroupAddon class="field-label">
+						<label class="field-title" :style="{ '--label-width': fieldNameWidth }">Title</label>
 					</InputGroupAddon>
 					<InputText style="flex-grow:1" size="small" name="title" fluid v-model="editModel.title" />
 				</InputGroup>
 				<Message v-if="!isTitleValid"
 					severity="error" size="small" variant="simple">{{ titleErrorMessage }}</Message>
-				<InputGroup>
-					<InputGroupAddon>
-						<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" fluid style="flex-shrink:0;flex-grow:1">Enabled</label>
+				<InputGroup class="field-row">
+					<InputGroupAddon class="field-label">
+						<label class="field-title" :style="{ '--label-width': fieldNameWidth }">Enabled</label>
 					</InputGroupAddon>
 					<InputGroupAddon style="flex-grow:1;justify-content:flex-start">
 						<Checkbox v-model="editModel.enabled" fluid binary name="enabled" />
@@ -135,9 +135,9 @@
 				<FormField name="trigger" v-slot="$field" :validateOnValueUpdate="true" :initialValue="editModel.trigger" style="display:flex;flex-grow:1">
 							<TimedTrigger :modelValue="$field.value" parentPropName="trigger." :fieldNameWidth="fieldNameWidth" @change="$field.props.onChange" />
 						</FormField>
-				<InputGroup>
-					<InputGroupAddon>
-						<label :style="{'width': fieldNameWidth, 'max-width': fieldNameWidth }" style="flex-shrink:0;flex-grow:1">Plugin</label>
+				<InputGroup class="field-row">
+					<InputGroupAddon class="field-label">
+						<label class="field-title" :style="{ '--label-width': fieldNameWidth }">Plugin</label>
 					</InputGroupAddon>
 					<Select size="small" :options="pluginOptions" optionLabel="name" optionValue="id" name="plugin_name" v-model="editModel.plugin_name" />
 				</InputGroup>
@@ -146,7 +146,7 @@
 			</template>
 		</BasicForm>
 	</Dialog>
-	<Dialog v-model:visible="deleteOpen" modal header="Delete task?" style="width:24rem">
+	<Dialog v-model:visible="deleteOpen" modal header="Delete task?" style="width:24rem;max-width:95vw">
 		<p class="mt-0">"{{ editModel.title }}" will be removed from the schedule.</p>
 		<div class="flex gap-2 justify-content-end">
 			<Button size="small" type="button" label="Keep" severity="secondary" @click="deleteOpen = false"></Button>
@@ -616,6 +616,24 @@ const handleSubmit = () => {
 	font-size: 1.2rem;
 	margin-left:.15rem;
 	vertical-align: baseline;
+}
+/* on a phone a week is seven narrow columns: the weekday under the day, smaller; the toolbar's buttons that have a glyph show only that */
+@media (max-width: 40rem) {
+	.day-header > div {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+	.day-header-day {
+		font-size: 1.2rem;
+	}
+	.day-header-dow {
+		font-size: .8rem;
+		margin-left: 0;
+	}
+	.short-on-phone :deep(.p-button-label) {
+		display: none;
+	}
 }
 .day-header-weekend {
 	color: red;

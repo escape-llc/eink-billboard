@@ -3,9 +3,18 @@ import { choose, saveButton, stubMapTiles, watchProblems } from "./support"
 
 // These tests change the settings of the shared server, one after the other.
 test.describe.configure({ mode: "serial" })
+const system = async (request: APIRequestContext) => (await request.get("/api/settings/system")).json()
 test.beforeEach(async ({ page }) => stubMapTiles(page))
 
-const system = async (request: APIRequestContext) => (await request.get("/api/settings/system")).json()
+// and put them back after, so the specs after these (the phone project's, run on the same server) find the settings they started with
+let before: Record<string, unknown> | undefined
+test.beforeAll(async ({ request }) => { before = await system(request) })
+test.afterAll(async ({ request }) => {
+	if (before === undefined) return
+	const { _rev } = await system(request)
+	expect((await request.put("/api/settings/system", { data: { ...before, _rev } })).ok()).toBe(true)
+})
+
 const showing = (page: import("@playwright/test").Page, text: string) => page.locator(".p-select").filter({ hasText: text }).first()
 
 test("saving a changed setting stores it", async ({ page, request }) => {

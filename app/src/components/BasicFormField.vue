@@ -5,11 +5,10 @@
 		</slot>
 	</template>
 	<template v-else-if="visible">
-		<InputGroup>
+		<InputGroup class="field-row">
 			<InputGroupAddon class="field-label" :class="{ 'label-top': tall }">
 				<slot name="label" v-bind="{ field, fieldState }">
-					<label class="field-title" :style="{'width': props.fieldNameWidth, 'max-width': props.fieldNameWidth }"
-						style="flex-shrink:0;flex-grow:1" :for="field.name">{{ field.title }}<Tag v-if="isNew" class="new-tag" size="small" severity="info" value="new" title="Not in this item yet: it starts at its default" /></label>
+					<label class="field-title" :style="{ '--label-width': props.fieldNameWidth }" :for="field.name">{{ field.title }}<Tag v-if="isNew" class="new-tag" size="small" severity="info" value="new" title="Not in this item yet: it starts at its default" /></label>
 				</slot>
 			</InputGroupAddon>
 			<template v-if="field.type === 'boolean'">
@@ -258,18 +257,10 @@ const errorMessage = computed(() => {
 .token-list code {
 	color: var(--p-text-color);
 }
-/* the label keeps its width: a wide row editor beside it must not squeeze it until its text spills over the border */
 .field-link {
 	margin-top: -.25rem;
 }
-.field-label {
-	flex: 0 0 auto;
-}
-/* the title and its "new" tag share one centred line: the tag is taller than the text, so inline it pushed the text up */
-.field-title {
-	display: flex;
-	align-items: center;
-}
+/* the title and its "new" tag share one centred line (.field-title, main.css): the tag is taller than the text, so inline it pushed the text up */
 .new-tag {
 	margin-left: .4rem;
 	line-height: 1;

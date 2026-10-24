@@ -152,7 +152,8 @@ const eventsOf = (key: string): EventCellInfo[] => cellsByDay.value.get(key) ?? 
 	min-height: 0;
 }
 .grid-horizontal {
-	grid-template-columns: var(--time-column-width) repeat(var(--date-row-columns), 1fr);
+	/* a day's column may be narrower than its content (a long title is cut): with `1fr` alone a week did not fit a phone */
+	grid-template-columns: var(--time-column-width) repeat(var(--date-row-columns), minmax(0, 1fr));
 	column-gap: var(--grid-column-gap);
 }
 .grid-vertical {
@@ -215,5 +216,10 @@ const eventsOf = (key: string): EventCellInfo[] => cellsByDay.value.get(key) ?? 
 	--date-row-columns: 7;
 	--time-column-height: 2rem;
 	--time-column-width: 4rem;
+}
+@media (max-width: 40rem) {
+	:root {
+		--time-column-width: 2.5rem;
+	}
 }
 </style>
