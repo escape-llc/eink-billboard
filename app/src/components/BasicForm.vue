@@ -94,6 +94,8 @@ export interface EmitsType {
 const props = withDefaults(defineProps<PropsType>(), { fieldNameWidth: "10rem", showHelp: true })
 /** The label column's width: the prop as given, or, for `adaptive`, wide enough for the longest label of the form (see LabelWidth.ts). */
 const labelWidth = computed(() => props.fieldNameWidth === "adaptive" ? adaptiveLabelWidth(labelsOf(localProperties.value)) : props.fieldNameWidth)
+// The form reports what happened (`validate`: it checked its values, which may be more than once per change and also when it loads; `submit`); it never
+// decides what happens next. Saving, discarding, a conflict and leaving belong to the editor around it (useEditor).
 const emits = defineEmits<EmitsType>()
 const localProperties = ref<ResolvedField[]>([])
 const localValues = ref<FormValues>({})
@@ -110,6 +112,9 @@ watch(() => props.form, (nv) => {
 		// a plugin just chosen brings fields the values do not have: they start at the descriptor's default, as they do for a new item
 		deepDefaults(nv.schema, props.owner)
 		ensureInitializeForm(nv.schema)
+		// the rules are new: check the values against them and report it (values that came before the schema were not checked; an editor's baseline is
+		// the first report after a load, which must not wait for the user's first edit)
+		nextTick().then(_ => formRef.value?.validate())
 	}
 	else {
 		localProperties.value = []

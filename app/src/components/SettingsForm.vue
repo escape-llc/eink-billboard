@@ -15,16 +15,16 @@
 					<InputGroup>
 						<Button v-if="defaults" size="small" icon="mi mi-settings-backup-restore" label="Restore defaults" severity="secondary" title="Put back the factory text of every field (then save)" @click="restoreAll" />
 						<HelpToggle v-model="showHelp" />
-						<Button size="small" icon="mi mi-check" severity="success" :disabled="submitDisabled" @click="submit" />
+						<Button size="small" icon="mi mi-check" severity="success" :disabled="!editor.canSave.value" @click="submit" />
 						<Button size="small" icon="mi mi-close" severity="danger" @click="reset" />
 					</InputGroup>
 				</template>
 			</Toolbar>
-			<Message size="small" v-if="conflict" severity="warn" :closable="false" class="mt-1">
+			<Message size="small" v-if="editor.inConflict.value" severity="warn" :closable="false" class="mt-1">
 				<div class="flex align-items-center gap-2 flex-wrap">
-					<span>{{ conflict.message }}</span>
+					<span>{{ conflictMessage }}</span>
 					<Button size="small" label="Reload" icon="mi mi-refresh" severity="secondary" @click="reload" />
-					<Button size="small" label="Overwrite" icon="mi mi-upload" severity="danger" @click="overwrite" />
+					<Button size="small" label="Overwrite" icon="mi mi-upload" severity="danger" :disabled="!editor.canKeep.value" @click="overwrite" />
 				</div>
 			</Message>
 			<slot name="header-end"></slot>
@@ -34,7 +34,8 @@
 <script setup lang="ts">
 import { ApiError } from "./ApiClient"
 import { api } from "../api/client"
-import { ref, watch, nextTick, onMounted, onBeforeUnmount, provide } from "vue"
+import { ref, watch, nextTick, onMounted, onBeforeUnmount, provide, toRaw } from "vue"
+import { useEditor } from "../composables/useEditor"
 import { onBeforeRouteLeave } from "vue-router"
 import { useConfirm } from "primevue/useconfirm"
 import BasicForm from "./BasicForm.vue"
@@ -77,27 +78,45 @@ const emits = defineEmits<EmitsType>()
 const form = ref<FormDef>()
 const bf = ref<InstanceType<typeof BasicForm>>()
 const initialValues = ref()
-const submitDisabled = ref(true)
-const conflict = ref<{ message: string, rev: string|undefined }|null>(null)
-let lastPost: any = undefined
-let _rev:string|undefined = undefined
+// the editor's cycle (useEditor): the form reports its values, the editor decides what is unsaved, saves, and resolves a conflict
+const editor = useEditor<Record<string, unknown>>({
+	/** the stored document again (a discard, or taking theirs in a conflict); when it cannot be read, the page's copy */
+	load: async () => {
+		try {
+			const doc: any = await fetchDocument()
+			return { rev: doc._rev, show: () => showDocument(doc) }
+		}
+		catch(ex) {
+			emits("submit", { result: null, invalid: null, error: ex })
+			// a copy: the form starts again only for a new document
+			const copy = props.settings ? structuredClone(toRaw(props.settings)) : undefined
+			return { rev: copy?._rev, show: () => { if(copy) showDocument(copy) } }
+		}
+	},
+	save: async (post, rev) => {
+		const jv = await putDocument(rev ? { ...post, _rev: rev } : post)
+		return jv.rev
+	},
+})
+const conflictMessage = ref("")
+let lastPost: Record<string, unknown>|undefined = undefined
 let _id:string|undefined = undefined
 let _schema:string|undefined = undefined
 
 watch(() => props.settings, (nv) => {
 	if(nv) {
-		_rev = nv._rev
 		_id = nv._id
 		_schema = nv._schema
+		editor.loaded(nv._rev)
 		nextTick().then(_ => {
 			initialValues.value = nv
 			emits("load-settings", nv)
 		})
 	}
 	else {
-		_rev = undefined
 		_id = undefined
 		_schema = undefined
+		editor.unload()
 		initialValues.value = undefined
 		emits("load-settings", undefined)
 	}
@@ -119,11 +138,11 @@ watch(() => props.schema, (nv) => {
 	}
 }, { immediate: true })
 const handleValidate = (ved: ValidateEventData) => {
-	submitDisabled.value = !ved.result.success
+	editor.values(ved.values, ved.result.success)
 	emits("validate", ved)
 }
-function applySettings(nv: any) {
-	_rev = nv._rev
+/** Show a document the form did not get from its page (after a save, a discard, a conflict); the editor's load or `loaded` says so to the machine. */
+function showDocument(nv: any) {
 	_id = nv._id
 	_schema = nv._schema
 	initialValues.value = nv
@@ -144,52 +163,39 @@ function putDocument(post: Record<string, unknown>) {
 	if(target.kind === "plugin") return api.put("/api/plugins/{plugin_id}/settings", { path: { plugin_id: target.id } }, post)
 	return api.put("/api/datasources/{datasource_id}/settings", { path: { datasource_id: target.id } }, post)
 }
-function send(post: any) {
+async function send(post: Record<string, unknown>) {
 	lastPost = post
-	conflict.value = null
-	putDocument(post)
-	.then(jv => {
-		if(jv.success) {
-			_rev = jv.rev
-			// what was saved is the new starting point: the form is no longer "changed" (leaving does not ask), and secrets show masked again
-			fetchDocument().then(applySettings).catch(ex => console.warn("settings.reload", ex))
-		}
-		emits("submit", { result: jv, invalid: null, error: null })
-	})
-	.catch(ex => {
-		if(ex instanceof ApiError && ex.status === 409) {
-			// somebody else saved first: let the user choose between their copy and ours
-			conflict.value = { message: ex.message, rev: typeof ex.body?.rev === "string" ? ex.body.rev : undefined }
-			emits("submit", { result: null, invalid: null, error: ex, handled: true })
-		}
-		else if(ex instanceof ApiError && ex.status === 422 && Array.isArray(ex.body?.errors)) {
+	const { outcome, error } = await editor.save(post)
+	if(outcome === "saved") {
+		// what was saved is the new starting point: the form is no longer "changed" (leaving does not ask), and secrets show masked again
+		fetchDocument().then((doc: any) => { editor.loaded(doc._rev); showDocument(doc) }).catch(ex => console.warn("settings.reload", ex))
+		emits("submit", { result: { success: true, rev: editor.rev.value }, invalid: null, error: null })
+	}
+	else if(outcome === "conflict") {
+		// somebody else saved first: let the user choose between their copy and ours
+		conflictMessage.value = error instanceof Error ? error.message : "The settings changed since they were loaded."
+		emits("submit", { result: null, invalid: null, error, handled: true })
+	}
+	else if(outcome === "failed") {
+		if(error instanceof ApiError && error.status === 422 && Array.isArray(error.body?.errors)) {
 			// each problem goes on its field
-			bf.value?.setServerErrors(ex.body.errors)
-			emits("submit", { result: null, invalid: null, error: ex })
+			bf.value?.setServerErrors(error.body.errors)
 		}
 		else {
-			console.error("submitForm.unhandled", ex)
-			emits("submit", { result: null, invalid: null, error: ex })
+			console.error("submitForm.unhandled", error)
 		}
-	})
+		emits("submit", { result: null, invalid: null, error })
+	}
 }
 /** Drop the edits and show what the server has now. */
-const reload = () => {
-	fetchDocument()
-	.then(doc => {
-		conflict.value = null
-		applySettings(doc)
-	})
-	.catch(ex => emits("submit", { result: null, invalid: null, error: ex }))
-}
+const reload = () => editor.takeTheirs()
 /** Save the edits over what the server has now. */
 const overwrite = () => {
-	if(!lastPost || !conflict.value?.rev) return
-	send({ ...lastPost, _rev: conflict.value.rev })
+	if(lastPost && editor.keep()) send(lastPost)
 }
 const confirm = useConfirm()
 const leaving = (): boolean|Promise<boolean> => {
-	if(!bf.value?.isDirty) return true
+	if(!editor.hasUnsaved.value) return true
 	return new Promise(resolve => {
 		confirm.require({
 			header: "Unsaved changes",
@@ -204,19 +210,20 @@ const leaving = (): boolean|Promise<boolean> => {
 }
 onBeforeRouteLeave(leaving)
 const warnBeforeClose = (e: BeforeUnloadEvent) => {
-	if(bf.value?.isDirty) {
+	if(editor.hasUnsaved.value) {
 		e.preventDefault()
 	}
 }
 onMounted(() => window.addEventListener("beforeunload", warnBeforeClose))
-onBeforeUnmount(() => window.removeEventListener("beforeunload", warnBeforeClose))
+onBeforeUnmount(() => {
+	window.removeEventListener("beforeunload", warnBeforeClose)
+	editor.stop()
+})
 const submitForm = (data:any) => {
 	if(data.data.valid) {
 		// result.data has only the validated fields
+		// the revision is the editor's to add (useEditor's save)
 		const post = structuredClone(data.result.data)
-		if(_rev) {
-			post._rev = _rev
-		}
 		if(_id) {
 			post._id = _id
 		}
@@ -253,8 +260,9 @@ const restoreAll = async () => {
 }
 // a field offers its own restore button only when the form has a source of factory values
 provide("restoreField", props.defaults ? restoreField : null)
-const reset = () => {
-	bf.value?.reset()
+/** Drop the edits: the stored document again (a form that only resets cannot tell that it is back where it started). */
+const reset = async () => {
+	if(!(await editor.discard())) bf.value?.reset()
 	emits("reset", null)
 }
 const submit = () => {
