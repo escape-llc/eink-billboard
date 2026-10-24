@@ -156,111 +156,54 @@
 	</div>
 </template>
 <script setup lang="ts">
-import { ApiError } from "../components/ApiClient"
-import { api } from "../api/client"
 import { InputGroup, InputGroupAddon, Button, Dialog, Toolbar, Select, Checkbox, InputText, Message, DataTable, Column, Tag, useToast } from "primevue"
-import { MODES, rangeLabel, step, switchMode, taskRows, windowOf, type SchedulerMode, type TaskRow } from "../components/SchedulerView"
+import { MODES, type TaskRow } from "../components/SchedulerView"
 import FormField from '@primevue/forms/formfield';
 import AlCalendar from "../components/AlCalendar.vue"
-import type { TimeRange, EventInfo } from "../components/AlCalendar.vue"
-import { browserZoneDifference, zonedParts } from "../components/CalendarTime"
-import { ref, shallowRef, onMounted, onBeforeUnmount, nextTick, toRaw, provide, computed } from "vue"
+import type { TimeRange } from "../components/AlCalendar.vue"
+import { ref, onMounted, onBeforeUnmount, nextTick, provide, computed } from "vue"
 import { ProgressBar } from "primevue"
 import BasicForm, { type ValidateEventData } from "../components/BasicForm.vue"
 import HelpToggle from "../components/HelpToggle.vue"
-import type { FormDef } from "../components/FormDefs"
-import type { PluginDef, TimerTasks } from "../components/ScheduleDefs"
-import type { Descriptor } from "../components/FormDefs"
 import { TriggerDefSchema } from "../components/ScheduleDefs"
 import TimedTrigger from "../components/TimedTrigger.vue"
+import { useSchedule } from "../composables/useSchedule"
 import z from "zod";
+const toast = useToast()
+// the window shown, the timer tasks and their runs in it, the task in the dialog, with every call that loads or saves them
+const {
+	mode, offset, firstDay, dayCount, timeZone, eventList, pluginList, dataSources, documents, loading,
+	editTarget, editModel, newTaskDocument, conflict, serverProblems, saving,
+	zoneNote, rangeText, rows, selectedPlugin, timerPlugins, pluginOptions,
+	loadTimeline, start, setMode, move, goToday, checkDay,
+	openTask, newTask, saveTask, overwriteTask: overwrite, reloadTask: reload, deleteTask: remove,
+} = useSchedule((severity, summary, detail) => toast.add({ severity, summary, detail, life: severity === "success" ? 3000 : 5000 }))
+provide("settingsPluginsList", pluginList)
+provide("settingsDataSourcesList", dataSources)
+const API_URL = import.meta.env.VITE_API_URL
 // the fields' help text, shown until hidden (for the page's life)
 const showHelp = ref(true)
 
 const bf = ref<InstanceType<typeof BasicForm>>()
 const fieldNameWidth = "10rem";
-const form = ref<FormDef>()
-// the week shown, in the zone the device's schedule runs in: both come from the server's answer (until it arrives, today here)
-const zoneNote = computed(() => {
-	const difference = browserZoneDifference(timeZone.value, new Date())
-	return difference ? `Times are in the device's time zone (${timeZone.value}). Your browser is ${difference} of it.` : null
-})
-const firstDay = ref(zonedParts(new Date()).key)
-const dayCount = ref(7)
-// what is shown: a day, a week (from today's weekday), or each task once over that week; `offset` is days from today, never negative
-const mode = ref<SchedulerMode>("week")
-const offset = ref(0)
-// today in the device's zone (the server's first day when nothing is asked for)
-const today = ref(zonedParts(new Date()).key)
-// the stored tasks as the server sent them: not deeply reactive, so a row hands the editor plain data (structuredClone cannot copy a proxy)
-const schedules = shallowRef<Record<string, TimerTasks>>({})
-const rangeText = computed(() => rangeLabel(firstDay.value, dayCount.value))
-const rows = computed<TaskRow[]>(() => taskRows(eventList.value, schedules.value, id => pluginList.value.find(p => p.id === id)?.name ?? id))
-function setMode(next: SchedulerMode) {
-	if(next === mode.value) return
-	mode.value = next
-	offset.value = switchMode(next, offset.value)
-	loadTimeline()
-}
-function move(direction: 1 | -1) {
-	offset.value = step(mode.value, offset.value, direction)
-	loadTimeline()
-}
-function goToday() {
-	offset.value = 0
-	loadTimeline()
-}
-/** When a task runs, in the device's zone, as the timeline reads it (24 hours). */
-function runText(when: Date): string {
-	return new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: timeZone.value }).format(when).replace(",", "")
-}
-function openRow(row: TaskRow) {
-	handleEventClick(null, null, { event: { data: row.data } })
-}
-const timeZone = ref<string|undefined>(undefined)
+const timeRange = ref<TimeRange>({start: 0, end: 1440, interval:30 })
 const WEEKDAYS = (() => {
 	const format = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" })
 	return Array.from({ length: 7 }, (_, weekday) => format.format(new Date(Date.UTC(2023, 0, 1 + weekday))))
 })()
-const timeRange = ref<TimeRange>({start: 0, end: 1440, interval:30 })
-const eventList = ref<EventInfo[]>([])
 const dialogOpen = ref(false)
-const currentEvent = ref()
-const toast = useToast()
-// the stored documents of timer tasks (a task is added to one of them)
-const documents = ref<{ id: string, name: string }[]>([])
-const newTaskDocument = ref<string|undefined>(undefined)
-// what the dialog edits: a stored task (id) of a document, with the revision it was loaded at; id null is a new task
-const editTarget = ref<{ schedule: string, id: string|null, rev: string|undefined }|null>(null)
-const conflict = ref<{ message: string, rev: string|undefined }|null>(null)
-const serverProblems = ref<string[]>([])
-const saving = ref(false)
 const deleteOpen = ref(false)
-let lastBody: Record<string, any>|undefined = undefined
-
-type DropdownOption = {
-	id: string,
-	name: string
-}
-// editing model separate from the track until Apply
-const editModel = ref<Record<string,any>>({} as any) // start with empty model, populate on track select
 const editModelValid = ref(false)
 const isTitleValid = ref(false)
 const titleErrorMessage = ref<string|undefined>(undefined)
 const isPluginValid = ref(false)
 const pluginErrorMessage = ref<string|undefined>(undefined)
-const selectedPlugin = computed(() => pluginList.value.find(p => p.id === editModel.value.plugin_name) || null)
-// a timer task acts on the priority or overlay layer: the plugins for the playlist (background, foreground) are not offered.
-// A stored task keeps its plugin (and shows it) even when it would not be offered now
-const TIMER_LAYERS = ["layer-priority", "layer-overlay"]
-const timerPlugins = computed(() => pluginList.value.filter(p => (p.features ?? []).some(f => TIMER_LAYERS.includes(f))))
-const pluginOptions = computed<DropdownOption[]>(() => pluginList.value.filter(p => timerPlugins.value.includes(p) || p.id === editModel.value.plugin_name).map(p => ({ id: p.id, name: p.name })))
 
-function derefSchedule(schedules: Record<string, TimerTasks>, sid: string, id: string) {
-	return schedules[sid]?.items.find(sx => sx.id === id) ?? null
+/** When a task runs, in the device's zone, as the timeline reads it (24 hours). */
+function runText(when: Date): string {
+	return new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: timeZone.value }).format(when).replace(",", "")
 }
 const color_map: Map<string, string> = new Map()
-
 function derefColor(event:any):string {
 	const id = event.event.data.id
 	if(color_map.has(id)) {
@@ -274,91 +217,18 @@ function derefColor(event:any):string {
 	}
 }
 function sidebarColor(event:any):string {
-	const enabled = event.event.data.enabled
-	if(enabled) {
-		return "rgb(0,255,0)"
-	}
-	else {
-		return "rgb(180,180,180)"
-	}
+	return event.event.data.enabled ? "rgb(0,255,0)" : "rgb(180,180,180)"
 }
-const API_URL = import.meta.env.VITE_API_URL
 
-const pluginList = ref<PluginDef[]>([])
-const dataSources = ref<Descriptor[]>([])
-provide("settingsPluginsList", pluginList)
-provide("settingsDataSourcesList", dataSources)
-
-
-function loadTimeline(): Promise<void> {
-	// today itself is the server's (its zone); a later day is asked for by its date
-	const window = windowOf(mode.value, today.value, offset.value)
-	return Promise.all([
-		api.get("/api/schedule/tasks/render", { query: { days: window.days, start: offset.value > 0 ? window.start : undefined } }),
-		api.get("/api/plugins/list"),
-		api.get("/api/datasources/list"),
-		api.get("/api/schedule/timer/list"),
-	]).then(([json, plugins, sources, timed]) => {
-		// a descriptor's keys are its own (open in the API): read as PluginDef and Descriptor, which DescriptorSchema.test holds to every descriptor
-		pluginList.value = plugins as PluginDef[]
-		dataSources.value = sources as Descriptor[]
-		documents.value = timed.timed.map(d => ({ id: d.id, name: d.name }))
-		if(json.success) {
-			// the response's first day is "today" in the device's zone (its ISO time is written in that zone)
-			timeZone.value = typeof json.timezone === "string" ? json.timezone : undefined
-			firstDay.value = String(json.start_ts).slice(0, 10)
-			if(offset.value === 0) today.value = firstDay.value
-			dayCount.value = json.days
-			// a trigger is read as the form's (one a file holds that cannot be evaluated is in `invalid`, and has no runs)
-			schedules.value = json.schedules as Record<string, TimerTasks>
-			loadedDay = zonedParts(new Date(), timeZone.value).key
-			const events:EventInfo[] = []
-			json.render.forEach(rx => {
-				const sref = derefSchedule(schedules.value, rx.schedule, rx.id)
-				const ei: EventInfo = {
-					start: new Date(rx.scheduled_time),
-					title: "my event",
-					duration: 15,
-					data: undefined
-				}
-				if(sref) {
-					ei.title = `${sref.title} (${sref.task.plugin_name})`
-					// the plugin's content: a number only when the plugin has one
-					const minutes = sref.task.content.slideMinutes
-					if(typeof minutes === "number" && minutes > 0) {
-						ei.duration = minutes
-					}
-					// the document id travels with the task: that is what a change is addressed to
-					ei.data = { ...sref, schedule: rx.schedule }
-				}
-				events.push(ei)
-			})
-			eventList.value = events
-		}
-	})
-	.catch(ex => {
-		console.error("render.unhandled", ex)
-		toast.add({severity:'error', summary: 'Error', detail: `Failed to load the schedule: ${ex.message || 'Unknown error'}`, life: 5000});
-	})
-}
-// a page left open past midnight (in the device's zone) shows the new week
-let loadedDay = ""
 let dayWatch: ReturnType<typeof setInterval>|undefined = undefined
-// the page shows a loading bar until the first load is done (a failure is a toast, never an empty page)
-const loading = ref(true)
 onMounted(() => {
-	loadTimeline().finally(() => { loading.value = false })
-	dayWatch = setInterval(() => {
-		const now = zonedParts(new Date(), timeZone.value).key
-		if(loadedDay && now !== loadedDay) {
-			// a new day: what was today is gone, and a week starts on the new today's weekday
-			offset.value = switchMode(mode.value, offset.value - 1)
-			today.value = now
-			loadTimeline()
-		}
-	}, 60_000)
+	start()
+	// a page left open past midnight (in the device's zone) shows the new week
+	dayWatch = setInterval(() => checkDay(), 60_000)
 })
 onBeforeUnmount(() => clearInterval(dayWatch))
+
+// --- the dialog's form: the task's own fields around the plugin's
 const beforeFieldsSchema = (resv: Record<string, z.ZodTypeAny>) => {
 	resv['title'] = z.string().min(1, "Title is required")
 	resv['enabled'] = z.boolean()
@@ -403,155 +273,50 @@ const onValidated = ({ result }: ValidateEventData) => {
 		}
 	}
 }
-function resetMessages() {
-	conflict.value = null
-	serverProblems.value = []
-}
-const stageTask = (evx: any) => ({
-	id: evx.id,
-	title: evx.title,
-	enabled: evx.enabled,
-	trigger: evx.trigger,
-	plugin_name: evx.task.plugin_name,
-	content: evx.task.content
-})
+/** A plugin field's problem from the server shows on that field: how many the form could show. */
+const showOnField = (errors: { path: unknown[], message: string }[]) => bf.value?.setServerErrors(errors) ?? 0
+
 const handleEventClick = (_event: any, _day: any, event: any) => {
-	const data = event.event.data
-	if(pluginList.value.length > 0 && data) {
-		const target = pluginList.value.find(px => px.id === data.task.plugin_name)
-		if(target) {
-			resetMessages()
-			currentEvent.value = event
-			editTarget.value = { schedule: data.schedule, id: data.id, rev: data._rev }
-			dialogOpen.value = true
-			form.value = structuredClone(toRaw(target.instanceSettings))
-			nextTick().then(_ => {
-				editModel.value = stageTask(structuredClone(toRaw(data)))
-			})
-		}
-		else {
-			toast.add({severity:'warn', summary: 'Unknown plugin', detail: `This task uses a plugin that is not installed.`, life: 5000});
-		}
-	}
+	const staged = openTask(event.event.data)
+	if(!staged) return
+	dialogOpen.value = true
+	nextTick().then(_ => {
+		editModel.value = staged
+	})
 }
-const DEFAULT_TRIGGER = {
-	on_startup: false,
-	day: { type: "dayofweek", days: [0, 1, 2, 3, 4, 5, 6] },
-	time: { type: "specific", hour: 9, minute: 0 }
+function openRow(row: TaskRow) {
+	handleEventClick(null, null, { event: { data: row.data } })
 }
 const handleNew = () => {
-	const first = timerPlugins.value[0]
-	if(!first) return
-	resetMessages()
-	currentEvent.value = undefined
-	newTaskDocument.value = documents.value[0]?.id
-	editTarget.value = { schedule: "", id: null, rev: undefined }
-	editModel.value = { title: "", enabled: true, trigger: structuredClone(DEFAULT_TRIGGER), plugin_name: first.id, content: {} }
-	dialogOpen.value = true
+	if(newTask()) dialogOpen.value = true
 }
-const taskPath = (schedule: string, id: string) => ({ path: { doc_id: schedule, item_id: id } })
-/** The documents hold the tasks: a first task needs one to exist. */
-async function ensureDocument(): Promise<string> {
-	if(newTaskDocument.value) return newTaskDocument.value
-	const created = await api.post("/api/schedule/timer", {}, { name: "Timer tasks" })
-	return created.id
-}
-/** Send the task; `rev` is the revision it was loaded at (a stale one is a 409, which the dialog lets the person resolve). */
-async function saveTask(body: Record<string, any>, rev: string|undefined) {
-	const target = editTarget.value
-	if(!target) return
-	saving.value = true
-	resetMessages()
-	lastBody = body
-	try {
-		if(target.id) {
-			await api.put("/api/schedule/timer/{doc_id}/items/{item_id}", taskPath(target.schedule, target.id), { ...body, _rev: rev })
-		}
-		else {
-			await api.post("/api/schedule/timer/{doc_id}/items", { path: { doc_id: await ensureDocument() } }, body)
-		}
-		toast.add({severity:'success', summary: 'Success', detail: 'Task saved', life: 3000});
-		dialogOpen.value = false
-		await loadTimeline()
-	}
-	catch(ex: any) {
-		if(ex instanceof ApiError && ex.status === 409) {
-			conflict.value = { message: ex.message, rev: typeof ex.body?.rev === "string" ? ex.body.rev : undefined }
-		}
-		else if(ex instanceof ApiError && ex.status === 422 && Array.isArray(ex.body?.errors)) {
-			// a plugin field's problem shows on that field; the rest (title, trigger, plugin) is listed above the form
-			const fieldErrors: { path: unknown[], message: string }[] = []
-			const others: string[] = []
-			for(const err of ex.body.errors as { path?: unknown[], message?: string }[]) {
-				const path = err.path ?? []
-				if(path[0] === "task" && path[1] === "content" && typeof path[2] === "string") {
-					fieldErrors.push({ path: [path[2]], message: err.message ?? "" })
-				}
-				else {
-					others.push(`${path.join(" / ")}${path.length ? ": " : ""}${err.message ?? ""}`)
-				}
-			}
-			const shown = fieldErrors.length > 0 ? (bf.value?.setServerErrors(fieldErrors) ?? 0) : 0
-			serverProblems.value = shown < fieldErrors.length || others.length > 0 ? [...others, ...(shown < fieldErrors.length ? [ex.message] : [])] : []
-		}
-		else {
-			toast.add({severity:'error', summary: 'Error', detail: `Failed to save the task: ${ex.message || 'Unknown error'}`, life: 5000});
-		}
-	}
-	finally {
-		saving.value = false
-	}
+/** A save that went through closes the dialog on the schedule as it is now. */
+async function saved(done: Promise<boolean>) {
+	if(!await done) return
+	dialogOpen.value = false
+	await loadTimeline()
 }
 const submitForm = ({ result }: { result?: { success: boolean, data?: Record<string, any> } }) => {
 	if(!result?.success || !result.data || !editTarget.value) return
 	// the fields the page adds around the plugin's own (see beforeFieldsSchema) are the task's; the rest is its content
 	const { title, enabled, plugin_name, trigger, ...content } = result.data
-	saveTask({ title, enabled, trigger, task: { plugin_name, content } }, editTarget.value.rev)
+	saved(saveTask({ title, enabled, trigger, task: { plugin_name, content } }, editTarget.value.rev, showOnField))
 }
-/** Someone else changed the task: take their version (the edits are dropped). */
-async function reloadTask() {
-	const target = editTarget.value
-	if(!target?.id) return
-	try {
-		const rx = await api.get("/api/schedule/timer/{doc_id}/items/{item_id}", taskPath(target.schedule, target.id))
-		editTarget.value = { ...target, rev: rx.task._rev }
-		resetMessages()
-		editModel.value = stageTask(rx.task)
-	}
-	catch(ex: any) {
-		toast.add({severity:'error', summary: 'Error', detail: `Failed to reload the task: ${ex.message || 'Unknown error'}`, life: 5000});
-		dialogOpen.value = false
-		await loadTimeline()
-	}
-}
-/** Keep my version: send it again at the revision the server has now. */
 function overwriteTask() {
-	if(!lastBody || !conflict.value?.rev) return
-	saveTask(lastBody, conflict.value.rev)
+	saved(overwrite(showOnField))
+}
+/** Someone else changed the task: take their version; when it cannot be read, the dialog closes on a fresh schedule. */
+async function reloadTask() {
+	if(await reload()) return
+	dialogOpen.value = false
+	await loadTimeline()
 }
 async function deleteTask() {
-	const target = editTarget.value
-	if(!target?.id || !target.rev) return
-	saving.value = true
-	try {
-		await api.delete("/api/schedule/timer/{doc_id}/items/{item_id}", { path: { doc_id: target.schedule, item_id: target.id }, query: { rev: target.rev } })
-		toast.add({severity:'success', summary: 'Success', detail: 'Task deleted', life: 3000});
-		deleteOpen.value = false
-		dialogOpen.value = false
-		await loadTimeline()
-	}
-	catch(ex: any) {
-		deleteOpen.value = false
-		if(ex instanceof ApiError && ex.status === 409) {
-			conflict.value = { message: "The task changed since it was loaded; reload it before deleting.", rev: undefined }
-		}
-		else {
-			toast.add({severity:'error', summary: 'Error', detail: `Failed to delete the task: ${ex.message || 'Unknown error'}`, life: 5000});
-		}
-	}
-	finally {
-		saving.value = false
-	}
+	const outcome = await remove()
+	deleteOpen.value = false
+	if(outcome !== "done") return
+	dialogOpen.value = false
+	await loadTimeline()
 }
 // a stored task can be saved once it is edited (the form knows what it opened with, defaults included); a new task has nothing to compare with
 const unchanged = computed(() => !!editTarget.value?.id && !bf.value?.isDirty)
