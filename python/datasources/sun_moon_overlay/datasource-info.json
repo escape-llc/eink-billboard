@@ -1,0 +1,64 @@
+{
+	"id": "sun-moon-overlay",
+	"name": "Sun and Moon Overlay",
+	"version": "0.0.1",
+	"class": "SunMoonOverlayAsync",
+	"file": "sun_moon_overlay.py",
+	"module": "python.datasources.sun_moon_overlay.sun_moon_overlay",
+	"description": "Today's sunrise and sunset, the day's length, or the moon's phase at the device's location, as outlined text for an overlay zone. Calculated on the device: no internet, no key.",
+	"describe": "Sun and moon {view}",
+	"disabled": false,
+	"features": ["layer-overlay", "media-image"],
+	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:sun-moon-overlay:1",
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+			},
+			"properties": [
+				{
+					"name": "view",
+					"type": "string",
+					"required": true,
+					"default": "sun",
+					"title": "View",
+					"description": "sun: today's sunrise and sunset. daylight: how long the sun is up today, and the change since yesterday. moon: the moon's phase and how much of it is lit. The place is the device's location (System settings).",
+					"enum": ["sun", "daylight", "moon"]
+				},
+				{
+					"name": "showIcon",
+					"type": "boolean",
+					"required": false,
+					"default": true,
+					"title": "Show Icon",
+					"description": "A drawing before the text: the sun, or the moon at its phase."
+				},
+				{
+					"name": "weight",
+					"type": "string",
+					"required": false,
+					"default": "bold",
+					"title": "Weight",
+					"description": "How heavy the letters are. bold: the font's bold face. heavy: bolder than the font has it.",
+					"enum": ["normal", "bold", "heavy"]
+				},
+				{
+					"name": "offset",
+					"type": "integer",
+					"required": false,
+					"default": 6,
+					"minimum": 0,
+					"maximum": 200,
+					"title": "Edge Offset",
+					"description": "How far the text is from the screen's edge, in pixels: from the top edge in a top zone, from the bottom edge in a bottom zone."
+				}
+			]
+		}
+	}
+}

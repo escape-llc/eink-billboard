@@ -32,7 +32,8 @@ USER_SUPPLIED = {
 SAME_NAME_DIFFERENT = {
 	"fontSize": "the comic's is a size in points, the others a choice of sizes",
 	"title": "the countdown needs one; for the rest it is an optional heading",
-	"views": "the calendar's views and the weather's are different pages",
+	"views": "the calendar's views, the weather's and the sun and moon's are different pages",
+	"view": "each overlay's own views (the weather's, the sun and moon's)",
 	"showAs": "the choices differ by layer: a playlist page, or a timer task's image",
 	"slideMinutes": "the default differs: a playlist slot, or a priority image",
 	"imageModel": "each provider's own image models (OpenAI, Google), chosen from its own list",
@@ -166,7 +167,7 @@ class TestUses(unittest.TestCase):
 								self.assertEqual({ p["name"] for p in properties(a) } & { p["name"] for p in properties(b) }, set())
 
 # a list source whose list is made fresh every slot (a view of now), so it is not kept; every other list is shown item by item until it is used up, then fetched again
-NOT_KEPT = { "calendar": "its pages are views of now", "weather": "its pages are views of now" }
+NOT_KEPT = { "calendar": "its pages are views of now", "weather": "its pages are views of now", "sun-moon": "its pages are views of now" }
 
 class TestKeptLists(unittest.TestCase):
 	def test_every_list_source_is_kept_unless_it_is_a_view_of_now(self):
