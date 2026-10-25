@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# eInk Billboard in a Podman container on a Raspberry Pi 4 or 5, built from this checkout.
+# eInk Billboard in a Podman container on a Raspberry Pi 3 B+, 4 or 5, built from this checkout.
 # Everything needed to build it, run it and find out why it does not work. Run it as yourself (not with sudo), from anywhere:
 #
 #   deploy/eink-container.sh update              bring it up to date on its channel: the newest version of it, its image downloaded, started (data kept)
@@ -54,7 +54,7 @@ SCRIPT="deploy/eink-container.sh"
 LOG_DIR=${XDG_CACHE_HOME:-$HOME/.cache}/eink-billboard
 # the channel "update" follows (#504): stable (the newest release), insider (the newest snapshot), pinned (a tag that stays) or branch (development)
 CHANNEL_FILE=${XDG_CONFIG_HOME:-$HOME/.config}/eink-billboard/channel
-# the panel's devices: SPI (both chip selects), I2C bus 1 (where an Inky says what it is) and the 40-pin header's GPIO chip. That is gpiochip0 on a Pi 4,
+# the panel's devices: SPI (both chip selects), I2C bus 1 (where an Inky says what it is) and the 40-pin header's GPIO chip. That is gpiochip0 on a Pi 3 B+ and a Pi 4,
 # and on a Pi 5 with a current kernel, where gpiochip4 is only a link to it: Podman does not pass a link in, and it is not needed.
 DEVICES=(/dev/spidev0.0 /dev/spidev0.1 /dev/i2c-1 /dev/gpiochip0)
 GROUPS_NEEDED=(spi i2c gpio)
