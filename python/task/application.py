@@ -21,6 +21,7 @@ from ..device.pins import Panel
 from ..display.mock_display import MockDisplay
 from .basic_task import DispatcherTask, handles
 from .message_router import MessageRouter, Route
+from ..model.changed_paths import EVERYTHING, changed_paths
 from ..model.configuration_manager import ConfigurationManager
 from ..model.service_container import IServiceProvider, ServiceContainer
 from ..model.time_of_day import TimeOfDay
@@ -127,8 +128,15 @@ class Application(DispatcherTask):
 			return
 		self.logger.info(f"'{self.name}' configuration changed: {area} ({msg.type})")
 		self.router.send("configuration", ConfigurationChanged(msg.timestamp, area, msg.type, msg.path))
-		# the area only: a path in the storage folder is the device's business
-		self.router.send("telemetry", Telemetry(msg.timestamp, "application", { "kind": "config-changed", "area": area, "message": f"The {area} changed." }))
+		# the area and the API routes whose answers may differ now (a page asks for them again), never the file: a path in the storage folder is the device's business
+		self.router.send("telemetry", Telemetry(msg.timestamp, "application", { "kind": "config-changed", "area": area, "changed": self._changed_paths(msg.path), "message": f"The {area} changed." }))
+	def _changed_paths(self, path: str|bytes) -> list[str]:
+		"""What the change means to a page that keeps the API's answers; when that cannot be worked out, everything (a page asks again rather than show an old answer)."""
+		try:
+			return changed_paths(self.cm, path) if self.cm is not None else [EVERYTHING]
+		except Exception as e:
+			self.report_failure("The routes a change of the storage affects could not be worked out", e)
+			return [EVERYTHING]
 	@handles(StopEvent)
 	def _stop_event(self, msg: StopEvent):
 		try:
@@ -414,7 +422,7 @@ class Application(DispatcherTask):
 		if self.router is None:
 			return
 		self.router.send("configuration", ConfigurationChanged(timestamp, "restore", "restore", ""))
-		self.router.send("telemetry", Telemetry(timestamp, "application", { "kind": "restore", "ok": ok, "files": count,
+		self.router.send("telemetry", Telemetry(timestamp, "application", { "kind": "restore", "ok": ok, "files": count, "changed": [EVERYTHING],
 			"message": f"A backup was restored: {count} files." if ok else "A backup could not be restored." }))
 	def _end_restore_state(self):
 		"""A quit clears a restore in progress: no timer outlives the task, and nothing stays held back."""

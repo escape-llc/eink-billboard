@@ -560,6 +560,8 @@ class TestApplicationHoldsTheNotifications(unittest.TestCase):
 		self.assertEqual((changed.area, changed.type), ("restore", "restore"))
 		[telemetry] = self.sends("telemetry")
 		self.assertEqual((telemetry.values["kind"], telemetry.values["files"], telemetry.values["ok"]), ("restore", 25, True))
+		# a page that keeps the API's answers asks for all of them again (#549)
+		self.assertEqual(telemetry.values["changed"], ["/api"])
 		self.assertEqual(self.app._restore_state, "idle")
 		# and the next change is announced as ever
 		self.watcher()

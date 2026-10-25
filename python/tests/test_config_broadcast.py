@@ -5,7 +5,7 @@ import time
 import unittest
 from datetime import datetime
 from typing import Any, cast
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from zoneinfo import ZoneInfo
 
 from ..model.configuration_manager import ConfigurationManager
@@ -95,13 +95,27 @@ class TestApplication(unittest.TestCase):
 		app.router = MagicMock()
 		app.cm = MagicMock()
 		app.cm.area_of.return_value = "schedules"
+		app.cm.STORAGE_PATH = "/s"
 		app._configuration_watcher_event(ConfigurationWatcherEvent(NOW, "modified", "/s/schedules/a.json"))
 		(route, msg), (told, telemetry) = [c.args for c in app.router.send.call_args_list]
 		self.assertEqual(route, "configuration")
 		self.assertEqual((msg.area, msg.type, msg.path), ("schedules", "modified", "/s/schedules/a.json"))
 		# the telemetry link hears of it too, by area: the path is the device's business
 		self.assertEqual((told, telemetry.name, telemetry.values["kind"], telemetry.values["area"]), ("telemetry", "application", "config-changed", "schedules"))
+		# and the API routes whose answers may differ now, for the pages that keep them (#549)
+		self.assertEqual(telemetry.values["changed"], ["/api/schedule"])
 		self.assertNotIn("/s/", str(telemetry.values))
+
+	def test_routes_that_cannot_be_worked_out_are_everything(self):
+		app = Application("app")
+		app.router = MagicMock()
+		app.cm = MagicMock()
+		app.cm.area_of.return_value = "settings"
+		# the change is still told, and a page asks for everything again rather than show an old answer
+		with patch("python.task.application.changed_paths", side_effect=RuntimeError("boom")), self.assertLogs(level="ERROR"):
+			app._configuration_watcher_event(ConfigurationWatcherEvent(NOW, "modified", "/s/settings/x.json"))
+		told = [c.args[1] for c in app.router.send.call_args_list if c.args[0] == "telemetry" and c.args[1].values.get("kind") == "config-changed"]
+		self.assertEqual(told[0].values["changed"], ["/api"])
 
 	def test_the_watcher_event_reaches_the_handler_through_the_task(self):
 		app = Application("app")
