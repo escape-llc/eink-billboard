@@ -50,7 +50,9 @@ type QueryCache = ReturnType<typeof useQueryCache>
 
 /** Mark what these paths cover as stale: what is shown is fetched again at once. A fetch that fails is in its entry's state, for whatever shows it. */
 export function invalidatePaths(cache: QueryCache, paths: readonly string[]): Promise<unknown> {
-	const asked = paths.includes(EVERYTHING) ? cache.invalidateQueries() : Promise.all(paths.map(p => cache.invalidateQueries({ key: keyOf(p) })))
+	// a path another one covers adds nothing (and would fetch what it covers a second time)
+	const widest = [...new Set(paths)].filter((p, _, all) => !all.some(other => other !== p && covers(other, keyOf(p))))
+	const asked = widest.includes(EVERYTHING) ? cache.invalidateQueries() : Promise.all(widest.map(p => cache.invalidateQueries({ key: keyOf(p) })))
 	return asked.catch(() => undefined)
 }
 
@@ -60,22 +62,47 @@ export function changedPaths(e: TelemetryEvent): string[] {
 	return Array.isArray(changed) ? changed.filter((p): p is string => typeof p === "string" && (p === EVERYTHING || p.startsWith(`${EVERYTHING}/`))) : []
 }
 
+/** How long after the last replayed event the history's changes are fetched again: the hub sends its history in one burst after `hello`. */
+export const REPLAY_SETTLE_MS = 200
+
 /**
  * Follow the link for the cache: every event that names changed paths invalidates them; a `gap` (events were dropped) and the link coming up again
- * after it was down (or the device started again: a new `run`) invalidate everything. The history the hub sends when the link opens is not news: what
- * changed before the page read its answers is in them, and what a link that was down missed is covered by everything. Returns the function that stops following.
+ * after it was down (or the device started again: a new `run`) invalidate everything. The history the hub sends when the link opens may hold a change
+ * made after the page read an answer (between its load and the link's opening), so the paths it names are invalidated too, once for the whole burst
+ * (an older change costs one fetch of what is fresh already); a `gap` in it was before this page. Returns the function that stops following.
  */
 export function syncWithLink(cache: QueryCache, link: TelemetryLink): () => void {
-	return link.listen({
-		event: (e, replayed) => {
-			if (replayed) return
+	const replayed = new Set<string>()
+	let timer: ReturnType<typeof setTimeout> | undefined
+	const flush = () => {
+		timer = undefined
+		const paths = [...replayed]
+		replayed.clear()
+		if (paths.length > 0) void invalidatePaths(cache, paths.includes(EVERYTHING) ? [EVERYTHING] : paths)
+	}
+	const unlisten = link.listen({
+		event: (e, fromHistory) => {
+			if (fromHistory) {
+				if (e.kind === "gap") return
+				for (const path of changedPaths(e)) replayed.add(path)
+				if (timer) clearTimeout(timer)
+				timer = setTimeout(flush, REPLAY_SETTLE_MS)
+				return
+			}
 			if (e.kind === "gap") { void invalidatePaths(cache, [EVERYTHING]); return }
 			const paths = changedPaths(e)
 			if (paths.length > 0) void invalidatePaths(cache, paths)
 		},
 		resumed: () => { void invalidatePaths(cache, [EVERYTHING]) },
 	})
+	return () => {
+		if (timer) clearTimeout(timer)
+		unlisten()
+	}
 }
+
+/** What this page changed (a save, a delete): marked stale at once, so nothing waits for the server's event to come back. */
+export const changedHere = (cache: QueryCache, ...paths: string[]) => invalidatePaths(cache, paths)
 
 /** What an answer is: the data, or the error it failed with. */
 export type ResourceState<T> = { data: T | undefined, error: Error | null, status: "pending" | "success" | "error" }
@@ -83,11 +110,11 @@ export type ResourceState<T> = { data: T | undefined, error: Error | null, statu
 /**
  * Follow an address outside a component's setup (a form's lookups, which it makes when its schema arrives): `cache` is the one the component took in
  * its setup. The entry counts as shown until the returned function is called, so a change fetches it again, and `onState` hears every answer
- * (the first at once when the cache already has it).
+ * (the first at once when the cache already has it). `query` asks for it (a typed call of the same address); by default the address is fetched.
  */
-export function followResource<T>(cache: QueryCache, address: string, onState: (state: ResourceState<T>) => void): () => void {
+export function followResource<T>(cache: QueryCache, address: string, onState: (state: ResourceState<T>) => void, query?: () => Promise<T>): () => void {
 	const scope = effectScope(true)
-	const entry = cache.ensure<T>({ key: keyOf(address), query: () => apiJson<T>(joinUrl(BASE, address)) }) as UseQueryEntry<T>
+	const entry = cache.ensure<T>({ key: keyOf(address), query: query ?? (() => apiJson<T>(joinUrl(BASE, address))) }) as UseQueryEntry<T>
 	cache.track(entry, scope)
 	scope.run(() => watch(() => entry.state.value, state => onState(state as ResourceState<T>), { immediate: entry.state.value.status !== "pending" }))
 	void cache.refresh(entry).catch(() => {})
@@ -97,12 +124,19 @@ export function followResource<T>(cache: QueryCache, address: string, onState: (
 	}
 }
 
-/** Read an address once through the cache (asked once for any number of callers, and answered from it while fresh); rejects with the call's error. */
-export async function readResource<T>(cache: QueryCache, address: string): Promise<T> {
-	const entry = cache.ensure<T>({ key: keyOf(address), query: () => apiJson<T>(joinUrl(BASE, address)) }) as UseQueryEntry<T>
-	const state = await cache.refresh(entry)
-	if (state.status === "error") throw state.error
-	return state.data as T
+/**
+ * Read an address once through the cache (asked once for any number of callers, and answered from it while fresh); rejects with the call's error.
+ * `query` asks for it (a typed call of the same address); by default the address is fetched.
+ */
+export async function readResource<T>(cache: QueryCache, address: string, query?: () => Promise<T>): Promise<T> {
+	const entry = cache.ensure<T>({ key: keyOf(address), query: query ?? (() => apiJson<T>(joinUrl(BASE, address))) }) as UseQueryEntry<T>
+	// a fetch can be replaced while it is under way (a change invalidated it): the answer is the one that replaced it
+	for (let tries = 0; ; tries++) {
+		const state = await cache.refresh(entry)
+		if (state.status === "error") throw state.error
+		if (state.status === "success" && state.data !== undefined) return state.data as T
+		if (tries >= 3) throw new Error("The answer was replaced while it was asked for.")
+	}
 }
 
 /** Wait for a query (answered from the cache while fresh, else asked once); `failed` hears of an answer that could not be had. */

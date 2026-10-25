@@ -16,7 +16,8 @@ import type { Descriptor } from "../components/FormDefs"
 import type { PluginDef, TimerTasks } from "../components/ScheduleDefs"
 import { useEditor } from "./useEditor"
 import type { TelemetryLink } from "../components/TelemetryLink"
-import { useCatalog } from "../api/resources"
+import { useQueryCache } from "@pinia/colada"
+import { changedHere, followResource, readResource, useCatalog } from "../api/resources"
 
 /** A list of what is installed, answered from the cache or asked once: its failure fails the load, as the timeline's own would. */
 async function catalogRead(query: { refresh: () => Promise<{ error: Error | null }> }): Promise<void> {
@@ -117,6 +118,7 @@ export function useSchedule(notify: Notify, options: { link?: TelemetryLink } = 
 			const target = editTarget.value!
 			if(target.id) await api.put("/api/schedule/timer/{doc_id}/items/{item_id}", taskPath(target.schedule, target.id), { ...body, _rev: rev })
 			else await api.post("/api/schedule/timer/{doc_id}/items", { path: { doc_id: await ensureDocument() } }, body)
+			void savedHere()
 			// the dialog closes on a saved task: there is no revision to keep
 			return undefined
 		},
@@ -137,43 +139,79 @@ export function useSchedule(notify: Notify, options: { link?: TelemetryLink } = 
 	const pluginOptions = computed(() => pluginList.value.filter(p => timerPlugins.value.includes(p) || p.id === editModel.value.plugin_name).map(p => ({ id: p.id, name: p.name })))
 
 	// --- the window
+	// the window's runs and the task documents are read through the cache of the API's answers (#549): what it shows is followed, so a task saved
+	// elsewhere (another tab, the device, a restore) redraws the timeline; this page's own saves mark them stale at once (`changedHere`)
+	const cache = useQueryCache()
+	type Rendered = Awaited<ReturnType<typeof renderOf>>
+	type TimerList = Awaited<ReturnType<typeof timerListOf>>
+	const renderOf = (query: { days: number, start?: string }) => api.get("/api/schedule/tasks/render", { query })
+	const timerListOf = () => api.get("/api/schedule/timer/list")
+	const TIMER_LIST = "/api/schedule/timer/list"
+	/** The window's address: the cache's key (the same query as the call). */
+	const renderAddress = (query: { days: number, start?: string }) => `/api/schedule/tasks/render?days=${query.days}${query.start ? `&start=${query.start}` : ""}`
+	let followed: { address: string, stop: () => void } | undefined
+	const stopTimerList = followResource<TimerList>(cache, TIMER_LIST, state => { if(state.data) showDocuments(state.data) }, timerListOf)
+	/** Follow the window shown (and no other). */
+	function followWindow(query: { days: number, start?: string }) {
+		const address = renderAddress(query)
+		if(followed?.address === address) return
+		followed?.stop()
+		followed = { address, stop: followResource<Rendered>(cache, address, state => { if(state.data) showWindow(state.data) }, () => renderOf(query)) }
+	}
+	function showDocuments(timed: TimerList) {
+		documents.value = timed.timed.map(d => ({ id: d.id, name: d.name }))
+	}
+	function showWindow(json: Rendered) {
+		if(!json.success) return
+		// the response's first day is "today" in the device's zone (its ISO time is written in that zone)
+		timeZone.value = typeof json.timezone === "string" ? json.timezone : undefined
+		firstDay.value = String(json.start_ts).slice(0, 10)
+		if(offset.value === 0) today.value = firstDay.value
+		dayCount.value = json.days
+		// a trigger is read as the form's (one a file holds that cannot be evaluated is in `invalid`, and has no runs)
+		schedules.value = json.schedules as Record<string, TimerTasks>
+		loadedDay = zonedParts(new Date(), timeZone.value).key
+		eventList.value = json.render.map(rx => {
+			const sref = schedules.value[rx.schedule]?.items.find(sx => sx.id === rx.id) ?? null
+			const ei: EventInfo = { start: new Date(rx.scheduled_time), title: "my event", duration: 15, data: undefined }
+			if(sref) {
+				ei.title = `${sref.title} (${sref.task.plugin_name})`
+				// the plugin's content: a number only when the plugin has one
+				const minutes = sref.task.content.slideMinutes
+				if(typeof minutes === "number" && minutes > 0) ei.duration = minutes
+				// the document id travels with the task: that is what a change is addressed to
+				ei.data = { ...sref, schedule: rx.schedule }
+			}
+			return ei
+		})
+	}
 	function loadTimeline(): Promise<void> {
 		// today itself is the server's (its zone); a later day is asked for by its date
 		const window = windowOf(mode.value, today.value, offset.value)
+		const query = { days: window.days, start: offset.value > 0 ? window.start : undefined }
+		followWindow(query)
 		return Promise.all([
-			api.get("/api/schedule/tasks/render", { query: { days: window.days, start: offset.value > 0 ? window.start : undefined } }),
+			readResource<Rendered>(cache, renderAddress(query), () => renderOf(query)),
 			catalogRead(catalog.plugins),
 			catalogRead(catalog.dataSources),
-			api.get("/api/schedule/timer/list"),
+			readResource<TimerList>(cache, TIMER_LIST, timerListOf),
 		]).then(([json, , , timed]) => {
-			documents.value = timed.timed.map(d => ({ id: d.id, name: d.name }))
-			if(!json.success) return
-			// the response's first day is "today" in the device's zone (its ISO time is written in that zone)
-			timeZone.value = typeof json.timezone === "string" ? json.timezone : undefined
-			firstDay.value = String(json.start_ts).slice(0, 10)
-			if(offset.value === 0) today.value = firstDay.value
-			dayCount.value = json.days
-			// a trigger is read as the form's (one a file holds that cannot be evaluated is in `invalid`, and has no runs)
-			schedules.value = json.schedules as Record<string, TimerTasks>
-			loadedDay = zonedParts(new Date(), timeZone.value).key
-			eventList.value = json.render.map(rx => {
-				const sref = schedules.value[rx.schedule]?.items.find(sx => sx.id === rx.id) ?? null
-				const ei: EventInfo = { start: new Date(rx.scheduled_time), title: "my event", duration: 15, data: undefined }
-				if(sref) {
-					ei.title = `${sref.title} (${sref.task.plugin_name})`
-					// the plugin's content: a number only when the plugin has one
-					const minutes = sref.task.content.slideMinutes
-					if(typeof minutes === "number" && minutes > 0) ei.duration = minutes
-					// the document id travels with the task: that is what a change is addressed to
-					ei.data = { ...sref, schedule: rx.schedule }
-				}
-				return ei
-			})
+			showDocuments(timed)
+			showWindow(json)
 		})
 		.catch(ex => {
 			console.error("render.unhandled", ex)
 			notify("error", "Error", `Failed to load the schedule: ${ex.message || "Unknown error"}`)
 		})
+	}
+	/** What this page saved or deleted: the schedule's answers are stale at once (the server's event comes later). */
+	const savedHere = () => changedHere(cache, "/api/schedule")
+	/** The page is gone: nothing is followed. */
+	function stop() {
+		followed?.stop()
+		followed = undefined
+		stopTimerList()
+		editor.stop()
 	}
 	/** The page's first load. */
 	function start() {
@@ -199,7 +237,8 @@ export function useSchedule(notify: Notify, options: { link?: TelemetryLink } = 
 		if(!loadedDay || day === loadedDay) return
 		offset.value = switchMode(mode.value, offset.value - 1)
 		today.value = day
-		return loadTimeline()
+		// today's window is the server's today: what it answered yesterday is another window
+		return changedHere(cache, "/api/schedule/tasks/render").then(loadTimeline)
 	}
 
 	// --- the task in the dialog
@@ -302,6 +341,7 @@ export function useSchedule(notify: Notify, options: { link?: TelemetryLink } = 
 		busy.value = true
 		try {
 			await api.delete("/api/schedule/timer/{doc_id}/items/{item_id}", { path: { doc_id: target.schedule, item_id: target.id }, query: { rev } })
+			void savedHere()
 			notify("success", "Success", "Task deleted")
 			return "done"
 		}
@@ -321,7 +361,7 @@ export function useSchedule(notify: Notify, options: { link?: TelemetryLink } = 
 	return {
 		mode, offset, today, firstDay, dayCount, timeZone, schedules, eventList, pluginList, dataSources, documents, loading,
 		editTarget, editModel, formKey, newTaskDocument, conflict, serverProblems, saving, taskRev,
-		hasUnsaved: editor.hasUnsaved, canSave: editor.canSave, values: editor.values, stop: editor.stop,
+		hasUnsaved: editor.hasUnsaved, canSave: editor.canSave, values: editor.values, stop,
 		// changed elsewhere: keep the edits (a save is then refused as a conflict, which asks whether to overwrite)
 		isStale: editor.isStale, keepEditing: editor.keep,
 		zoneNote, rangeText, rows, selectedPlugin, timerPlugins, pluginOptions,

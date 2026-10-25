@@ -4,7 +4,7 @@ import { apiJson } from "../components/ApiClient"
 import { changedEvent as changed, fakeLink, settle } from "./fakeLink"
 import { api } from "./client"
 import { inApp } from "./inApp"
-import { EVERYTHING, changedPaths, covers, followResource, invalidatePaths, keyOf, readResource, syncWithLink, useCatalog, type ResourceState } from "./resources"
+import { EVERYTHING, REPLAY_SETTLE_MS, changedHere, changedPaths, covers, followResource, invalidatePaths, keyOf, readResource, syncWithLink, useCatalog, type ResourceState } from "./resources"
 
 vi.mock("../components/ApiClient", () => ({ apiJson: vi.fn(), joinUrl: (base: string, path: string) => `${base.replace(/\/$/, "")}/${path.replace(/^\//, "")}` }))
 vi.mock("./client", () => ({ api: { get: vi.fn() } }))
@@ -67,13 +67,34 @@ describe("the cache follows the server's changes", () => {
 		expect(fetched).toHaveBeenCalledTimes(2)
 	})
 
-	it("the history the link opens with is not news: what changed before is in the answers", async () => {
-		const f = follow("/api/settings/theme", [1, 2])
+	it("the history the link opens with is fetched again once for the whole burst: a change in it may be newer than the answer", async () => {
+		vi.useFakeTimers()
+		try {
+			const f = follow("/api/settings/theme", [1, 2, 3])
+			await vi.advanceTimersByTimeAsync(0)
+			f.link.send(changed("/api/settings/theme"), true)
+			f.link.send(changed("/api/settings"), true)
+			f.link.send({ source: "telemetry", kind: "gap", missed: 1 }, true)
+			await vi.advanceTimersByTimeAsync(REPLAY_SETTLE_MS - 1)
+			expect(fetched).toHaveBeenCalledTimes(1)
+			await vi.advanceTimersByTimeAsync(1)
+			expect(fetched).toHaveBeenCalledTimes(2)
+			// a replayed change of something else, or a replayed gap, fetches nothing
+			f.link.send(changed("/api/plugins"), true)
+			f.link.send({ source: "telemetry", kind: "gap", missed: 1 }, true)
+			await vi.advanceTimersByTimeAsync(REPLAY_SETTLE_MS)
+			expect(fetched).toHaveBeenCalledTimes(2)
+		}
+		finally {
+			vi.useRealTimers()
+		}
+	})
+	it("what this page changed is stale at once", async () => {
+		const f = follow("/api/schedule/playlist/list", [1, 2])
 		await settle()
-		f.link.send(changed("/api/settings/theme"), true)
-		f.link.send({ source: "telemetry", kind: "gap", missed: 1 }, true)
+		await changedHere(f.cache, "/api/schedule")
 		await settle()
-		expect(fetched).toHaveBeenCalledTimes(1)
+		expect(f.data()).toEqual([1, 2])
 	})
 
 	it("a fetch again that fails is the entry's to show, never an unhandled rejection", async () => {
@@ -131,6 +152,19 @@ describe("reading", () => {
 		// another query is another question
 		await readResource(cache, "/api/a?q=2")
 		expect(fetched).toHaveBeenCalledTimes(2)
+	})
+	it("a read whose fetch is replaced while under way (a change invalidated it) answers the fetch that replaced it", async () => {
+		let release: (value: unknown) => void = () => {}
+		fetched.mockImplementationOnce(() => new Promise(resolve => { release = resolve })).mockResolvedValueOnce("second")
+		const cache = inApp(() => useQueryCache())
+		const stop = followResource(cache, "/api/c", () => {})
+		const read = readResource(cache, "/api/c")
+		await settle()
+		const again = invalidatePaths(cache, ["/api/c"])
+		release("first")
+		await again
+		expect(await read).toBe("second")
+		stop()
 	})
 	it("a failed read rejects with the call's error", async () => {
 		fetched.mockRejectedValue(new Error("refused"))

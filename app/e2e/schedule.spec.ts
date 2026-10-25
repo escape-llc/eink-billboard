@@ -135,6 +135,19 @@ test("a task saved elsewhere is shown in an open dialog with no edits; with edit
 	watch.expectNone()
 })
 
+test("the timeline shows a task saved elsewhere without a reload", async ({ page, request }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/schedule")
+	await expect(page.locator(".event").filter({ hasText: "Quarter-hour clock" }).first()).toBeVisible()
+	await page.evaluate(() => { (window as unknown as { stayed: boolean }).stayed = true })
+	const current = (await (await request.get(`${OPEN.url}${TASKS}/task1`)).json()).task
+	expect((await request.patch(`${OPEN.url}${TASKS}/task1`, { data: { title: "Renamed on another device", _rev: current._rev } })).ok()).toBeTruthy()
+	await expect(page.locator(".event").filter({ hasText: "Renamed on another device" }).first()).toBeVisible({ timeout: 15_000 })
+	await expect(page.locator(".event").filter({ hasText: "Quarter-hour clock" })).toHaveCount(0)
+	expect(await page.evaluate(() => (window as unknown as { stayed?: boolean }).stayed)).toBe(true)
+	watch.expectNone()
+})
+
 test("a task can be added", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/schedule")
