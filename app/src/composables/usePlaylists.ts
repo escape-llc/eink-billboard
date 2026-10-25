@@ -16,7 +16,8 @@ import type { Descriptor } from "../components/FormDefs"
 import { describeTrack, type Describable } from "../components/Describe"
 import { useEditor } from "./useEditor"
 import type { TelemetryLink } from "../components/TelemetryLink"
-import { settled, useCatalog } from "../api/resources"
+import { useQueryCache } from "@pinia/colada"
+import { changedHere, followResource, settled, useCatalog } from "../api/resources"
 
 export type Notify = (severity: "success" | "error", detail: string) => void
 /** What a rename or a new playlist came to: done, refused because the playlist changed (a conflict is shown), or failed (`notify` said why). */
@@ -242,7 +243,29 @@ export function usePlaylists(notify: Notify, options: { link?: TelemetryLink } =
 		if(keep >= 0 && keep < tracks.value.length) selectTrack(keep)
 		else if(keepSelection) clearEditor()
 	}
-	const fetchPlaylists = async () => (await api.get("/api/schedule/playlist/list")).playlists
+	// what the editor loads is the server's answer now (it copies it); the list of names the page shows is the cache's, followed (#549)
+	const fetchPlaylists = async () => (await listOf()).playlists
+	const listOf = () => api.get("/api/schedule/playlist/list")
+	const PLAYLIST_LIST = "/api/schedule/playlist/list"
+	const cache = useQueryCache()
+	/**
+	 * The playlists as stored, after a change made elsewhere (another tab, the device, a restore): their names; and when the one being edited was
+	 * deleted, the next one is opened, unless there is anything unsaved (a save then says it is gone).
+	 */
+	function listed(answer: Awaited<ReturnType<typeof listOf>> | undefined) {
+		if(!answer || loading.value) return
+		playlists.value = answer.playlists.map(p => ({ id: p.id, name: p.name }))
+		const gone = currentId.value !== undefined && !answer.playlists.some(p => p.id === currentId.value)
+		if(gone && !editor.hasUnsaved.value && draft.value === null && !trackPending.value) showPlaylists(answer.playlists)
+	}
+	const stopList = followResource(cache, PLAYLIST_LIST, state => listed(state.data), listOf)
+	/** What this page changed: the list is stale at once (the server's event comes later). */
+	const changedList = () => changedHere(cache, "/api/schedule/playlist")
+	/** The page is gone: nothing is followed. */
+	function stop() {
+		stopList()
+		editor.stop()
+	}
 	/** Show the playlists and edit `selectId` (else the first; none is an empty page). */
 	function showPlaylists(all: PlaylistSchedule[], selectId?: string, keepSelection = false) {
 		playlists.value = all.map(p => ({ id: p.id, name: p.name }))
@@ -287,6 +310,7 @@ export function usePlaylists(notify: Notify, options: { link?: TelemetryLink } =
 	async function createPlaylist(name: string): Promise<NameOutcome> {
 		return named(async () => {
 			const rx = await api.post("/api/schedule/playlist", {}, { name, items: [] })
+			void changedList()
 			await loadPlaylists(rx.id)
 		})
 	}
@@ -298,6 +322,7 @@ export function usePlaylists(notify: Notify, options: { link?: TelemetryLink } =
 			const rx = await api.patch("/api/schedule/playlist/{doc_id}", { path: { doc_id: id } }, { name, _rev: docRev.value })
 			playlistName.value = rx.schedule.name
 			editor.revised(rx.rev)
+			void changedList()
 			if(storedDoc) storedDoc = { ...storedDoc, name: rx.schedule.name, _rev: rx.rev }
 			playlists.value = playlists.value.map(p => p.id === id ? { id: p.id, name: rx.schedule.name } : p)
 		})
@@ -325,6 +350,7 @@ export function usePlaylists(notify: Notify, options: { link?: TelemetryLink } =
 		busy.value = true
 		try {
 			await api.delete("/api/schedule/playlist/{doc_id}", { path: { doc_id: currentId.value }, query: { rev: docRev.value } })
+			void changedList()
 			notify("success", "Playlist deleted")
 			await loadPlaylists()
 		}
@@ -348,6 +374,7 @@ export function usePlaylists(notify: Notify, options: { link?: TelemetryLink } =
 		const { outcome, error } = await editor.save(documentBody(playlistName.value, tracks.value, undefined))
 		const ex = error as any
 		if(outcome === "saved" && savedDoc) {
+			void changedList()
 			notify("success", "Playlist saved")
 			adopt(savedDoc, true)
 		}
@@ -382,6 +409,6 @@ export function usePlaylists(notify: Notify, options: { link?: TelemetryLink } =
 		plugins, dataSources, playlists, currentId, playlistName, docRev, tracks, dirty, saving, conflict, serverProblems, selectedIndex, draft, loading, editModel,
 		selectedTrack, selectedPlugin, playlistPlugins, pluginOptions,
 		describeOf, selectTrack, cancelEdit, applyEdit, addTrack, removeTrack, moveTrack,
-		start, loadPlaylists, createPlaylist, renamePlaylist, deletePlaylist, savePlaylist, overwritePlaylist, reloadPlaylist, discardChanges, stop: editor.stop,
+		start, loadPlaylists, createPlaylist, renamePlaylist, deletePlaylist, savePlaylist, overwritePlaylist, reloadPlaylist, discardChanges, stop,
 	}
 }

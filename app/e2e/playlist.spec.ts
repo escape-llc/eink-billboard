@@ -178,6 +178,19 @@ test("a track edited and not applied is not loaded over; Reload shows the saved 
 	watch.expectNone()
 })
 
+test("a playlist made elsewhere is in the open page's list, and the one being edited stays", async ({ page, request }) => {
+	const watch = watchProblems(page)
+	await openPlaylist(page)
+	expect((await request.post(`${OPEN.url}${API}`, { data: { name: "Made elsewhere", items: [] } })).ok()).toBeTruthy()
+	await page.getByRole("combobox", { name: "Playlist" }).click()
+	await expect(page.getByRole("option", { name: "Made elsewhere" })).toBeVisible({ timeout: 15_000 })
+	await page.keyboard.press("Escape")
+	await expect(page.getByRole("combobox", { name: "Playlist" })).toContainText("E2E Playlist")
+	await expect(page.locator(".track-editor input[type=text]").first()).toHaveValue("Morning slides")
+	expect(await stayed(page)).toBe(true)
+	watch.expectNone()
+})
+
 test("there can be many playlists: create, switch, rename, delete", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/playlist")
