@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ApiError } from "../components/ApiClient"
 import { api } from "../api/client"
 import { inApp } from "../api/inApp"
+import { changedEvent, fakeLink, settle } from "../api/fakeLink"
 import { DEFAULT_TRIGGER, splitTaskErrors, useSchedule } from "./useSchedule"
 
 // the Scheduler's data without the page: the API is a stand-in, and what the page would show as a toast is collected
@@ -238,6 +239,54 @@ describe("saving", () => {
 		expect(sc.conflict.value?.message).toMatch(/reload it before deleting/)
 		mocked.delete.mockRejectedValueOnce(new Error("offline"))
 		expect(await sc.deleteTask()).toBe("failed")
+	})
+})
+
+describe("a task changed elsewhere", () => {
+	/** The page with the clock open in the dialog, following a fake link; `stored` is the task as the server has it. */
+	async function following() {
+		serve()
+		const base = mocked.get.getMockImplementation() as (path: string, options?: unknown) => Promise<unknown>
+		const stored = { task: { ...TASK } }
+		mocked.get.mockImplementation(async (path: string, options?: unknown) =>
+			path === "/api/schedule/timer/{doc_id}/items/{item_id}" ? { success: true, task: stored.task } : base(path, options))
+		const fake = fakeLink()
+		const sc = inApp(() => useSchedule(() => {}, { link: fake.link }))
+		await sc.start()
+		const staged = opened(sc)
+		const elsewhere = async (title: string) => {
+			stored.task = { ...TASK, _rev: "r7", title }
+			fake.send(changedEvent("/api/schedule"))
+			await settle()
+			await settle()
+		}
+		return { sc, fake, staged, elsewhere }
+	}
+
+	it("with no edits the dialog shows the saved task, in a fresh form", async () => {
+		const { sc, elsewhere } = await following()
+		const form = sc.formKey.value
+		await elsewhere("Theirs")
+		expect([sc.editModel.value.title, sc.taskRev.value, sc.isStale.value, sc.formKey.value > form]).toEqual(["Theirs", "r7", false, true])
+	})
+	it("with edits it is stale: they stay until Reload, or Keep editing", async () => {
+		const { sc, staged, elsewhere } = await following()
+		sc.values({ ...staged, title: "Mine" }, true)
+		await elsewhere("Theirs")
+		expect([sc.isStale.value, sc.hasUnsaved.value, sc.editModel.value.title]).toEqual([true, true, "Clock"])
+		sc.keepEditing()
+		expect([sc.isStale.value, sc.hasUnsaved.value, sc.taskRev.value]).toEqual([false, true, "r1"])
+		await sc.reloadTask()
+		expect([sc.editModel.value.title, sc.taskRev.value]).toEqual(["Theirs", "r7"])
+	})
+	it("a new task, or a closed dialog, follows nothing", async () => {
+		const { sc, fake } = await following()
+		sc.closeTask()
+		sc.newTask()
+		const asked = mocked.get.mock.calls.length
+		fake.send(changedEvent("/api/schedule"))
+		await settle()
+		expect(mocked.get.mock.calls.length).toBe(asked)
 	})
 })
 

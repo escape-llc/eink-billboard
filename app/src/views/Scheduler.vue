@@ -84,6 +84,13 @@
 				<Button v-if="conflict.rev" size="small" label="Overwrite" icon="mi mi-upload" severity="danger" @click="overwriteTask" />
 			</div>
 		</Message>
+		<Message size="small" v-if="isStale" severity="info" :closable="false" class="mb-2 changed-elsewhere">
+			<div class="flex align-items-center gap-2 flex-wrap">
+				<span>Changed elsewhere: this task was saved somewhere else while you were editing it.</span>
+				<Button size="small" label="Reload" icon="mi mi-refresh" severity="secondary" title="Drop your changes and show the saved task" @click="reloadTask" />
+				<Button size="small" label="Keep editing" icon="mi mi-edit" severity="secondary" title="Keep your changes; saving them asks whether to overwrite" @click="keepEditing" />
+			</div>
+		</Message>
 		<Message v-for="(problem, index) in serverProblems" :key="index" severity="error" size="small" variant="simple">{{ problem }}</Message>
 		<BasicForm v-if="selectedPlugin" :key="formKey" ref="bf" :form="selectedPlugin.instanceSettings" :owner="{ kind: 'plugin', id: selectedPlugin.id }" :initialValues="editModel.content" :baseUrl="API_URL" :showHelp="showHelp" :showChanges="!!editTarget?.id"
 			:beforeFieldsSchema="beforeFieldsSchema" :addInitialValues="addInitialValues"
@@ -175,7 +182,7 @@ const toast = useToast()
 // the window shown, the timer tasks and their runs in it, the task in the dialog, with every call that loads or saves them
 const {
 	mode, offset, firstDay, dayCount, timeZone, eventList, documents, loading,
-	editTarget, editModel, formKey, newTaskDocument, conflict, serverProblems, saving, hasUnsaved, canSave, values, stop,
+	editTarget, editModel, formKey, newTaskDocument, conflict, serverProblems, saving, hasUnsaved, canSave, values, stop, isStale, keepEditing,
 	zoneNote, rangeText, rows, selectedPlugin, timerPlugins, pluginOptions,
 	loadTimeline, start, setMode, move, goToday, checkDay,
 	openTask, showTask, closeTask, newTask, saveTask, overwriteTask: overwrite, reloadTask: reload, deleteTask: remove,

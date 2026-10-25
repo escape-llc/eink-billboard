@@ -5,6 +5,8 @@
  *
  * The working copy's cycle is the editor machine's (#550, `useEditor`): unsaved is the tracks compared with what was loaded or last saved, so a
  * track moved and moved back, or added and removed, is no change; a stale save is a conflict whose Overwrite saves over the server's revision.
+ * The playlist being edited is followed (#550): saved somewhere else, it is loaded again (the selected track stays selected), or, with unsaved
+ * changes, a draft or a track edited and not applied (`trackPending`, which the page tells), it is stale: Reload or keep editing.
  */
 import { computed, reactive, ref, watch } from "vue"
 import { ApiError } from "../components/ApiClient"
@@ -13,6 +15,7 @@ import type { PlaylistItem, PlaylistSchedule, PluginDef } from "../components/Sc
 import type { Descriptor } from "../components/FormDefs"
 import { describeTrack, type Describable } from "../components/Describe"
 import { useEditor } from "./useEditor"
+import type { TelemetryLink } from "../components/TelemetryLink"
 import { settled, useCatalog } from "../api/resources"
 
 export type Notify = (severity: "success" | "error", detail: string) => void
@@ -62,7 +65,7 @@ export function documentBody(name: string | undefined, tracks: PlaylistItem[], r
 	}
 }
 
-export function usePlaylists(notify: Notify) {
+export function usePlaylists(notify: Notify, options: { link?: TelemetryLink } = {}) {
 	// what is installed, from the cache every view shares
 	const catalog = useCatalog()
 	const plugins = computed<PluginDef[]>(() => catalog.plugins.data.value ?? [])
@@ -80,11 +83,25 @@ export function usePlaylists(notify: Notify) {
 	let savedDoc: PlaylistSchedule | undefined = undefined
 	// what was loaded or last saved, so the changes can be dropped without asking the server again
 	let storedDoc: PlaylistSchedule | undefined = undefined
+	// the track editor has changes not applied yet (the page knows: its form): a change made elsewhere does not load over them
+	const trackPending = ref(false)
 	const editor = useEditor<ReturnType<typeof documentBody>>({
+		// saved elsewhere with nothing unsaved here: the playlists again, the same one shown, its selected track still selected
+		load: async () => {
+			const all = await fetchPlaylists()
+			const target = all.find(p => p.id === currentId.value)
+			return { rev: target?._rev, show: () => showPlaylists(all, currentId.value, true) }
+		},
 		save: async (body, rev) => {
 			const rx = await api.put("/api/schedule/playlist/{doc_id}", { path: { doc_id: currentId.value! } }, { ...body, _rev: rev })
 			savedDoc = rx.schedule
 			return rx.rev
+		},
+		follow: {
+			address: () => currentId.value ? `/api/schedule/playlist/${currentId.value}` : undefined,
+			revision: async () => (await api.get("/api/schedule/playlist/{doc_id}", { path: { doc_id: currentId.value! } })).schedule._rev,
+			held: () => draft.value !== null || trackPending.value,
+			link: options.link,
 		},
 	})
 	const docRev = editor.rev
@@ -206,8 +223,10 @@ export function usePlaylists(notify: Notify) {
 			}),
 		])
 	}
-	/** Put a stored playlist into the working copy. */
+	/** Put a stored playlist into the working copy; `keepSelection` keeps the selected track selected (by its id: the tracks may have moved). */
 	function adopt(doc: PlaylistSchedule, keepSelection = false) {
+		const selectedAt = keepSelection ? selectedIndex.value : null
+		const selectedId = selectedAt !== null ? tracks.value[selectedAt]?.id : undefined
 		storedDoc = structuredClone(doc)
 		currentId.value = doc.id
 		playlistName.value = doc.name
@@ -217,26 +236,32 @@ export function usePlaylists(notify: Notify) {
 		report()
 		draft.value = null
 		resetMessages()
-		const keep = keepSelection ? selectedIndex.value : null
 		selectedIndex.value = null
-		if(keep !== null && keep < tracks.value.length) selectTrack(keep)
+		// a track new before a save got its id from the server there: it is where it was
+		const keep = selectedId === undefined ? -1 : selectedId.startsWith(NEW_PREFIX) ? selectedAt! : tracks.value.findIndex(t => t.id === selectedId)
+		if(keep >= 0 && keep < tracks.value.length) selectTrack(keep)
+		else if(keepSelection) clearEditor()
+	}
+	const fetchPlaylists = async () => (await api.get("/api/schedule/playlist/list")).playlists
+	/** Show the playlists and edit `selectId` (else the first; none is an empty page). */
+	function showPlaylists(all: PlaylistSchedule[], selectId?: string, keepSelection = false) {
+		playlists.value = all.map(p => ({ id: p.id, name: p.name }))
+		const target = all.find(p => p.id === selectId) ?? all[0]
+		if(target) adopt(target, keepSelection && target.id === selectId)
+		else {
+			currentId.value = undefined
+			playlistName.value = undefined
+			editor.unload()
+			storedDoc = undefined
+			tracks.value = []
+			draft.value = null
+			selectedIndex.value = null
+		}
 	}
 	/** Load the playlists and edit `selectId` (else the first; none is an empty page). */
 	async function loadPlaylists(selectId?: string) {
 		try {
-			const all = (await api.get("/api/schedule/playlist/list")).playlists
-			playlists.value = all.map(p => ({ id: p.id, name: p.name }))
-			const target = all.find(p => p.id === selectId) ?? all[0]
-			if(target) adopt(target)
-			else {
-				currentId.value = undefined
-				playlistName.value = undefined
-				editor.unload()
-				storedDoc = undefined
-				tracks.value = []
-				draft.value = null
-				selectedIndex.value = null
-			}
+			showPlaylists(await fetchPlaylists(), selectId)
 		}
 		catch(err: any) {
 			console.error("Error fetching playlists:", err)
@@ -349,7 +374,11 @@ export function usePlaylists(notify: Notify) {
 		await loadPlaylists(currentId.value)
 	}
 
+	/** Changed elsewhere: keep the unsaved changes (a save is then refused as a conflict, which asks whether to overwrite). */
+	const keepEditing = () => editor.keep()
+
 	return {
+		isStale: editor.isStale, trackPending, keepEditing,
 		plugins, dataSources, playlists, currentId, playlistName, docRev, tracks, dirty, saving, conflict, serverProblems, selectedIndex, draft, loading, editModel,
 		selectedTrack, selectedPlugin, playlistPlugins, pluginOptions,
 		describeOf, selectTrack, cancelEdit, applyEdit, addTrack, removeTrack, moveTrack,

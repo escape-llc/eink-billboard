@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test"
+import { expect, type APIRequestContext, type Page } from "@playwright/test"
 
 // a 1x1 transparent PNG: the location picker's map tiles come from the internet, which the tests must not need
 const PIXEL = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64")
@@ -54,3 +54,24 @@ export async function choose(page: Page, current: string | RegExp, option: strin
 
 /** The save (check mark) button of the settings form in the tab that is showing. */
 export const saveButton = (page: Page) => page.getByRole("tabpanel").locator("button:has(.mi-check)").first()
+
+/**
+ * Whether the server's answer is what a stored document holds: every key it answers (but its own, `_rev`, `_id`, ...) is the stored value, at any
+ * depth, in any order; a key it does not answer (one it fills in, as a track's `type`) is not compared.
+ */
+export function servedAs(answer: unknown, stored: unknown): boolean {
+	if (Array.isArray(answer)) return Array.isArray(stored) && answer.length === stored.length && answer.every((x, i) => servedAs(x, stored[i]))
+	if (answer !== null && typeof answer === "object") {
+		if (stored === null || typeof stored !== "object" || Array.isArray(stored)) return false
+		return Object.entries(answer).every(([key, inner]) => key.startsWith("_") || servedAs(inner, (stored as Record<string, unknown>)[key]))
+	}
+	return answer === stored
+}
+
+/**
+ * Wait until the server answers `url` with what a file written by the test holds (`select` picks it out of the answer): it serves what it read
+ * until the watcher tells it the file changed, and an open page would load the old copy, then hear of the new one ("Changed elsewhere").
+ */
+export async function untilServed(request: APIRequestContext, url: string, select: (answer: any) => unknown, expected: unknown) {
+	await expect.poll(async () => servedAs(select(await (await request.get(url)).json()), expected), { timeout: 15_000 }).toBe(true)
+}

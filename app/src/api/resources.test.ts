@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { useQueryCache } from "@pinia/colada"
 import { apiJson } from "../components/ApiClient"
-import type { LinkListener, TelemetryEvent, TelemetryLink } from "../components/TelemetryLink"
+import { changedEvent as changed, fakeLink, settle } from "./fakeLink"
 import { api } from "./client"
 import { inApp } from "./inApp"
 import { EVERYTHING, changedPaths, covers, followResource, invalidatePaths, keyOf, readResource, syncWithLink, useCatalog, type ResourceState } from "./resources"
@@ -11,19 +11,6 @@ vi.mock("./client", () => ({ api: { get: vi.fn() } }))
 const fetched = apiJson as unknown as ReturnType<typeof vi.fn>
 const listed = api.get as unknown as ReturnType<typeof vi.fn>
 
-/** A link that tells what a test sends. */
-function fakeLink() {
-	const listeners = new Set<LinkListener>()
-	const link = { listen: (l: LinkListener) => { listeners.add(l); return () => { listeners.delete(l) } } }
-	return {
-		link: link as unknown as TelemetryLink,
-		send: (e: TelemetryEvent, replayed = false) => { for (const l of listeners) l.event?.(e, replayed) },
-		resume: () => { for (const l of listeners) l.resumed?.() },
-	}
-}
-const changed = (...paths: unknown[]): TelemetryEvent => ({ seq: 1, source: "application", kind: "config-changed", values: { area: "settings", changed: paths } })
-/** Let the cache's promises and watchers run. */
-const settle = () => new Promise(resolve => setTimeout(resolve, 0))
 
 beforeEach(() => {
 	fetched.mockReset()
