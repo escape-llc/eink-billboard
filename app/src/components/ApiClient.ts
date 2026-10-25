@@ -36,6 +36,8 @@ import { promptForAuth, type AccessInfo, type AuthMode, type SendResult, type Va
  * It moves once every request that waited for the sign-in has been answered: a save that asked for it is done before the page goes.
  */
 export const signInCount = ref(0)
+/** True once the server has answered a request (not with a 401): the telemetry link, which cannot sign in, opens after it (App.vue). */
+export const answered = ref(false)
 
 const SESSION_URL = joinUrl(import.meta.env.VITE_API_URL ?? "/", "api/session")
 
@@ -106,11 +108,13 @@ export async function apiFetch(url: string, init?: RequestInit): Promise<Respons
 	const sentIn = epoch
 	let rx = await send()
 	if(rx.status !== 401) {
+		answered.value = true
 		return rx
 	}
 	if(epoch !== sentIn) {
 		rx = await send()
 		if(rx.status !== 401) {
+			answered.value = true
 			return rx
 		}
 	}
@@ -136,6 +140,7 @@ export async function apiFetch(url: string, init?: RequestInit): Promise<Respons
 		if(rx.status === 401) {
 			throw await toApiError(rx)
 		}
+		answered.value = true
 		return rx
 	}
 	finally {

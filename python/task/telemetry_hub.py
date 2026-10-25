@@ -196,6 +196,11 @@ class TelemetryHub(MessageSink):
 				self._images.popitem(last=False)
 
 	# ---- out ----
+	def latest(self) -> int:
+		"""The `seq` of the newest event (0 before any): what a link sends after its `hello` up to this number is history, not news."""
+		with self._lock:
+			return self._seq
+
 	def since(self, seq: int = 0) -> list[dict]:
 		"""The kept events newer than `seq`, oldest first."""
 		with self._lock:

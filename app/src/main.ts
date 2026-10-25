@@ -12,6 +12,7 @@ import router from './router'
 import { useThemes } from './components/ThemeTools'
 import { installMaterialIcons } from './components/MaterialIcons'
 import { installStaleBuildReload } from './components/StaleBuild'
+import { installResources } from './api/resources'
 
 installMaterialIcons()
 // a tab opened before an update reloads itself when a page of its old build is gone
@@ -34,6 +35,7 @@ app.use(DialogService)
 app.use(ToastService)
 app.use(ConfirmationService)
 app.use(pinia)
+installResources(app)
 app.use(router)
 
 app.mount('#app')

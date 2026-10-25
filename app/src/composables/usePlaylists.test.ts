@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ApiError } from "../components/ApiClient"
 import { api } from "../api/client"
+import { inApp } from "../api/inApp"
 import { documentBody, splitServerErrors, usePlaylists } from "./usePlaylists"
 import type { PlaylistItem } from "../components/ScheduleDefs"
 
@@ -24,7 +25,7 @@ function serve(playlists: object[]) {
 async function started(playlists: object[] = [doc("a", [track("t1"), track("t2"), track("t3")]), doc("b", [])]) {
 	serve(playlists)
 	const notices: string[] = []
-	const pl = usePlaylists((severity, detail) => notices.push(`${severity}: ${detail}`))
+	const pl = inApp(() => usePlaylists((severity, detail) => notices.push(`${severity}: ${detail}`)))
 	await pl.start()
 	return { pl, notices }
 }
@@ -56,7 +57,7 @@ describe("loading", () => {
 		const base = mocked.get.getMockImplementation() as (path: string) => Promise<unknown>
 		mocked.get.mockImplementation(async (path: string) => path === "/api/plugins/list" ? Promise.reject(new Error("down")) : base(path))
 		const notices: string[] = []
-		const pl = usePlaylists((s, d) => notices.push(`${s}: ${d}`))
+		const pl = inApp(() => usePlaylists((s, d) => notices.push(`${s}: ${d}`)))
 		await pl.start()
 		expect(notices).toEqual(["error: Failed to load the plugins: down"])
 		expect(pl.plugins.value).toEqual([])

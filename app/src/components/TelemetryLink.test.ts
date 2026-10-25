@@ -59,6 +59,58 @@ describe("the link", () => {
 		expect(link.state.events.length).toBe(3)
 	})
 
+	it("tells who follows it every event, and when it opens again after it was down (events may be lost then)", () => {
+		const heard: string[] = []
+		const stop = link.listen({ event: e => heard.push(e.kind), resumed: () => heard.push("resumed") })
+		link.start()
+		sockets[0]!.open()
+		sockets[0]!.send({ kind: "hello", source: "telemetry", run: "r1" })
+		sockets[0]!.send({ seq: 1, source: "application", kind: "config-changed", values: { changed: ["/api/settings/theme"] } })
+		sockets[0]!.send({ seq: 1, source: "application", kind: "config-changed" })
+		sockets[0]!.send({ source: "telemetry", kind: "gap", missed: 3 })
+		// the first open is no resumption; a repeated event and the hello are not told
+		expect(heard).toEqual(["config-changed", "gap"])
+		sockets[0]!.drop()
+		vi.advanceTimersByTime(1000)
+		sockets[1]!.open()
+		expect(heard).toEqual(["config-changed", "gap", "resumed"])
+		// the device started again: everything it said before is of the last run
+		sockets[1]!.send({ kind: "hello", source: "telemetry", run: "r2" })
+		expect(heard.at(-1)).toBe("resumed")
+		stop()
+		sockets[1]!.send({ seq: 2, source: "application", kind: "config-changed" })
+		expect(heard.filter(k => k === "config-changed").length).toBe(1)
+	})
+
+	it("tells which events are the hub's history: those up to the hello's seq", () => {
+		const heard: string[] = []
+		link.listen({ event: (e, replayed) => heard.push(`${e.seq}${replayed ? " replayed" : ""}`) })
+		link.start()
+		sockets[0]!.open()
+		sockets[0]!.send({ kind: "hello", source: "telemetry", run: "r1", seq: 2 })
+		for (const seq of [1, 2, 3]) sockets[0]!.send({ seq, source: "application", kind: "config-changed" })
+		expect(heard).toEqual(["1 replayed", "2 replayed", "3"])
+		sockets[0]!.drop()
+		vi.advanceTimersByTime(1000)
+		// the next connection's history is what it missed
+		sockets[1]!.open()
+		sockets[1]!.send({ kind: "hello", source: "telemetry", run: "r1", seq: 5 })
+		for (const seq of [4, 5, 6]) sockets[1]!.send({ seq, source: "application", kind: "config-changed" })
+		expect(heard.slice(3)).toEqual(["4 replayed", "5 replayed", "6"])
+	})
+
+	it("a listener that throws does not stop the others or the link", () => {
+		const heard: string[] = []
+		vi.spyOn(console, "error").mockImplementation(() => {})
+		link.listen({ event: () => { throw new Error("boom") } })
+		link.listen({ event: e => heard.push(e.kind) })
+		link.start()
+		sockets[0]!.open()
+		sockets[0]!.send({ seq: 1, source: "timer_layer", kind: "waiting" })
+		expect(heard).toEqual(["waiting"])
+		expect(link.state.events.length).toBe(1)
+	})
+
 	it("when the device started again, starts over with the new run's events", () => {
 		link.start()
 		sockets[0]!.open()

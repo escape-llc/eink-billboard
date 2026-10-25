@@ -1,5 +1,6 @@
 /**
- * The telemetry link: a WebSocket that follows what the device does (python/web/routers/telemetry.py), for the System page.
+ * The telemetry link: a WebSocket that follows what the device does (python/web/routers/telemetry.py), for the System page and for the cache of the
+ * API's answers (`api/resources.ts`, which hears what changed). The app opens it once (App.vue, after the first answer) and it stays open for the page.
  * This is the one place the app opens it, as ApiClient is the one place for HTTP: the link reconnects on its own (1 s doubling to 30 s),
  * resumes after the last event it has (`since`), and when the server asks for a sign-in (close code 4401) it signs in through ApiClient.
  * Nothing is stored in the browser: the events live as long as the page.
@@ -29,6 +30,11 @@ export interface SocketLike {
 	close(): void
 }
 export type SocketFactory = (url: string) => SocketLike
+/**
+ * Who follows the link: every event as it comes (a `gap` included), `replayed` when the hub kept it from before this connection opened (its history,
+ * up to the `hello`'s `seq`), and `resumed` when the link opens again after it was down (events may be lost, or the device started again).
+ */
+export type LinkListener = { event?: (e: TelemetryEvent, replayed: boolean) => void, resumed?: () => void }
 
 export const MAX_EVENTS = 200
 const FIRST_RETRY_MS = 1000
@@ -106,6 +112,11 @@ export class TelemetryLink {
 	private retry = FIRST_RETRY_MS
 	private timer: ReturnType<typeof setTimeout> | undefined
 	private running = false
+	// opened once: a later open is a resumption
+	private opened = false
+	// the newest event when this connection opened (its `hello`): one up to it is history
+	private historyTo = 0
+	private listeners = new Set<LinkListener>()
 
 	private base: string
 	private open: SocketFactory
@@ -144,6 +155,8 @@ export class TelemetryLink {
 			if (socket !== this.socket) return
 			this.state.status = "live"
 			this.retry = FIRST_RETRY_MS
+			if (this.opened) this.tell(l => l.resumed?.())
+			this.opened = true
 		}
 		socket.onmessage = (ev) => {
 			if (socket !== this.socket) return
@@ -170,6 +183,18 @@ export class TelemetryLink {
 		this.timer = setTimeout(() => { this.timer = undefined; this.connect() }, ms)
 	}
 
+	/** Follow the link; returns the function that stops following. */
+	listen(listener: LinkListener): () => void {
+		this.listeners.add(listener)
+		return () => { this.listeners.delete(listener) }
+	}
+
+	private tell(call: (l: LinkListener) => void): void {
+		for (const l of [...this.listeners]) {
+			try { call(l) } catch (ex) { console.error("telemetry.listener", ex) }
+		}
+	}
+
 	/** One event from the link: newest first, at most `max`; `shown` is also what the panel shows now. */
 	receive(e: TelemetryEvent): void {
 		if (!e || typeof e.kind !== "string" || e.kind === "ping") return
@@ -181,8 +206,10 @@ export class TelemetryLink {
 				this.state.events.length = 0
 				this.state.current = null
 				apiJson<TelemetryEvent | null>(joinUrl(this.base || "/", "api/display/current")).then(c => { if (c && !this.state.current) this.state.current = c }).catch(() => {})
+				this.tell(l => l.resumed?.())
 			}
 			this.run = run
+			this.historyTo = Number((e as { seq?: unknown }).seq ?? 0) || 0
 			return
 		}
 		if (typeof e.seq === "number") {
@@ -192,6 +219,8 @@ export class TelemetryLink {
 		this.state.events.unshift(e)
 		if (this.state.events.length > this.max) this.state.events.length = this.max
 		if (e.kind === "shown") this.state.current = e
+		const replayed = typeof e.seq === "number" && e.seq <= this.historyTo
+		this.tell(l => l.event?.(e, replayed))
 	}
 
 	/** The address of a shown image (by its digest), thumbnail or full size. */

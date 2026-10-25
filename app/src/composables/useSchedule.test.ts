@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ApiError } from "../components/ApiClient"
 import { api } from "../api/client"
+import { inApp } from "../api/inApp"
 import { DEFAULT_TRIGGER, splitTaskErrors, useSchedule } from "./useSchedule"
 
 // the Scheduler's data without the page: the API is a stand-in, and what the page would show as a toast is collected
@@ -36,7 +37,7 @@ function serve(documents = [{ id: "tasks-a", name: "Timer tasks" }]) {
 async function started() {
 	serve()
 	const notices: string[] = []
-	const sc = useSchedule((severity, _summary, detail) => notices.push(`${severity}: ${detail}`))
+	const sc = inApp(() => useSchedule((severity, _summary, detail) => notices.push(`${severity}: ${detail}`)))
 	await sc.start()
 	return { sc, notices }
 }
@@ -58,23 +59,24 @@ describe("the window", () => {
 
 	it("today is the server's; a later window is asked for by its first day", async () => {
 		const { sc } = await started()
-		expect(mocked.get.mock.calls[0]![1]).toEqual({ query: { days: 7, start: undefined } })
+		const lastWindow = () => mocked.get.mock.calls.filter(c => c[0] === "/api/schedule/tasks/render").at(-1)![1]
+		expect(lastWindow()).toEqual({ query: { days: 7, start: undefined } })
 		await sc.move(1)
 		expect(sc.offset.value).toBe(7)
-		expect(mocked.get.mock.calls.at(-4)![1]).toEqual({ query: { days: 7, start: "2026-10-30" } })
+		expect(lastWindow()).toEqual({ query: { days: 7, start: "2026-10-30" } })
 		expect(sc.firstDay.value).toBe("2026-10-30")
 		// today stays the day the window was counted from
 		expect(sc.today.value).toBe("2026-10-23")
 		await sc.goToday()
 		expect(sc.offset.value).toBe(0)
 		await sc.setMode("day")
-		expect(mocked.get.mock.calls.at(-4)![1]).toEqual({ query: { days: 1, start: undefined } })
+		expect(lastWindow()).toEqual({ query: { days: 1, start: undefined } })
 	})
 
 	it("a schedule that fails to load is a notice, and the page still finishes loading", async () => {
 		mocked.get.mockRejectedValue(new Error("down"))
 		const notices: string[] = []
-		const sc = useSchedule((severity, _summary, detail) => notices.push(`${severity}: ${detail}`))
+		const sc = inApp(() => useSchedule((severity, _summary, detail) => notices.push(`${severity}: ${detail}`)))
 		await sc.start()
 		expect(notices).toEqual(["error: Failed to load the schedule: down"])
 		expect(sc.loading.value).toBe(false)
@@ -87,7 +89,8 @@ describe("the window", () => {
 		// the day the window was loaded on is the browser's day here (the zone's), so nothing is loaded again
 		expect(mocked.get.mock.calls.length).toBe(calls)
 		await sc.checkDay(new Date(Date.now() + 26 * 3600_000))
-		expect(mocked.get.mock.calls.length).toBe(calls + 4)
+		// the timeline and the documents again; what is installed is the cache's, still fresh
+		expect(mocked.get.mock.calls.map(c => c[0]).slice(calls)).toEqual(["/api/schedule/tasks/render", "/api/schedule/timer/list"])
 	})
 })
 
@@ -139,7 +142,7 @@ describe("saving", () => {
 
 	it("a new task goes into the chosen document, and the first one is made when there is none", async () => {
 		serve([])
-		const sc = useSchedule(() => {})
+		const sc = inApp(() => useSchedule(() => {}))
 		await sc.start()
 		sc.newTask()
 		sc.values(sc.editModel.value, true)

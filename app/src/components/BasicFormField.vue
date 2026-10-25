@@ -154,7 +154,8 @@ import ColorField from './ColorField.vue';
 import TestUrlButton, { type TestResult } from './TestUrlButton.vue';
 import { isoToDate, dateToIso } from './FormDates';
 import { derivedValues, isVisible } from './FormVisibility';
-import { apiJson, joinUrl } from './ApiClient';
+import { useQueryCache } from '@pinia/colada';
+import { readResource } from '../api/resources';
 import { lookupAddress, withStored } from './LookupQuery';
 // a settings form that can restore a field's factory text provides this (SettingsForm)
 const restoreField = inject<((name: string) => void)|null>('restoreField', null);
@@ -265,6 +266,8 @@ const withKey = computed(() => {
 })
 let asked = 0
 let lastAddress: string | undefined
+// the answers are the cache's: the same question from another field or form is asked once
+const queryCache = useQueryCache()
 function fetchOwn() {
 	const field = props.field
 	if (field.type === 'header' || !field.lookupUrl) return
@@ -294,7 +297,7 @@ function fetchOwn() {
 	}
 	lastAddress = wanted.address
 	fetching.value = true
-	apiJson<LookupValue[]>(joinUrl(props.baseUrl ?? "", wanted.address)).then(list => {
+	readResource<LookupValue[]>(queryCache, wanted.address).then(list => {
 		// an answer to an older question (the value changed again meanwhile) is dropped
 		if (ticket !== asked) return
 		ownLookup.list = naming ? list.filter(x => x.value === stored) : list
