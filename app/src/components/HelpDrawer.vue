@@ -227,6 +227,7 @@
 				<AccordionContent>
 					<ul>
 						<li>A new device asks for a <b>setup code</b> (in its log and on the panel) and then your own password. Change it from the System page's <i class="mi mi-key" aria-hidden="true"></i> button.</li>
+						<li><b>HTTPS</b> keeps the password and the settings private on the way to the Pi: on the Pi, <code>deploy/eink-container.sh ssl on</code> (the device's own certificate: the browser warns the first time; compare the fingerprint in the app's log, then accept it) or <code>ssl on cert.pem key.pem</code> with a certificate of your own. <code>ssl off</code> goes back to plain HTTP.</li>
 						<li><b>Back up</b> from the System page before an update or a move. The file holds the settings (with their keys), playlists, timer tasks and calendar sign-ins, never the device password, and is locked with a passphrase of its own (12 characters or more, not the device password), which is kept nowhere: if you lose it the file cannot be opened.</li>
 						<li><b>Restore</b> first shows what would change, file by file; nothing is written until you apply it, and nothing is ever deleted. A backup from an older version is brought up to date; one from a newer version is refused.</li>
 					</ul>

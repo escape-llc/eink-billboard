@@ -20,6 +20,10 @@
 #   deploy/eink-container.sh models              the Waveshare models there are drivers for
 #   deploy/eink-container.sh detect              ask whether an Inky panel is attached (an Inky says what it is; a Waveshare cannot)
 #   deploy/eink-container.sh autostart on|off    start the app when the Pi starts, or not (status: which it is)
+#   deploy/eink-container.sh ssl on [CERT KEY]   HTTPS (the app serves it itself) and restart: with your certificate and key (PEM files, kept as Podman
+#                                                secrets, not copied), else the device's own self-signed certificate (a browser warns until it is trusted)
+#   deploy/eink-container.sh ssl off             plain HTTP again, and restart (a certificate you gave is kept for the next 'ssl on')
+#   deploy/eink-container.sh ssl forget          remove the certificate you gave (the device's own is used while HTTPS is on); 'ssl' alone: which it is
 #   deploy/eink-container.sh reset-password      forget the device password (it asks for a new setup code); asks first
 #   deploy/eink-container.sh wipe                delete everything the app keeps (settings, schedules, password) and start as new; asks first
 #   deploy/eink-container.sh help                this text
@@ -51,6 +55,10 @@ VOLUME=${EINK_VOLUME:-eink-data}
 PORT=${EINK_PORT:-8080}
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 SCRIPT="deploy/eink-container.sh"
+# HTTPS (#ssl): "on" or "off", remembered; the certificate a person gives is two Podman secrets, mounted for the app's user only
+SSL_FILE=${XDG_CONFIG_HOME:-$HOME/.config}/eink-billboard/ssl
+SECRET_CERT=${EINK_SECRET_PREFIX:-eink}-tls-cert
+SECRET_KEY=${EINK_SECRET_PREFIX:-eink}-tls-key
 LOG_DIR=${XDG_CACHE_HOME:-$HOME/.cache}/eink-billboard
 # the channel "update" follows (#504): stable (the newest release), insider (the newest snapshot), pinned (a tag that stays) or branch (development)
 CHANNEL_FILE=${XDG_CONFIG_HOME:-$HOME/.config}/eink-billboard/channel
@@ -119,10 +127,14 @@ first_address() { hostname -I 2>/dev/null | awk '{print $1}'; }
 public_url() {
 	if [ -n "${EINK_PUBLIC_URL:-}" ]; then say "$EINK_PUBLIC_URL"; return; fi
 	local address; address=$(first_address)
-	say "http://${address:-$(hostname).local}:$PORT"
+	say "$(scheme)://${address:-$(hostname).local}:$PORT"
 }
 in_group() { id -nG | tr ' ' '\n' | grep -qx "$1"; }
-access_json() { curl -fsS --max-time 5 "http://127.0.0.1:$PORT/api/access" 2>/dev/null; }
+ssl_on() { [ "$(cat "$SSL_FILE" 2>/dev/null)" = "on" ]; }
+scheme() { if ssl_on; then echo https; else echo http; fi; }
+own_certificate() { podman secret inspect "$SECRET_CERT" >/dev/null 2>&1 && podman secret inspect "$SECRET_KEY" >/dev/null 2>&1; }
+# -k: this asks the app on the Pi's own loopback whether it answers, which the device's own (self-signed) certificate cannot prove to curl
+access_json() { if ssl_on; then curl -fsSk --max-time 5 "https://127.0.0.1:$PORT/api/access" 2>/dev/null; else curl -fsS --max-time 5 "http://127.0.0.1:$PORT/api/access" 2>/dev/null; fi; }
 
 # waits until the app answers, or it stops, or READY_SECONDS have passed; says which
 wait_ready() {
@@ -674,12 +686,23 @@ cmd_start() {
 	local token=()
 	# passed by name, so the token is not on a command line (anyone on the Pi can read those)
 	[ -n "${EINK_API_TOKEN:-}" ] && token=(-e EINK_API_TOKEN)
+	# HTTPS is the app's own (uvicorn): a certificate you gave is mounted as secrets that only the app's user can read, else the app makes its own
+	local tls_mounts=() tls_args=() uid gid
+	if ssl_on; then
+		tls_args=(--ssl)
+		if own_certificate; then
+			uid=$(podman run --rm --network none "$IMAGE" id -u 2>/dev/null) && gid=$(podman run --rm --network none "$IMAGE" id -g 2>/dev/null) \
+				|| fail "the app's user in the image could not be found, so the certificate cannot be given to it. '$SCRIPT check' looks at everything."
+			tls_mounts=(--secret "$SECRET_CERT,uid=$uid,gid=$gid,mode=0400" --secret "$SECRET_KEY,uid=$uid,gid=$gid,mode=0400")
+			tls_args+=(--ssl-certfile "/run/secrets/$SECRET_CERT" --ssl-keyfile "/run/secrets/$SECRET_KEY")
+		fi
+	fi
 
 	if ! podman run -d --name "$NAME" --restart unless-stopped \
 		-p "$PORT:8080" -v "$VOLUME:/data" \
 		-e EINK_PUBLIC_URL="$url" -e EINK_ALLOW_HOSTS="$hosts" "${token[@]}" \
-		"${devices[@]}" \
-		"$IMAGE" uv run --no-sync python -m python.eink-billboard --host 0.0.0.0 --port 8080 --storage /data --app /work/app/dist >/dev/null; then
+		"${devices[@]}" "${tls_mounts[@]}" \
+		"$IMAGE" uv run --no-sync python -m python.eink-billboard --host 0.0.0.0 --port 8080 --storage /data --app /work/app/dist "${tls_args[@]}" >/dev/null; then
 		fail "the app did not start: the lines above say why. '$SCRIPT check' looks at everything."
 	fi
 	# the container must run the image that was just built (not an older one that still has the name): the update says which code it is
@@ -744,6 +767,11 @@ cmd_check() {
 	section "the Pi"
 	info "$( { tr -d '\0' < /proc/device-tree/model; } 2>/dev/null || echo "unknown model"), $( . /etc/os-release 2>/dev/null && echo "$PRETTY_NAME"), $(uname -m), kernel $(uname -r)"
 	info "addresses: $(hostname -I 2>/dev/null); the web app: $(public_url)"
+	if ssl_on; then
+		if own_certificate; then info "HTTPS with your certificate (Podman secrets $SECRET_CERT, $SECRET_KEY)"; else info "HTTPS with the device's own self-signed certificate ('$SCRIPT logs' gives its fingerprint)"; fi
+	else
+		info "plain HTTP ('$SCRIPT ssl on' for HTTPS)"
+	fi
 	[ "$(uname -m)" = "aarch64" ] && note "64-bit" || problem "not 64-bit ($(uname -m)): install Raspberry Pi OS 64-bit"
 	if podman_version_ok; then note "Podman $(podman version --format '{{.Client.Version}}' 2>/dev/null)"; else problem "Podman $(podman version --format '{{.Client.Version}}' 2>/dev/null) is older than 4.3"; fi
 	local driver
@@ -1090,6 +1118,46 @@ cmd_wipe() {
 	say "Deleted. '$SCRIPT start' starts it as a new device (with a new setup code)."
 }
 
+cmd_ssl() {
+	case "${1:-status}" in
+		on)
+			if [ $# -eq 3 ]; then
+				local cert=$2 key=$3
+				[ -r "$cert" ] && [ -r "$key" ] || fail "both files must be there and readable by you: $cert and $key"
+				grep -q "BEGIN CERTIFICATE" "$cert" || fail "$cert is not a certificate in PEM form (it starts with -----BEGIN CERTIFICATE-----)."
+				grep -q "PRIVATE KEY" "$key" || fail "$key is not a private key in PEM form (-----BEGIN PRIVATE KEY----- or similar; without a passphrase)."
+				grep -q "ENCRYPTED" "$key" && fail "$key has a passphrase; the app needs it without one (openssl pkey -in $key -out key.pem)."
+				# a secret in use cannot be replaced: the container goes first, and start makes it again
+				if exists; then podman rm -f "$NAME" >/dev/null 2>&1 || fail "the running app could not be stopped to change its certificate: podman rm -f $NAME"; fi
+				podman secret rm "$SECRET_CERT" "$SECRET_KEY" >/dev/null 2>&1
+				podman secret create "$SECRET_CERT" "$cert" >/dev/null && podman secret create "$SECRET_KEY" "$key" >/dev/null \
+					|| fail "the certificate could not be kept as Podman secrets: podman secret ls"
+				say "Kept your certificate and key as the Podman secrets $SECRET_CERT and $SECRET_KEY (you may delete the files you gave)."
+			elif [ $# -ne 1 ]; then
+				fail "ssl on takes nothing (the device's own certificate, or the one you gave before), or a certificate and its key:  $SCRIPT ssl on cert.pem key.pem"
+			fi
+			mkdir -p "$(dirname "$SSL_FILE")" && echo on > "$SSL_FILE" || fail "$SSL_FILE could not be written."
+			if own_certificate; then say "HTTPS with your certificate."; else say "HTTPS with the device's own certificate: a browser warns the first time (it is self-signed); compare the fingerprint '$SCRIPT logs' gives with the one the browser shows, then accept it."; fi
+			cmd_start ;;
+		off)
+			mkdir -p "$(dirname "$SSL_FILE")" && echo off > "$SSL_FILE" || fail "$SSL_FILE could not be written."
+			say "Plain HTTP again."
+			cmd_start ;;
+		forget)
+			own_certificate || { say "There is no certificate of yours to forget."; return; }
+			if exists; then podman rm -f "$NAME" >/dev/null 2>&1 || fail "the running app could not be stopped: podman rm -f $NAME"; fi
+			podman secret rm "$SECRET_CERT" "$SECRET_KEY" >/dev/null 2>&1 || fail "the secrets could not be removed: podman secret rm $SECRET_CERT $SECRET_KEY"
+			say "Your certificate is forgotten."
+			if ssl_on; then say "HTTPS goes on with the device's own certificate."; fi
+			cmd_start ;;
+		status)
+			if ! ssl_on; then say "Plain HTTP. '$SCRIPT ssl on' for HTTPS."
+			elif own_certificate; then say "HTTPS with your certificate (Podman secrets $SECRET_CERT, $SECRET_KEY)."
+			else say "HTTPS with the device's own self-signed certificate."; fi ;;
+		*) fail "ssl takes on, on CERT KEY, off, forget, or nothing (which it is)." ;;
+	esac
+}
+
 cmd_help() { sed -n '2,/^set -u/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; }
 
 command=${1:-help}
@@ -1112,6 +1180,7 @@ case "$command" in
 	models) cmd_models ;;
 	detect) cmd_detect ;;
 	autostart) cmd_autostart "$@" ;;
+	ssl) cmd_ssl "$@" ;;
 	reset-password) cmd_reset_password ;;
 	storage) cmd_storage ;;
 	wipe) cmd_wipe ;;
