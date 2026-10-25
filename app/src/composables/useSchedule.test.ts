@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ApiError } from "../components/ApiClient"
 import { api } from "../api/client"
 import { inApp } from "../api/inApp"
+import { useQueryCache } from "@pinia/colada"
+import { syncWithLink } from "../api/resources"
 import { changedEvent, fakeLink, settle } from "../api/fakeLink"
 import { DEFAULT_TRIGGER, splitTaskErrors, useSchedule } from "./useSchedule"
 
@@ -90,8 +92,8 @@ describe("the window", () => {
 		// the day the window was loaded on is the browser's day here (the zone's), so nothing is loaded again
 		expect(mocked.get.mock.calls.length).toBe(calls)
 		await sc.checkDay(new Date(Date.now() + 26 * 3600_000))
-		// the timeline and the documents again; what is installed is the cache's, still fresh
-		expect(mocked.get.mock.calls.map(c => c[0]).slice(calls)).toEqual(["/api/schedule/tasks/render", "/api/schedule/timer/list"])
+		// the timeline again (today's window is another day's); the documents and what is installed are the cache's, still fresh
+		expect(mocked.get.mock.calls.map(c => c[0]).slice(calls)).toEqual(["/api/schedule/tasks/render"])
 	})
 })
 
@@ -239,6 +241,42 @@ describe("saving", () => {
 		expect(sc.conflict.value?.message).toMatch(/reload it before deleting/)
 		mocked.delete.mockRejectedValueOnce(new Error("offline"))
 		expect(await sc.deleteTask()).toBe("failed")
+	})
+})
+
+describe("the timeline follows the schedule", () => {
+	it("a task saved elsewhere redraws the window shown; another window is not asked for", async () => {
+		const fake = fakeLink()
+		serve()
+		const sc = inApp(() => { const cache = useQueryCache(); syncWithLink(cache, fake.link); return useSchedule(() => {}, { link: fake.link }) })
+		await sc.start()
+		await sc.move(1)
+		await sc.goToday()
+		const base = mocked.get.getMockImplementation() as (path: string, options?: unknown) => Promise<unknown>
+		mocked.get.mockImplementation(async (path: string, options?: unknown) => {
+			const answer = await base(path, options) as ReturnType<typeof render>
+			return path === "/api/schedule/tasks/render" ? { ...answer, schedules: { "tasks-a": { ...answer.schedules["tasks-a"], items: [{ ...TASK, title: "Renamed" }, ORPHAN] } } } : answer
+		})
+		const asked = mocked.get.mock.calls.length
+		fake.send(changedEvent("/api/schedule"))
+		await settle()
+		await settle()
+		expect(sc.eventList.value[0]?.title).toBe("Renamed (priority-update)")
+		// the window shown and the documents; last week's window is not shown, so it waits until it is
+		expect(mocked.get.mock.calls.slice(asked).map(c => [c[0], (c[1] as { query?: object } | undefined)?.query])).toEqual(
+			[["/api/schedule/timer/list", undefined], ["/api/schedule/tasks/render", { days: 7, start: undefined }]])
+		sc.stop()
+	})
+	it("this page's save marks the schedule stale, so the timeline after it is the server's", async () => {
+		const { sc } = await started()
+		opened(sc)
+		sc.values({ title: "Changed" }, true)
+		mocked.put.mockResolvedValue({ success: true })
+		const asked = mocked.get.mock.calls.length
+		expect(await sc.saveTask({ title: "Changed" }, showNone)).toBe(true)
+		await sc.loadTimeline()
+		// the window shown is asked for again at once (and the page's reload after the save is that answer, not a second call)
+		expect(mocked.get.mock.calls.slice(asked).map(c => c[0]).filter(p => p === "/api/schedule/tasks/render")).toEqual(["/api/schedule/tasks/render"])
 	})
 })
 

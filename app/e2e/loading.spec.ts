@@ -23,6 +23,8 @@ test("the scheduler shows a loading bar until the schedule is here", async ({ pa
 	await page.goto("/#/schedule")
 	await expect(page.getByTestId("loading")).toBeVisible()
 	await expect(page.getByTestId("loading")).toBeHidden()
+	// a schedule change in the device's history is asked for again once the link opens (it may be newer than the answer): let it finish
+	await page.waitForLoadState("networkidle")
 	watch.expectNone()
 })
 
