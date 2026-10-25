@@ -53,7 +53,8 @@
 </template>
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, watch } from "vue"
-import { apiJson, joinUrl } from "./ApiClient"
+import { useQueryCache } from "@pinia/colada"
+import { readResource } from "../api/resources"
 import { lookupAddress, withStored } from "./LookupQuery"
 import { Button, InputNumber, InputText, Message, Select, ToggleSwitch } from "primevue"
 import ColorField from "./ColorField.vue"
@@ -118,13 +119,15 @@ const wantedAddresses = computed(() => {
 	return [...all].sort()
 })
 let rowTimer: ReturnType<typeof setTimeout> | undefined
+// a row's choices are read through the cache: rows that ask the same question (and other forms) share one answer
+const queryCache = useQueryCache()
 watch(wantedAddresses, (addresses, before) => {
 	clearTimeout(rowTimer)
 	rowTimer = setTimeout(() => {
 		for (const address of addresses) {
 			if (rowLists.has(address)) continue
 			rowLists.set(address, { list: [] })
-			apiJson<Choice[]>(joinUrl(props.baseUrl ?? "", address))
+			readResource<Choice[]>(queryCache, address)
 				.then(list => rowLists.set(address, { list }))
 				.catch(ex => {
 					console.error("lookup", ex)

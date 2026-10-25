@@ -13,6 +13,7 @@ import type { PlaylistItem, PlaylistSchedule, PluginDef } from "../components/Sc
 import type { Descriptor } from "../components/FormDefs"
 import { describeTrack, type Describable } from "../components/Describe"
 import { useEditor } from "./useEditor"
+import { settled, useCatalog } from "../api/resources"
 
 export type Notify = (severity: "success" | "error", detail: string) => void
 /** What a rename or a new playlist came to: done, refused because the playlist changed (a conflict is shown), or failed (`notify` said why). */
@@ -62,8 +63,10 @@ export function documentBody(name: string | undefined, tracks: PlaylistItem[], r
 }
 
 export function usePlaylists(notify: Notify) {
-	const plugins = ref<PluginDef[]>([])
-	const dataSources = ref<Descriptor[]>([])
+	// what is installed, from the cache every view shares
+	const catalog = useCatalog()
+	const plugins = computed<PluginDef[]>(() => catalog.plugins.data.value ?? [])
+	const dataSources = computed<Descriptor[]>(() => catalog.dataSources.data.value ?? [])
 	// every stored playlist, and the one being edited: its working copy is saved whole
 	const playlists = ref<{ id: string, name: string }[]>([])
 	const currentId = ref<string | undefined>(undefined)
@@ -192,20 +195,16 @@ export function usePlaylists(notify: Notify) {
 
 	// --- loading
 	function loadProviders() {
-		// a descriptor's keys are its own (open in the API): the web app reads them as PluginDef and Descriptor, which DescriptorSchema.test holds to every descriptor
-		const px = api.get("/api/plugins/list").then(json => { plugins.value = structuredClone(json) as PluginDef[] })
-			.catch(ex => {
+		return Promise.all([
+			settled(catalog.plugins, ex => {
 				console.error("fetch.pl.unhandled", ex)
 				notify("error", `Failed to load the plugins: ${ex.message || "Unknown error"}`)
-				plugins.value = []
-			})
-		const dx = api.get("/api/datasources/list").then(json => { dataSources.value = json as Descriptor[] })
-			.catch(ex => {
+			}),
+			settled(catalog.dataSources, ex => {
 				console.error("fetch.ds.unhandled", ex)
 				notify("error", `Failed to load the data sources: ${ex.message || "Unknown error"}`)
-				dataSources.value = []
-			})
-		return Promise.all([px, dx])
+			}),
+		])
 	}
 	/** Put a stored playlist into the working copy. */
 	function adopt(doc: PlaylistSchedule, keepSelection = false) {

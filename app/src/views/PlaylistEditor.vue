@@ -131,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, provide } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { InputGroup, InputGroupAddon, Toolbar, Button, Select, InputText, Dialog, Message, ProgressBar, useToast } from 'primevue'
 import BasicForm, { type ValidateEventData } from '../components/BasicForm.vue'
@@ -141,15 +141,13 @@ const API_URL = import.meta.env.VITE_API_URL
 const toast = useToast()
 // the playlists, the working copy and the track in the editor, with every call that loads or saves them
 const {
-	plugins, dataSources, playlists, currentId, playlistName, tracks, dirty, saving, conflict, serverProblems, selectedIndex, draft, loading, editModel,
+	playlists, currentId, playlistName, tracks, dirty, saving, conflict, serverProblems, selectedIndex, draft, loading, editModel,
 	selectedTrack, selectedPlugin, pluginOptions,
 	describeOf, selectTrack, cancelEdit, applyEdit, addTrack, removeTrack, moveTrack,
 	start, loadPlaylists, createPlaylist, renamePlaylist, deletePlaylist: removePlaylist, savePlaylist: save, overwritePlaylist, reloadPlaylist, discardChanges, stop,
 } = usePlaylists((severity, detail) => toast.add(severity === "success"
 	? { severity, summary: "Success", detail, life: 3000 }
 	: { severity, summary: "Error", detail, life: 5000 }))
-provide("settingsPluginsList", plugins)
-provide("settingsDataSourcesList", dataSources)
 
 const bf = ref<InstanceType<typeof BasicForm>>()
 // the fields' help text; for this page's life only (the browser stores nothing but the theme)

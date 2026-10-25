@@ -7,6 +7,7 @@
 import { computed, ref, toRaw, watch, type Ref } from "vue"
 import { ApiError } from "../components/ApiClient"
 import { api } from "../api/client"
+import { settled, useCatalog } from "../api/resources"
 import type { Descriptor } from "../components/FormDefs"
 
 export type Notify = (detail: string) => void
@@ -24,10 +25,11 @@ export function usedBy(item: any, dataSources: any[]): string[] {
 }
 
 export function useSettings(notify: Notify) {
-	const plugins = ref<Descriptor[]>([])
-	const dataSources = ref<Descriptor[]>([])
-	// the display devices that are installed: what the Display tab's display type (a `schema` field) chooses among
-	const displays = ref<Descriptor[]>([])
+	// what is installed, from the cache every view shares; the display devices are what the Display tab's display type (a `schema` field) chooses among
+	const catalog = useCatalog()
+	const plugins = computed<Descriptor[]>(() => catalog.plugins.data.value ?? [])
+	const dataSources = computed<Descriptor[]>(() => catalog.dataSources.data.value ?? [])
+	const displays = computed<Descriptor[]>(() => catalog.displays.data.value ?? [])
 	const schemaSystem = ref<any>(undefined)
 	const settingsSystem = ref<any>(undefined)
 	const schemaTheme = ref<any>(undefined)
@@ -108,17 +110,14 @@ export function useSettings(notify: Notify) {
 	}
 	/** The page's first load: the lists of what is installed, then every device document (each on its own: one that fails leaves the others). */
 	async function start() {
-		// a descriptor's keys are its own (open in the API): read as FormDefs' Descriptor, which DescriptorSchema.test holds to every descriptor
-		const list = (asked: Promise<unknown>, into: Ref<Descriptor[]>, what: string, tag: string) => asked
-			.then(json => { into.value = json as Descriptor[] })
-			.catch(ex => {
-				console.error(tag, ex)
-				notify(`Failed to load ${what} list: ${ex.message || "Unknown error"}`)
-			})
+		const list = (query: Parameters<typeof settled>[0], what: string, tag: string) => settled(query, ex => {
+			console.error(tag, ex)
+			notify(`Failed to load ${what} list: ${ex.message || "Unknown error"}`)
+		})
 		await Promise.all([
-			list(api.get("/api/plugins/list"), plugins, "plugins", "fetch.pl.unhandled"),
-			list(api.get("/api/datasources/list"), dataSources, "data sources", "fetch.ds.unhandled"),
-			list(api.get("/api/displays/list"), displays, "displays", "fetch.dp.unhandled"),
+			list(catalog.plugins, "plugins", "fetch.pl.unhandled"),
+			list(catalog.dataSources, "data sources", "fetch.ds.unhandled"),
+			list(catalog.displays, "displays", "fetch.dp.unhandled"),
 		])
 		const schema = (name: string) => api.get("/api/schemas/{name}", { path: { name } })
 		const settings = (name: string) => api.get("/api/settings/{name}", { path: { name } })

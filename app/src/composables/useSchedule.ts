@@ -15,6 +15,13 @@ import { browserZoneDifference, zonedParts } from "../components/CalendarTime"
 import type { Descriptor } from "../components/FormDefs"
 import type { PluginDef, TimerTasks } from "../components/ScheduleDefs"
 import { useEditor } from "./useEditor"
+import { useCatalog } from "../api/resources"
+
+/** A list of what is installed, answered from the cache or asked once: its failure fails the load, as the timeline's own would. */
+async function catalogRead(query: { refresh: () => Promise<{ error: Error | null }> }): Promise<void> {
+	const state = await query.refresh()
+	if (state.error) throw state.error
+}
 
 export type Notify = (severity: "success" | "warn" | "error", summary: string, detail: string) => void
 /** What a delete came to: done, refused because the task changed (a conflict is shown), or failed (`notify` said why). */
@@ -70,8 +77,10 @@ export function useSchedule(notify: Notify) {
 	// the stored tasks as the server sent them: not deeply reactive, so a row hands the editor plain data (structuredClone cannot copy a proxy)
 	const schedules = shallowRef<Record<string, TimerTasks>>({})
 	const eventList = ref<EventInfo[]>([])
-	const pluginList = ref<PluginDef[]>([])
-	const dataSources = ref<Descriptor[]>([])
+	// what is installed, from the cache every view shares
+	const catalog = useCatalog()
+	const pluginList = computed<PluginDef[]>(() => catalog.plugins.data.value ?? [])
+	const dataSources = computed<Descriptor[]>(() => catalog.dataSources.data.value ?? [])
 	// the stored documents of timer tasks (a task is added to one of them)
 	const documents = ref<{ id: string, name: string }[]>([])
 	// the page shows a loading bar until the first load is done (a failure is a notice, never an empty page)
@@ -121,13 +130,10 @@ export function useSchedule(notify: Notify) {
 		const window = windowOf(mode.value, today.value, offset.value)
 		return Promise.all([
 			api.get("/api/schedule/tasks/render", { query: { days: window.days, start: offset.value > 0 ? window.start : undefined } }),
-			api.get("/api/plugins/list"),
-			api.get("/api/datasources/list"),
+			catalogRead(catalog.plugins),
+			catalogRead(catalog.dataSources),
 			api.get("/api/schedule/timer/list"),
-		]).then(([json, plugins, sources, timed]) => {
-			// a descriptor's keys are its own (open in the API): read as PluginDef and Descriptor, which DescriptorSchema.test holds to every descriptor
-			pluginList.value = plugins as PluginDef[]
-			dataSources.value = sources as Descriptor[]
+		]).then(([json, , , timed]) => {
 			documents.value = timed.timed.map(d => ({ id: d.id, name: d.name }))
 			if(!json.success) return
 			// the response's first day is "today" in the device's zone (its ISO time is written in that zone)

@@ -16,11 +16,12 @@
 		"e2e:run": "playwright test"
 	},
 	"dependencies": {
+		"@pinia/colada": "1.4.8",
 		"@primeuix/themes": "^2.0.3",
 		"@primevue/forms": "^4.5.5",
 		"leaflet": "^1.9.4",
 		"leaflet-geosearch": "^4.4.0",
-		"pinia": "^4.1.0",
+		"pinia": "4.1.0",
 		"primeflex": "^4.0.0",
 		"primevue": "^4.5.5",
 		"vue": "^3.5.44",

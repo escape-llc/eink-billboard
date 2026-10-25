@@ -161,7 +161,7 @@ import { MODES, type TaskRow } from "../components/SchedulerView"
 import FormField from '@primevue/forms/formfield';
 import AlCalendar from "../components/AlCalendar.vue"
 import type { TimeRange } from "../components/AlCalendar.vue"
-import { ref, onMounted, onBeforeUnmount, nextTick, provide, computed } from "vue"
+import { ref, onMounted, onBeforeUnmount, nextTick, computed } from "vue"
 import { onBeforeRouteLeave } from "vue-router"
 import { useConfirm } from "primevue/useconfirm"
 import { ProgressBar } from "primevue"
@@ -174,14 +174,12 @@ import z from "zod";
 const toast = useToast()
 // the window shown, the timer tasks and their runs in it, the task in the dialog, with every call that loads or saves them
 const {
-	mode, offset, firstDay, dayCount, timeZone, eventList, pluginList, dataSources, documents, loading,
+	mode, offset, firstDay, dayCount, timeZone, eventList, documents, loading,
 	editTarget, editModel, formKey, newTaskDocument, conflict, serverProblems, saving, hasUnsaved, canSave, values, stop,
 	zoneNote, rangeText, rows, selectedPlugin, timerPlugins, pluginOptions,
 	loadTimeline, start, setMode, move, goToday, checkDay,
 	openTask, showTask, closeTask, newTask, saveTask, overwriteTask: overwrite, reloadTask: reload, deleteTask: remove,
 } = useSchedule((severity, summary, detail) => toast.add({ severity, summary, detail, life: severity === "success" ? 3000 : 5000 }))
-provide("settingsPluginsList", pluginList)
-provide("settingsDataSourcesList", dataSources)
 const API_URL = import.meta.env.VITE_API_URL
 // the fields' help text, shown until hidden (for the page's life)
 const showHelp = ref(true)

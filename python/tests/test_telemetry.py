@@ -228,7 +228,8 @@ class TestRoutes(WebApiTestBase):
 		self.hub.accept(Telemetry(NOW, "timer_layer", { "state": "waiting" }))
 		self.hub.accept(Telemetry(NOW, "timer_layer", { "state": "playing" }))
 		with self.client.websocket_connect("/api/telemetry/ws?since=500&run=an-earlier-run") as ws:
-			self.assertEqual(ws.receive_json(), { "kind": "hello", "source": "telemetry", "run": self.hub.run })
+			# the hello says how far the history goes: what follows up to it was kept before the page opened
+			self.assertEqual(ws.receive_json(), { "kind": "hello", "source": "telemetry", "run": self.hub.run, "seq": 2 })
 			self.assertEqual(ws.receive_json()["seq"], 1)
 		with self.client.websocket_connect(f"/api/telemetry/ws?since=1&run={self.hub.run}") as ws:
 			self.assertEqual(first_event(ws)["seq"], 2)

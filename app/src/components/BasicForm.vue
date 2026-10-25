@@ -41,11 +41,12 @@
 </template>
 <script setup lang="ts">
 import { missingProviders, missingUses } from "./DataSourceUses"
-import { apiJson, joinUrl } from "./ApiClient"
+import { useQueryCache } from "@pinia/colada"
+import { followResource, useCatalog } from "../api/resources"
 //import { InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Message, Select } from 'primevue';
 import Form, { type FormInstance, type FormSubmitEvent } from "@primevue/forms/form"
 import { Tag } from "primevue"
-import { ref, toRaw, nextTick, watch, inject, computed, type Ref } from "vue"
+import { ref, toRaw, nextTick, watch, computed, onBeforeUnmount } from "vue"
 import z from "zod"
 import BasicFormField, { type FieldEventData } from './BasicFormField.vue'
 import { fieldRules, type FormField } from "./FormValidation"
@@ -101,12 +102,19 @@ const localProperties = ref<ResolvedField[]>([])
 const localValues = ref<FormValues>({})
 /** How deep a choice inside a choice goes (a plugin's data source, then the parts it chooses): the server's MAX_CHOICE_DEPTH (documents.py). Before the `immediate` watches, which use it. */
 const MAX_CHOICE_DEPTH = 3
-const injplugins = inject<Ref<Descriptor[]>>("settingsPluginsList", ref([]))
-const injdataSources = inject<Ref<Descriptor[]>>("settingsDataSourcesList", ref([]))
-const injdisplays = inject<Ref<Descriptor[]>>("settingsDisplaysList", ref([]))
-const plugins = computed<Descriptor[]>(() => injplugins.value)
-const dataSources = computed<Descriptor[]>(() => injdataSources.value)
-const displays = computed<Descriptor[]>(() => injdisplays.value)
+// what is installed, from the cache every view shares (api/resources.ts): a `schema` field chooses among these
+const catalog = useCatalog()
+const plugins = computed<Descriptor[]>(() => catalog.plugins.data.value ?? [])
+const dataSources = computed<Descriptor[]>(() => catalog.dataSources.data.value ?? [])
+const displays = computed<Descriptor[]>(() => catalog.displays.data.value ?? [])
+// the lookups this form follows: a change on the server (another tab, a provider set up) fetches their choices again
+const queryCache = useQueryCache()
+let following: (() => void)[] = []
+function unfollow(): void {
+	for(const stop of following) stop()
+	following = []
+}
+onBeforeUnmount(unfollow)
 watch(() => props.form, (nv) => {
 	if(nv) {
 		// a plugin just chosen brings fields the values do not have: they start at the descriptor's default, as they do for a new item
@@ -150,6 +158,7 @@ function ensureInitializeForm(schema: SchemaType|undefined): void {
 	if(!schema) return;
 	localProperties.value = formProperties(schema, props.owner)
 	currentResolver = createResolver(localProperties.value)
+	unfollow()
 	startLookups(schema, localProperties.value)
 }
 function startLookups(schema: SchemaType, values: ResolvedField[]): void {
@@ -286,21 +295,21 @@ function lookupSchema(schema: SchemaType, lookup:string): SchemaChoice[] {
 function lookupUrl(target: ResolvedField): void {
 	if(target.type === "header") return;
 	if(!target.lookupUrl) return;
-	const finalUrl = joinUrl(props.baseUrl, target.lookupUrl)
-	apiJson<LookupValue[]>(finalUrl).then(json => {
+	// through the cache: asked once for every form that shows it, and again when the server says what it lists changed
+	following.push(followResource<LookupValue[]>(queryCache, target.lookupUrl, state => {
+		if(state.status === "pending") return
 		nextTick().then(_ => {
-			target.list = withCurrentValue(json, target.name)
-			target.lookupError = undefined
-		})
-	})
-	.catch(ex => {
-		console.error("lookupUrl", ex)
-		nextTick().then(_ => {
+			if(state.status === "success") {
+				target.list = withCurrentValue(state.data ?? [], target.name)
+				target.lookupError = undefined
+				return
+			}
+			console.error("lookupUrl", state.error)
 			// the message is shown under the field; it is never a choice that could be saved
 			target.list = withCurrentValue([], target.name)
-			target.lookupError = `The choices could not be loaded: ${ex.message}`
+			target.lookupError = `The choices could not be loaded: ${state.error?.message}`
 		})
-	})
+	}))
 }
 /** A stored value the list does not offer (renamed, or the list failed to load) must still show, not silently look unset; each of a multi-select's too. */
 function withCurrentValue(list: LookupValue[], name: string): LookupValue[] {

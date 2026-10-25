@@ -4,11 +4,20 @@ import { RouterLink, RouterView } from 'vue-router'
 import ThemeSelector from './components/ThemeSelector.vue'
 import AuthDialog from './components/AuthDialog.vue'
 import HelpDrawer from './components/HelpDrawer.vue'
-import { onMounted, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useToast } from 'primevue/usetoast';
-import { signInCount } from './components/ApiClient'
+import { useQueryCache } from '@pinia/colada'
+import { answered, signInCount } from './components/ApiClient'
 import { justSignedIn, reloadAfterSignIn } from './components/SignedIn'
+import { useTelemetry } from './components/TelemetryLink'
+import { syncWithLink } from './api/resources'
 const toast = useToast()
+// one telemetry link for the page, opened once the server has answered (a WebSocket cannot sign in): the System page follows it, and the cache of the
+// API's answers hears from it what changed elsewhere (api/resources.ts)
+const link = useTelemetry()
+const unsync = syncWithLink(useQueryCache(), link)
+watch(answered, ok => { if (ok) link.start() }, { immediate: true })
+onBeforeUnmount(() => { unsync(); link.stop() })
 // a sign-in loads the whole page again (the newest build, everything read anew): see SignedIn.ts
 watch(signInCount, () => reloadAfterSignIn())
 onMounted(() => {

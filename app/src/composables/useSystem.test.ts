@@ -46,7 +46,8 @@ describe("the device", () => {
 		await vi.advanceTimersByTimeAsync(1000)
 		expect(mocked.get).toHaveBeenCalledTimes(4)
 		sys.stop()
-		expect(link.stop).toHaveBeenCalledTimes(1)
+		// the link is the app's: leaving the page leaves it open
+		expect(link.stop).not.toHaveBeenCalled()
 		await vi.advanceTimersByTimeAsync(5000)
 		expect(mocked.get).toHaveBeenCalledTimes(4)
 	})

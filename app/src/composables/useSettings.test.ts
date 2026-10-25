@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { nextTick } from "vue"
 import { ApiError } from "../components/ApiClient"
 import { api } from "../api/client"
+import { inApp } from "../api/inApp"
 import { hasSettings, usedBy, useSettings, useThemePreview } from "./useSettings"
 
 // the Settings page's data without the page: the API is a stand-in, and what the page would show as a toast is collected
@@ -35,7 +36,7 @@ function serve(refuse: Record<string, Error> = {}) {
 async function started(refuse: Record<string, Error> = {}) {
 	serve(refuse)
 	const notices: string[] = []
-	const st = useSettings(detail => notices.push(detail))
+	const st = inApp(() => useSettings(detail => notices.push(detail)))
 	await st.start()
 	return { st, notices }
 }

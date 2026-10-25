@@ -115,13 +115,15 @@ export function useSystem(notify: Notify, options: SystemOptions = {}) {
 		api.get("/api/system").then(s => { info.value = s; failed.value = false }).catch(() => { failed.value = true })
 		return asked
 	}
-	/** The page is shown: load, then open the link once the first request is answered (on a device that asks for a sign-in, that is after it: a WebSocket cannot ask, it is refused), and keep asking. */
+	/**
+	 * The page is shown: load, then make sure the link is open once the first request is answered (on a device that asks for a sign-in, that is after it:
+	 * a WebSocket cannot ask, it is refused), and keep asking. The link is the app's (App.vue opens it too): leaving the page leaves it open.
+	 */
 	function start() {
 		void load().finally(() => link.start())
 		timer = setInterval(load, pollMs)
 	}
 	function stop() {
-		link.stop()
 		if(timer) clearInterval(timer)
 		timer = undefined
 	}

@@ -227,7 +227,7 @@ import Select from 'primevue/select';
 
 import type { ValidateEventData } from "../components/BasicForm.vue"
 import SettingsForm from "../components/SettingsForm.vue"
-import { computed, onMounted, provide } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useToast } from 'primevue';
 import { useSettings, useThemePreview } from "../composables/useSettings"
 
@@ -236,15 +236,12 @@ const toast = useToast();
 const API_URL = import.meta.env.VITE_API_URL
 // what is installed, each device document, and the settings of the item chosen on the Plugins, Data Sources and Providers tabs
 const {
-	plugins, dataSources, displays,
+	plugins,
 	schemaSystem, settingsSystem, schemaTheme, settingsTheme, schemaPrompts, settingsPrompts, schemaDevices, settingsDevices, schemaDisplay, settingsDisplay,
 	plugin, datasource, provider, pageSources, providerSources, usedBy, start,
 } = useSettings(detail => toast.add({ severity: 'error', summary: 'Error', detail, life: 5000 }))
 const { selected: selectedPlugin, schema: schemaPlugin, settings: settingsPlugin } = plugin
 const { selected: selectedDatasource, schema: schemaDatasource, settings: settingsDatasource } = datasource
-provide("settingsPluginsList", plugins)
-provide("settingsDataSourcesList", dataSources)
-provide("settingsDisplaysList", displays)
 onMounted(start)
 
 // the Theme tab's preview: the stored theme, then the form's values as they change, and the palette the server computes for them
