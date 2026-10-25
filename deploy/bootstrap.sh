@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# eInk Billboard: set up a Raspberry Pi 4 or 5 (Raspberry Pi OS 64-bit) to run it, in one command:
+# eInk Billboard: set up a Raspberry Pi 3 B+, 4 or 5 (Raspberry Pi OS 64-bit) to run it, in one command:
 #
 #   curl -fsSL https://raw.githubusercontent.com/escape-llc/eink-billboard/master/deploy/bootstrap.sh | bash
 #
@@ -42,7 +42,7 @@ main() {
 			--insider|--master) CHANNEL=insider ;;
 			# written out here, not read from this file: piped from curl, there is no file to read
 			--help|-h) cat <<'EOF'
-eInk Billboard setup for a Raspberry Pi 4 or 5 (Raspberry Pi OS 64-bit). Run it as your own user:
+eInk Billboard setup for a Raspberry Pi 3 B+, 4 or 5 (Raspberry Pi OS 64-bit). Run it as your own user:
 
   curl -fsSL https://raw.githubusercontent.com/escape-llc/eink-billboard/master/deploy/bootstrap.sh | bash
 
@@ -108,8 +108,9 @@ EOF
 	first say "$model, $os, $arch"
 	[ "$arch" = "aarch64" ] || fail "this needs the 64-bit Raspberry Pi OS (this one is $arch). Install it with Raspberry Pi Imager (Raspberry Pi OS 64-bit), then run this again."
 	case "$model" in
-		*"Raspberry Pi 4"*|*"Raspberry Pi 5"*|*"Compute Module 4"*|*"Compute Module 5"*) ;;  # the 400 and 500 too
-		*"Raspberry Pi"*) first warn "this was made for a Raspberry Pi 4 or 5; on $model it may be too slow or short of memory. Going on." ;;
+		# the 400 and 500 too; a 3 B+ ("Raspberry Pi 3 Model B Plus") has 1 GB, as the smallest Pi 4 does, and the same 40-pin header
+		*"Raspberry Pi 3 Model B Plus"*|*"Raspberry Pi 4"*|*"Raspberry Pi 5"*|*"Compute Module 4"*|*"Compute Module 5"*) ;;
+		*"Raspberry Pi"*) first warn "this was made for a Raspberry Pi 3 B+, 4 or 5; on $model it may be too slow or short of memory. Going on." ;;
 		*) first warn "this does not look like a Raspberry Pi: the app will run, but without a panel to drive. Going on." ;;
 	esac
 	command -v apt-get >/dev/null || fail "this needs Raspberry Pi OS (or another Debian): apt-get is missing."
