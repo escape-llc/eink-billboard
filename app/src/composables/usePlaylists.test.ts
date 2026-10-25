@@ -3,6 +3,8 @@ import { ApiError } from "../components/ApiClient"
 import { api } from "../api/client"
 import { inApp } from "../api/inApp"
 import { changedEvent, fakeLink, settle } from "../api/fakeLink"
+import { useQueryCache } from "@pinia/colada"
+import { syncWithLink } from "../api/resources"
 import { documentBody, splitServerErrors, usePlaylists } from "./usePlaylists"
 import type { PlaylistItem } from "../components/ScheduleDefs"
 
@@ -349,6 +351,55 @@ describe("changes made elsewhere", () => {
 		expect([pl.isStale.value, pl.dirty.value, pl.docRev.value]).toEqual([false, false, "r2"])
 		// the revision was asked for, and nothing loaded
 		expect(mocked.get.mock.calls.slice(asked).map(c => c[0])).toEqual(["/api/schedule/playlist/{doc_id}"])
+	})
+})
+
+describe("the list of playlists follows the schedules", () => {
+	async function listening() {
+		const stored = { list: [doc("a", [track("t1")]), doc("b", [])] }
+		mocked.get.mockImplementation(async (path: string, init?: { path?: { doc_id?: string } }) => {
+			if(path === "/api/plugins/list") return [SLIDES, OVERLAY]
+			if(path === "/api/datasources/list") return []
+			if(path === "/api/schedule/playlist/list") return { playlists: stored.list }
+			if(path === "/api/schedule/playlist/{doc_id}") {
+				const found = stored.list.find(p => p.id === init?.path?.doc_id)
+				if(!found) throw new ApiError(404, "Not found", { success: false })
+				return { success: true, schedule: found }
+			}
+			throw new Error(`no route ${path}`)
+		})
+		const fake = fakeLink()
+		const pl = inApp(() => { syncWithLink(useQueryCache(), fake.link); return usePlaylists(() => {}, { link: fake.link }) })
+		await pl.start()
+		const elsewhere = async (list: ReturnType<typeof doc>[]) => {
+			stored.list = list
+			fake.send(changedEvent("/api/schedule"))
+			await settle()
+			await settle()
+		}
+		return { pl, stored, elsewhere }
+	}
+
+	it("a playlist made or renamed elsewhere is in the list without a reload", async () => {
+		const { pl, stored, elsewhere } = await listening()
+		await elsewhere([...stored.list.map(p => p.id === "b" ? { ...p, name: "Renamed" } : p), doc("c", [])])
+		expect(pl.playlists.value).toEqual([{ id: "a", name: "Playlist a" }, { id: "b", name: "Renamed" }, { id: "c", name: "Playlist c" }])
+		expect(pl.currentId.value).toBe("a")
+		pl.stop()
+	})
+	it("the playlist being edited deleted elsewhere: the next is opened, unless something is unsaved", async () => {
+		const first = await listening()
+		await first.elsewhere([doc("b", [])])
+		expect([first.pl.currentId.value, first.pl.playlists.value.map(p => p.id)]).toEqual(["b", ["b"]])
+		first.pl.stop()
+
+		const second = await listening()
+		second.pl.moveTrack(0, 0)
+		second.pl.removeTrack(0)
+		await second.elsewhere([doc("b", [])])
+		// the edits stay (a save then says the playlist is gone)
+		expect([second.pl.currentId.value, second.pl.dirty.value, second.pl.playlists.value.map(p => p.id)]).toEqual(["a", true, ["b"]])
+		second.pl.stop()
 	})
 })
 
