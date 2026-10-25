@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import { ApiError } from "../components/ApiClient"
+import type { LinkListener, TelemetryEvent, TelemetryLink } from "../components/TelemetryLink"
 import { useEditor } from "./useEditor"
 
 // the editor's cycle with stand-in loads and saves: what the machine is told by each outcome
@@ -92,5 +93,124 @@ describe("useEditor", () => {
 		expect(await ed.discard()).toBe(false)
 		expect(ed.state.value.matches("failed")).toBe(true)
 		expect(ed.hasUnsaved.value).toBe(false)
+	})
+})
+
+describe("useEditor follows its document", () => {
+	/** A link that tells what a test sends. */
+	function fakeLink() {
+		const listeners = new Set<LinkListener>()
+		const link = { listen: (l: LinkListener) => { listeners.add(l); return () => { listeners.delete(l) } } } as unknown as TelemetryLink
+		return {
+			link,
+			listeners,
+			send: (e: TelemetryEvent, replayed = false) => { for (const l of listeners) l.event?.(e, replayed) },
+			resume: () => { for (const l of listeners) l.resumed?.() },
+		}
+	}
+	const changed = (...paths: string[]): TelemetryEvent => ({ seq: 1, source: "application", kind: "config-changed", values: { area: "settings", changed: paths } })
+	const settle = () => new Promise(resolve => setTimeout(resolve, 0))
+	/** An editor of /api/settings/theme whose stored revision is `stored.rev`. */
+	function following(save = vi.fn(async () => "r2")) {
+		const fake = fakeLink()
+		const stored = { rev: "r1" as string | undefined, fails: false }
+		const revision = vi.fn(async () => { if(stored.fails) throw new Error("down"); return stored.rev })
+		const load = vi.fn(async () => ({ rev: stored.rev }))
+		const ed = useEditor<unknown>({ load, save, follow: { address: () => "/api/settings/theme", revision, link: fake.link } })
+		return { ed, fake, stored, revision, load, save }
+	}
+
+	it("loads a document saved elsewhere again when nothing is unsaved", async () => {
+		const { ed, fake, stored, load } = following()
+		ed.loaded("r1")
+		ed.values({ a: 1 }, true)
+		stored.rev = "r3"
+		fake.send(changed("/api/settings"))
+		await settle()
+		expect(load).toHaveBeenCalledTimes(1)
+		expect([ed.rev.value, ed.state.value.value]).toEqual(["r3", "settling"])
+	})
+	it("is stale, with the edits kept, when something is unsaved", async () => {
+		const { ed, fake, stored, load } = following()
+		editing(ed)
+		stored.rev = "r3"
+		fake.send(changed("/api/settings/theme"))
+		await settle()
+		expect([ed.isStale.value, ed.hasUnsaved.value, load.mock.calls.length]).toEqual([true, true, 0])
+		// keep editing: unsaved, over the revision that was loaded
+		expect(ed.keep()).toBe(true)
+		expect([ed.isStale.value, ed.hasUnsaved.value, ed.rev.value]).toEqual([false, true, "r1"])
+	})
+	it("takes theirs from the stale state by loading", async () => {
+		const { ed, fake, stored, load } = following()
+		editing(ed)
+		stored.rev = "r3"
+		fake.send(changed("/api/settings/theme"))
+		await settle()
+		expect(await ed.takeTheirs()).toBe(true)
+		expect([load.mock.calls.length, ed.rev.value, ed.hasUnsaved.value]).toEqual([1, "r3", false])
+	})
+	it("hears its own save as no change: the stored revision is the editor's", async () => {
+		const { ed, fake, stored, load } = following()
+		editing(ed)
+		await ed.save({ a: 2 })
+		ed.values({ a: 2 }, true)
+		stored.rev = "r2"
+		fake.send(changed("/api/settings/theme"))
+		await settle()
+		expect([load.mock.calls.length, ed.hasUnsaved.value, ed.isStale.value]).toEqual([0, false, false])
+	})
+	it("asks nothing for a change of another document", async () => {
+		const { ed, fake, revision } = following()
+		editing(ed)
+		fake.send(changed("/api/settings/system", "/api/plugins"))
+		await settle()
+		expect(revision).not.toHaveBeenCalled()
+	})
+	it("checks the history the link opens with: a save after the load is in it, and the revision tells an older one", async () => {
+		const { ed, fake, revision, stored } = following()
+		editing(ed)
+		fake.send(changed("/api/settings/theme"), true)
+		await settle()
+		expect([revision.mock.calls.length, ed.isStale.value]).toEqual([1, false])
+		stored.rev = "r3"
+		fake.send(changed("/api/settings/theme"), true)
+		await settle()
+		expect(ed.isStale.value).toBe(true)
+	})
+	it("asks after missed events (a gap, the link coming back)", async () => {
+		const { ed, fake, revision, stored } = following()
+		editing(ed)
+		fake.send({ source: "telemetry", kind: "gap", missed: 3 })
+		await settle()
+		fake.resume()
+		await settle()
+		expect(revision).toHaveBeenCalledTimes(2)
+		expect(ed.isStale.value).toBe(false)
+		stored.rev = "r4"
+		fake.resume()
+		await settle()
+		expect(ed.isStale.value).toBe(true)
+	})
+	it("decides nothing when the revision cannot be had, or the editor moved on while it was asked", async () => {
+		const { ed, fake, stored, revision } = following()
+		editing(ed)
+		stored.fails = true
+		fake.send(changed("/api/settings/theme"))
+		await settle()
+		expect(ed.isStale.value).toBe(false)
+		// a load while the revision was asked: the answer is about the revision before it
+		stored.fails = false
+		stored.rev = "r3"
+		revision.mockImplementationOnce(async () => { ed.loaded("r5"); return "r3" })
+		fake.send(changed("/api/settings/theme"))
+		await settle()
+		expect([ed.isStale.value, ed.rev.value]).toEqual([false, "r5"])
+	})
+	it("stops following when stopped", () => {
+		const { ed, fake } = following()
+		expect(fake.listeners.size).toBe(1)
+		ed.stop()
+		expect(fake.listeners.size).toBe(0)
 	})
 })

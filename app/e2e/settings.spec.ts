@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext } from "@playwright/test"
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test"
 import { choose, saveButton, stubMapTiles, watchProblems } from "./support"
 
 // These tests change the settings of the shared server, one after the other.
@@ -33,12 +33,12 @@ test("a stale save is refused with the server's message, and overwrites nothing"
 	const watch = watchProblems(page, [409], [/Revision mismatch/])
 	await page.goto("/#/settings")
 	await expect(showing(page, "Français")).toBeVisible()
-	// somebody else changes the settings after this page loaded them
+	// somebody else changes the settings while this page has an edit (without one, the page would show theirs)
+	await choose(page, "Français", "Deutsch")
 	const doc = await system(request)
 	const put = await request.put("/api/settings/system", { data: { ...doc, timeFormat: "12h" } })
 	expect(put.ok()).toBe(true)
 
-	await choose(page, "Français", "Deutsch")
 	await saveButton(page).click()
 	await expect(page.getByText(/Revision mismatch/)).toBeVisible()
 	const after = await system(request)
@@ -65,10 +65,10 @@ test("a conflict offers Reload, which shows the server's copy and saves cleanly"
 	const watch = watchProblems(page, [409], [/Revision mismatch/])
 	await page.goto("/#/settings")
 	await expect(showing(page, "English")).toBeVisible()
+	await choose(page, "English", "Deutsch")
 	const doc = await system(request)
 	expect((await request.put("/api/settings/system", { data: { ...doc, timeFormat: "12h" } })).ok()).toBe(true)
 
-	await choose(page, "English", "Deutsch")
 	await saveButton(page).click()
 	await expect(page.getByText(/Revision mismatch/)).toBeVisible()
 	await page.getByRole("button", { name: "Reload" }).click()
@@ -87,15 +87,96 @@ test("a conflict offers Overwrite, which saves our edit over the other one", asy
 	const watch = watchProblems(page, [409], [/Revision mismatch/])
 	await page.goto("/#/settings")
 	await expect(showing(page, "English")).toBeVisible()
+	await choose(page, "English", "Deutsch")
 	const doc = await system(request)
 	expect((await request.put("/api/settings/system", { data: { ...doc, timeFormat: "12h" } })).ok()).toBe(true)
 
-	await choose(page, "English", "Deutsch")
 	await saveButton(page).click()
 	await page.getByRole("button", { name: "Overwrite" }).click()
 	await expect(page.getByText("Settings saved successfully")).toBeVisible()
 	const after = await system(request)
 	expect(after.locale).toBe("de-DE")
+	watch.expectNone()
+})
+
+// a save from another tab (the device's command line and a restore are the same to the page: the watcher reports the stored file)
+const LOCALES: Record<string, string> = { "en-US": "English", "fr-FR": "Français", "de-DE": "Deutsch" }
+/** Another tab saves the system settings with another locale; answers the locale's label. */
+async function savedElsewhere(page: Page, request: APIRequestContext): Promise<string> {
+	const other = await page.context().newPage()
+	const watch = watchProblems(other)
+	const current = LOCALES[(await system(request)).locale]!
+	const next = current === "Deutsch" ? "English" : "Deutsch"
+	await other.goto("/#/settings")
+	await expect(showing(other, current)).toBeVisible()
+	await choose(other, current, next)
+	await saveButton(other).click()
+	await expect(other.getByText("Settings saved successfully")).toBeVisible()
+	watch.expectNone()
+	await other.close()
+	return next
+}
+async function openSettings(page: Page, request: APIRequestContext) {
+	await page.goto("/#/settings")
+	const { locale, timeFormat } = await system(request)
+	await expect(showing(page, LOCALES[locale]!)).toBeVisible()
+	// a reload would forget this
+	await page.evaluate(() => { (window as unknown as { stayed: boolean }).stayed = true })
+	return { locale: LOCALES[locale]!, timeFormat: String(timeFormat) }
+}
+const stayed = (page: Page) => page.evaluate(() => (window as unknown as { stayed?: boolean }).stayed)
+const banner = (page: Page) => page.locator(".changed-elsewhere")
+
+test("settings saved in another tab are shown in an open page that has no edits", async ({ page, request }) => {
+	const watch = watchProblems(page)
+	await openSettings(page, request)
+	const next = await savedElsewhere(page, request)
+	await expect(showing(page, next)).toBeVisible({ timeout: 15_000 })
+	await expect(banner(page)).toBeHidden()
+	expect(await stayed(page)).toBe(true)
+	// what it shows is the stored document: nothing is unsaved, and a save goes over the new revision
+	await page.evaluate(() => { location.hash = "#/schedule" })
+	await expect(page).toHaveURL(/#\/schedule/)
+	watch.expectNone()
+})
+
+test("with edits, a save elsewhere says so; Reload shows theirs", async ({ page, request }) => {
+	const watch = watchProblems(page)
+	const opened = await openSettings(page, request)
+	const mine = opened.timeFormat === "12h" ? "24h" : "12h"
+	await choose(page, opened.timeFormat, mine)
+	const theirs = await savedElsewhere(page, request)
+	await expect(banner(page)).toContainText("Changed elsewhere", { timeout: 15_000 })
+	// the edit is still there until the person decides
+	await expect(showing(page, mine)).toBeVisible()
+	await banner(page).getByRole("button", { name: "Reload" }).click()
+	await expect(banner(page)).toBeHidden()
+	await expect(showing(page, theirs)).toBeVisible()
+	await expect(showing(page, opened.timeFormat)).toBeVisible()
+	expect(await stayed(page)).toBe(true)
+	await page.evaluate(() => { location.hash = "#/schedule" })
+	await expect(page).toHaveURL(/#\/schedule/)
+	watch.expectNone()
+})
+
+test("with edits, Keep editing keeps them; saving asks whether to overwrite the other save", async ({ page, request }) => {
+	const watch = watchProblems(page, [409], [/Revision mismatch/])
+	const opened = await openSettings(page, request)
+	const mine = opened.timeFormat === "12h" ? "24h" : "12h"
+	await choose(page, opened.timeFormat, mine)
+	const theirs = await savedElsewhere(page, request)
+	await expect(banner(page)).toBeVisible({ timeout: 15_000 })
+	await banner(page).getByRole("button", { name: "Keep editing" }).click()
+	await expect(banner(page)).toBeHidden()
+	await expect(showing(page, mine)).toBeVisible()
+	await saveButton(page).click()
+	await expect(page.getByText(/Revision mismatch/)).toBeVisible()
+	await page.getByRole("button", { name: "Overwrite" }).click()
+	await expect(page.getByText("Settings saved successfully")).toBeVisible()
+	// mine is what the page sent: every field it holds, so the other tab's locale is replaced by the one this page loaded
+	const after = await system(request)
+	expect([LOCALES[after.locale], after.timeFormat]).toEqual([opened.locale, mine])
+	expect(theirs).not.toBe(opened.locale)
 	watch.expectNone()
 })
 
