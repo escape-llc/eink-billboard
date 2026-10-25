@@ -116,8 +116,8 @@ class Application(DispatcherTask):
 		if self.router is None or self.cm is None:
 			return
 		area = self.cm.area_of(msg.path)
-		if area == "state":
-			# what the device itself keeps between runs (the panel's last refresh): written after every refresh, nobody's settings, nobody needs to hear of it
+		if area in ("state", "tls"):
+			# what the device itself keeps between runs (the panel's last refresh, its own TLS certificate): nobody's settings, nobody needs to hear of it
 			self.logger.debug(f"'{self.name}' the device's own state was saved ({msg.type})")
 			return
 		if self._restore_state != "idle":

@@ -545,6 +545,8 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		self.storage_schemas = os.path.join(self.STORAGE_PATH, "schemas")
 		# what the device itself keeps between runs (when the panel was last refreshed): not settings, never edited by a person; made by the first write
 		self.storage_state = os.path.join(self.STORAGE_PATH, "state")
+		# the device's own TLS certificate and key (`--ssl` with no certificate of the person's own): never in a backup, nobody's settings
+		self.storage_tls = os.path.join(self.STORAGE_PATH, "tls")
 		# Load environment variables from a .env file if present
 		# load_dotenv()
 	def __enter__(self):
@@ -894,7 +896,7 @@ class ConfigurationManager(ConfigurationObjectFactory):
 			self._objectMap[moniker] = obj
 			return (True, obj)
 
-	AREAS = { "schedules": "schedules", "settings": "settings", "schemas": "schemas", "plugins": "plugins", "datasources": "datasources", "state": "state" }
+	AREAS = { "schedules": "schedules", "settings": "settings", "schemas": "schemas", "plugins": "plugins", "datasources": "datasources", "state": "state", "tls": "tls" }
 	def area_of(self, path: str|bytes) -> str:
 		"""Which part of the storage root a path is in (`schedules`, `settings`, ...), or `other` (including anything outside it)."""
 		rel = os.path.relpath(os.fsdecode(path), self.STORAGE_PATH)
@@ -950,6 +952,22 @@ class ConfigurationManager(ConfigurationObjectFactory):
 	def state_file(self, name: str) -> ConfigurationObject:
 		"""A JSON file of the device's own state (`refresh`), by name, with the same cache, revision and atomic save as the settings. The folder is made by the first save."""
 		return self.obtain(os.path.join(self.storage_state, f"{leaf_name(name)}.json"), FileConfiguration)[1]
+
+	# --- the device's own TLS certificate (`--ssl`, python/utils/tls_certificate.py makes it). Kept as files because uvicorn reads it from paths; the key is
+	# written as save_bytes writes every file, readable by the app's user only.
+	def tls_paths(self) -> tuple[str, str]:
+		"""Where the device's own certificate and key are (for uvicorn); they may not exist yet."""
+		return (os.path.join(self.storage_tls, "certificate.pem"), os.path.join(self.storage_tls, "key.pem"))
+	def read_tls(self) -> tuple[bytes|None, bytes|None]:
+		"""The device's own certificate and key, each None when it is not there."""
+		cert, key = self.tls_paths()
+		return load_bytes(cert), load_bytes(key)
+	def write_tls(self, certificate_pem: bytes, key_pem: bytes) -> tuple[str, str]:
+		"""Keep a new certificate and key (the key first: a certificate is never kept without its key); answers their paths."""
+		cert, key = self.tls_paths()
+		save_bytes(key, key_pem)
+		save_bytes(cert, certificate_pem)
+		return cert, key
 
 	# --- backup and restore (#368). The archive is made and opened by `utils/backup_archive.py`, which knows no storage; what a backup may hold is decided here, the only code that
 	# touches the storage root, and a restore writes by name through the objects the rest of the code reads through.

@@ -7,7 +7,7 @@ A self-hosted e-ink billboard for a Raspberry Pi. Playlists of data sources (com
 ## Known limitations
 
 * **No real panel has been driven through the container setup yet.** The setup runs start to finish on a Raspberry Pi 5 with no panel attached: the app opens the panel's devices and loads every driver.
-* **Plain HTTP.** The web app has no TLS of its own; put it behind a proxy for HTTPS (see [On your network](#on-your-network)).
+* **Plain HTTP unless you turn HTTPS on.** The app serves HTTPS itself (`ssl on`, see [On your network](#on-your-network)); with the device's own certificate a browser warns the first time, since nobody vouches for it.
 * **Addresses you type are checked, then fetched.** The check that keeps a feed or picture address off the device and its local services can be fooled by a name that resolves differently the second time (DNS rebinding).
 * **Boards with less than 1 GB of memory are experimental** (a Pi Zero 2 W, a Pi 3 A+): see [What you need](#what-you-need).
 
@@ -109,15 +109,18 @@ The setup starts the app with these settings from the environment, so set them i
 
 A client that gets the password or token wrong repeatedly has to wait (429), and each failure is in the log.
 
-**HTTPS.** The app speaks plain HTTP, which is normal on a home network (the password reaches the Pi in the clear). For HTTPS put a reverse proxy in front of port 8080, for example Caddy, and add its name to `EINK_ALLOW_HOSTS`:
+**HTTPS.** The app speaks plain HTTP until you turn HTTPS on (over plain HTTP the password reaches the Pi in the clear). The app serves HTTPS itself, on the same port; no proxy is needed:
 
 ```
-billboard.home.arpa {
-	reverse_proxy localhost:8080
-}
+~/eink-billboard/deploy/eink-container.sh ssl on                     # the device's own certificate
+~/eink-billboard/deploy/eink-container.sh ssl on cert.pem key.pem    # a certificate of your own
 ```
 
-Behind a proxy the app sees plain `http`, so its session cookie is not marked `Secure` (forwarded headers are deliberately not trusted).
+* **The device's own certificate** is self-signed and names the Pi's address, its name and `<name>.local` (and `EINK_ALLOW_HOSTS`); it is made again when one of those changes and before it runs out. A browser warns the first time: compare the SHA-256 fingerprint in the log (`deploy/eink-container.sh logs`, the line "Serving HTTPS with ...") with the one the browser shows, then accept it.
+* **A certificate of your own** (from your own certificate authority, or `mkcert`) has no warning on the computers that trust it. The two files are PEM (the certificate with its chain, and its key without a passphrase); they are kept as Podman secrets that only the app's user in the container can read, so you may delete the files afterwards.
+* **Then** set `EINK_PUBLIC_URL` to the `https://` address if you set one before. `ssl off` goes back to plain HTTP (a certificate you gave is kept for the next `ssl on`), `ssl forget` removes it, and `ssl` alone says which is in use.
+
+Over HTTPS the session cookie is marked `Secure`.
 
 ## When something does not work
 
