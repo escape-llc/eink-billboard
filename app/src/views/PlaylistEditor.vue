@@ -19,8 +19,15 @@
 		</Toolbar>
 		<ProgressBar v-if="loading" mode="indeterminate" style="height:4px" aria-label="Loading" data-testid="loading" />
 		<!-- nothing reaches the device until the playlist is saved: a warning in its own box, across the page, not a line of small print -->
-		<Message v-if="dirty" severity="warn" size="small" icon="mi mi-warning" class="mt-1 unsaved-banner" data-testid="unsaved-banner" role="status">
+		<Message v-if="dirty && !isStale" severity="warn" size="small" icon="mi mi-warning" class="mt-1 unsaved-banner" data-testid="unsaved-banner" role="status">
 			Unsaved changes to "{{ playlistName }}": save the playlist to keep them.
+		</Message>
+		<Message size="small" v-if="isStale" severity="info" :closable="false" class="mt-1 changed-elsewhere">
+			<div class="flex align-items-center gap-2 flex-wrap">
+				<span>Changed elsewhere: "{{ playlistName }}" was saved somewhere else while you were editing it.</span>
+				<Button size="small" label="Reload" icon="mi mi-refresh" severity="secondary" title="Drop your changes and show the saved playlist" @click="reloadPlaylist" />
+				<Button size="small" label="Keep editing" icon="mi mi-edit" severity="secondary" title="Keep your changes; saving them asks whether to overwrite" @click="keepEditing" />
+			</div>
 		</Message>
 		<Message size="small" v-if="conflict" severity="warn" :closable="false" class="mt-1">
 			<div class="flex align-items-center gap-2">
@@ -131,7 +138,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watchEffect, onMounted, onBeforeUnmount } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { InputGroup, InputGroupAddon, Toolbar, Button, Select, InputText, Dialog, Message, ProgressBar, useToast } from 'primevue'
 import BasicForm, { type ValidateEventData } from '../components/BasicForm.vue'
@@ -145,6 +152,7 @@ const {
 	selectedTrack, selectedPlugin, pluginOptions,
 	describeOf, selectTrack, cancelEdit, applyEdit, addTrack, removeTrack, moveTrack,
 	start, loadPlaylists, createPlaylist, renamePlaylist, deletePlaylist: removePlaylist, savePlaylist: save, overwritePlaylist, reloadPlaylist, discardChanges, stop,
+	isStale, trackPending, keepEditing,
 } = usePlaylists((severity, detail) => toast.add(severity === "success"
 	? { severity, summary: "Success", detail, life: 3000 }
 	: { severity, summary: "Error", detail, life: 5000 }))
@@ -172,6 +180,11 @@ const applyDisabled = computed(() => {
 	return track.title === editModel.title && track.plugin_name === editModel.plugin_name && !bf.value?.isDirty
 })
 
+// the track editor holds changes not applied yet: a save made elsewhere does not load the playlist over them
+watchEffect(() => {
+	const track = selectedTrack.value
+	trackPending.value = !!track && !draft.value && (track.title !== editModel.title || track.plugin_name !== editModel.plugin_name || !!bf.value?.isDirty)
+})
 const handleValidate = (e: ValidateEventData) => {
 	submitDisabled.value = !e.result.success
 }

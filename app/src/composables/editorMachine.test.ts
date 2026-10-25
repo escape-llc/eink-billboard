@@ -12,7 +12,7 @@ const EVENTS: EditorEvent[] = [
 	{ type: "EDIT" }, { type: "SAVE" }, { type: "SAVED", rev: "r2" },
 	{ type: "CONFLICT", rev: "r9" }, { type: "CONFLICT" }, { type: "SAVE_FAILED" },
 	{ type: "KEEP" }, { type: "TAKE_THEIRS" }, { type: "DISCARD" }, { type: "UNLOAD" }, { type: "REVISED", rev: "r5" },
-	{ type: "REMOTE_CHANGED" },
+	{ type: "REMOTE_CHANGED" }, { type: "REMOTE_CHANGED", held: true },
 ]
 
 /** What must hold in every state any path reaches. */
@@ -127,10 +127,17 @@ describe("editorMachine", () => {
 		const saved = replay([...opened, { type: "VALUES", key: "B", valid: true }, { type: "REMOTE_CHANGED" }, { type: "SAVE" }, { type: "CONFLICT", rev: "r7" }])
 		expect(saved.matches("conflict")).toBe(true)
 	})
-	it("loads theirs when the edits were put back before keeping them", () => {
+	it("keeps editing as unsaved, even with the edits put back, until saved or discarded", () => {
 		const snap = replay([{ type: "LOADED", rev: "r1" }, { type: "VALUES", key: "A", valid: true }, { type: "VALUES", key: "B", valid: true },
-			{ type: "REMOTE_CHANGED" }, { type: "VALUES", key: "A", valid: true }, { type: "KEEP" }])
-		expect(snap.matches("loading")).toBe(true)
+			{ type: "REMOTE_CHANGED" }, { type: "VALUES", key: "A", valid: true }, { type: "KEEP" }, { type: "VALUES", key: "A", valid: true }])
+		expect([snap.matches("dirty"), snap.hasTag(UNSAVED)]).toEqual([true, true])
+	})
+	it("is stale, not loaded again, when the editor holds work it does not compare", () => {
+		const opened = [{ type: "LOADED", rev: "r1" }, { type: "VALUES", key: "A", valid: true }] as EditorEvent[]
+		expect(replay([...opened, { type: "REMOTE_CHANGED", held: true }]).matches("stale")).toBe(true)
+		expect(replay([{ type: "LOADED", rev: "r1" }, { type: "REMOTE_CHANGED", held: true }]).matches("stale")).toBe(true)
+		const kept = replay([...opened, { type: "REMOTE_CHANGED", held: true }, { type: "KEEP" }])
+		expect([kept.matches("dirty"), kept.context.rev]).toEqual([true, "r1"])
 	})
 	it("ignores a change made elsewhere while it saves, loads or is in a conflict", () => {
 		const editing = [{ type: "LOADED", rev: "r1" }, { type: "VALUES", key: "A", valid: true }, { type: "VALUES", key: "B", valid: true }] as EditorEvent[]

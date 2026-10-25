@@ -2,7 +2,7 @@ import fs from "node:fs"
 import path from "node:path"
 import { expect, test, type Page } from "@playwright/test"
 import { OPEN } from "./servers"
-import { stubMapTiles, watchProblems } from "./support"
+import { stubMapTiles, untilServed, watchProblems } from "./support"
 
 // These tests change the schedules on the open server; the folder is put back afterwards so the other specs see the fixture.
 test.describe.configure({ mode: "serial" })
@@ -13,13 +13,22 @@ const snapshot = new Map<string, string>()
 const stored = () => JSON.parse(fs.readFileSync(FILE, "utf8"))
 
 test.beforeAll(() => { for (const name of fs.readdirSync(FOLDER)) snapshot.set(name, fs.readFileSync(path.join(FOLDER, name), "utf8")) })
+/** Put the fixture back; true when that changed a file. */
 const restore = () => {
-	for (const name of fs.readdirSync(FOLDER)) if (!snapshot.has(name)) fs.rmSync(path.join(FOLDER, name))
-	for (const [name, text] of snapshot) fs.writeFileSync(path.join(FOLDER, name), text)
+	let changed = false
+	for (const name of fs.readdirSync(FOLDER)) if (!snapshot.has(name)) { fs.rmSync(path.join(FOLDER, name)); changed = true }
+	for (const [name, text] of snapshot) {
+		const file = path.join(FOLDER, name)
+		if (fs.existsSync(file) && fs.readFileSync(file, "utf8") === text) continue
+		fs.writeFileSync(file, text)
+		changed = true
+	}
+	return changed
 }
 test.afterAll(restore)
-test.beforeEach(async ({ page }) => {
-	restore()
+test.beforeEach(async ({ page, request }) => {
+	// the page must load the fixture, not the server's copy of what the last test left
+	if (restore()) await untilServed(request, `${OPEN.url}${API}/list`, answer => answer.playlists, [JSON.parse(snapshot.get("playlist.json")!)])
 	await stubMapTiles(page)
 })
 
@@ -99,11 +108,73 @@ test("a change made elsewhere is a conflict that can be reloaded or overwritten"
 	const doc = (await (await request.get(`${OPEN.url}${API}/e2e-playlist`)).json()).schedule
 	expect((await request.patch(`${OPEN.url}${API}/e2e-playlist`, { data: { name: "Renamed elsewhere", _rev: doc._rev } })).ok()).toBeTruthy()
 	await save(page).click()
-	await expect(page.getByText(/changed|mismatch/i).first()).toBeVisible()
+	await expect(page.getByText(/mismatch|changed since/i).first()).toBeVisible()
 	expect(stored().name).toBe("Renamed elsewhere")
 	await page.getByRole("button", { name: "Overwrite" }).click()
 	await expect(page.getByText("Playlist saved")).toBeVisible()
 	expect(stored().items[0].title).toBe("Mine")
+	watch.expectNone()
+})
+
+// saved elsewhere while the page is open (another tab, the device's command line: the server's file watcher says so)
+async function savedElsewhere(request: import("@playwright/test").APIRequestContext, title: string) {
+	const doc = (await (await request.get(`${OPEN.url}${API}/e2e-playlist`)).json()).schedule
+	const items = doc.items.map((t: { title: string }, i: number) => i === 1 ? { ...t, title } : t)
+	expect((await request.put(`${OPEN.url}${API}/e2e-playlist`, { data: { name: doc.name, items, _rev: doc._rev } })).ok()).toBeTruthy()
+}
+const stayed = (page: Page) => page.evaluate(() => (window as unknown as { stayed?: boolean }).stayed)
+const banner = (page: Page) => page.locator(".changed-elsewhere")
+async function openPlaylist(page: Page) {
+	await page.goto("/#/playlist")
+	await row(page, "Morning slides").click()
+	await expect(page.locator(".track-editor input[type=text]").first()).toHaveValue("Morning slides")
+	await page.evaluate(() => { (window as unknown as { stayed: boolean }).stayed = true })
+}
+
+test("a playlist saved elsewhere is shown in an open page with no changes, the selected track still selected", async ({ page, request }) => {
+	const watch = watchProblems(page)
+	await openPlaylist(page)
+	await savedElsewhere(request, "Evening, elsewhere")
+	await expect(row(page, "Evening, elsewhere")).toBeVisible({ timeout: 15_000 })
+	await expect(page.locator(".track-editor input[type=text]").first()).toHaveValue("Morning slides")
+	await expect(banner(page)).toBeHidden()
+	await expect(page.getByText(/Unsaved changes/)).toBeHidden()
+	expect(await stayed(page)).toBe(true)
+	watch.expectNone()
+})
+
+test("with unsaved changes, a save elsewhere says so; Keep editing keeps them and saving asks whether to overwrite", async ({ page, request }) => {
+	const watch = watchProblems(page, [409], [/409|Conflict/i])
+	await openPlaylist(page)
+	const title = page.locator(".track-editor input[type=text]").first()
+	await title.fill("Mine")
+	await apply(page).click()
+	await savedElsewhere(request, "Evening, elsewhere")
+	await expect(banner(page)).toContainText("Changed elsewhere", { timeout: 15_000 })
+	await expect(row(page, "Mine")).toBeVisible()
+	await banner(page).getByRole("button", { name: "Keep editing" }).click()
+	await expect(banner(page)).toBeHidden()
+	await expect(page.getByText(/Unsaved changes/)).toBeVisible()
+	await save(page).click()
+	await page.getByRole("button", { name: "Overwrite" }).click()
+	await expect(page.getByText("Playlist saved")).toBeVisible()
+	expect(stored().items.map((x: { title: string }) => x.title)).toEqual(["Mine", "Evening slides"])
+	expect(await stayed(page)).toBe(true)
+	watch.expectNone()
+})
+
+test("a track edited and not applied is not loaded over; Reload shows the saved playlist", async ({ page, request }) => {
+	const watch = watchProblems(page)
+	await openPlaylist(page)
+	const title = page.locator(".track-editor input[type=text]").first()
+	await title.fill("Typed, not applied")
+	await savedElsewhere(request, "Evening, elsewhere")
+	await expect(banner(page)).toBeVisible({ timeout: 15_000 })
+	await expect(title).toHaveValue("Typed, not applied")
+	await banner(page).getByRole("button", { name: "Reload" }).click()
+	await expect(banner(page)).toBeHidden()
+	await expect(row(page, "Evening, elsewhere")).toBeVisible()
+	expect(await stayed(page)).toBe(true)
 	watch.expectNone()
 })
 

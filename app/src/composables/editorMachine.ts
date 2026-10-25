@@ -58,8 +58,11 @@ export type EditorEvent =
 	| { type: "UNLOAD" }
 	/** the stored document has a new revision with the edits still the editor's (a playlist renamed on its own): what is unsaved does not change */
 	| { type: "REVISED", rev: string }
-	/** someone else saved the document (its stored revision is not the editor's): load it again, or, with edits, say it is stale */
-	| { type: "REMOTE_CHANGED" }
+	/**
+	 * someone else saved the document (its stored revision is not the editor's): load it again, or, with edits, say it is stale. `held`: the editor
+	 * holds work the machine does not compare (a playlist's track being edited, not applied yet), which a load would drop, so it is stale too
+	 */
+	| { type: "REMOTE_CHANGED", held?: boolean }
 
 /** The tag of every state that holds work the server does not have: leaving the page asks first. */
 export const UNSAVED = "unsaved"
@@ -78,6 +81,7 @@ export const editorMachine = setup({
 		changed: ({ context, event }) => event.type === "VALUES" && event.key !== context.baseline,
 		unchanged: ({ context, event }) => event.type === "VALUES" && event.key === context.baseline && !context.sticky,
 		knowsTheirs: ({ context }) => context.theirs !== undefined,
+		held: ({ event }) => event.type === "REMOTE_CHANGED" && event.held === true,
 		stillAsSaved: ({ context }) => context.current === context.saving,
 		asLoaded: ({ context }) => context.current === context.baseline && !context.sticky,
 	},
@@ -121,7 +125,7 @@ export const editorMachine = setup({
 				EDIT: { target: "dirty", actions: "edit" },
 				LOAD: "loading",
 				REVISED: { actions: "revised" },
-				REMOTE_CHANGED: "loading",
+				REMOTE_CHANGED: [{ guard: "held", target: "stale" }, { target: "loading" }],
 			},
 		},
 		clean: {
@@ -132,8 +136,8 @@ export const editorMachine = setup({
 				SAVE: { guard: "valid", target: "saving", actions: "startSave" },
 				LOAD: "loading",
 				REVISED: { actions: "revised" },
-				// nothing would be lost: show theirs
-				REMOTE_CHANGED: "loading",
+				// nothing would be lost: show theirs (unless the editor holds work of its own)
+				REMOTE_CHANGED: [{ guard: "held", target: "stale" }, { target: "loading" }],
 			},
 		},
 		dirty: {
@@ -155,8 +159,8 @@ export const editorMachine = setup({
 				EDIT: { actions: "edit" },
 				// still over the revision that was loaded: the server refuses it, and the conflict asks whether to overwrite
 				SAVE: { guard: "valid", target: "saving", actions: "startSave" },
-				// with the edits put back there is nothing of mine to keep: theirs is shown
-				KEEP: [{ guard: "asLoaded", target: "loading" }, { target: "dirty" }],
+				// keep editing: unsaved until saved (the conflict then asks) or discarded, whatever the values (work it does not compare may be kept)
+				KEEP: { target: "dirty", actions: "edit" },
 				TAKE_THEIRS: "loading",
 				DISCARD: "loading",
 				REVISED: { actions: "revised" },

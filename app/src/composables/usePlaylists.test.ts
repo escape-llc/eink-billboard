@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ApiError } from "../components/ApiClient"
 import { api } from "../api/client"
 import { inApp } from "../api/inApp"
+import { changedEvent, fakeLink, settle } from "../api/fakeLink"
 import { documentBody, splitServerErrors, usePlaylists } from "./usePlaylists"
 import type { PlaylistItem } from "../components/ScheduleDefs"
 
@@ -275,6 +276,79 @@ describe("the playlists", () => {
 		mocked.delete.mockRejectedValueOnce(new ApiError(409, "Revision mismatch"))
 		await pl.deletePlaylist()
 		expect(pl.conflict.value?.message).toMatch(/reload it before deleting/)
+	})
+})
+
+describe("changes made elsewhere", () => {
+	/** The page on the stored playlists `stored` (changed by the test), following a fake link. */
+	async function following() {
+		const stored = { list: [doc("a", [track("t1"), track("t2"), track("t3")]), doc("b", [])] }
+		mocked.get.mockImplementation(async (path: string, init?: { path?: { doc_id?: string } }) => {
+			if(path === "/api/plugins/list") return [SLIDES, OVERLAY]
+			if(path === "/api/datasources/list") return []
+			if(path === "/api/schedule/playlist/list") return { playlists: stored.list }
+			if(path === "/api/schedule/playlist/{doc_id}") return { success: true, schedule: stored.list.find(p => p.id === init?.path?.doc_id) }
+			throw new Error(`no route ${path}`)
+		})
+		const fake = fakeLink()
+		const pl = inApp(() => usePlaylists(() => {}, { link: fake.link }))
+		await pl.start()
+		const elsewhere = (items: PlaylistItem[], rev = "r2") => {
+			stored.list = [doc("a", items, rev), ...stored.list.slice(1)]
+			fake.send(changedEvent("/api/schedule"))
+			return settle().then(settle)
+		}
+		return { pl, fake, stored, elsewhere }
+	}
+
+	it("with nothing unsaved the playlist is loaded again, and the selected track stays selected where it moved", async () => {
+		const { pl, elsewhere } = await following()
+		pl.selectTrack(1)
+		await elsewhere([track("t2", "Moved first"), track("t1"), track("t3")])
+		expect(pl.tracks.value.map(t => t.title)).toEqual(["Moved first", "t1", "t3"])
+		expect([pl.selectedIndex.value, pl.editModel.title, pl.docRev.value, pl.dirty.value, pl.isStale.value]).toEqual([0, "Moved first", "r2", false, false])
+	})
+	it("with unsaved changes it is stale: they stay until Reload, or Keep editing", async () => {
+		const { pl, elsewhere } = await following()
+		pl.moveTrack(0, 1)
+		await elsewhere([track("t1", "Theirs")])
+		expect([pl.isStale.value, pl.dirty.value, pl.tracks.value.map(t => t.id)]).toEqual([true, true, ["t2", "t1", "t3"]])
+		pl.keepEditing()
+		expect([pl.isStale.value, pl.dirty.value, pl.docRev.value]).toEqual([false, true, "r1"])
+	})
+	it("Reload shows theirs", async () => {
+		const { pl, elsewhere } = await following()
+		pl.moveTrack(0, 1)
+		await elsewhere([track("t1", "Theirs")])
+		await pl.reloadPlaylist()
+		expect([pl.isStale.value, pl.dirty.value, pl.tracks.value.map(t => t.title)]).toEqual([false, false, ["Theirs"]])
+	})
+	it("a track edited and not applied, or a draft, is not loaded over: it is stale", async () => {
+		const { pl, elsewhere } = await following()
+		pl.selectTrack(0)
+		pl.trackPending.value = true
+		await elsewhere([track("t1", "Theirs")])
+		expect([pl.isStale.value, pl.tracks.value.length]).toEqual([true, 3])
+
+		const other = await following()
+		other.pl.addTrack()
+		await other.elsewhere([track("t1", "Theirs")])
+		expect([other.pl.isStale.value, other.pl.draft.value?.title]).toEqual([true, "Untitled"])
+	})
+	it("its own save is no change", async () => {
+		const { pl, stored, fake } = await following()
+		pl.moveTrack(0, 1)
+		mocked.put.mockImplementation(async (_path: string, _init: unknown, body: { items: PlaylistItem[] }) => {
+			stored.list = [doc("a", JSON.parse(JSON.stringify(body.items)), "r2")]
+			return { success: true, rev: "r2", schedule: stored.list[0] }
+		})
+		await pl.savePlaylist(() => 0)
+		const asked = mocked.get.mock.calls.length
+		fake.send(changedEvent("/api/schedule"))
+		await settle()
+		expect([pl.isStale.value, pl.dirty.value, pl.docRev.value]).toEqual([false, false, "r2"])
+		// the revision was asked for, and nothing loaded
+		expect(mocked.get.mock.calls.slice(asked).map(c => c[0])).toEqual(["/api/schedule/playlist/{doc_id}"])
 	})
 })
 

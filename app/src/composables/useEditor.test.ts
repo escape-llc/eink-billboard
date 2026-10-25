@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import { ApiError } from "../components/ApiClient"
-import type { LinkListener, TelemetryEvent, TelemetryLink } from "../components/TelemetryLink"
+import { changedEvent as changed, fakeLink, settle } from "../api/fakeLink"
 import { useEditor } from "./useEditor"
 
 // the editor's cycle with stand-in loads and saves: what the machine is told by each outcome
@@ -97,19 +97,6 @@ describe("useEditor", () => {
 })
 
 describe("useEditor follows its document", () => {
-	/** A link that tells what a test sends. */
-	function fakeLink() {
-		const listeners = new Set<LinkListener>()
-		const link = { listen: (l: LinkListener) => { listeners.add(l); return () => { listeners.delete(l) } } } as unknown as TelemetryLink
-		return {
-			link,
-			listeners,
-			send: (e: TelemetryEvent, replayed = false) => { for (const l of listeners) l.event?.(e, replayed) },
-			resume: () => { for (const l of listeners) l.resumed?.() },
-		}
-	}
-	const changed = (...paths: string[]): TelemetryEvent => ({ seq: 1, source: "application", kind: "config-changed", values: { area: "settings", changed: paths } })
-	const settle = () => new Promise(resolve => setTimeout(resolve, 0))
 	/** An editor of /api/settings/theme whose stored revision is `stored.rev`. */
 	function following(save = vi.fn(async () => "r2")) {
 		const fake = fakeLink()

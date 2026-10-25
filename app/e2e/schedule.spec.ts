@@ -2,7 +2,7 @@ import fs from "node:fs"
 import path from "node:path"
 import { expect, test, type Page } from "@playwright/test"
 import { OPEN } from "./servers"
-import { stubMapTiles, watchProblems } from "./support"
+import { stubMapTiles, untilServed, watchProblems } from "./support"
 
 // These tests change the schedule on the open server; the file is put back afterwards so the other specs see the fixture.
 test.describe.configure({ mode: "serial" })
@@ -15,8 +15,12 @@ const storedTask = (id: string) => stored().items.find((x: { id: string }) => x.
 
 test.beforeAll(() => { original = fs.readFileSync(FILE, "utf8") })
 test.afterAll(() => { fs.writeFileSync(FILE, original) })
-test.beforeEach(async ({ page }) => {
-	fs.writeFileSync(FILE, original)
+test.beforeEach(async ({ page, request }) => {
+	// the page must load the fixture, not the server's copy of what the last test left
+	if (fs.readFileSync(FILE, "utf8") !== original) {
+		fs.writeFileSync(FILE, original)
+		await untilServed(request, `${OPEN.url}/api/schedule/timer/${DOC}`, answer => answer.schedule.items, JSON.parse(original).items)
+	}
 	await stubMapTiles(page)
 })
 
@@ -83,14 +87,14 @@ test("editing a task saves just that task, and the timeline shows the change", a
 test("a change made elsewhere is a conflict that can be reloaded or overwritten", async ({ page, request }) => {
 	const watch = watchProblems(page, [409], [/409|Conflict/i])
 	const title = await openFirstQuarterHourTask(page)
-	// somebody else renames the same task after this page loaded it
+	// somebody else renames the same task while this page has an edit (without one, the dialog would show theirs)
+	await title.fill("My version")
 	const current = (await (await request.get(`${OPEN.url}${TASKS}/task1`)).json()).task
 	const other = await request.patch(`${OPEN.url}${TASKS}/task1`, { data: { title: "Changed elsewhere", _rev: current._rev } })
 	expect(other.ok()).toBeTruthy()
 
-	await title.fill("My version")
 	await dialog(page).getByRole("button", { name: "Save", exact: true }).last().click()
-	await expect(dialog(page).getByText(/changed|mismatch/i).first()).toBeVisible()
+	await expect(dialog(page).getByText(/mismatch|changed since/i).first()).toBeVisible()
 	expect(storedTask("task1").title).toBe("Changed elsewhere")
 
 	// Reload takes their version and drops my edit
@@ -98,12 +102,36 @@ test("a change made elsewhere is a conflict that can be reloaded or overwritten"
 	await expect(title).toHaveValue("Changed elsewhere")
 
 	// edit again, conflict again, and this time overwrite
-	await request.patch(`${OPEN.url}${TASKS}/task1`, { data: { title: "Changed again", _rev: (await (await request.get(`${OPEN.url}${TASKS}/task1`)).json()).task._rev } })
 	await title.fill("Mine wins")
+	await request.patch(`${OPEN.url}${TASKS}/task1`, { data: { title: "Changed again", _rev: (await (await request.get(`${OPEN.url}${TASKS}/task1`)).json()).task._rev } })
 	await dialog(page).getByRole("button", { name: "Save", exact: true }).last().click()
 	await dialog(page).getByRole("button", { name: "Overwrite" }).click()
 	await expect(page.getByText("Task saved")).toBeVisible()
 	await expect.poll(() => storedTask("task1").title).toBe("Mine wins")
+	watch.expectNone()
+})
+
+test("a task saved elsewhere is shown in an open dialog with no edits; with edits it says so", async ({ page, request }) => {
+	const watch = watchProblems(page)
+	const title = await openFirstQuarterHourTask(page)
+	await page.evaluate(() => { (window as unknown as { stayed: boolean }).stayed = true })
+	const rename = async (to: string) => {
+		const current = (await (await request.get(`${OPEN.url}${TASKS}/task1`)).json()).task
+		expect((await request.patch(`${OPEN.url}${TASKS}/task1`, { data: { title: to, _rev: current._rev } })).ok()).toBeTruthy()
+	}
+	await rename("Renamed elsewhere")
+	await expect(title).toHaveValue("Renamed elsewhere", { timeout: 15_000 })
+	const banner = dialog(page).locator(".changed-elsewhere")
+	await expect(banner).toBeHidden()
+
+	await title.fill("My edit")
+	await rename("Renamed again")
+	await expect(banner).toContainText("Changed elsewhere", { timeout: 15_000 })
+	await expect(title).toHaveValue("My edit")
+	await banner.getByRole("button", { name: "Reload" }).click()
+	await expect(title).toHaveValue("Renamed again")
+	await expect(banner).toBeHidden()
+	expect(await page.evaluate(() => (window as unknown as { stayed?: boolean }).stayed)).toBe(true)
 	watch.expectNone()
 })
 

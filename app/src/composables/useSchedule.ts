@@ -15,6 +15,7 @@ import { browserZoneDifference, zonedParts } from "../components/CalendarTime"
 import type { Descriptor } from "../components/FormDefs"
 import type { PluginDef, TimerTasks } from "../components/ScheduleDefs"
 import { useEditor } from "./useEditor"
+import type { TelemetryLink } from "../components/TelemetryLink"
 import { useCatalog } from "../api/resources"
 
 /** A list of what is installed, answered from the cache or asked once: its failure fails the load, as the timeline's own would. */
@@ -65,7 +66,7 @@ export const stageTask = (evx: any) => ({
 	content: evx.task.content
 })
 
-export function useSchedule(notify: Notify) {
+export function useSchedule(notify: Notify, options: { link?: TelemetryLink } = {}) {
 	// what is shown: a day, a week (from today's weekday), or each task once over that week; `offset` is days from today, never negative
 	const mode = ref<SchedulerMode>("week")
 	const offset = ref(0)
@@ -101,6 +102,17 @@ export function useSchedule(notify: Notify) {
 	const busy = ref(false)
 	let lastBody: Record<string, any> | undefined = undefined
 	const editor = useEditor<Record<string, any>>({
+		// the task saved elsewhere while the dialog has no edits: shown again, in a fresh form
+		load: async () => {
+			const rx = await api.get("/api/schedule/timer/{doc_id}/items/{item_id}", taskPath(editTarget.value!.schedule, editTarget.value!.id!))
+			return { rev: rx.task._rev, show: () => { resetMessages(); showTask(stageTask(rx.task), rx.task._rev) } }
+		},
+		follow: {
+			// a stored task (a new one has nothing to follow)
+			address: () => editTarget.value?.id ? `/api/schedule/timer/${editTarget.value.schedule}/items/${editTarget.value.id}` : undefined,
+			revision: async () => (await api.get("/api/schedule/timer/{doc_id}/items/{item_id}", taskPath(editTarget.value!.schedule, editTarget.value!.id!))).task._rev,
+			link: options.link,
+		},
 		save: async (body, rev) => {
 			const target = editTarget.value!
 			if(target.id) await api.put("/api/schedule/timer/{doc_id}/items/{item_id}", taskPath(target.schedule, target.id), { ...body, _rev: rev })
@@ -310,6 +322,8 @@ export function useSchedule(notify: Notify) {
 		mode, offset, today, firstDay, dayCount, timeZone, schedules, eventList, pluginList, dataSources, documents, loading,
 		editTarget, editModel, formKey, newTaskDocument, conflict, serverProblems, saving, taskRev,
 		hasUnsaved: editor.hasUnsaved, canSave: editor.canSave, values: editor.values, stop: editor.stop,
+		// changed elsewhere: keep the edits (a save is then refused as a conflict, which asks whether to overwrite)
+		isStale: editor.isStale, keepEditing: editor.keep,
 		zoneNote, rangeText, rows, selectedPlugin, timerPlugins, pluginOptions,
 		loadTimeline, start, setMode, move, goToday, checkDay,
 		openTask, showTask, closeTask, newTask, saveTask, overwriteTask, reloadTask, deleteTask,

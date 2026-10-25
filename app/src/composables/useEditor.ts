@@ -32,6 +32,8 @@ export interface EditorFollow {
 	address: () => string | undefined
 	/** the stored document's revision now (it rejects when it cannot be had: nothing is decided then) */
 	revision: () => Promise<string | undefined>
+	/** whether the editor holds work the machine does not compare (a track being edited, not applied): a change elsewhere is then stale, not loaded */
+	held?: () => boolean
 	/** the telemetry link (a fake in a test); the page's own by default */
 	link?: TelemetryLink
 }
@@ -113,11 +115,10 @@ export function useEditor<TPayload = unknown>(ops: EditorOperations<TPayload>) {
 			return { outcome: "failed", error }
 		}
 	}
-	/** In a conflict: keep my edits, to be saved over theirs. When stale: keep editing (with nothing of mine left to keep, theirs is loaded). */
+	/** In a conflict: keep my edits, to be saved over theirs. When stale: keep editing (unsaved until saved or discarded). */
 	function keep(): boolean {
 		if(!state.value.can({ type: "KEEP" })) return false
 		actor.send({ type: "KEEP" })
-		if(state.value.matches("loading")) void reload()
 		return true
 	}
 	/** In a conflict: drop my edits and load theirs. */
@@ -144,6 +145,7 @@ export function useEditor<TPayload = unknown>(ops: EditorOperations<TPayload>) {
 				// a load or a save while it was asked: the editor's revision is newer than this answer
 				if(stored === asked || state.value.context.rev !== asked || !state.value.can({ type: "REMOTE_CHANGED" })) continue
 				if(state.value.matches("dirty")) actor.send({ type: "REMOTE_CHANGED" })
+				else if(ops.follow.held?.() || !ops.load) actor.send({ type: "REMOTE_CHANGED", held: true })
 				else await load("REMOTE_CHANGED")
 			} while(again)
 		}
