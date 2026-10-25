@@ -7,6 +7,10 @@
  * Dirty is a comparison, not a count of edits: `VALUES` carries a key of the values the editor holds (`valuesKey`), and the editor is `dirty` while that
  * differs from the baseline, the key of what was loaded or last saved; edit a field and put it back, and it is `clean` again. The baseline is taken from
  * the first `VALUES` after a load (`settling`), because a form fills in defaults and masks after it opens: the raw document would look changed.
+ *
+ * Someone else may change the stored document while it is open (another tab, the device's command line, a restore: the server's `changed` events,
+ * #549). `REMOTE_CHANGED` says so, once the editor has checked that the stored revision is not its own: with nothing unsaved the document is loaded
+ * again, and with edits it is `stale`, still unsaved, until the person reloads or keeps editing (a save then is refused as a conflict, which asks again).
  */
 import { assign, setup } from "xstate"
 
@@ -54,6 +58,8 @@ export type EditorEvent =
 	| { type: "UNLOAD" }
 	/** the stored document has a new revision with the edits still the editor's (a playlist renamed on its own): what is unsaved does not change */
 	| { type: "REVISED", rev: string }
+	/** someone else saved the document (its stored revision is not the editor's): load it again, or, with edits, say it is stale */
+	| { type: "REMOTE_CHANGED" }
 
 /** The tag of every state that holds work the server does not have: leaving the page asks first. */
 export const UNSAVED = "unsaved"
@@ -115,6 +121,7 @@ export const editorMachine = setup({
 				EDIT: { target: "dirty", actions: "edit" },
 				LOAD: "loading",
 				REVISED: { actions: "revised" },
+				REMOTE_CHANGED: "loading",
 			},
 		},
 		clean: {
@@ -125,6 +132,8 @@ export const editorMachine = setup({
 				SAVE: { guard: "valid", target: "saving", actions: "startSave" },
 				LOAD: "loading",
 				REVISED: { actions: "revised" },
+				// nothing would be lost: show theirs
+				REMOTE_CHANGED: "loading",
 			},
 		},
 		dirty: {
@@ -133,6 +142,22 @@ export const editorMachine = setup({
 				VALUES: [{ guard: "unchanged", target: "clean", actions: "values" }, { actions: "values" }],
 				EDIT: { actions: "edit" },
 				SAVE: { guard: "valid", target: "saving", actions: "startSave" },
+				DISCARD: "loading",
+				REVISED: { actions: "revised" },
+				REMOTE_CHANGED: "stale",
+			},
+		},
+		// someone else saved while there are edits: they stay, unsaved, until the person reloads (theirs) or keeps editing
+		stale: {
+			tags: [UNSAVED],
+			on: {
+				VALUES: { actions: "values" },
+				EDIT: { actions: "edit" },
+				// still over the revision that was loaded: the server refuses it, and the conflict asks whether to overwrite
+				SAVE: { guard: "valid", target: "saving", actions: "startSave" },
+				// with the edits put back there is nothing of mine to keep: theirs is shown
+				KEEP: [{ guard: "asLoaded", target: "loading" }, { target: "dirty" }],
+				TAKE_THEIRS: "loading",
 				DISCARD: "loading",
 				REVISED: { actions: "revised" },
 			},

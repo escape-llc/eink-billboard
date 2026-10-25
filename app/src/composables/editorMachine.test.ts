@@ -12,13 +12,14 @@ const EVENTS: EditorEvent[] = [
 	{ type: "EDIT" }, { type: "SAVE" }, { type: "SAVED", rev: "r2" },
 	{ type: "CONFLICT", rev: "r9" }, { type: "CONFLICT" }, { type: "SAVE_FAILED" },
 	{ type: "KEEP" }, { type: "TAKE_THEIRS" }, { type: "DISCARD" }, { type: "UNLOAD" }, { type: "REVISED", rev: "r5" },
+	{ type: "REMOTE_CHANGED" },
 ]
 
 /** What must hold in every state any path reaches. */
 function invariants(snap: Snap) {
 	const { context } = snap
 	// unsaved work is exactly: changed values, an edit that cannot be compared, a save under way, or a conflict
-	const unsaved = snap.matches("dirty") || snap.matches("saving") || snap.matches("conflict")
+	const unsaved = snap.matches("dirty") || snap.matches("saving") || snap.matches("conflict") || snap.matches("stale")
 	expect(snap.hasTag(UNSAVED)).toBe(unsaved)
 	// clean means the values are the baseline; dirty that they are not
 	if(snap.matches("clean")) {
@@ -49,7 +50,7 @@ describe("editorMachine", () => {
 	const paths = getShortestPaths(editorMachine, { events: EVENTS })
 	it("reaches every state", () => {
 		const reached = new Set(paths.map(path => String(path.state.value)))
-		for(const name of ["empty", "loading", "failed", "settling", "clean", "dirty", "saving", "conflict"]) {
+		for(const name of ["empty", "loading", "failed", "settling", "clean", "dirty", "saving", "conflict", "stale"]) {
 			expect(reached, name).toContain(name)
 		}
 	})
@@ -113,6 +114,30 @@ describe("editorMachine", () => {
 	it("lets a document that is not stored be saved as loaded (created from its defaults)", () => {
 		const snap = replay([{ type: "LOADED" }, { type: "VALUES", key: "A", valid: true }])
 		expect(snap.can({ type: "SAVE" })).toBe(true)
+	})
+	it("shows a change made elsewhere when nothing is unsaved, and keeps the edits when something is", () => {
+		const opened = [{ type: "LOADED", rev: "r1" }, { type: "VALUES", key: "A", valid: true }] as EditorEvent[]
+		expect(replay([...opened, { type: "REMOTE_CHANGED" }]).matches("loading")).toBe(true)
+		const stale = replay([...opened, { type: "VALUES", key: "B", valid: true }, { type: "REMOTE_CHANGED" }])
+		expect([stale.matches("stale"), stale.hasTag(UNSAVED), stale.context.current]).toEqual([true, true, "B"])
+		// reload, or keep editing; a save still goes over the loaded revision, so the server refuses it and the conflict asks
+		expect(stale.can({ type: "TAKE_THEIRS" })).toBe(true)
+		const kept = replay([...opened, { type: "VALUES", key: "B", valid: true }, { type: "REMOTE_CHANGED" }, { type: "KEEP" }])
+		expect([kept.matches("dirty"), kept.context.rev]).toEqual([true, "r1"])
+		const saved = replay([...opened, { type: "VALUES", key: "B", valid: true }, { type: "REMOTE_CHANGED" }, { type: "SAVE" }, { type: "CONFLICT", rev: "r7" }])
+		expect(saved.matches("conflict")).toBe(true)
+	})
+	it("loads theirs when the edits were put back before keeping them", () => {
+		const snap = replay([{ type: "LOADED", rev: "r1" }, { type: "VALUES", key: "A", valid: true }, { type: "VALUES", key: "B", valid: true },
+			{ type: "REMOTE_CHANGED" }, { type: "VALUES", key: "A", valid: true }, { type: "KEEP" }])
+		expect(snap.matches("loading")).toBe(true)
+	})
+	it("ignores a change made elsewhere while it saves, loads or is in a conflict", () => {
+		const editing = [{ type: "LOADED", rev: "r1" }, { type: "VALUES", key: "A", valid: true }, { type: "VALUES", key: "B", valid: true }] as EditorEvent[]
+		expect(replay([...editing, { type: "SAVE" }]).can({ type: "REMOTE_CHANGED" })).toBe(false)
+		expect(replay([...editing, { type: "SAVE" }, { type: "CONFLICT", rev: "r9" }]).can({ type: "REMOTE_CHANGED" })).toBe(false)
+		expect(replay([{ type: "LOAD" }]).can({ type: "REMOTE_CHANGED" })).toBe(false)
+		expect(replay([]).can({ type: "REMOTE_CHANGED" })).toBe(false)
 	})
 	it("holds an edit it cannot compare until saved or discarded", () => {
 		const snap = replay([{ type: "LOADED", rev: "r1" }, { type: "VALUES", key: "A", valid: true }, { type: "EDIT" }, { type: "VALUES", key: "A", valid: true }])

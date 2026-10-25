@@ -27,6 +27,13 @@
 					<Button size="small" label="Overwrite" icon="mi mi-upload" severity="danger" :disabled="!editor.canKeep.value" @click="overwrite" />
 				</div>
 			</Message>
+			<Message size="small" v-if="editor.isStale.value" severity="info" :closable="false" class="mt-1 changed-elsewhere">
+				<div class="flex align-items-center gap-2 flex-wrap">
+					<span>Changed elsewhere: these settings were saved somewhere else while you were editing them.</span>
+					<Button size="small" label="Reload" icon="mi mi-refresh" severity="secondary" title="Drop your changes and show the saved settings" @click="reload" />
+					<Button size="small" label="Keep editing" icon="mi mi-edit" severity="secondary" title="Keep your changes; saving them asks whether to overwrite" @click="keepEditing" />
+				</div>
+			</Message>
 			<slot name="header-end"></slot>
 		</template>
 	</BasicForm>
@@ -97,7 +104,18 @@ const editor = useEditor<Record<string, unknown>>({
 		const jv = await putDocument(rev ? { ...post, _rev: rev } : post)
 		return jv.rev
 	},
+	// saved somewhere else (another tab, the device, a restore): shown again, or, with edits, the banner above
+	follow: {
+		address: () => addressOf(props.target),
+		revision: async () => ((await fetchDocument()) as { _rev?: string })._rev,
+	},
 })
+/** The document's address, as the server's `changed` paths name it. */
+function addressOf(target: SettingsTarget | undefined): string | undefined {
+	if(!target) return undefined
+	if(target.kind === "device") return `/api/settings/${target.name}`
+	return `/api/${target.kind === "plugin" ? "plugins" : "datasources"}/${target.id}/settings`
+}
 const conflictMessage = ref("")
 let lastPost: Record<string, unknown>|undefined = undefined
 let _id:string|undefined = undefined
@@ -189,6 +207,8 @@ async function send(post: Record<string, unknown>) {
 }
 /** Drop the edits and show what the server has now. */
 const reload = () => editor.takeTheirs()
+/** Changed elsewhere: keep my edits (a save is then refused as a conflict, which asks whether to overwrite). */
+const keepEditing = () => editor.keep()
 /** Save the edits over what the server has now. */
 const overwrite = () => {
 	if(lastPost && editor.keep()) send(lastPost)
