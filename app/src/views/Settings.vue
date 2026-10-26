@@ -47,21 +47,18 @@
 					/>
 				<div style="text-align: center">
 					<h2>Theme Colors</h2>
-					<!-- every role of the palette, as the device computes it (POST /api/theme/palette), for the values in the form -->
-					<table class="palette" data-testid="palette">
-						<thead><tr><th></th><th v-for="c in PALETTE_COLUMNS" :key="c.key">{{ c.title }}</th></tr></thead>
-						<tbody>
-							<tr v-for="row in PALETTE_ROWS" :key="row.key">
-								<th>{{ row.title }}</th>
-								<td v-for="c in PALETTE_COLUMNS" :key="c.key">
-									<div class="swatch" :data-role="roleName(row.key, c.key)" :title="roleName(row.key, c.key)"
-										:style="{ backgroundColor: paletteColors[roleName(row.key, c.key)] ?? 'transparent' }"></div>
-								</td>
-							</tr>
-						</tbody>
-					</table>
-					<div class="page-row">Page background <span class="page-swatch" data-role="bg-page" :style="{ backgroundColor: paletteColors['bg-page'] ?? 'transparent' }"></span>
-						Overlay outline <span class="page-swatch" data-role="text-outline" :style="{ backgroundColor: paletteColors['text-outline'] ?? 'transparent' }"></span></div>
+					<!-- every role of the palette, resolved by the device (POST /api/theme/palette) for the values in the form and the panel that is attached -->
+					<p data-testid="ink-set">{{ shownFor }}</p>
+					<div class="palette" data-testid="palette">
+						<div v-for="r in roles" :key="r.name" class="role">
+							<div class="swatch" :data-role="r.name" :title="`${r.name}: ${r.ink}`" :style="{ backgroundColor: r.appearance }"></div>
+							<span class="role-name">{{ r.name }}</span>
+							<span class="role-ink">{{ r.ink }}</span>
+						</div>
+					</div>
+					<ul v-if="fallbackNotes.length" class="fallbacks" data-testid="fallbacks">
+						<li v-for="note in fallbackNotes" :key="note">{{ note }}</li>
+					</ul>
 					<h2>Theme Preview</h2>
 					<!-- a page and a dark page in the palette, fonts and text size of the form, built from the same roles the device's pages use -->
 					<div class="mock-row" data-testid="mockup" :style="mockVars">
@@ -247,7 +244,7 @@ onMounted(start)
 // the Theme tab's preview: the stored theme, then the form's values as they change, and the palette the server computes for them
 const {
 	fontBody: previewFontBody, fontHeading: previewFontHeading, fontOverlay: previewFontOverlay, fontScale: previewFontScale,
-	paletteColors, refreshPalette, fromStored, fromForm,
+	roles, paletteColors, shownFor, fallbackNotes, refreshPalette, fromStored, fromForm,
 } = useThemePreview()
 onMounted(refreshPalette)
 // the families the device ships, loaded under names of their own so they cannot be mistaken for a font of the computer
@@ -255,11 +252,7 @@ const FONTS = ["Jost", "Atkinson Hyperlegible", "Lexend", "League Spartan", "Lit
 const fontFaces = FONTS.flatMap(([family, weights]) => weights.map(weight =>
 	`@font-face { font-family: "eink-${family}"; font-weight: ${weight}; src: url("${API_URL}api/fonts/${encodeURIComponent(family)}?weight=${weight}") format("truetype"); }`)).join(" ")
 const fontStack = (family: string) => `"eink-${family}", sans-serif`
-// the palette: the roles are the CSS classes of themes.css (text-primary, bg-secondary-1-accent, ...)
-const PALETTE_COLUMNS = [{ key: "primary", title: "Primary" }, { key: "secondary-1", title: "Secondary 1" }, { key: "secondary-2", title: "Secondary 2" }]
-const PALETTE_ROWS = [{ key: "text", title: "Text" }, { key: "text|light", title: "Text, light" }, { key: "bg", title: "Background" }, { key: "bg|accent", title: "Accent" }, { key: "bg|dark", title: "Background, dark" }]
-// "text|light" and "primary" make "text-primary-light"
-const roleName = (row: string, column: string) => { const [kind, tone] = row.split("|"); return `${kind}-${column}${tone ? `-${tone}` : ""}` }
+// the palette: the roles are the CSS classes of themes.css (text-primary, bg-fill, ...)
 // the mock-up reads the palette through variables, named like the roles
 const mockVars = computed(() => ({
 	...Object.fromEntries(Object.entries(paletteColors.value).map(([role, color]) => [`--m-${role}`, color])),
@@ -292,22 +285,32 @@ const submitForm = (data:any) => {
 	margin: auto;
 }
 .palette {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .75rem;
+	justify-content: center;
 	margin: .5rem auto;
-	border-collapse: separate;
-	border-spacing: .4rem;
 }
-.palette th {
-	font-weight: normal;
-	font-size: .9rem;
-	text-align: left;
+.role {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: .15rem;
+	font-size: .85rem;
 }
-.palette thead th {
-	text-align: center;
-}
-.palette .swatch {
+.role .swatch {
 	width: 5rem;
 	height: 2.5rem;
 	border: 1px solid var(--p-content-border-color);
+}
+.role-ink {
+	color: var(--p-text-muted-color);
+}
+.fallbacks {
+	list-style: none;
+	padding: 0;
+	margin: .5rem auto;
+	color: var(--p-text-muted-color);
 }
 .mock-row {
 	display: flex;
@@ -337,19 +340,8 @@ const submitForm = (data:any) => {
 	color: var(--m-text-secondary-2);
 }
 .mock-dark {
-	background: var(--m-bg-primary-dark);
-	color: var(--m-text-secondary-1-light);
-}
-.page-row {
-	display: flex;
-	gap: .6rem;
-	align-items: center;
-	justify-content: center;
-}
-.page-swatch {
-	width: 5rem;
-	height: 1.5rem;
-	border: 1px solid var(--p-content-border-color);
+	background: var(--m-bg-strong);
+	color: var(--m-text-on-strong);
 }
 .mock-kicker {
 	font-family: var(--m-heading);
@@ -368,7 +360,7 @@ const submitForm = (data:any) => {
 	line-height: 1.1;
 }
 .mock-light .mock-title { color: var(--m-text-primary); }
-.mock-dark .mock-title { color: var(--m-text-primary-light); }
+.mock-dark .mock-title { color: var(--m-text-on-strong); }
 .mock-split {
 	display: flex;
 	gap: var(--m-unit);
@@ -384,7 +376,8 @@ const submitForm = (data:any) => {
 	width: calc(2.2 * var(--m-unit));
 	height: calc(2.2 * var(--m-unit));
 	border-radius: 50%;
-	background: var(--m-bg-secondary-2-accent);
+	background: var(--m-bg-fill);
+	border: calc(0.12 * var(--m-unit)) solid var(--m-text-primary);
 }
 .mock-temp {
 	font-family: var(--m-heading);
@@ -404,8 +397,8 @@ const submitForm = (data:any) => {
 	text-align: center;
 }
 .mock-month .today {
-	background: var(--m-bg-primary-accent);
-	color: var(--m-text-primary-light);
+	background: var(--m-bg-fill);
+	color: var(--m-text-on-fill);
 	border-radius: calc(0.14 * var(--m-unit));
 }
 .mock-events {
@@ -418,12 +411,20 @@ const submitForm = (data:any) => {
 	padding: calc(0.12 * var(--m-unit)) calc(0.4 * var(--m-unit));
 	border-left: calc(0.24 * var(--m-unit)) solid;
 }
-.mock-event-1 { background: var(--m-bg-secondary-1); border-color: var(--m-bg-secondary-1-accent); color: var(--m-text-secondary-1); }
-.mock-event-2 { background: var(--m-bg-secondary-2); border-color: var(--m-bg-secondary-2-accent); color: var(--m-text-secondary-2); }
+.mock-event-1 { border-color: var(--m-text-secondary-1); color: var(--m-text-secondary-1); }
+.mock-event-2 { border-color: var(--m-text-secondary-2); color: var(--m-text-secondary-2); }
 .mock-bar {
 	margin-top: auto;
 	height: calc(1.2 * var(--m-unit));
-	background: linear-gradient(to right, var(--m-bg-secondary-1-accent) 60%, var(--m-bg-secondary-2-dark) 60%);
+	border: calc(0.12 * var(--m-unit)) solid var(--m-text-on-strong);
+	box-sizing: border-box;
+}
+.mock-bar::before {
+	content: "";
+	display: block;
+	width: 60%;
+	height: 100%;
+	background: var(--m-text-on-strong);
 }
 .swatch-table {
 	display:flex;

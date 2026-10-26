@@ -59,13 +59,11 @@ class ThemedErrorImageTests(unittest.TestCase):
 
 	@unittest.skipUnless(HAVE_CHROME, "needs the headless browser (EINK_CHROME, or chromium-headless-shell on PATH)")
 	def test_renders_through_the_browser_with_the_theme_and_is_repeatable(self):
-		tinted = inputs_from({ "theme": "analogous", "hue": 200, "saturation": 60, "lightness": 50, "background": "tinted" })
-		first = render_error_image(self.stm, (800, 480), "Morning slides", ["folder: Required"], tinted)
-		second = render_error_image(self.stm, (800, 480), "Morning slides", ["folder: Required"], tinted)
+		warm = inputs_from({ "preset": "warm" })
+		first = render_error_image(self.stm, (800, 480), "Morning slides", ["folder: Required"], warm)
+		second = render_error_image(self.stm, (800, 480), "Morning slides", ["folder: Required"], warm)
 		self.assertEqual(first.size, (800, 480))
 		self.assertEqual(first.tobytes(), second.tobytes())
-		# the theme's background (here the tint), not the plain page's white
-		self.assertNotEqual(first.convert("RGB").getpixel((5, 5)), (255, 255, 255))
 		# the page is white by default and black in dark mode
 		self.assertEqual(render_error_image(self.stm, (800, 480), "Morning slides", ["folder: Required"]).convert("RGB").getpixel((5, 5)), (255, 255, 255))
 		self.assertEqual(render_error_image(self.stm, (800, 480), "Morning slides", ["x"], inputs_from({ "background": "black" })).convert("RGB").getpixel((5, 5)), (0, 0, 0))

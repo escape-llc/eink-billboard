@@ -20,7 +20,7 @@ test("the theme tab shows a sample of the chosen fonts, served by the device", a
 	watch.expectNone()
 })
 
-test("the theme tab has a selector for each font and a swatch for every color of the palette", async ({ page }) => {
+test("the theme tab has a selector for each font and a swatch for every role of the palette", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Theme" }).click()
@@ -29,16 +29,16 @@ test("the theme tab has a selector for each font and a swatch for every color of
 	await expect(page.getByRole("option")).toHaveText(["Jost", "Atkinson Hyperlegible", "Lexend", "League Spartan", "Literata (serif)", "Bitter (slab serif)", "Dogica (pixel)", "DSEG7 (segments)"])
 	await page.getByRole("option", { name: "Atkinson Hyperlegible" }).click()
 	await expect(page.getByTestId("type-sample")).toHaveCSS("font-family", /eink-Atkinson Hyperlegible/)
-	// 5 tones of 3 colors
+	// the device resolves each role to an ink of the attached panel, and says which panel that is
+	await expect(page.getByTestId("ink-set")).toContainText("Shown for: Six colors (Spectra 6)")
 	const swatches = page.getByTestId("palette").locator(".swatch")
-	await expect(swatches).toHaveCount(15)
-	await expect.poll(async () => (await swatches.evaluateAll(els => els.map(e => getComputedStyle(e).backgroundColor))).filter(c => c !== "rgba(0, 0, 0, 0)").length).toBe(15)
-	// the colors follow the form
-	const before = await page.locator("[data-role=text-primary]").evaluate(e => getComputedStyle(e).backgroundColor)
-	const hue = page.getByRole("spinbutton", { name: "Hue" })
-	await hue.fill(String((Number(await hue.inputValue()) + 90) % 360))
-	await hue.blur()
-	await expect.poll(() => page.locator("[data-role=text-primary]").evaluate(e => getComputedStyle(e).backgroundColor)).not.toBe(before)
+	await expect(swatches).toHaveCount(9)
+	await expect(page.locator("[data-role=text-secondary-1]")).toHaveCSS("background-color", "rgb(247, 112, 116)")
+	// choosing another preset changes the colors
+	const before = await page.locator("[data-role=text-secondary-1]").evaluate(e => getComputedStyle(e).backgroundColor)
+	await page.getByRole("tabpanel").locator(".p-select").filter({ hasText: "Classic" }).first().click()
+	await page.getByRole("option", { name: /^Mono/ }).click()
+	await expect.poll(() => page.locator("[data-role=text-secondary-1]").evaluate(e => getComputedStyle(e).backgroundColor)).not.toBe(before)
 	watch.expectNone()
 })
 
@@ -68,17 +68,28 @@ test("the page background is white unless it is changed, and black is dark mode"
 	const watch = watchProblems(page)
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Theme" }).click()
-	const pageSwatch = page.locator(".page-swatch[data-role=bg-page]")
+	const pageSwatch = page.locator(".swatch[data-role=bg-page]")
 	// the overlays' outline follows the page: white, black on a black page
-	const outlineSwatch = page.locator(".page-swatch[data-role=text-outline]")
+	const outlineSwatch = page.locator(".swatch[data-role=text-outline]")
 	await expect.poll(() => outlineSwatch.evaluate(e => getComputedStyle(e).backgroundColor)).toBe("rgb(255, 255, 255)")
 	await expect.poll(() => pageSwatch.evaluate(e => getComputedStyle(e).backgroundColor)).toBe("rgb(255, 255, 255)")
 	await expect(page.getByTestId("mockup").locator(".mock-light")).toHaveCSS("background-color", "rgb(255, 255, 255)")
 	await page.getByRole("tabpanel").locator(".p-select").filter({ hasText: "White" }).first().click()
-	await expect(page.getByRole("option")).toHaveText(["White", "Tinted (the theme's light color)", "Black (dark mode)"])
+	await expect(page.getByRole("option")).toHaveText(["White", "Black (dark mode)"])
 	await page.getByRole("option", { name: "Black (dark mode)" }).click()
 	await expect.poll(() => pageSwatch.evaluate(e => getComputedStyle(e).backgroundColor)).toBe("rgb(0, 0, 0)")
 	await expect.poll(() => outlineSwatch.evaluate(e => getComputedStyle(e).backgroundColor)).toBe("rgb(0, 0, 0)")
 	await expect(page.getByTestId("mockup").locator(".mock-light")).toHaveCSS("background-color", "rgb(0, 0, 0)")
+	watch.expectNone()
+})
+
+test("a custom preset offers an ink for each role", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "Theme" }).click()
+	await expect(page.getByText("Main Text Ink", { exact: true })).toHaveCount(0)
+	await page.getByRole("tabpanel").locator(".p-select").filter({ hasText: "Classic" }).first().click()
+	await page.getByRole("option", { name: /^Custom/ }).click()
+	for(const title of ["Main Text Ink", "First Accent Ink", "Second Accent Ink", "Highlight Ink", "Highlight Text Ink"]) await expect(page.getByText(title, { exact: true }).first()).toBeVisible()
 	watch.expectNone()
 })

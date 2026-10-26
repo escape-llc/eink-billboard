@@ -5,8 +5,27 @@
 			"background": {
 				"items": [
 					{"name": "White", "value": "white" },
-					{"name": "Tinted (the theme's light color)", "value": "tinted" },
 					{"name": "Black (dark mode)", "value": "black" }
+				]
+			},
+			"preset": {
+				"items": [
+					{"name": "Classic (black, red, blue; yellow highlights)", "value": "classic" },
+					{"name": "Warm (black, red, orange; yellow highlights)", "value": "warm" },
+					{"name": "Cool (black, blue, green; blue highlights)", "value": "cool" },
+					{"name": "Mono (black only)", "value": "mono" },
+					{"name": "Custom (choose each ink)", "value": "custom" }
+				]
+			},
+			"ink": {
+				"items": [
+					{"name": "Black", "value": "black" },
+					{"name": "White", "value": "white" },
+					{"name": "Red", "value": "red" },
+					{"name": "Yellow", "value": "yellow" },
+					{"name": "Blue", "value": "blue" },
+					{"name": "Green", "value": "green" },
+					{"name": "Orange", "value": "orange" }
 				]
 			},
 			"font": {
@@ -20,52 +39,17 @@
 					{"name": "Dogica (pixel)", "value": "Dogica" },
 					{"name": "DSEG7 (segments)", "value": "DSEG7" }
 				]
-			},
-			"theme": {
-				"items": [
-					{"name": "Analogous", "value": "analogous" },
-					{"name": "Complementary", "value": "complementary" },
-					{"name": "Split Complementary", "value": "split-complementary" },
-					{"name": "Monochrome", "value": "monochrome" },
-					{"name": "Triadic", "value": "triadic" },
-					{"name": "Tetradic", "value": "tetradic" }
-				]
 			}
 		},
 		"properties": [
 			{
-				"name":"theme",
+				"name":"preset",
 				"type": "string",
-				"title": "Theme",
-				"lookup": "theme",
-				"required": true
-			},
-			{
-				"name":"hue",
-				"type": "number",
-				"title": "Hue",
-				"minimum": 0,
-				"maximum": 360,
-				"step": 1,
-				"required": true
-			},
-			{
-				"name":"saturation",
-				"type": "number",
-				"title": "Saturation",
-				"minimum": 0,
-				"maximum": 100,
-				"step": 1,
-				"required": true
-			},
-			{
-				"name":"lightness",
-				"type": "number",
-				"title": "Lightness",
-				"minimum": 20,
-				"maximum": 80,
-				"step": 1,
-				"required": true
+				"title": "Colors",
+				"lookup": "preset",
+				"required": true,
+				"default": "classic",
+				"description": "Which of the panel's inks the pages use for text and highlights. A color the panel does not have is replaced by the nearest it has (black on a black-and-white panel), so the same choice works on any panel."
 			},
 			{
 				"name":"background",
@@ -73,7 +57,58 @@
 				"title": "Page Background",
 				"lookup": "background",
 				"required": false,
-				"description": "White is the crispest on a color e-ink panel, which has only a few pure colors and dithers a tint. Tinted uses the theme's light color. Black is dark mode: text and panels trade light for dark."
+				"default": "white",
+				"description": "White is the usual. Black is dark mode: text and highlights trade places so every page still reads."
+			},
+			{
+				"name":"textPrimary",
+				"type": "string",
+				"title": "Main Text Ink",
+				"lookup": "ink",
+				"required": false,
+				"default": "black",
+				"visibleIf": { "field": "preset", "const": "custom" },
+				"description": "The ink of the main text, headings and rules."
+			},
+			{
+				"name":"textSecondary1",
+				"type": "string",
+				"title": "First Accent Ink",
+				"lookup": "ink",
+				"required": false,
+				"default": "red",
+				"visibleIf": { "field": "preset", "const": "custom" },
+				"description": "The ink of the first accent text (a month name, a label)."
+			},
+			{
+				"name":"textSecondary2",
+				"type": "string",
+				"title": "Second Accent Ink",
+				"lookup": "ink",
+				"required": false,
+				"default": "blue",
+				"visibleIf": { "field": "preset", "const": "custom" },
+				"description": "The ink of the second accent text."
+			},
+			{
+				"name":"fill",
+				"type": "string",
+				"title": "Highlight Ink",
+				"lookup": "ink",
+				"required": false,
+				"default": "yellow",
+				"visibleIf": { "field": "preset", "const": "custom" },
+				"description": "The ink of highlighted areas (today in the calendar, a progress bar). Where the panel has neither this ink nor red, highlights are left unfilled."
+			},
+			{
+				"name":"textOnFill",
+				"type": "string",
+				"title": "Highlight Text Ink",
+				"lookup": "ink",
+				"required": false,
+				"default": "black",
+				"visibleIf": { "field": "preset", "const": "custom" },
+				"description": "The ink of the text on a highlight. When it would not read (yellow on white, the same ink as the highlight) black or white is used instead."
 			},
 			{
 				"name":"fontBody",
@@ -114,11 +149,13 @@
 		]
 	},
 	"default": {
-		"theme": "complementary",
-		"hue": 220,
-		"saturation": 80,
-		"lightness": 50,
+		"preset": "classic",
 		"background": "white",
+		"textPrimary": "black",
+		"textSecondary1": "red",
+		"textSecondary2": "blue",
+		"fill": "yellow",
+		"textOnFill": "black",
 		"fontBody": "Jost",
 		"fontHeading": null,
 		"fontOverlay": null,

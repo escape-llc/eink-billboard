@@ -22,7 +22,7 @@ How the server is built: the display layers and compositor, the tasks and the st
 	* Settings forms built from descriptors
 * Settings described in JSON
 	* The web settings forms build themselves from schema descriptors; a component needs web code of its own only for a custom control
-* A device-wide algorithmic color theme, the same colors in every component
+* A device-wide theme of the panel's inks (see "Color"), the same colors in every component
 * `async` data sources make the content
 	* A page or a list of pages
 	* Data sources may use other data sources
@@ -214,6 +214,14 @@ The primary plugin is the Priority Update plugin (id `priority-update`).  This u
 Schedules are very flexible, and may be specific combinations of day(s) and time(s) of day.
 
 When a track's task triggers, it is executed.  Multiple tasks can fire at the same time.  A Timer Task may or may not generate any image, based on business logic.
+
+#### Color
+
+A color e-ink panel has a handful of pure pigments and shows anything else as dots, so the app draws with **inks**, not free colors (`python/model/inks.py`).
+* **Inks and ink sets.** Seven inks (black, white, red, yellow, blue, green, orange), each with a *drive* color (the exact RGB that is drawn and handed to a driver) and an *appearance* (roughly what the panel shows, for dithering a photograph and for previews). A panel has an **ink set**: `bw`, `bwr`, `bwy`, `bwry`, `spectra6` or `acep7`, which its display class says (`DisplayBase.ink_set()`; `GET /api/display/inks`). The Display task publishes it (`publish_panel_ink_set`) when the display starts, and a page asks `panel_ink_set()` when it is rendered.
+* **The theme is a choice of inks, resolved for the panel** (`python/model/theme.py`). The settings choose a preset (`classic`, `warm`, `cool`, `mono`, or `custom` with an ink for each of five roles) and a page background (white or black). `resolve(settings, ink_set)` gives every role one ink *the panel has*, by a fixed fallback (orange: red, then black; blue, green, red: black; a highlight: yellow, then red, then none), so the same choice works on any panel. The rules hold for every preset, page and ink set (`test_theme`): every role is an ink of the set, no text is the ink of its page, yellow is never text on white, and with no highlight ink the page still reads.
+* **Pages get exact colors.** `css_vars` writes each role's drive color (`--ink-text-primary: #000000;`), and `themes.css` is a plain class for each role over its variable: no HSL, tint, mix or opacity anywhere in a page (`TestNoTranslucency` bans `opacity`, `rgba(`, `hsla(`, gradients, shadows and `color-mix`). PIL code reads the same inks from `Palette`. Text is drawn without antialiasing (fontconfig, not CSS: see AGENTS.md), so a page reaches the compositor made only of inks.
+* **The frame is turned into inks once** (`python/display/quantize.py`, `to_inks`). A pixel that already is a drive color keeps its ink; the rest (a photograph) is Floyd-Steinberg dithered against the inks' appearance. Brightness, contrast, saturation and sharpness are a photograph's, so they are applied to the background picture before anything is composited over it. Drivers are handed that frame as RGB: every driver's palette contains the drive colors, so its own quantizer changes nothing (an Inky's `set_image` takes `saturation=0.0`, which makes a 7-color board's palette the drive colors).
 
 #### Display Task
 

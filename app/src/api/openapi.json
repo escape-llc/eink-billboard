@@ -567,7 +567,16 @@
 			},
 			"Palette": {
 				"additionalProperties": false,
+				"description": "The roles for the panel that is attached. `confirmed` is false while the display has not started: the ink set is then the default, a guess.",
 				"properties": {
+					"confirmed": {
+						"title": "Confirmed",
+						"type": "boolean"
+					},
+					"inkSet": {
+						"title": "Inkset",
+						"type": "string"
+					},
 					"roles": {
 						"items": {
 							"$ref": "#/components/schemas/Role"
@@ -577,6 +586,8 @@
 					}
 				},
 				"required": [
+					"inkSet",
+					"confirmed",
 					"roles"
 				],
 				"title": "Palette",
@@ -1138,10 +1149,18 @@
 			},
 			"Role": {
 				"additionalProperties": false,
-				"description": "A role of the palette: its CSS class and its color as `hsl()`.",
+				"description": "A role of the palette: its CSS class, the ink it resolved to, the exact color it is drawn with and roughly what the panel shows.",
 				"properties": {
-					"color": {
-						"title": "Color",
+					"appearance": {
+						"title": "Appearance",
+						"type": "string"
+					},
+					"drive": {
+						"title": "Drive",
+						"type": "string"
+					},
+					"ink": {
+						"title": "Ink",
 						"type": "string"
 					},
 					"name": {
@@ -1151,7 +1170,9 @@
 				},
 				"required": [
 					"name",
-					"color"
+					"ink",
+					"drive",
+					"appearance"
 				],
 				"title": "Role",
 				"type": "object"
@@ -5171,7 +5192,7 @@
 		},
 		"/api/theme/palette": {
 			"post": {
-				"description": "The roles of the palette for these theme settings (what the form holds, saved or not): `[{ name, color }]`, name as the CSS class, color as `hsl()`.\nValues that are not valid read as the factory defaults, as they do on the device.",
+				"description": "The roles of the palette for these theme settings (what the form holds, saved or not), resolved against the ink set of the attached panel: `[{ name, ink, drive, appearance }]`.\nValues that are not valid read as the factory defaults, as they do on the device.",
 				"operationId": "palette_api_theme_palette_post",
 				"requestBody": {
 					"content": {

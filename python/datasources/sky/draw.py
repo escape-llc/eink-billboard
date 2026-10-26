@@ -27,10 +27,10 @@ def moon_strokes(phase: float, southern: bool) -> str:
 	return '<circle cx="32" cy="32" r="22"/>' + _moon_lit(phase, southern, 32, 32, 22, ' fill="currentColor"')
 
 def _moon_disc(phase: float, southern: bool) -> str:
-	"""The moon in a 64 square: the dark disc in the dark tone, the lit part in the first secondary's light tone, an outline round both (the page's CSS
+	"""The moon in a 64 square: the dark disc in the dark tone, the lit part in the highlight ink, an outline round both (the page's CSS
 	fills each in its role's color)."""
 	return (f'<circle class="moon-dark text-primary" cx="32" cy="32" r="30"/>'
-		f'<g class="moon-lit text-secondary-1-light">{_moon_lit(phase, southern, 32, 32, 30)}</g>'
+		f'<g class="moon-lit fill-ink">{_moon_lit(phase, southern, 32, 32, 30)}</g>'
 		f'<circle class="moon-edge text-primary" cx="32" cy="32" r="30" fill="none"/>')
 
 def moon_svg(phase: float, southern: bool, css_class: str = "moon") -> str:
@@ -86,7 +86,6 @@ def arc_svg(sky: Sky, rise_label: str, set_label: str, tall: bool = False) -> st
 	sun_up, sun_down = _paths(sky.sun_path, centre, frame)
 	moon_up, moon_down = _paths(sky.moon_path, centre, frame)
 	parts = [f'<svg class="arc" viewBox="0 0 {w:.0f} {frame.height:.0f}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">',
-		f'<rect class="arc-ground text-primary-light" x="0" y="{h:.1f}" width="{w:.0f}" height="{ARC_GROUND:.1f}"/>',
 		f'<path class="arc-moon-below text-secondary-2" d="{moon_down}"/><path class="arc-sun-below text-secondary-1" d="{sun_down}"/>',
 		f'<path class="arc-moon text-secondary-2" d="{moon_up}"/><path class="arc-sun text-secondary-1" d="{sun_up}"/>',
 		f'<line class="arc-horizon text-primary" x1="0" y1="{h:.1f}" x2="{w:.0f}" y2="{h:.1f}"/>']
@@ -244,7 +243,7 @@ def timeline_svg(sky: Sky, marks: list[Mark], tall: bool = False) -> str:
 		span(midnight, None, "tl-day text-secondary-1")
 	elif sun.polar != "night":
 		if sun.dawn is not None or sun.dusk is not None:
-			span(sun.dawn or sun.sunrise, sun.dusk or sun.sunset, "tl-twilight text-secondary-1-light")
+			span(sun.dawn or sun.sunrise, sun.dusk or sun.sunset, "tl-twilight text-secondary-2")
 		if sun.sunrise is not None or sun.sunset is not None:
 			span(sun.sunrise, sun.sunset, "tl-day text-secondary-1")
 	# the hours: a tick every six, the line's ends included

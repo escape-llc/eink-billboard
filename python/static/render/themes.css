@@ -1,87 +1,65 @@
 /* ======================================================================== */
 /* Theme roles                                                              */
 /* ======================================================================== */
-/* The inputs are computed in Python (python/model/theme.py) and set in :root by plugin.html:
-	--theme-base       the base color, hsl(H S% L%) (the scheme's saturation is already applied)
-	--theme-h1-offset  hue offset of secondary 1 from the base, in degrees (from the scheme)
-	--theme-h2-offset  hue offset of secondary 2
-	--l-*              lightness of each tone
-   Every role is derived here from those inputs, in HSL, with relative color syntax.
-   Python's Palette applies the same derivation for PIL drawing; a test compares the two. Change both together. */
+/* The inks are chosen in Python (python/model/theme.py: the preset, resolved against the ink set of the panel) and written into :root by plugin.html, each as its exact color:
+	--ink-text-primary, --ink-text-secondary-1, --ink-text-secondary-2, --ink-bg-fill, --ink-text-on-fill, --ink-bg-strong, --ink-text-on-strong, --page-bg, --outline-color
+   Every role is a plain class over its variable: no color is computed here, no tint, mix or opacity, so a page is made only of the panel's inks.
+   Python's Palette holds the same inks for PIL drawing; a test renders every role and compares it with it. A new role is added in both places. */
 :root {
-	/* the factory theme, for a page rendered without the inputs */
-	--theme-base: hsl(220 80% 50%);
-	--theme-h1-offset: 180;
-	--theme-h2-offset: 180;
-	--l-bg-light: 80%;
-	--l-accent: 50%;
-	--l-bg-dark: 20%;
-	--l-text-dark: 25%;
-	--l-text-light: 90%;
+	/* the factory theme (classic, white page), for a page rendered without the inks */
+	--ink-text-primary: #000000;
+	--ink-text-secondary-1: #ff0000;
+	--ink-text-secondary-2: #0000ff;
+	--ink-bg-fill: #ffff00;
+	--ink-text-on-fill: #000000;
+	--ink-bg-strong: #000000;
+	--ink-text-on-strong: #ffffff;
+	--page-bg: #ffffff;
+	--outline-color: #ffffff;
 }
 
 .bg-transparent {
 	background: transparent !important;
 }
 
-/* Text colors (dark) */
+/* Text inks */
 .text-primary {
-	color: hsl(from var(--theme-base) h s var(--l-text-dark));
+	color: var(--ink-text-primary);
 }
 .text-secondary-1 {
-	color: hsl(from var(--theme-base) calc(h + var(--theme-h1-offset)) s var(--l-text-dark));
+	color: var(--ink-text-secondary-1);
 }
 .text-secondary-2 {
-	color: hsl(from var(--theme-base) calc(h + var(--theme-h2-offset)) s var(--l-text-dark));
-}
-/* Text colors (light) */
-.text-primary-light {
-	color: hsl(from var(--theme-base) h s var(--l-text-light));
-}
-.text-secondary-1-light {
-	color: hsl(from var(--theme-base) calc(h + var(--theme-h1-offset)) s var(--l-text-light));
-}
-.text-secondary-2-light {
-	color: hsl(from var(--theme-base) calc(h + var(--theme-h2-offset)) s var(--l-text-light));
+	color: var(--ink-text-secondary-2);
 }
 
-/* The outline around overlay text, so it reads over a busy picture: white, or black on a black page (python/model/theme.py writes --outline-color) */
+/* The text on a highlight, and on a solid block of the main text ink */
+.text-on-fill {
+	color: var(--ink-text-on-fill);
+}
+.text-on-strong {
+	color: var(--ink-text-on-strong);
+}
+
+/* The outline around overlay text, so it reads over a busy picture: the page's color (python/model/theme.py writes --outline-color) */
 .text-outline {
-	color: var(--outline-color, hsl(0 0% 100%));
+	color: var(--outline-color);
 }
 
-/* The page behind everything: white, the theme's tint or black (python/model/theme.py writes --page-bg) */
+/* The page behind everything: white or black (python/model/theme.py writes --page-bg) */
 .bg-page {
-	background-color: var(--page-bg, hsl(0 0% 100%));
+	background-color: var(--page-bg);
 }
 
-/* Background colors (light) */
-.bg-primary {
-	background-color: hsl(from var(--theme-base) h s var(--l-bg-light));
+/* A highlight, and a solid block of the main text ink */
+.bg-fill {
+	background-color: var(--ink-bg-fill);
 }
-.bg-secondary-1 {
-	background-color: hsl(from var(--theme-base) calc(h + var(--theme-h1-offset)) s var(--l-bg-light));
+.bg-strong {
+	background-color: var(--ink-bg-strong);
 }
-.bg-secondary-2 {
-	background-color: hsl(from var(--theme-base) calc(h + var(--theme-h2-offset)) s var(--l-bg-light));
-}
-/* Background colors (accent) */
-.bg-primary-accent {
-	background-color: hsl(from var(--theme-base) h s var(--l-accent));
-}
-.bg-secondary-1-accent {
-	background-color: hsl(from var(--theme-base) calc(h + var(--theme-h1-offset)) s var(--l-accent));
-}
-.bg-secondary-2-accent {
-	background-color: hsl(from var(--theme-base) calc(h + var(--theme-h2-offset)) s var(--l-accent));
-}
-/* Background colors (dark) */
-.bg-primary-dark {
-	background-color: hsl(from var(--theme-base) h s var(--l-bg-dark));
-}
-.bg-secondary-1-dark {
-	background-color: hsl(from var(--theme-base) calc(h + var(--theme-h1-offset)) s var(--l-bg-dark));
-}
-.bg-secondary-2-dark {
-	background-color: hsl(from var(--theme-base) calc(h + var(--theme-h2-offset)) s var(--l-bg-dark));
+
+/* The highlight ink as the color of an SVG shape that fills with currentColor (the moon's lit part) */
+.fill-ink {
+	color: var(--ink-bg-fill);
 }

@@ -143,31 +143,69 @@ export function useSettings(notify: Notify) {
 	}
 }
 
-/** The Theme tab's preview: the values shown (the stored theme, then the form's as they change) and the palette the server computes for them. */
+/** What a role of the theme resolved to for the panel that is attached (`POST /api/theme/palette`). */
+export type PaletteRole = { name: string, ink: string, drive: string, appearance: string }
+
+/** The ink sets, as a person names them. */
+export const INK_SET_NAMES: Record<string, string> = {
+	bw: "Black and white", bwr: "Black, white and red", bwy: "Black, white and yellow", bwry: "Black, white, red and yellow",
+	spectra6: "Six colors (Spectra 6)", acep7: "Seven colors (ACeP)",
+}
+/** The custom inks of the theme: the setting, the role it becomes, and its title. */
+export const CUSTOM_INKS = [
+	{ key: "textPrimary", role: "text-primary", title: "Main Text Ink" },
+	{ key: "textSecondary1", role: "text-secondary-1", title: "First Accent Ink" },
+	{ key: "textSecondary2", role: "text-secondary-2", title: "Second Accent Ink" },
+	{ key: "fill", role: "bg-fill", title: "Highlight Ink" },
+	{ key: "textOnFill", role: "text-on-fill", title: "Highlight Text Ink" },
+] as const
+const capital = (ink: string) => ink.charAt(0).toUpperCase() + ink.slice(1)
+
+/** The Theme tab's preview: the values shown (the stored theme, then the form's as they change) and the inks the server resolves them to for the attached panel. */
 export function useThemePreview(delay = 120) {
-	const scheme = ref("complementary")
+	const preset = ref("classic")
 	const background = ref("white")
-	const hue = ref(0)
-	const saturation = ref(100)
-	const lightness = ref(50)
+	// the five inks of a custom preset, by setting name
+	const inks = ref<Record<string, string | null>>({})
 	const fontBody = ref("Jost")
 	const fontHeading = ref<string | null>(null)
 	const fontOverlay = ref<string | null>(null)
 	const fontScale = ref(1)
-	// the roles are the CSS classes of themes.css (text-primary, bg-secondary-1-accent, ...), computed by the server from the values shown
-	const paletteColors = ref<Record<string, string>>({})
+	// every role of the palette, resolved for the ink set of the attached panel (the server's answer: the browser derives nothing)
+	const roles = ref<PaletteRole[]>([])
+	const inkSet = ref<string | null>(null)
+	const confirmed = ref(false)
+	// what the panel shows, by role, for the swatches and the mock-up
+	const paletteColors = computed<Record<string, string>>(() => Object.fromEntries(roles.value.map(r => [r.name, r.appearance])))
+	/** "Shown for: Spectra 6", or that it is a guess while the display has not started. */
+	const shownFor = computed(() => {
+		if(!inkSet.value) return ""
+		const name = INK_SET_NAMES[inkSet.value] ?? inkSet.value
+		return confirmed.value ? `Shown for: ${name}` : `Shown for: ${name} (a guess: the display has not started)`
+	})
+	/** For a custom preset, each ink the panel does not have and the one used in its place. */
+	const fallbackNotes = computed(() => {
+		if(preset.value !== "custom") return []
+		return CUSTOM_INKS.flatMap(c => {
+			const chosen = inks.value[c.key]
+			const used = roles.value.find(r => r.name === c.role)?.ink
+			return chosen && used && chosen !== used ? [`${c.title}: ${capital(chosen)} is not used here; ${capital(used)} is.`] : []
+		})
+	})
 
 	let paletteTimer: ReturnType<typeof setTimeout> | undefined
-	/** Ask the server for the palette of the values shown, once they have been still for a moment. */
+	/** Ask the server for the roles of the values shown, once they have been still for a moment. */
 	function refreshPalette() {
 		if(paletteTimer) clearTimeout(paletteTimer)
 		paletteTimer = setTimeout(() => {
-			api.post("/api/theme/palette", {}, { theme: scheme.value, hue: hue.value, saturation: saturation.value, lightness: lightness.value, background: background.value })
-				.then(answer => { paletteColors.value = Object.fromEntries(answer.roles.map(r => [r.name, r.color])) })
+			api.post("/api/theme/palette", {}, { preset: preset.value, background: background.value, ...inks.value })
+				.then(answer => { roles.value = answer.roles; inkSet.value = answer.inkSet; confirmed.value = answer.confirmed })
 				.catch(() => { /* the swatches keep what they showed */ })
 		}, delay)
 	}
-	function fonts(data: any) {
+	function values(data: any) {
+		if(typeof data.preset === "string") preset.value = data.preset
+		for(const c of CUSTOM_INKS) if(c.key in data) inks.value = { ...inks.value, [c.key]: typeof data[c.key] === "string" ? data[c.key] : null }
 		if("fontBody" in data && typeof data.fontBody === "string") fontBody.value = data.fontBody
 		if("fontHeading" in data) fontHeading.value = typeof data.fontHeading === "string" ? data.fontHeading : null
 		if("fontOverlay" in data) fontOverlay.value = typeof data.fontOverlay === "string" ? data.fontOverlay : null
@@ -178,20 +216,12 @@ export function useThemePreview(delay = 120) {
 	/** The stored theme, as the form loads it. */
 	function fromStored(data: any) {
 		if(!data) return
-		if(typeof data.theme === "string") scheme.value = data.theme
-		if("hue" in data) hue.value = data.hue
-		if("saturation" in data) saturation.value = data.saturation
-		if("lightness" in data) lightness.value = data.lightness
-		fonts(data)
+		values(data)
 	}
-	/** The form's values, once they pass its rules: a number that is not one yet is left as it was. */
+	/** The form's values, once they pass its rules. */
 	function fromForm(data: any) {
-		if(typeof data.theme === "string") scheme.value = data.theme
-		if(typeof data.hue === "number") hue.value = data.hue
-		if(typeof data.saturation === "number") saturation.value = data.saturation
-		if(typeof data.lightness === "number") lightness.value = data.lightness
-		fonts(data)
+		values(data)
 	}
 
-	return { scheme, background, hue, saturation, lightness, fontBody, fontHeading, fontOverlay, fontScale, paletteColors, refreshPalette, fromStored, fromForm }
+	return { preset, background, inks, fontBody, fontHeading, fontOverlay, fontScale, roles, inkSet, confirmed, paletteColors, shownFor, fallbackNotes, refreshPalette, fromStored, fromForm }
 }
