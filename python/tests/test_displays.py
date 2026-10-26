@@ -84,7 +84,7 @@ class TestDisplaySettingsApi(WebApiTestBase):
 		listed = { d["id"]: d for d in self.client.get("/api/displays/list").json() }
 		self.assertEqual(sorted(listed), ["inky", "mock", "tk", "waveshare"])
 		names = { p["name"] for p in listed["mock"]["instanceSettings"]["schema"]["properties"] }
-		self.assertEqual(names, { "width", "height", "outputFolder", "cleanOutputFolder" })
+		self.assertEqual(names, { "width", "height", "outputFolder", "cleanOutputFolder", "inks" })
 
 	def test_the_display_type_is_a_schema_field_that_offers_the_displays(self):
 		schema = self.client.get("/api/schemas/display").json()["schema"]

@@ -4,9 +4,15 @@ from PIL import Image
 
 from .refresh_gate import DEFAULT_REST_SECONDS, RefreshGate
 from ..model.configuration_manager import ConfigurationManager
+from ..model.inks import DEFAULT_INK_SET, INK_SETS
 
 # the size of the mock display's and the Tk window's picture when the settings do not say (the defaults of their descriptors, `python/displays/*/display-info.json`)
 DEFAULT_SIZE = (800, 480)
+
+def chosen_ink_set(settings: Mapping[str, Any]|None) -> str:
+	"""The ink set the `inks` setting of a display with no panel (the mock, the Tk window) names; the default for a missing or unknown one."""
+	value = (settings or {}).get("inks")
+	return value if isinstance(value, str) and value in INK_SETS else DEFAULT_INK_SET
 
 def picture_size(settings: Mapping[str, Any]|None) -> tuple[int, int]:
 	"""The `width` and `height` a display with no panel is set to (the mock, the Tk window), in pixels; the default for a missing or unusable one."""
@@ -30,6 +36,9 @@ class DisplayBase(ABC):
 	def ready_in(self) -> float:
 		"""Seconds until the panel may be sent another image (0: now)."""
 		return self.gate.ready_in()
+	def ink_set(self) -> str:
+		"""The name of the ink set the panel has (`python/model/inks.py`); valid after `initialize`."""
+		return DEFAULT_INK_SET
 	@abstractmethod
 	def initialize(self, cm: ConfigurationManager) -> tuple[int, int]:
 		...

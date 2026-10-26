@@ -38,6 +38,30 @@ def model_names() -> tuple[str, ...]:
 
 MODELS = model_names()
 
+# the ink set of each model, read from its driver (the vendored commit): the `*g` drivers draw four colors, `epd7in3e` six, `epd4in01f`, `epd5in65f` and `epd7in3f` seven; a driver whose `display`
+# takes two buffers is a three-color panel (the black and the second ink's layer); every other one is one bit (the 4-gray ones too: they are driven 1-bit). `test_waveshare_display` checks every model has one.
+_FOUR_COLOR = ("epd1in64g", "epd2in13g", "epd2in15g", "epd2in36g", "epd2in66g", "epd3in0g", "epd4in37g", "epd5in79g", "epd7in3g")
+_SEVEN_COLOR = ("epd4in01f", "epd5in65f", "epd7in3f")
+_THREE_COLOR = ("epd13in3b", "epd1in54b", "epd1in54b_V2", "epd1in54c", "epd2in13b_V3", "epd2in13b_V4", "epd2in13bc", "epd2in15b", "epd2in66b", "epd2in7b", "epd2in7b_V2", "epd2in9b_V3",
+	"epd2in9b_V4", "epd2in9bc", "epd4in2b_V2", "epd4in2b_V2_old", "epd4in2bc", "epd5in79b", "epd5in83b_V2", "epd5in83bc", "epd7in5b_HD", "epd7in5b_V2", "epd7in5b_V2_old", "epd7in5bc")
+# the three-color models whose driver serves a red and a yellow panel (and what each is unless the `secondInk` setting says); the other three-color ones are red
+SECOND_INK_USUAL = { "epd1in54c": "yellow", "epd2in13bc": "red", "epd2in9bc": "red", "epd4in2bc": "red", "epd5in83bc": "red", "epd7in5bc": "red" }
+WAVESHARE_INK_SETS: dict[str, str] = {
+	**{ m: "bw" for m in MODELS },
+	**{ m: "bwry" for m in _FOUR_COLOR },
+	**{ m: "acep7" for m in _SEVEN_COLOR },
+	"epd7in3e": "spectra6",
+	**{ m: "bwr" for m in _THREE_COLOR },
+}
+
+def ink_set_of(model: Any, second_ink: Any = None) -> str|None:
+	"""The ink set of a Waveshare model and, for a three-color one that serves both, the `secondInk` setting; None for a model that is not known."""
+	chosen = WAVESHARE_INK_SETS.get(model) if isinstance(model, str) else None
+	if chosen != "bwr":
+		return chosen
+	ink = second_ink if second_ink in ("red", "yellow") else SECOND_INK_USUAL.get(str(model), "red")
+	return "bwy" if ink == "yellow" else "bwr"
+
 def load_model(model: Any) -> Any:
 	"""The driver module of the model (a name from `MODELS`), or a `PermanentError` that says, in our words, what to do."""
 	chosen = next((m for m in MODELS if m == model), None)
@@ -73,6 +97,7 @@ class WaveshareDisplay(DisplayBase):
 		self.module: Any = None
 		self.epd: Any = None
 		self.resolution: tuple[int, int] = (0, 0)
+		self._ink_set = "bw"
 		# a refresh that has not come back (a panel that never says it is done): nothing else is sent to the bus until it has
 		self._guard = PanelGuard("waveshare")
 		self._lock = threading.Lock()
@@ -84,6 +109,7 @@ class WaveshareDisplay(DisplayBase):
 		model = (settings or {}).get("model")
 		self.start_gate(settings)
 		self.module = self._loader(model)
+		self._ink_set = ink_set_of(model, (settings or {}).get("secondInk")) or "bw"
 		try:
 			self.epd = self.module.EPD()
 			start = getattr(self.epd, "init", None) or getattr(self.epd, "Init", None)
@@ -100,6 +126,9 @@ class WaveshareDisplay(DisplayBase):
 			raise PermanentError("The Waveshare display could not be started. Check the wiring and that SPI is enabled (raspi-config), then restart. The log has the detail.") from e
 		self.logger.info(f"'{self.name}' {model}: {self.resolution[0]}x{self.resolution[1]}")
 		return self.resolution
+
+	def ink_set(self) -> str:
+		return self._ink_set
 
 	def _buffers(self, picture: Image.Image) -> tuple[Callable[..., Any], list[Any]]:
 		"""The driver's `display` and what it takes: one buffer, or the black and the red layers of a three-color panel."""

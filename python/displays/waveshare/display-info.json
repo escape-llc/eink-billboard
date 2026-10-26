@@ -12,6 +12,12 @@
 	"instanceSettings": {
 		"schema": {
 			"lookups": {
+				"secondInk": {
+					"items": [
+						{ "name": "Red", "value": "red" },
+						{ "name": "Yellow", "value": "yellow" }
+					]
+				},
 				"waveshareModel": {
 					"items": [
 						{ "name": "epd13in3b", "value": "epd13in3b" },
@@ -89,6 +95,15 @@
 					"title": "Waveshare Model",
 					"description": "The Waveshare panel's model, as Waveshare names its driver (the label on the panel or its box: epd7in3e is the 7.3 inch 7-color one). A Waveshare has no way to say which it is, so it must be chosen. Restart after changing it.",
 					"lookup": "waveshareModel",
+					"required": false,
+					"default": null
+				},
+				{
+					"name": "secondInk",
+					"type": "string",
+					"title": "Second Ink",
+					"description": "The ink besides black and white of a three-color panel whose driver serves both the red and the yellow one (the models ending in bc, and epd1in54c). Leave it unset for the usual: red, and yellow for epd1in54c. Other models ignore it.",
+					"lookup": "secondInk",
 					"required": false,
 					"default": null
 				}
