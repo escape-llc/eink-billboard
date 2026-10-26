@@ -13,7 +13,7 @@ from types import SimpleNamespace
 from typing import Any, Callable, Mapping
 from unittest.mock import patch
 
-from ..device.bindings import DEFAULT_BINDINGS, action_for
+from ..device.bindings import action_for
 from ..device.buttons import DEBOUNCE_SECONDS, LONG_PRESS_SECONDS, Buttons, load_button
 from ..device.pins import FIRST_PIN, LAST_PIN, Panel, check_pins, panel_lines
 from ..device.registry import available_devices
@@ -71,16 +71,16 @@ class TestPins(unittest.TestCase):
 		self.assertEqual(check_pins({}, Panel("inky", 800, 480)), [])
 
 	def test_a_pin_the_panel_uses_is_refused_and_named(self):
-		[problem] = check_pins({ "next": 17 }, Panel("waveshare", 800, 480), { "next": "next button" })
-		self.assertIn("next button", problem)
+		[problem] = check_pins({ "gpio-17": 17 }, Panel("waveshare", 800, 480), { "gpio-17": "button" })
+		self.assertIn("The button is on pin 17", problem)
 		self.assertIn("pin 17", problem)
 		self.assertIn("reset", problem)
 		# the same pin is free on a display that is not a panel, and busy on the Inky
-		self.assertEqual(check_pins({ "next": 17 }, Panel("mock", 800, 480)), [])
-		self.assertIn("busy", check_pins({ "next": 17 }, Panel("inky", 800, 480))[0])
+		self.assertEqual(check_pins({ "gpio-17": 17 }, Panel("mock", 800, 480)), [])
+		self.assertIn("busy", check_pins({ "gpio-17": 17 }, Panel("inky", 800, 480))[0])
 
 	def test_a_pin_used_twice_is_refused(self):
-		[problem] = check_pins({ "a": 5, "b": 5 }, None, { "a": "play/stop button", "b": "next button" })
+		[problem] = check_pins({ "a": 5, "b": 5 }, None, { "a": "button on pin 5", "b": "button on pin 5" })
 		self.assertIn("both on pin 5", problem)
 
 	def test_a_pin_that_is_not_on_the_header_is_refused(self):
@@ -88,17 +88,22 @@ class TestPins(unittest.TestCase):
 			with self.subTest(pin):
 				self.assertIn("not a GPIO pin", check_pins({ "a": pin }, None)[0])
 
+def triggers(*rows: tuple[int, str]) -> dict[str, Any]:
+	"""The `devices` settings with these buttons: (pin, action) for each."""
+	return { "triggers": [{ "pin": pin, "action": action } for pin, action in rows] }
+
 class TestButtons(unittest.TestCase):
 	def test_the_pins_are_the_settings_that_are_set(self):
 		buttons = Buttons(fake_factory()[0])
 		self.assertEqual(buttons.pins({}), {})
-		self.assertEqual(buttons.pins({ "buttonPlayStop": None, "buttonNext": 6, "buttonStop": "x" }), { "next": 6 })
-		self.assertEqual(buttons.pins({ "buttonPlayStop": 5, "buttonNext": 6, "buttonStop": 13 }), { "play-stop": 5, "next": 6, "stop": 13 })
-		self.assertEqual(buttons.pins({ "buttonNext": True }), {}, "a boolean is not a pin")
+		self.assertEqual(buttons.pins({ "triggers": [{ "pin": None, "action": "stop" }, { "pin": 6, "action": "next" }, { "pin": "x" }, "junk"] }), { "gpio-6": 6 })
+		self.assertEqual(buttons.pins(triggers((5, "toggle"), (6, "next"), (13, "stop"))), { "gpio-5": 5, "gpio-6": 6, "gpio-13": 13 })
+		self.assertEqual(buttons.pins({ "triggers": [{ "pin": True }] }), {}, "a boolean is not a pin")
+		self.assertEqual(buttons.pins({ "triggers": "not a list" }), {})
 
 	def test_each_pin_is_a_button_wired_to_ground_with_a_debounce(self):
 		make, made = fake_factory()
-		Buttons(make).open(lambda name, gesture: None, { "buttonPlayStop": 5, "buttonNext": 6 })
+		Buttons(make).open(lambda name, gesture: None, triggers((5, "toggle"), (6, "next")))
 		self.assertEqual([b.pin for b in made], [5, 6])
 		for button in made:
 			self.assertTrue(button.pull_up)
@@ -107,23 +112,23 @@ class TestButtons(unittest.TestCase):
 	def test_a_press_and_a_long_press_are_reported_with_the_inputs_name(self):
 		make, made = fake_factory()
 		said: list[tuple[str, str]] = []
-		Buttons(make).open(lambda name, gesture: said.append((name, gesture)), { "buttonPlayStop": 5, "buttonNext": 6 })
+		Buttons(make).open(lambda name, gesture: said.append((name, gesture)), triggers((5, "toggle"), (6, "next")))
 		assert made[0].when_pressed and made[1].when_pressed and made[1].when_held
 		made[0].when_pressed()
 		made[1].when_pressed()
 		made[1].when_held()
-		self.assertEqual(said, [("play-stop", "press"), ("next", "press"), ("next", "long-press")])
+		self.assertEqual(said, [("gpio-5", "press"), ("gpio-6", "press"), ("gpio-6", "long-press")])
 
 	def test_callbacks_take_no_arguments_as_gpiozero_looks_at_them(self):
 		make, made = fake_factory()
-		Buttons(make).open(lambda name, gesture: None, { "buttonNext": 6 })
+		Buttons(make).open(lambda name, gesture: None, triggers((6, "next")))
 		assert made[0].when_pressed is not None
 		self.assertEqual(len(inspect.signature(made[0].when_pressed).parameters), 0)
 
 	def test_close_closes_every_button_and_is_safe_twice(self):
 		make, made = fake_factory()
 		buttons = Buttons(make)
-		buttons.open(lambda name, gesture: None, { "buttonPlayStop": 5, "buttonNext": 6 })
+		buttons.open(lambda name, gesture: None, triggers((5, "toggle"), (6, "next")))
 		buttons.close()
 		buttons.close()
 		self.assertTrue(all(b.closed for b in made))
@@ -137,7 +142,7 @@ class TestButtons(unittest.TestCase):
 			made.append(button)
 			return button
 		with self.assertRaises(PermanentError) as caught:
-			Buttons(make).open(lambda name, gesture: None, { "buttonPlayStop": 5, "buttonNext": 6 })
+			Buttons(make).open(lambda name, gesture: None, triggers((5, "toggle"), (6, "next")))
 		self.assertTrue(all(b.closed for b in made), "the one that was opened is closed again")
 		self.assertNotIn("gpiochip", str(caught.exception), "the library's words are in the log, not in the message")
 
@@ -150,13 +155,14 @@ class TestButtons(unittest.TestCase):
 		self.assertIsInstance(available_devices()["buttons"](), Buttons)
 
 class TestBindings(unittest.TestCase):
-	def test_a_press_means_what_the_table_says_and_the_rest_means_nothing(self):
-		self.assertEqual(action_for("buttons", "next", "press"), "next")
-		self.assertEqual(action_for("buttons", "play-stop", "press"), "toggle")
-		self.assertEqual(action_for("buttons", "stop", "press"), "stop")
-		self.assertIsNone(action_for("buttons", "next", "long-press"))
-		self.assertIsNone(action_for("sensor", "next", "press"))
-		self.assertEqual(set(DEFAULT_BINDINGS.values()), {"toggle", "next", "stop"})
+	def test_a_press_means_what_the_pins_row_says_and_the_rest_means_nothing(self):
+		rows = triggers((5, "toggle"), (6, "next"), (13, "stop"), (16, "play"))
+		self.assertEqual([action_for("buttons", f"gpio-{pin}", "press", rows) for pin in (5, 6, 13, 16)], ["toggle", "next", "stop", "play"])
+		self.assertIsNone(action_for("buttons", "gpio-6", "long-press", rows))
+		self.assertIsNone(action_for("sensor", "gpio-6", "press", rows))
+		self.assertIsNone(action_for("buttons", "gpio-7", "press", rows), "a pin with no row")
+		self.assertIsNone(action_for("buttons", "gpio-6", "press", None))
+		self.assertIsNone(action_for("buttons", "gpio-6", "press", triggers((6, "launch"))), "an action we do not have")
 
 class Sent:
 	"""What went to the router, by route."""
@@ -192,10 +198,9 @@ class FakeDevice:
 		self.emit: Callable[[str, str], None]|None = None
 		self.closed = False
 	def pins(self, config: Mapping[str, Any]) -> dict[str, int]:
-		pin = config.get("buttonNext")
-		return { "next": pin } if isinstance(pin, int) else {}
+		return { f"gpio-{row['pin']}": row["pin"] for row in config.get("triggers") or [] if isinstance(row.get("pin"), int) }
 	def open(self, emit: Callable[[str, str], None], config: Mapping[str, Any]) -> None:
-		if config.get("buttonNext") == 26:
+		if 26 in self.pins(config).values():
 			raise PermanentError("cannot open")
 		self.opened_with, self.emit = dict(config), emit
 	def close(self) -> None:
@@ -251,25 +256,25 @@ class TestDeviceIO(unittest.TestCase):
 		self.assertEqual(self.made[0].opened_with, None, "a device with no pin set is not opened")
 
 	def test_a_device_with_a_pin_is_opened_with_the_settings(self):
-		self.save(buttonNext=6)
+		self.save(triggers=[{ "pin": 6, "action": "next" }])
 		note = self.configure()
 		self.assertFalse(note.error)
 		self.assertEqual(note.content, { "open": ["fake"] })
-		self.assertEqual(self.made[0].opened_with["buttonNext"], 6)  # type: ignore[index]
+		self.assertEqual(self.made[0].opened_with["triggers"][0]["pin"], 6)  # type: ignore[index]
 
 	def test_what_a_device_reports_goes_to_the_application_on_the_device_input_route(self):
-		self.save(buttonNext=6)
+		self.save(triggers=[{ "pin": 6, "action": "next" }])
 		self.configure()
 		emit = self.made[0].emit
 		assert emit is not None
 		# from another thread, as a library's callback would
-		threading.Thread(target=emit, args=("next", "press")).start()
+		threading.Thread(target=emit, args=("gpio-6", "press")).start()
 		[event] = self.sent.wait_for("device-input")
 		assert isinstance(event, InputEvent)
-		self.assertEqual((event.source, event.name, event.gesture), ("fake", "next", "press"))
+		self.assertEqual((event.source, event.name, event.gesture), ("fake", "gpio-6", "press"))
 
 	def test_a_pin_the_panel_uses_is_refused_and_nothing_is_opened(self):
-		self.save(buttonNext=17)
+		self.save(triggers=[{ "pin": 17, "action": "next" }])
 		note = self.configure(Panel("waveshare", 800, 480))
 		self.assertTrue(note.error)
 		self.assertIn("pin 17", str(note.content))
@@ -278,26 +283,26 @@ class TestDeviceIO(unittest.TestCase):
 		self.assertIsNone(self.made[0].opened_with)
 
 	def test_a_device_that_cannot_be_opened_is_the_notes_error(self):
-		self.save(buttonNext=26)
+		self.save(triggers=[{ "pin": 26, "action": "next" }])
 		note = self.configure()
 		self.assertTrue(note.error)
 		self.assertEqual(self.io.open_devices, ())
 
 	def test_a_change_of_the_settings_is_applied_without_a_restart(self):
-		self.save(buttonNext=6)
+		self.save(triggers=[{ "pin": 6, "action": "next" }])
 		self.configure()
 		first = self.made[0]
-		self.save(buttonNext=13)
+		self.save(triggers=[{ "pin": 13, "action": "next" }])
 		self.io.accept(ConfigurationChanged(NOW, "settings", "modified", "x"))
 		self.assertTrue(self.wait_until(lambda: first.closed), "the old device was closed")
-		self.assertTrue(self.wait_until(lambda: self.io.open_devices == ("fake",) and self.made[-1].opened_with is not None and self.made[-1].opened_with.get("buttonNext") == 13))
+		self.assertTrue(self.wait_until(lambda: self.io.open_devices == ("fake",) and self.made[-1].opened_with is not None and self.made[-1].opened_with["triggers"][0]["pin"] == 13))
 		self.assertTrue(self.sent.on("telemetry"), "the change is told")
 
 	def test_a_burst_of_changes_is_read_once(self):
-		self.save(buttonNext=6)
+		self.save(triggers=[{ "pin": 6, "action": "next" }])
 		self.configure()
 		before = len(self.made)
-		self.save(buttonNext=13)
+		self.save(triggers=[{ "pin": 13, "action": "next" }])
 		for _ in range(5):
 			self.io.accept(ConfigurationChanged(NOW, "settings", "modified", "x"))
 		self.assertTrue(self.wait_until(lambda: len(self.made) > before))
@@ -306,7 +311,7 @@ class TestDeviceIO(unittest.TestCase):
 		self.assertEqual(len(self.made) - before, 1)
 
 	def test_a_change_to_something_else_in_the_settings_does_nothing(self):
-		self.save(buttonNext=6)
+		self.save(triggers=[{ "pin": 6, "action": "next" }])
 		self.configure()
 		before = len(self.made)
 		self.io.accept(ConfigurationChanged(NOW, "settings", "modified", "theme"))
@@ -315,25 +320,25 @@ class TestDeviceIO(unittest.TestCase):
 		self.assertFalse(self.made[0].closed)
 
 	def test_a_bad_new_configuration_leaves_the_working_one_in_place(self):
-		self.save(buttonNext=6)
+		self.save(triggers=[{ "pin": 6, "action": "next" }])
 		self.configure()
-		self.save(buttonNext=26)
+		self.save(triggers=[{ "pin": 26, "action": "next" }])
 		self.io.accept(ConfigurationChanged(NOW, "settings", "modified", "x"))
 		# the failure is reported, and the previous configuration is opened again
 		self.assertTrue(self.wait_until(lambda: any(m.values.get("kind") == "error" for m in self.errors())), "the failure is told")
-		self.assertTrue(self.wait_until(lambda: self.io.open_devices == ("fake",) and self.made[-1].opened_with is not None and self.made[-1].opened_with.get("buttonNext") == 6))
+		self.assertTrue(self.wait_until(lambda: self.io.open_devices == ("fake",) and self.made[-1].opened_with is not None and self.made[-1].opened_with["triggers"][0]["pin"] == 6))
 
 	def test_a_pin_the_panel_uses_in_a_changed_setting_keeps_the_working_device_open(self):
-		self.save(buttonNext=6)
+		self.save(triggers=[{ "pin": 6, "action": "next" }])
 		self.configure(Panel("waveshare", 800, 480))
 		first = self.made[0]
-		self.save(buttonNext=17)
+		self.save(triggers=[{ "pin": 17, "action": "next" }])
 		self.io.accept(ConfigurationChanged(NOW, "settings", "modified", "x"))
 		self.assertTrue(self.wait_until(lambda: any(m.values.get("kind") == "error" for m in self.errors())))
 		self.assertFalse(first.closed, "nothing was closed to make room for a configuration that was refused")
 
 	def test_quitting_closes_the_devices_and_a_late_press_is_dropped(self):
-		self.save(buttonNext=6)
+		self.save(triggers=[{ "pin": 6, "action": "next" }])
 		self.configure()
 		device = self.made[0]
 		emit = device.emit
@@ -341,7 +346,7 @@ class TestDeviceIO(unittest.TestCase):
 		self.io.accept(QuitMessage(NOW))
 		self.io.join(timeout=3)
 		self.assertTrue(device.closed)
-		emit("next", "press")   # nobody is listening: no error
+		emit("gpio-6", "press")   # nobody is listening: no error
 
 	def errors(self) -> list[Telemetry]:
 		return [m for m in self.sent.on("telemetry") if isinstance(m, Telemetry)]
@@ -362,6 +367,11 @@ class TestApplicationBindings(unittest.TestCase):
 		router, sent = router_that_records()
 		app.router = router
 		app.playlist_layer = SimpleNamespace(halted=halted)  # type: ignore[assignment]
+		# the buttons: what a pin does is the stored `devices` settings' row
+		app.cm = temp_configuration_manager(self)
+		cob = app.cm.settings_manager().open("devices")
+		rev, content = cob.get()
+		cob.save(rev, { **(content or {}), **triggers((5, "toggle"), (6, "next"), (13, "stop")) })
 		if not claimed:
 			app._held = (None, None)  # type: ignore[assignment]
 		return app, sent
@@ -371,62 +381,76 @@ class TestApplicationBindings(unittest.TestCase):
 
 	def test_next_goes_to_the_playlist_layer(self):
 		app, sent = self.application()
-		self.press(app, "next")
+		self.press(app, "gpio-6")
 		self.assertEqual([type(m) for m in sent.on("playlist-layer")], [NextTrack])
 
 	def test_play_stop_toggles_with_the_state_of_playback(self):
 		playing, sent = self.application(halted=False)
-		self.press(playing, "play-stop")
+		self.press(playing, "gpio-5")
 		self.assertEqual([type(m) for m in sent.on("playlist-layer")], [StopPlayback])
 		stopped, sent = self.application(halted=True)
-		self.press(stopped, "play-stop")
+		self.press(stopped, "gpio-5")
 		self.assertEqual([type(m) for m in sent.on("playlist-layer")], [ResumePlayback])
 
 	def test_stop_only_stops(self):
 		app, sent = self.application(halted=True)
-		self.press(app, "stop")
+		self.press(app, "gpio-13")
 		self.assertEqual([type(m) for m in sent.on("playlist-layer")], [StopPlayback])
 
 	def test_a_press_is_told_to_the_telemetry_in_words(self):
 		app, sent = self.application()
-		self.press(app, "next")
+		self.press(app, "gpio-6")
 		[event] = [m for m in sent.on("telemetry") if isinstance(m, Telemetry)]
 		self.assertEqual(event.values["kind"], "input")
 		self.assertEqual(event.values["action"], "next")
-		self.assertIn("next button", event.values["message"])
+		self.assertIn("button on pin 6", event.values["message"])
 
 	def test_an_input_bound_to_nothing_is_ignored(self):
 		app, sent = self.application()
-		self.press(app, "next", "long-press")
+		self.press(app, "gpio-6", "long-press")
+		self.press(app, "gpio-9")
 		self.press(app, "nothing")
 		self.assertEqual(sent.messages, [])
 
 	def test_a_press_while_the_device_is_not_claimed_is_dropped(self):
 		app, sent = self.application(claimed=False)
-		self.press(app, "next")
+		self.press(app, "gpio-6")
 		self.assertEqual(sent.on("playlist-layer"), [])
 
 class TestDevicesSettings(WebApiTestBase):
 	def test_the_factory_document_has_no_buttons(self):
-		doc = self.client.get("/api/settings/devices").json()
-		self.assertEqual((doc["buttonPlayStop"], doc["buttonNext"], doc["buttonStop"]), (None, None, None))
+		self.assertEqual(self.client.get("/api/settings/devices").json()["triggers"], [])
 
 	def test_its_schema_is_served_and_every_property_is_described(self):
 		schema = self.client.get("/api/schemas/devices").json()
-		properties = [p for p in schema["schema"]["properties"] if p["type"] != "header"]
-		self.assertEqual({p["name"] for p in properties}, {"buttonPlayStop", "buttonNext", "buttonStop"})
-		for p in properties:
+		[triggers] = [p for p in schema["schema"]["properties"] if p["type"] != "header"]
+		self.assertEqual(triggers["name"], "triggers")
+		self.assertTrue(triggers.get("title") and triggers.get("description"))
+		pin, action = triggers["items"]["properties"]
+		self.assertEqual((pin["type"], pin["minimum"], pin["maximum"]), ("integer", FIRST_PIN, LAST_PIN))
+		self.assertEqual(triggers["items"]["key"], "pin")
+		for p in (pin, action):
 			self.assertTrue(p.get("title") and p.get("description"), p["name"])
-			self.assertEqual((p["type"], p["minimum"], p["maximum"]), ("integer", FIRST_PIN, LAST_PIN))
 
-	def test_a_pin_is_saved_and_one_off_the_header_is_refused(self):
+	def put(self, rows: list[dict[str, Any]]):
 		doc = self.client.get("/api/settings/devices").json()
-		saved = self.client.put("/api/settings/devices", json={ **doc, "buttonNext": 6 })
+		return self.client.put("/api/settings/devices", json={ **doc, "triggers": rows })
+
+	def test_buttons_are_saved_and_one_off_the_header_is_refused(self):
+		saved = self.put([{ "pin": 5, "action": "toggle" }, { "pin": 6, "action": "next" }])
 		self.assertEqual(saved.status_code, 200, saved.text)
-		self.assertEqual(self.client.get("/api/settings/devices").json()["buttonNext"], 6)
-		refused = self.client.put("/api/settings/devices", json={ **self.client.get("/api/settings/devices").json(), "buttonNext": 40 })
+		self.assertEqual(self.client.get("/api/settings/devices").json()["triggers"], [{ "pin": 5, "action": "toggle" }, { "pin": 6, "action": "next" }])
+		refused = self.put([{ "pin": 40, "action": "next" }])
 		self.assertEqual(refused.status_code, 422)
-		self.assertEqual(refused.json()["errors"][0]["path"], ["buttonNext"])
+		self.assertEqual(refused.json()["errors"][0]["path"], ["triggers", "0", "pin"])
+
+	def test_a_pin_has_one_button_and_play_stop_toggle_and_next_are_each_on_one_pin(self):
+		same_pin = self.put([{ "pin": 5, "action": "next" }, { "pin": 5, "action": "stop" }])
+		self.assertEqual((same_pin.status_code, same_pin.json()["errors"]), (422, [{ "path": ["triggers", "1", "pin"], "message": "Must be unique" }]))
+		for action in ("play", "stop", "toggle", "next"):
+			twice = self.put([{ "pin": 5, "action": action }, { "pin": 6, "action": action }])
+			self.assertEqual((twice.status_code, twice.json()["errors"]), (422, [{ "path": ["triggers", "1", "action"], "message": "Already used by another row" }]), action)
+		self.assertEqual(self.put([{ "pin": 5, "action": "play" }, { "pin": 6, "action": "stop" }, { "pin": 13, "action": "toggle" }, { "pin": 16, "action": "next" }]).status_code, 200)
 
 class TestMissingDocument(unittest.TestCase):
 	def test_a_storage_seeded_before_the_devices_settings_connects_nothing(self):

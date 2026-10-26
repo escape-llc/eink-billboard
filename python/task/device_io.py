@@ -18,7 +18,6 @@ from .configure_event import ConfigureEvent
 from .message_router import MessageRouter
 from .messages import ConfigurationChanged, InputEvent, ReloadDevices, Telemetry
 from ..device.base import InputDevice
-from ..device.buttons import LABELS
 from ..device.pins import Panel, check_pins
 from ..device.registry import available_devices
 from ..model.configuration_manager import ConfigurationManager
@@ -154,7 +153,7 @@ class DeviceIO(DispatcherTask):
 		devices = { device_id: make() for device_id, make in self._makers.items() }
 		wanted = { device_id: device for device_id, device in devices.items() if device.pins(settings) }
 		pins = { f"{device_id}:{name}": pin for device_id, device in wanted.items() for name, pin in device.pins(settings).items() }
-		labels = { f"{device_id}:{name}": LABELS.get(name, name) for device_id, device in wanted.items() for name in device.pins(settings) }
+		labels = { f"{device_id}:{name}": "button" for device_id, device in wanted.items() for name in device.pins(settings) }
 		problems = check_pins(pins, self.panel, labels)
 		if problems:
 			raise PermanentError(" ".join(problems))

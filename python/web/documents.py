@@ -26,6 +26,7 @@ ENTER_THE_KEY = "Enter the key"
 NOT_A_LIST = "Expected a list"
 NOT_AN_OBJECT = "Expected an object"
 NOT_UNIQUE = "Must be unique"
+ALREADY_USED = "Already used by another row"
 
 # What clients see instead of a stored secret. Sending it back unchanged means "keep the stored value".
 SECRET_MASK = "********"
@@ -245,7 +246,10 @@ def _array_errors(prop: dict, value: Any, lookups: dict) -> list[dict]:
 		return errors
 	item_props = items.get("properties") or []
 	key = items.get("key")
+	once = items.get("once") or {}
+	once_values = set(once.get("values") or [])
 	seen: set = set()
+	seen_once: set = set()
 	for index, item in enumerate(value):
 		if not isinstance(item, dict):
 			errors.append({ "path": [str(index)], "message": NOT_AN_OBJECT })
@@ -253,10 +257,16 @@ def _array_errors(prop: dict, value: Any, lookups: dict) -> list[dict]:
 		for e in validate_properties(item, item_props, lookups):
 			errors.append({ "path": [str(index), *e["path"]], "message": e["message"] })
 		identity = item.get(key) if key else None
-		if isinstance(identity, str) and identity != "":
+		if (isinstance(identity, str) and identity != "") or (isinstance(identity, int) and not isinstance(identity, bool)):
 			if identity in seen:
 				errors.append({ "path": [str(index), key], "message": NOT_UNIQUE })
 			seen.add(identity)
+		# a value that only one row may have (the device's Play, Stop, Toggle and Next: each belongs to one button)
+		chosen = item.get(once.get("field")) if once_values else None
+		if isinstance(chosen, str) and chosen in once_values:
+			if chosen in seen_once:
+				errors.append({ "path": [str(index), once["field"]], "message": ALREADY_USED })
+			seen_once.add(chosen)
 	return errors
 
 def validate_properties(document: dict, properties: Iterable[dict]|None, lookups: dict|None = None) -> list[dict]:

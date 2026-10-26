@@ -1,26 +1,51 @@
+import fs from "node:fs"
+import path from "node:path"
 import { expect, test } from "@playwright/test"
-import { stubMapTiles, watchProblems } from "./support"
+import { OPEN } from "./servers"
+import { saveButton, stubMapTiles, watchProblems } from "./support"
 
-// The Devices tab holds the pins of what is connected to the Pi (push buttons for now). Nothing here is saved: the open server's settings stay as the other specs expect.
+// The Devices tab lists the push buttons wired to the Pi: a pin and what pressing it does. The test saves on the open server, so its file is put back afterwards for the other specs.
+test.describe.configure({ mode: "serial" })
+const FILE = path.join(OPEN.storage, "settings", "devices-settings.json")
+let original = ""
+test.beforeAll(() => { original = fs.readFileSync(FILE, "utf8") })
+test.afterAll(() => { fs.writeFileSync(FILE, original) })
 test.beforeEach(async ({ page }) => stubMapTiles(page))
 
-test("the devices tab offers the three buttons, empty, and keeps a pin on the header", async ({ page }) => {
+test("the devices tab lists the buttons: a pin and an action, none to start with", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Devices" }).click()
-	for (const name of ["buttonPlayStop", "buttonNext", "buttonStop"]) {
-		await expect(page.locator(`input[name=${name}]`)).toBeVisible()
-		await expect(page.locator(`input[name=${name}]`)).toHaveValue("")
-	}
-	await expect(page.getByText("Play / Stop Button")).toBeVisible()
-	await expect(page.getByText("Next Button")).toBeVisible()
-	// a pin must be a GPIO number of the header (2 to 27): the number field keeps what is typed inside that
-	const next = page.locator("input[name=buttonNext]")
-	await next.fill("40")
-	await next.blur()
-	await expect(next).toHaveValue("27")
-	await next.fill("1")
-	await next.blur()
-	await expect(next).toHaveValue("2")
+	await expect(page.getByRole("group", { name: "Triggers" })).toBeVisible()
+	await expect(page.getByRole("spinbutton", { name: "GPIO Pin 1" })).toHaveCount(0)
+	watch.expectNone()
+})
+
+test("a pin keeps to the header, a pin has one button, and Play, Stop, Toggle and Next are each on one button", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "Devices" }).click()
+	await page.getByRole("button", { name: "Add to Triggers" }).click()
+	await page.getByRole("button", { name: "Add to Triggers" }).click()
+	const pin = (row: number) => page.getByRole("spinbutton", { name: `GPIO Pin ${row}` })
+	await pin(1).fill("40")
+	await pin(1).blur()
+	// the number field keeps what is typed inside the header's pins
+	await expect(pin(1)).toHaveValue("27")
+	await pin(1).fill("5")
+	await pin(1).blur()
+	await pin(2).fill("5")
+	await pin(2).blur()
+	await expect(page.getByText("Must be unique")).toBeVisible()
+	await pin(2).fill("6")
+	await pin(2).blur()
+	// both buttons start as Toggle: only one may
+	await expect(page.getByText("Already used by another row")).toBeVisible()
+	await page.getByRole("combobox", { name: "Action 2" }).click()
+	await page.getByRole("option", { name: "next", exact: true }).click()
+	await expect(page.getByText("Already used by another row")).toHaveCount(0)
+	await saveButton(page).click()
+	await expect(page.getByText("Settings saved successfully")).toBeVisible()
+	expect(JSON.parse(fs.readFileSync(FILE, "utf8")).triggers).toEqual([{ pin: 5, action: "toggle" }, { pin: 6, action: "next" }])
 	watch.expectNone()
 })
