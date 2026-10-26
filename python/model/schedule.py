@@ -104,27 +104,14 @@ def _int_list(value: Any, low: int, high: int, name: str, problems: list[str], a
 			problems.append(f"{name} has an invalid entry (expected {low} to {high})")
 			return
 
-# a task with no time of its own: it runs when it is asked to (a button, the Run now command), and only these plugins make sense that way
-ON_DEMAND_PLUGINS = ("priority-update",)
-
-def is_on_demand(trigger: Any) -> bool:
-	"""Whether a trigger is the on-demand one (`{ "on_demand": true }`): the timer layer never plans such a task."""
-	return isinstance(trigger, dict) and trigger.get("on_demand", None) is True
-
-def validate_trigger(trigger: Any, plugin_name: str|None = None) -> list[str]:
+def validate_trigger(trigger: Any) -> list[str]:
 	"""
 	Check a trigger's shape and ranges without evaluating it. Returns the problems found, empty when it is usable.
-	The messages are our own text and never echo the stored values, so they are safe to show to the client. With `plugin_name`, an on-demand trigger is also checked against the plugins that may have one.
+	The messages are our own text and never echo the stored values, so they are safe to show to the client.
 	"""
 	problems: list[str] = []
 	if not isinstance(trigger, dict):
 		return ["trigger must be an object"]
-	if is_on_demand(trigger):
-		if "day" in trigger or "time" in trigger or trigger.get("on_startup", None) is True:
-			problems.append("an on-demand trigger has no day, time or startup")
-		if plugin_name is not None and plugin_name not in ON_DEMAND_PLUGINS:
-			problems.append("only Priority Update can run on demand")
-		return problems
 	day = trigger.get("day", None)
 	time = trigger.get("time", None)
 	if not isinstance(day, dict):
@@ -323,7 +310,7 @@ class TimerTaskItem(ScheduleItemBase):
 		return self._title
 	def validate_trigger(self) -> list[str]:
 		"""The problems with this item's trigger; empty when it can be evaluated."""
-		return validate_trigger(self.trigger, self.task.plugin_name)
+		return validate_trigger(self.trigger)
 	def to_dict(self) -> dict[str,Any]:
 		retv = {
 			"id": self._id,

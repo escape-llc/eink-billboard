@@ -50,6 +50,7 @@ const itemsSchema = z.discriminatedUnion("type", [
 		type: z.literal("object"),
 		key: z.string().optional(),
 		once: z.strictObject({ field: z.string(), values: z.array(z.string()) }).optional(),
+		plugin: z.strictObject({ id: z.string(), field: z.string(), when: z.strictObject({ field: z.string(), const: z.string() }), run: z.string().optional() }).optional(),
 		properties: z.array(rowFieldSchema),
 		action: z.strictObject({ url: z.string(), label: z.string() }).optional(),
 	}),

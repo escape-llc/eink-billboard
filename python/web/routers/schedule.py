@@ -9,7 +9,7 @@ from fastapi import APIRouter, Body, Query, Request
 from pydantic import Field
 
 from ...model.configuration_manager import HASH_KEY, create_hash
-from ...model.schedule import Playlist, TimerTasks, daily_sequence, day_start, is_on_demand, normalize, render_task_schedule_at
+from ...model.schedule import Playlist, TimerTasks, daily_sequence, day_start, normalize, render_task_schedule_at
 from ...model.schedule_store import PLAYLISTS, check_item_shape, TASKS, Ambiguous, Conflict, Invalid, Kind, NotFound, ScheduleStore, ScheduleStoreError
 from ..deps import CM, TOD
 from ..documents import plugin_content_errors
@@ -261,11 +261,6 @@ def render_tasks_schedule(
 			if problems:
 				logger.warning(f"Not rendering timer task '{tti.title}' ({tti.id}) of schedule '{timer_tasks.id}': {'; '.join(problems)}")
 				invalid_list.append({ "schedule": timer_tasks.id, "id": tti.id, "title": tti.title, "message": "; ".join(problems) })
-				continue
-			if is_on_demand(tti.trigger):
-				# no time of its own: never in a day, but the list shows it (with its Run now)
-				notrender_list.append({ "schedule": timer_tasks.id, "id": tti.id })
-				schedule_map.setdefault(timer_tasks.id, _with_rev(timer_tasks))
 				continue
 			idid = False
 			for schedule_ts in daily_sequence(start_ts, days):

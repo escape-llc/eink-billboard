@@ -37,11 +37,12 @@ export type FieldDef = {
 	maximum?: number
 	/**
 	 * of an array: how many items, and what each is. A list of objects (`type: "object"`, flat fields; `key` names the field that identifies a row
-	 * and must be unique, a whole number as well as text; `once` names a field and the values of it that only one row may have); or a multi-select (`type: "string"`), the values chosen from the field's `lookup` or from `items.enum`
+	 * and must be unique, a whole number as well as text; `once` names a field and the values of it that only one row may have; `plugin`: a row of a certain value carries a plugin's
+	 * settings); or a multi-select (`type: "string"`), the values chosen from the field's `lookup` or from `items.enum`
 	 */
 	minItems?: number
 	maxItems?: number
-	items?: { type: "object", key?: string, once?: { field: string, values: string[] }, properties: FieldDef[], action?: RowActionDef } | { type: "string", enum?: string[] }
+	items?: { type: "object", key?: string, once?: { field: string, values: string[] }, plugin?: RowPluginDef, properties: FieldDef[], action?: RowActionDef } | { type: "string", enum?: string[] }
 	minLength?: number
 	maxLength?: number
 	/** a regular expression both JavaScript and Python read the same way */
@@ -64,6 +65,11 @@ export type FieldDef = {
  * `POST {url}/start { key }` answers what to show (`message`, `link`, `code`, `input`, `poll` seconds) and a `session`; then `{url}/continue { session, value }`
  * (with what was typed in `input`) or `{url}/poll { session }` until the answer is `done`, with `ok` and a `message`.
  */
+/**
+ * Rows of a list that carry the settings of a plugin (a button of the device that runs a Priority Update): the plugin's id, the row's field that holds them (an object, not shown as a column),
+ * and `when`, the row's field and value that make a row carry them. `run` is the address (a list of ours, then `/<key>/run`) that runs a saved row, for a Run now button.
+ */
+export type RowPluginDef = { id: string, field: string, when: { field: string, const: string }, run?: string }
 export type RowActionDef = {
 	url: string
 	label: string
@@ -153,7 +159,7 @@ type Resolved = {
 }
 /** A field as the form shows it: the descriptor's definition and what the form resolved for it; a list's row fields are resolved too. */
 export type ResolvedFieldDef = Omit<FieldDef, "items"> & Resolved & {
-	items?: { type: "object", key?: string, properties: ResolvedFieldDef[], action?: RowActionDef } | { type: "string", enum?: string[] }
+	items?: { type: "object", key?: string, once?: { field: string, values: string[] }, plugin?: RowPluginDef, properties: ResolvedFieldDef[], action?: RowActionDef } | { type: "string", enum?: string[] }
 }
 export type ResolvedField = ResolvedFieldDef | (FieldGroupDef & Resolved)
 /** The values of a form, by field name. */

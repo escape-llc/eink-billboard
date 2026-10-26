@@ -3267,6 +3267,46 @@
 				"summary": "Put Datasource Settings"
 			}
 		},
+		"/api/devices/triggers/{pin}/run": {
+			"post": {
+				"description": "Run the task the button on `pin` carries (its saved row), as if it was pressed: the Devices settings' Run now. The answer is that it was asked to.",
+				"operationId": "run_button_task_api_devices_triggers__pin__run_post",
+				"parameters": [
+					{
+						"in": "path",
+						"name": "pin",
+						"required": true,
+						"schema": {
+							"title": "Pin",
+							"type": "integer"
+						}
+					}
+				],
+				"responses": {
+					"202": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Done"
+								}
+							}
+						},
+						"description": "Successful Response"
+					},
+					"422": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPValidationError"
+								}
+							}
+						},
+						"description": "Validation Error"
+					}
+				},
+				"summary": "Run Button Task"
+			}
+		},
 		"/api/display/current": {
 			"get": {
 				"description": "What the panel shows now: the last `shown` event, or null before anything was drawn.",

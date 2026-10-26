@@ -31,7 +31,7 @@
 			<Column field="plugin" header="Plugin" />
 			<Column field="trigger" header="Trigger" />
 			<Column header="Next run">
-				<template #body="{ data }">{{ data.next ? runText(data.next) : (data.onDemand ? (data.enabled ? "When asked" : "") : (data.enabled ? "Not this week" : "")) }}</template>
+				<template #body="{ data }">{{ data.next ? runText(data.next) : (data.enabled ? "Not this week" : "") }}</template>
 			</Column>
 			<Column header="Run At Startup" bodyClass="startup">
 				<template #body="{ data }">
@@ -143,7 +143,7 @@
 				</InputGroup>
 				<div class="trigger-heading">Trigger</div>
 				<FormField name="trigger" v-slot="$field" :validateOnValueUpdate="true" :initialValue="editModel.trigger" style="display:flex;flex-grow:1">
-							<TimedTrigger :modelValue="$field.value" parentPropName="trigger." :fieldNameWidth="fieldNameWidth" :onDemandAllowed="ON_DEMAND_PLUGINS.includes(editModel.plugin_name)" @change="$field.props.onChange" />
+							<TimedTrigger :modelValue="$field.value" parentPropName="trigger." :fieldNameWidth="fieldNameWidth" @change="$field.props.onChange" />
 						</FormField>
 				<InputGroup class="field-row">
 					<InputGroupAddon class="field-label">
@@ -177,7 +177,7 @@ import { useConfirm } from "primevue/useconfirm"
 import { ProgressBar } from "primevue"
 import BasicForm, { type ValidateEventData } from "../components/BasicForm.vue"
 import HelpToggle from "../components/HelpToggle.vue"
-import { cleanTrigger, ON_DEMAND_PLUGINS, TriggerSchema } from "../components/ScheduleDefs"
+import { TriggerDefSchema } from "../components/ScheduleDefs"
 import TimedTrigger from "../components/TimedTrigger.vue"
 import { useSchedule } from "../composables/useSchedule"
 import z from "zod";
@@ -289,7 +289,7 @@ const beforeFieldsSchema = (resv: Record<string, z.ZodTypeAny>) => {
 	resv['title'] = z.string().min(1, "Title is required")
 	resv['enabled'] = z.boolean()
 	resv['plugin_name'] = z.string().min(1, "Plugin is required")
-	resv['trigger'] = TriggerSchema
+	resv['trigger'] = TriggerDefSchema
 }
 const addInitialValues = () => {
 	const ox = {
@@ -354,7 +354,7 @@ const submitForm = ({ result }: { result?: { success: boolean, data?: Record<str
 	if(!result?.success || !result.data || !editTarget.value) return
 	// the fields the page adds around the plugin's own (see beforeFieldsSchema) are the task's; the rest is its content
 	const { title, enabled, plugin_name, trigger, ...content } = result.data
-	saved(saveTask({ title, enabled, trigger: cleanTrigger(trigger), task: { plugin_name, content } }, showOnField))
+	saved(saveTask({ title, enabled, trigger, task: { plugin_name, content } }, showOnField))
 }
 function overwriteTask() {
 	saved(overwrite(showOnField))
