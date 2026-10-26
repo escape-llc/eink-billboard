@@ -34,6 +34,17 @@ export function gaugeSeverity(percent: number | null | undefined): "success" | "
 	return percent >= 90 ? "danger" : percent >= 75 ? "warn" : "success"
 }
 
+/**
+ * The Pi's fan in words: its speed when it reports one, else how hard it is driven. A fan without a speed wire (or too slow to count) reads 0 rpm while it is driven,
+ * so it is off only when the drive is 0 too.
+ */
+export function fanText(rpm: number | null | undefined, percent: number | null | undefined): string {
+	const drive = typeof percent === "number" && percent > 0 ? `${percent}% power` : ""
+	if (typeof rpm === "number" && rpm > 0) return drive ? `${rpm} rpm (${drive})` : `${rpm} rpm`
+	if (drive) return `${drive}, no speed reported`
+	return typeof percent === "number" || rpm === 0 ? "Off" : ""
+}
+
 /** The Pi's temperature as a word: the firmware throttles at 80 C and is soft limited from 60. */
 export function temperatureSeverity(celsius: number | null | undefined): "success" | "warn" | "danger" {
 	if (typeof celsius !== "number") return "success"
