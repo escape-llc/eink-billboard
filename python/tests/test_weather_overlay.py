@@ -13,7 +13,7 @@ from ..datasources.weather.weather import WeatherAsync
 from ..datasources.weather_overlay.weather_overlay import WeatherOverlayAsync, chosen_view, needs_of, view_lines
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.service_container import ServiceContainer
-from ..model.theme import inputs_from, palette_of
+from ..model.theme import inputs_from
 from ..plugins.plugin_base import PermanentError
 from .fake_internet import FakeInternet
 from .test_theme import CHROME, HAVE_CHROME
@@ -149,11 +149,11 @@ class TestRender(unittest.IsolatedAsyncioTestCase):
 		return { px[:3] for px in image.getdata() if px[3] == 255 }
 
 	def _has(self, solid: set[tuple[int, int, int]], color: tuple[int, int, int]) -> bool:
-		"""Chromium and Python round a derived color a step apart at most (test_theme)."""
+		"""A color of the page: exactly an ink (a step of tolerance, in case)."""
 		return any(all(abs(a - b) <= 1 for a, b in zip(px, color, strict=True)) for px in solid)
 
 	async def test_each_view_is_outlined_text_on_a_transparent_zone(self):
-		palette = palette_of(inputs_from(FakeSettings.THEME))
+		palette = inputs_from(FakeSettings.THEME, "spectra6").palette
 		for n, view in enumerate(("now", "today", "outlook")):
 			with self.subTest(view=view):
 				image = await self._render({ "view": view, "zone": "top-left" })
@@ -162,10 +162,10 @@ class TestRender(unittest.IsolatedAsyncioTestCase):
 				self.assertEqual([image.getpixel(c)[3] for c in ((0, 95), (245, 95))], [0, 0])
 				solid = self._solid(image)
 				for role in ("text_secondary_1", "text_primary", "text_outline"):
-					self.assertTrue(self._has(solid, getattr(palette, role).rgb), role)
+					self.assertTrue(self._has(solid, palette.rgb(role)), role)
 
 	async def test_the_icon_is_drawn_in_its_color_unless_turned_off(self):
-		icon = palette_of(inputs_from(FakeSettings.THEME)).text_secondary_2.rgb
+		icon = inputs_from(FakeSettings.THEME, "spectra6").palette.rgb("text_secondary_2")
 		self.assertTrue(self._has(self._solid(await self._render({ "view": "now" })), icon))
 		self.assertFalse(self._has(self._solid(await self._render({ "view": "now", "showIcon": False })), icon))
 

@@ -52,3 +52,15 @@ def ink_set_rgb(name: str, which: Literal["drive", "appearance"] = "drive") -> l
 	"""The colours of an ink set's inks, in palette order (`drive`: what is drawn and handed to the driver; `appearance`: what the panel shows)."""
 	table = DRIVE if which == "drive" else APPEARANCE
 	return [table[ink] for ink in INK_SETS[name]]
+
+# the ink set of the panel that is attached, published by the Display task once the display has started and cleared when it quits: a page asks for it when it is rendered (`panel_ink_set`)
+# so that the theme resolves to inks the panel has. One device has one display, so this is one value, not a service; before a display has started it is the default.
+_panel: str|None = None
+
+def publish_panel_ink_set(name: str|None) -> None:
+	global _panel
+	_panel = name if name in INK_SETS else None
+
+def panel_ink_set() -> str:
+	"""The ink set of the attached panel, or the default (six colors) while no display has started."""
+	return _panel or DEFAULT_INK_SET

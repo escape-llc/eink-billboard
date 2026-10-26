@@ -83,7 +83,8 @@
 		}
 		/* the weekly view: every other month is tinted, and a month's first day is named */
 		.cal-day.alt {
-			background: color-mix(in srgb, currentColor 10%, transparent);
+			outline: 1px dotted currentColor;
+			outline-offset: -2px;
 		}
 		/* `--fs` is the span's own font size: what its padding, corners and margin are a fraction of (a month label is smaller in portrait) */
 		.cal-month {
@@ -95,8 +96,9 @@
 			--fs: .58rem;
 			margin-right: calc(.1 * var(--fs));
 		}
+		/* the days of the neighbouring months: set in italics (the page is solid inks, so nothing is faded) */
 		.cal-day.out {
-			opacity: .4;
+			font-style: italic;
 		}
 		.cal-num {
 			height: .95rem;
@@ -126,7 +128,6 @@
 		}
 		.cal-item.bar {
 			border-left: .252rem solid var(--event, currentColor);
-			background: color-mix(in srgb, var(--event, currentColor) 22%, transparent);
 			padding-left: .18rem;
 			font-weight: bold;
 		}
@@ -199,9 +200,9 @@
 			margin-top: 1.2rem;
 			font-size: 1.2rem;
 		}
-		/* over before the slot began: still there, but faded */
+		/* over before the slot began: still there, but struck through */
 		.past {
-			opacity: .45;
+			text-decoration: line-through;
 		}
 		.cal-more {
 			font-size: .72rem;
@@ -224,14 +225,14 @@
 	<div class="cal-grid">
 		{% for week in weeks %}{% set row = loop.first %}{% if week_numbers %}<div class="cal-week text-secondary-2"><span>{{ week.number }}</span></div>{% endif %}{% for day in week.days %}
 		<div class="cal-day{% if row %} top{% endif %}{% if loop.first %} first{% endif %}{% if not day.in_month %} out{% endif %}{% if day.alt %} alt{% endif %}">
-			<div class="cal-num">{% if day.label %}<span class="cal-month text-secondary-1">{{ day.label }}</span>{% endif %}<span class="{% if day.today %}bg-secondary-1-accent{% elif day.weekend %}text-secondary-2{% endif %}">{{ day.day }}</span></div>
+			<div class="cal-num">{% if day.label %}<span class="cal-month text-secondary-1">{{ day.label }}</span>{% endif %}<span class="{% if day.today %}bg-fill text-on-fill{% elif day.weekend %}text-secondary-2{% endif %}">{{ day.day }}</span></div>
 			{% for item in day.entries %}
 			{% if item.holiday %}
 			<div class="cal-item holiday{% if item.past %} past{% endif %}"{{ color(item) }}>{{ item.title }}</div>
 			{% elif item.bar %}
 			<div class="cal-item bar{% if item.past %} past{% endif %}"{{ color(item) }}>{{ item.title }}</div>
 			{% else %}
-			<div class="cal-item{% if item.past %} past{% endif %}"{{ color(item) }}><span class="dot{% if not item.color %} bg-secondary-1-accent{% endif %}"></span>{% if item.time %}<span class="time">{{ item.time }}</span>{% endif %}{{ item.title }}</div>
+			<div class="cal-item{% if item.past %} past{% endif %}"{{ color(item) }}><span class="dot{% if not item.color %} text-secondary-1{% endif %}"></span>{% if item.time %}<span class="time">{{ item.time }}</span>{% endif %}{{ item.title }}</div>
 			{% endif %}
 			{% endfor %}
 			{% if day.more %}<div class="cal-more text-secondary-2">+{{ day.more }} more</div>{% endif %}
@@ -244,7 +245,7 @@
 		<div class="ag-day {% if day.today %}text-secondary-1{% else %}text-secondary-2{% endif %}">{{ day.label }}</div>
 		{% for item in day.entries %}
 		<div class="ag-item{% if item.holiday %} holiday{% endif %}{% if item.past %} past{% endif %}"{{ color(item) }}>
-			<span class="ag-bar{% if not item.color %} bg-secondary-1-accent{% endif %}"></span>
+			<span class="ag-bar{% if not item.color %} text-secondary-1{% endif %}"></span>
 			<span class="ag-time">{{ item.range }}</span>
 			<span class="ag-title">{{ item.title }}</span>
 			{% if item.location %}<span class="ag-location">{{ item.location }}</span>{% endif %}

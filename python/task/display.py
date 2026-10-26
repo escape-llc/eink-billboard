@@ -10,6 +10,7 @@ from .overlay_zones import ZONE_NAMES, Zone, zones_for
 from ..display.refresh_gate import RefreshState
 from ..display.display_base import DisplayBase
 from ..model.configuration_manager import ConfigurationManager
+from ..model.inks import publish_panel_ink_set
 from ..model.theme import current_palette
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..task.basic_task import DispatcherTask, handles
@@ -129,6 +130,7 @@ class Display(DispatcherTask):
 		finally:
 			self.display = None
 			self.ink_set = None
+			publish_panel_ink_set(None)
 			super().quitMsg(msg)
 	@handles(ConfigureEvent)
 	def _configure_event(self, msg: ConfigureEvent):
@@ -153,6 +155,7 @@ class Display(DispatcherTask):
 			self.timer = ts if ts is not None else TimerThreadService(self.timebase)
 			self.resolution = self.display.initialize(self.cm)
 			self.ink_set = self.display.ink_set()
+			publish_panel_ink_set(self.ink_set)
 			self.refresh_state = RefreshState(self.cm)
 			self.refresh_state.load()
 			# a restart inside the rest after the last refresh waits out what is left of it
@@ -313,7 +316,7 @@ class Display(DispatcherTask):
 						await asyncio.sleep(wait)
 					# a page with no background under it shows the theme's color, read now so a theme change applies
 					if self.cm is not None:
-						compositor.fill = current_palette(self.cm.settings_manager()).bg_page.rgb
+						compositor.fill = current_palette(self.cm.settings_manager()).rgb("bg_page")
 					package = compositor.commit()
 					if package is None:
 						self.logger.debug("Compositor no changes detected")

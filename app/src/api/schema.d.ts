@@ -1244,7 +1244,7 @@ export interface paths {
         put?: never;
         /**
          * Palette
-         * @description The roles of the palette for these theme settings (what the form holds, saved or not): `[{ name, color }]`, name as the CSS class, color as `hsl()`.
+         * @description The roles of the palette for these theme settings (what the form holds, saved or not), resolved against the ink set of the attached panel: `[{ name, ink, drive, appearance }]`.
          *     Values that are not valid read as the factory defaults, as they do on the device.
          */
         post: operations["palette_api_theme_palette_post"];
@@ -1507,8 +1507,15 @@ export interface components {
             /** Kept Bytes */
             kept_bytes: number;
         };
-        /** Palette */
+        /**
+         * Palette
+         * @description The roles for the panel that is attached. `confirmed` is false while the display has not started: the ink set is then the default, a guess.
+         */
         Palette: {
+            /** Confirmed */
+            confirmed: boolean;
+            /** Inkset */
+            inkSet: string;
             /** Roles */
             roles: components["schemas"]["Role"][];
         };
@@ -1711,11 +1718,15 @@ export interface components {
         };
         /**
          * Role
-         * @description A role of the palette: its CSS class and its color as `hsl()`.
+         * @description A role of the palette: its CSS class, the ink it resolved to, the exact color it is drawn with and roughly what the panel shows.
          */
         Role: {
-            /** Color */
-            color: string;
+            /** Appearance */
+            appearance: string;
+            /** Drive */
+            drive: string;
+            /** Ink */
+            ink: string;
             /** Name */
             name: string;
         };

@@ -450,19 +450,25 @@
 	"urn:inky:storage:schema:theme": {
 		"version": 1,
 		"properties": {
-			"theme": {
+			"preset": {
 				"type": "string"
 			},
-			"hue": {
-				"type": "number"
-			},
-			"saturation": {
-				"type": "number"
-			},
-			"lightness": {
-				"type": "number"
-			},
 			"background": {
+				"type": "string"
+			},
+			"textPrimary": {
+				"type": "string"
+			},
+			"textSecondary1": {
+				"type": "string"
+			},
+			"textSecondary2": {
+				"type": "string"
+			},
+			"fill": {
+				"type": "string"
+			},
+			"textOnFill": {
 				"type": "string"
 			},
 			"fontBody": {

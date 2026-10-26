@@ -188,6 +188,7 @@
 				<AccordionHeader>The panel</AccordionHeader>
 				<AccordionContent>
 					<p><b>Settings, Display</b>: the <b>Display Type</b> and the orientation; each type's own settings appear once it is chosen. Restart after changing the type.</p>
+					<p>A color panel has only a few inks, so pages are drawn in those inks and never in tints. <b>Settings, Theme</b> chooses a set of them (<b>Classic</b>, <b>Warm</b>, <b>Cool</b>, <b>Mono</b>, or <b>Custom</b>, an ink for each part) and a white or black page. An ink the panel does not have is replaced by the nearest it has (black on a black-and-white panel), so the same choice works on any panel; the swatches show what the attached panel will show.</p>
 					<dl>
 						<dt>Inky</dt>
 						<dd>A Pimoroni Inky says which board it is. <b>Border Color</b> is the thin frame the picture does not cover; a color the board has no ink for leaves the board's own.</dd>

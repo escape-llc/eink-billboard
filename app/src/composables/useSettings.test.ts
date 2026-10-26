@@ -113,32 +113,57 @@ describe("the item tabs", () => {
 describe("the theme preview", () => {
 	beforeEach(() => vi.useFakeTimers())
 	afterEach(() => vi.useRealTimers())
-
-	it("asks for the palette once the values have been still for a moment", async () => {
-		mocked.post.mockResolvedValue({ roles: [{ name: "text-primary", color: "#123456" }] })
-		const tp = useThemePreview()
-		tp.fromStored({ theme: "triadic", hue: 200, saturation: 80, lightness: 40, background: "black" })
-		tp.fromForm({ theme: "triadic", hue: 210, saturation: 80, lightness: 40, background: "black" })
-		await vi.advanceTimersByTimeAsync(200)
-		expect(mocked.post).toHaveBeenCalledTimes(1)
-		expect(mocked.post.mock.calls[0]![2]).toEqual({ theme: "triadic", hue: 210, saturation: 80, lightness: 40, background: "black" })
-		expect(tp.paletteColors.value).toEqual({ "text-primary": "#123456" })
+	const answer = (inkSet: string, confirmed: boolean, roles: Array<[string, string]>) => ({
+		inkSet, confirmed, roles: roles.map(([name, ink]) => ({ name, ink, drive: "#000000", appearance: `#${ink === "red" ? "ff0000" : "123456"}` })),
 	})
 
-	it("the form's value that is not a number yet leaves the preview as it was; an unset background is white", () => {
+	it("asks for the roles once the values have been still for a moment", async () => {
+		mocked.post.mockResolvedValue(answer("spectra6", true, [["text-primary", "black"]]))
 		const tp = useThemePreview()
-		tp.fromStored({ hue: 30, fontBody: "Lexend", fontHeading: "Bitter", fontScale: 1.2, background: "tinted" })
-		expect([tp.hue.value, tp.fontBody.value, tp.fontHeading.value, tp.fontScale.value, tp.background.value]).toEqual([30, "Lexend", "Bitter", 1.2, "tinted"])
-		tp.fromForm({ hue: null, fontHeading: null })
-		expect([tp.hue.value, tp.fontHeading.value, tp.background.value]).toEqual([30, null, "white"])
+		tp.fromStored({ preset: "warm", background: "black" })
+		tp.fromForm({ preset: "cool", background: "black" })
+		await vi.advanceTimersByTimeAsync(200)
+		expect(mocked.post).toHaveBeenCalledTimes(1)
+		expect(mocked.post.mock.calls[0]![2]).toEqual({ preset: "cool", background: "black" })
+		expect(tp.paletteColors.value).toEqual({ "text-primary": "#123456" })
+		expect(tp.shownFor.value).toBe("Shown for: Six colors (Spectra 6)")
+	})
+
+	it("says when the ink set is a guess", async () => {
+		mocked.post.mockResolvedValue(answer("spectra6", false, []))
+		const tp = useThemePreview()
+		tp.refreshPalette()
+		await vi.advanceTimersByTimeAsync(200)
+		expect(tp.shownFor.value).toBe("Shown for: Six colors (Spectra 6) (a guess: the display has not started)")
+	})
+
+	it("sends the custom inks and names each one the panel replaces", async () => {
+		mocked.post.mockResolvedValue(answer("bwr", true, [["text-secondary-2", "red"], ["bg-fill", "red"]]))
+		const tp = useThemePreview()
+		tp.fromForm({ preset: "custom", textSecondary2: "orange", fill: "red" })
+		await vi.advanceTimersByTimeAsync(200)
+		expect(mocked.post.mock.calls[0]![2]).toEqual({ preset: "custom", background: "white", textSecondary2: "orange", fill: "red" })
+		expect(tp.fallbackNotes.value).toEqual(["Second Accent Ink: Orange is not used here; Red is."])
+		tp.fromForm({ preset: "classic", textSecondary2: "orange" })
+		expect(tp.fallbackNotes.value).toEqual([])
+	})
+
+	it("an unset background is white and the fonts are read as they come", () => {
+		const tp = useThemePreview()
+		tp.fromStored({ fontBody: "Lexend", fontHeading: "Bitter", fontScale: 1.2, background: "black" })
+		expect([tp.fontBody.value, tp.fontHeading.value, tp.fontScale.value, tp.background.value]).toEqual(["Lexend", "Bitter", 1.2, "black"])
+		tp.fromForm({ fontHeading: null })
+		expect([tp.fontHeading.value, tp.background.value]).toEqual([null, "white"])
 	})
 
 	it("a palette the server cannot compute keeps what the swatches showed", async () => {
+		mocked.post.mockResolvedValueOnce(answer("spectra6", true, [["text-primary", "black"]]))
 		const tp = useThemePreview()
-		tp.paletteColors.value = { "text-primary": "#000000" }
+		tp.refreshPalette()
+		await vi.advanceTimersByTimeAsync(200)
 		mocked.post.mockRejectedValue(new Error("down"))
 		tp.refreshPalette()
 		await vi.advanceTimersByTimeAsync(200)
-		expect(tp.paletteColors.value).toEqual({ "text-primary": "#000000" })
+		expect(tp.paletteColors.value).toEqual({ "text-primary": "#123456" })
 	})
 })

@@ -1,132 +1,160 @@
 """
 The device's color theme, computed here and nowhere else.
 
-The theme settings (`theme-settings.json`: scheme, hue, saturation, lightness) become a few HSL inputs. Two things read those inputs:
-- CSS: `css_vars` writes them into `:root` (see `static/render/plugin.html`), and `static/render/themes.css` derives every role from them with
-  relative color syntax, e.g. `hsl(from var(--theme-base) calc(h + var(--theme-h1-offset)) s var(--l-text-dark))`;
-- PIL: `Palette` applies the same derivation in Python, so code that draws with PIL is in the same theme as the HTML pages.
+A page is drawn in the **inks** of the panel (`python/model/inks.py`), not in free colors: a color e-ink panel has a handful of pure pigments and dithers everything else into dots. The theme
+settings (`theme-settings.json`) choose a preset (or, for `custom`, an ink for each role) and a page background; `resolve` turns that into one ink per role **for the ink set of the panel that is
+attached** (`panel_ink_set`), by a fixed fallback rule, so the same choice works on a black-and-white panel and on a six-color one. Two things then read the result:
+- CSS: `css_vars` writes each role's drive color (the exact RGB of the ink) into `:root` (see `static/render/plugin.html`) and `static/render/themes.css` has a plain class for each role;
+- PIL: `Palette` holds the same inks, so code that draws with PIL is in the same theme as the HTML pages.
 A test renders one swatch per role in Chromium and compares it with `Palette`, so the two cannot drift.
 """
-import colorsys
 import logging
-from dataclasses import dataclass, fields, replace
+from dataclasses import dataclass, fields
 from typing import Any, Mapping
 
 from .configuration_manager import FONT_FAMILIES, SettingsConfigurationManager
+from .inks import DEFAULT_INK_SET, DRIVE, INK_SETS, INKS, panel_ink_set
 
 logger = logging.getLogger(__name__)
 
-# the hue offsets of the two secondary colors from the base hue, in degrees
-SCHEMES: dict[str, tuple[float, float]] = {
-	"analogous": (-30, 30),
-	"complementary": (180, 180),
-	"split-complementary": (150, 210),
-	"triadic": (120, 240),
-	"tetradic": (90, 180),
-	"monochrome": (0, 0),
+PRESETS = ("classic", "warm", "cool", "mono", "custom")
+# what a preset chooses an ink for: the main text, the two accents, the highlight fill and the text on it (white page)
+PRESET_INKS: dict[str, tuple[str, str, str, str, str]] = {
+	"classic": ("black", "red", "blue", "yellow", "black"),
+	"warm": ("black", "red", "orange", "yellow", "black"),
+	"cool": ("black", "blue", "green", "blue", "white"),
+	"mono": ("black", "black", "black", "black", "white"),
 }
-MONOCHROME_SATURATION = 60.0
+# on a black page every preset trades to these (mono stays one ink)
+BLACK_PAGE_INKS = ("white", "yellow", "red", "yellow", "black")
+BLACK_PAGE_MONO = ("white", "white", "white", "white", "black")
+# the settings' names of the five custom inks, in the order of the tuples above
+CUSTOM_KEYS = ("textPrimary", "textSecondary1", "textSecondary2", "fill", "textOnFill")
+BACKGROUNDS = ("white", "black")
 # the factory defaults (python/storage/schemas/theme.json)
-DEFAULT_SETTINGS: Mapping[str, Any] = { "theme": "complementary", "hue": 220, "saturation": 80, "lightness": 50, "fontBody": "Jost", "fontHeading": None, "fontOverlay": None, "fontScale": 1.0, "background": "white" }
-# the page behind everything: plain white (the crispest on a color e-ink panel, whose palette is a few pure colors), the theme's light tint, or black (dark mode:
-# every light tone and dark tone trade places, so text reads light on dark and the panels of a page are dark)
-BACKGROUNDS = ("white", "tinted", "black")
+DEFAULT_SETTINGS: Mapping[str, Any] = { "preset": "classic", "background": "white", "fontBody": "Jost", "fontHeading": None, "fontOverlay": None, "fontScale": 1.0 }
 # the text size of every page is multiplied by `fontScale`, within these limits (a page is laid out to fit text a little larger or smaller, not much more)
 FONT_SCALE_MIN = 0.8
 FONT_SCALE_MAX = 1.4
-# lightness of each tone, in percent: fixed for contrast, except the accent, which the setting moves
-L_BG_LIGHT = 80.0
-L_BG_DARK = 20.0
-L_TEXT_DARK = 25.0
-L_TEXT_LIGHT = 90.0
 
 @dataclass(frozen=True, slots=True)
-class Color:
-	"""An HSL color: h in degrees, s and l in percent."""
-	h: float
-	s: float
-	l: float
-	@property
-	def rgb(self) -> tuple[int, int, int]:
-		r, g, b = colorsys.hls_to_rgb((self.h % 360) / 360.0, self.l / 100.0, self.s / 100.0)
-		return (round(r * 255), round(g * 255), round(b * 255))
-	@property
-	def css(self) -> str:
-		return f"hsl({_num(self.h % 360)} {_num(self.s)}% {_num(self.l)}%)"
+class Palette:
+	"""
+	The ink of each role, by name (`INKS`); `text_primary` is the class `text-primary`. Every ink is one the panel has (`resolve`).
+	`bg_fill` is the highlight; with no ink to highlight with it is the page's own color, and `text_on_fill` is then the main text ink, so a page still reads.
+	"""
+	text_primary: str
+	text_secondary_1: str
+	text_secondary_2: str
+	bg_page: str
+	bg_fill: str
+	text_on_fill: str
+	# a solid block in the main text ink, with the page's color on it
+	bg_strong: str
+	text_on_strong: str
+	# the outline around overlay text, so it reads over a busy picture: the page's color
+	text_outline: str
+	@staticmethod
+	def roles() -> list[str]:
+		"""The role names as CSS class names."""
+		return [f.name.replace("_", "-") for f in fields(Palette)]
+	def ink(self, role: str) -> str:
+		"""The ink of a role named as the field (`bg_page`) or as the class (`bg-page`)."""
+		return getattr(self, role.replace("-", "_"))
+	def rgb(self, role: str) -> tuple[int, int, int]:
+		"""The exact color the role is drawn with, and handed to the driver."""
+		return DRIVE[self.ink(role)]
 
 @dataclass(frozen=True, slots=True)
 class ThemeInputs:
-	"""What the CSS gets: the base color, the two hue offsets, the lightness of each tone."""
-	scheme: str
-	hue: float
-	saturation: float
-	h1_offset: float
-	h2_offset: float
-	l_accent: float
-	l_bg_light: float = L_BG_LIGHT
-	l_bg_dark: float = L_BG_DARK
-	l_text_dark: float = L_TEXT_DARK
-	l_text_light: float = L_TEXT_LIGHT
+	"""What a page is rendered with: the resolved inks, the ink set they were resolved for and the typography."""
+	palette: Palette
+	ink_set: str = DEFAULT_INK_SET
+	preset: str = "classic"
+	background: str = "white"
 	# the typography: families we ship (FONT_FAMILIES), and a multiplier for text sizes
 	font_body: str = "Jost"
 	font_heading: str = "Jost"
 	# the text of the overlays (the date in a corner): one font for all of them, so they look alike
 	font_overlay: str = "Jost"
 	font_scale: float = 1.0
-	background: str = "white"
 
-@dataclass(frozen=True, slots=True)
-class Palette:
-	"""One color per class of themes.css (`text-primary` is `text_primary`); the derivation is the CSS one."""
-	text_primary: Color
-	text_secondary_1: Color
-	text_secondary_2: Color
-	text_primary_light: Color
-	text_secondary_1_light: Color
-	text_secondary_2_light: Color
-	bg_page: Color
-	bg_primary: Color
-	bg_secondary_1: Color
-	bg_secondary_2: Color
-	bg_primary_accent: Color
-	bg_secondary_1_accent: Color
-	bg_secondary_2_accent: Color
-	bg_primary_dark: Color
-	bg_secondary_1_dark: Color
-	bg_secondary_2_dark: Color
-	# the outline around overlay text, so it reads over a busy picture: white, or black on a black page (a solid color; a color e-ink panel dithers a tint)
-	text_outline: Color
-	@staticmethod
-	def roles() -> list[str]:
-		"""The role names as CSS class names."""
-		return [f.name.replace("_", "-") for f in fields(Palette)]
+def _readable(text: str, behind: str) -> bool:
+	"""Whether text of this ink can be read on that one: not the same ink, and neither yellow on white nor white on yellow (two light inks)."""
+	return text != behind and {text, behind} != {"white", "yellow"}
 
-def _num(value: float) -> str:
-	return f"{value:g}"
+def _first(chain: list[str], have: tuple[str, ...], ok=lambda ink: True) -> str|None:
+	return next((ink for ink in chain if ink in have and ok(ink)), None)
 
-def _number(settings: Mapping[str, Any], name: str, low: float, high: float, problems: list[str]) -> float:
-	value = settings.get(name)
-	if isinstance(value, (int, float)) and not isinstance(value, bool) and low <= value <= high:
-		return float(value)
-	problems.append(name)
-	return float(DEFAULT_SETTINGS[name])
+def _fallback(page: str) -> str:
+	"""The ink that always reads on the page: black on white, white on black."""
+	return "white" if page == "black" else "black"
 
-def inputs_from(settings: Mapping[str, Any]|None) -> ThemeInputs:
-	"""The inputs for a theme settings document; a missing or invalid value falls back to the factory default (one warning)."""
+def _text_ink(chosen: str, have: tuple[str, ...], page: str) -> str:
+	"""The ink for a text role: the chosen one if the panel has it and it reads on the page, else its nearest (orange: red), else black (white on a black page)."""
+	chain = [chosen, "red"] if chosen == "orange" else [chosen]
+	return _first(chain, have, lambda ink: _readable(ink, page)) or _fallback(page)
+
+def _fill_ink(chosen: str, have: tuple[str, ...], page: str) -> str|None:
+	"""The ink of the highlight: the chosen one, else red; for another color the panel has none like, black (white on a black page); None when it should be left unfilled (yellow with no yellow or red)."""
+	if chosen == "yellow":
+		return _first(["yellow", "red"], have, lambda ink: ink != page)
+	return _first([chosen, "red", _fallback(page)], have, lambda ink: ink != page)
+
+# these fills are light: the text on one is black (the rest are dark: white)
+_LIGHT_FILLS = ("white", "yellow", "orange")
+
+def resolve(settings: Mapping[str, Any]|None, ink_set: str) -> tuple[Palette, str, str]:
+	"""
+	The palette for theme settings on a panel with this ink set, with the preset and the background it used (a value that is missing or not valid reads as the factory default, with one warning).
+	Every role is an ink of the set; no text role is the ink of the page it is on; yellow is never text on white and white never on yellow; and with no fill, `bg_fill` is the page and
+	`text_on_fill` the main text, so a page still reads.
+	"""
 	settings = settings or {}
+	have = INK_SETS.get(ink_set) or INK_SETS[DEFAULT_INK_SET]
 	problems: list[str] = []
-	scheme = settings.get("theme")
-	if scheme not in SCHEMES:
-		problems.append("theme")
-		scheme = str(DEFAULT_SETTINGS["theme"])
-	hue = _number(settings, "hue", 0, 360, problems)
-	saturation = _number(settings, "saturation", 0, 100, problems)
-	lightness = _number(settings, "lightness", 0, 100, problems)
+	preset = settings.get("preset")
+	if preset not in PRESETS:
+		if preset is not None:
+			problems.append("preset")
+		preset = str(DEFAULT_SETTINGS["preset"])
+	background = settings.get("background")
+	if background not in BACKGROUNDS:
+		if background is not None:
+			problems.append("background")
+		background = str(DEFAULT_SETTINGS["background"])
 	if problems:
-		logger.warning(f"Theme settings: invalid or missing {', '.join(problems)}; using the defaults for them")
-	if scheme == "monochrome":
-		saturation = MONOCHROME_SATURATION
-	h1, h2 = SCHEMES[scheme]
+		logger.warning(f"Theme settings: invalid {', '.join(problems)}; using the default for them")
+	if preset == "custom":
+		classic = PRESET_INKS["classic"] if background == "white" else BLACK_PAGE_INKS
+		chosen: tuple[str, ...] = tuple(str(settings.get(key)) if settings.get(key) in INKS else classic[i] for i, key in enumerate(CUSTOM_KEYS))
+	elif background == "black":
+		chosen = BLACK_PAGE_MONO if preset == "mono" else BLACK_PAGE_INKS
+	else:
+		chosen = PRESET_INKS[preset]
+	primary = _text_ink(chosen[0], have, background)
+	secondary_1 = _text_ink(chosen[1], have, background)
+	secondary_2 = _text_ink(chosen[2], have, background)
+	fill = _fill_ink(chosen[3], have, background)
+	if fill is None:
+		fill_ink, on_fill = background, primary
+	else:
+		fill_ink = fill
+		# the chosen text ink if the fill is the chosen one too, it reads on it and the panel has it; else black or white by how light the fill is
+		wanted = chosen[4] if fill == chosen[3] and chosen[4] in have and _readable(chosen[4], fill) else None
+		on_fill = wanted or _first(["black", "white"] if fill in _LIGHT_FILLS else ["white", "black"], have, lambda ink: _readable(ink, fill)) or _fallback(fill)
+	palette = Palette(
+		text_primary=primary, text_secondary_1=secondary_1, text_secondary_2=secondary_2,
+		bg_page=background, bg_fill=fill_ink, text_on_fill=on_fill,
+		bg_strong=primary, text_on_strong=background, text_outline=background,
+	)
+	return palette, str(preset), str(background)
+
+def inputs_from(settings: Mapping[str, Any]|None, ink_set: str|None = None) -> ThemeInputs:
+	"""The inputs for a theme settings document on a panel (the attached one's ink set, unless one is given); a missing or invalid value falls back to the factory default."""
+	settings = settings or {}
+	ink_set = ink_set or panel_ink_set()
+	palette, preset, background = resolve(settings, ink_set)
 	body = settings.get("fontBody")
 	if body not in FONT_FAMILIES:
 		if body is not None:
@@ -143,65 +171,34 @@ def inputs_from(settings: Mapping[str, Any]|None) -> ThemeInputs:
 	scale = settings.get("fontScale")
 	if not (isinstance(scale, (int, float)) and not isinstance(scale, bool) and FONT_SCALE_MIN <= scale <= FONT_SCALE_MAX):
 		scale = float(DEFAULT_SETTINGS["fontScale"])
-	background = settings.get("background")
-	if background not in BACKGROUNDS:
-		background = str(DEFAULT_SETTINGS["background"])
-	inputs = ThemeInputs(scheme, hue % 360, saturation, h1, h2, lightness, font_body=str(body), font_heading=str(heading), font_overlay=str(overlay), font_scale=float(scale), background=str(background))
-	if background == "black":
-		inputs = replace(inputs, l_text_dark=L_TEXT_LIGHT, l_text_light=L_TEXT_DARK, l_bg_light=L_BG_DARK, l_bg_dark=L_BG_LIGHT)
-	return inputs
+	return ThemeInputs(palette, ink_set, preset, background, font_body=str(body), font_heading=str(heading), font_overlay=str(overlay), font_scale=float(scale))
 
-def palette_of(inputs: ThemeInputs) -> Palette:
-	hues = { "primary": inputs.hue, "secondary_1": inputs.hue + inputs.h1_offset, "secondary_2": inputs.hue + inputs.h2_offset }
-	def tone(name: str, lightness: float) -> Color:
-		return Color(hues[name] % 360, inputs.saturation, lightness)
-	return Palette(
-		text_primary=tone("primary", inputs.l_text_dark),
-		text_secondary_1=tone("secondary_1", inputs.l_text_dark),
-		text_secondary_2=tone("secondary_2", inputs.l_text_dark),
-		text_primary_light=tone("primary", inputs.l_text_light),
-		text_secondary_1_light=tone("secondary_1", inputs.l_text_light),
-		text_secondary_2_light=tone("secondary_2", inputs.l_text_light),
-		bg_page=Color(0, 0, 100) if inputs.background == "white" else Color(0, 0, 0) if inputs.background == "black" else tone("primary", inputs.l_bg_light),
-		bg_primary=tone("primary", inputs.l_bg_light),
-		bg_secondary_1=tone("secondary_1", inputs.l_bg_light),
-		bg_secondary_2=tone("secondary_2", inputs.l_bg_light),
-		bg_primary_accent=tone("primary", inputs.l_accent),
-		bg_secondary_1_accent=tone("secondary_1", inputs.l_accent),
-		bg_secondary_2_accent=tone("secondary_2", inputs.l_accent),
-		bg_primary_dark=tone("primary", inputs.l_bg_dark),
-		bg_secondary_1_dark=tone("secondary_1", inputs.l_bg_dark),
-		bg_secondary_2_dark=tone("secondary_2", inputs.l_bg_dark),
-		text_outline=Color(0, 0, 0) if inputs.background == "black" else Color(0, 0, 100),
-	)
+def _num(value: float) -> str:
+	return f"{value:g}"
+
+def hex_of(rgb: tuple[int, int, int]) -> str:
+	return "#%02x%02x%02x" % rgb
 
 def css_vars(inputs: ThemeInputs) -> str:
-	"""The CSS custom properties themes.css derives from, for a `:root { ... }` block. HSL only: no RGB is written."""
-	values = {
-		"--theme-base": Color(inputs.hue, inputs.saturation, inputs.l_accent).css,
-		"--theme-h1-offset": _num(inputs.h1_offset),
-		"--theme-h2-offset": _num(inputs.h2_offset),
-		"--l-bg-light": f"{_num(inputs.l_bg_light)}%",
-		"--l-accent": f"{_num(inputs.l_accent)}%",
-		"--l-bg-dark": f"{_num(inputs.l_bg_dark)}%",
-		"--l-text-dark": f"{_num(inputs.l_text_dark)}%",
-		"--l-text-light": f"{_num(inputs.l_text_light)}%",
+	"""The CSS custom properties themes.css reads, for a `:root { ... }` block: the drive color (exact `#rrggbb`) of each role, and the typography."""
+	palette = inputs.palette
+	values = { f"--ink-{role}": hex_of(palette.rgb(role)) for role in Palette.roles() if role not in ("bg-page", "text-outline") }
+	values.update({
+		# the page behind everything (the class `bg-page`) and the outline around overlay text (`text-outline`)
+		"--page-bg": hex_of(palette.rgb("bg_page")),
+		"--outline-color": hex_of(palette.rgb("text_outline")),
 		# family names are ours (FONT_FAMILIES, plain identifiers), so they need no quotes: the page escapes quotes
-		# the page behind everything (the class `bg-page`)
-		"--page-bg": { "white": "hsl(0 0% 100%)", "black": "hsl(0 0% 0%)" }.get(inputs.background, "hsl(from var(--theme-base) h s var(--l-bg-light))"),
 		"--font-body": inputs.font_body,
 		"--font-heading": inputs.font_heading,
 		"--font-overlay": inputs.font_overlay,
-		# the outline around overlay text (the class `text-outline`)
-		"--outline-color": "hsl(0 0% 0%)" if inputs.background == "black" else "hsl(0 0% 100%)",
 		"--font-scale": _num(inputs.font_scale),
-	}
+	})
 	return " ".join(f"{name}: {value};" for name, value in values.items())
 
-DEFAULT_INPUTS = inputs_from(DEFAULT_SETTINGS)
+DEFAULT_INPUTS = inputs_from(DEFAULT_SETTINGS, DEFAULT_INK_SET)
 
 def current_inputs(scm: SettingsConfigurationManager|None) -> ThemeInputs:
-	"""The device theme now: read on every call, so a change in the web app applies to the next render. Without settings, the factory default."""
+	"""The device theme now, for the panel that is attached: read on every call, so a change in the web app applies to the next render. Without settings, the factory default."""
 	if scm is None:
 		return DEFAULT_INPUTS
 	try:
@@ -227,4 +224,4 @@ def current_typography(scm: SettingsConfigurationManager|None) -> Typography:
 	return typography_of(current_inputs(scm))
 
 def current_palette(scm: SettingsConfigurationManager|None) -> Palette:
-	return palette_of(current_inputs(scm))
+	return current_inputs(scm).palette

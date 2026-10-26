@@ -11,7 +11,7 @@ from ..datasources.today.today import TodayAsync, date_parts
 from ..model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.schedule import TimerTaskItem, TimerTaskTask, TriggerDict
 from ..model.service_container import ServiceContainer
-from ..model.theme import inputs_from, palette_of
+from ..model.theme import inputs_from
 from ..plugins.overlay.overlay import OverlayAsync
 from ..plugins.plugin_base import PermanentError, PluginExecutionContext
 from ..task.display_messages import OverlayImage, OverlayZones
@@ -22,7 +22,7 @@ from .test_timer_layer import at
 from .utils import save_image, test_output_path_for
 
 STATIC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
-THEME = { "theme": "split-complementary", "hue": 210, "saturation": 80, "lightness": 50 }
+THEME = { "preset": "classic" }
 DAY = datetime(2026, 10, 9, 9, 0, tzinfo=timezone.utc)
 
 class FakeSettings:
@@ -140,24 +140,25 @@ class TestRender(unittest.TestCase):
 		save_image(image, test_output_path_for("today_tests"), 1, "outlined")
 		self.assertEqual((result.title, image.size, image.mode), ("Friday, October 9", (246, 96), "RGBA"))
 		self.assertEqual([image.getpixel(corner)[3] for corner in ((0, 0), (245, 0), (0, 95), (245, 95))], [0, 0, 0, 0])
-		palette = palette_of(inputs_from(THEME))
+		palette = inputs_from(THEME, "spectra6").palette
 		solid = _solid(image)
 		# the letters in their roles, and the outline in the theme's outline color (white on a white page)
-		self.assertTrue({ palette.text_secondary_1.rgb, palette.text_primary.rgb, palette.text_outline.rgb } <= solid, solid)
-		self.assertEqual(palette.text_outline.rgb, (255, 255, 255))
+		self.assertTrue({ palette.rgb("text_secondary_1"), palette.rgb("text_primary"), palette.rgb("text_outline") } <= solid, solid)
+		self.assertEqual(palette.rgb("text_outline"), (255, 255, 255))
 		# the highlight (the weekday) comes first: the leftmost letter pixel is the highlight's
 		box = _ink(image)
-		letters = (palette.text_secondary_1.rgb, palette.text_primary.rgb)
+		letters = (palette.rgb("text_secondary_1"), palette.rgb("text_primary"))
 		first = next(image.getpixel((x, y))[:3] for x in range(box[0], box[2]) for y in range(box[1], box[3]) if image.getpixel((x, y))[3] == 255 and image.getpixel((x, y))[:3] in letters)
-		self.assertEqual(first, palette.text_secondary_1.rgb)
+		self.assertEqual(first, palette.rgb("text_secondary_1"))
 
 	def test_a_black_page_outlines_in_black(self):
 		solid = _solid(self._render({ "format": "numeric" }, theme={ **THEME, "background": "black" }).image)
+		# the outline is the page's black, the letters its swapped inks: white for the main text, yellow for the highlight
 		self.assertIn((0, 0, 0), solid)
-		self.assertNotIn((255, 255, 255), solid)
+		self.assertTrue({ (255, 255, 255), (255, 255, 0) } & solid, solid)
 
 	def test_an_outline_of_0_draws_only_the_letters(self):
-		primary = palette_of(inputs_from(THEME)).text_primary.rgb
+		primary = inputs_from(THEME, "spectra6").palette.rgb("text_primary")
 		self.assertEqual(_solid(self._render({ "format": "numeric", "outline": 0 }).image), { primary })
 		self.assertIn((255, 255, 255), _solid(self._render({ "format": "numeric", "outline": 1 }).image))
 

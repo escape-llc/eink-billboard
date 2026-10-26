@@ -386,7 +386,7 @@ class TestRestoreRoutes(BackupApiBase):
 		self.assertEqual(resp.status_code, 200, resp.text)
 
 	def test_a_document_that_fails_the_rules_refuses_the_whole_restore_and_names_no_value(self):
-		bad = seal({ "settings/theme-settings.json": json.dumps({ "scheme": "not-a-scheme", "hue": KEY }).encode(), "settings/system-settings.json": b'{"timeFormat": "24h"}' }, PASSPHRASE)
+		bad = seal({ "settings/theme-settings.json": json.dumps({ "preset": KEY }).encode(), "settings/system-settings.json": b'{"timeFormat": "24h"}' }, PASSPHRASE)
 		resp = self.restore(bad, apply=True)
 		self.assertEqual(resp.status_code, 422)
 		self.assertNotIn(KEY, resp.text)

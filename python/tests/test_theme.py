@@ -1,13 +1,15 @@
 import os
 import re
 import shutil
+import sys
 import tempfile
 import unittest
 from typing import Any, cast
 from unittest.mock import patch
 
 from ..model.configuration_manager import StaticConfigurationManager
-from ..model.theme import DEFAULT_INPUTS, SCHEMES, Color, Palette, css_vars, current_inputs, current_palette, current_typography, inputs_from, palette_of
+from ..model.inks import INK_SETS, ink_set_rgb, publish_panel_ink_set
+from ..model.theme import BLACK_PAGE_INKS, DEFAULT_INPUTS, PRESETS, Palette, css_vars, current_inputs, current_palette, current_typography, inputs_from, resolve
 from ..plugins import plugin_base
 from ..plugins.plugin_base import RenderSession
 from ..utils.image_utils import chrome_command
@@ -30,62 +32,120 @@ class FakeSettings:
 	def get(self):
 		return ("rev", self.settings)
 
-class TestSchemes(unittest.TestCase):
-	def test_every_scheme_has_its_hue_offsets(self):
-		expected = { "analogous": (-30, 30), "complementary": (180, 180), "split-complementary": (150, 210), "triadic": (120, 240), "tetradic": (90, 180), "monochrome": (0, 0) }
-		self.assertEqual(SCHEMES, expected)
-		for scheme, (h1, h2) in expected.items():
-			with self.subTest(scheme=scheme):
-				palette = palette_of(inputs_from({ "theme": scheme, "hue": 10, "saturation": 80, "lightness": 50 }))
-				self.assertEqual(palette.text_primary.h, 10)
-				self.assertEqual(palette.text_secondary_1.h, (10 + h1) % 360)
-				self.assertEqual(palette.text_secondary_2.h, (10 + h2) % 360)
+class TestResolve(unittest.TestCase):
+	"""Every preset, on either page, on every ink set: the rules that hold whatever the panel has."""
+	def every(self):
+		for preset in PRESETS:
+			for background in ("white", "black"):
+				for ink_set in INK_SETS:
+					yield preset, background, ink_set, { "preset": preset, "background": background, "textPrimary": "blue", "textSecondary1": "orange", "textSecondary2": "green", "fill": "yellow", "textOnFill": "white" }
 
-	def test_monochrome_uses_its_own_saturation(self):
-		inputs = inputs_from({ "theme": "monochrome", "hue": 200, "saturation": 90, "lightness": 50 })
-		self.assertEqual(inputs.saturation, 60)
-		self.assertEqual(palette_of(inputs).bg_primary.s, 60)
+	def test_every_role_is_an_ink_of_the_set(self):
+		for preset, background, ink_set, settings in self.every():
+			palette, _, _ = resolve(settings, ink_set)
+			for role in Palette.roles():
+				with self.subTest(preset=preset, background=background, ink_set=ink_set, role=role):
+					self.assertIn(palette.ink(role), INK_SETS[ink_set])
 
-	def test_roles_have_their_lightness(self):
-		palette = palette_of(inputs_from({ "theme": "triadic", "hue": 0, "saturation": 100, "lightness": 40 }))
-		self.assertEqual((palette.text_primary.l, palette.text_primary_light.l), (25, 90))
-		self.assertEqual((palette.bg_primary.l, palette.bg_primary_accent.l, palette.bg_primary_dark.l), (80, 40, 20))
+	def test_text_never_equals_its_background_and_two_light_inks_are_never_paired(self):
+		for preset, background, ink_set, settings in self.every():
+			p, _, _ = resolve(settings, ink_set)
+			with self.subTest(preset=preset, background=background, ink_set=ink_set):
+				for text, behind in ((p.text_primary, p.bg_page), (p.text_secondary_1, p.bg_page), (p.text_secondary_2, p.bg_page), (p.text_outline, p.text_primary),
+						(p.text_on_fill, p.bg_fill), (p.text_on_strong, p.bg_strong)):
+					if text == p.text_outline and behind == p.text_primary:
+						continue
+					self.assertNotEqual(text, behind)
+					self.assertNotEqual({text, behind}, {"white", "yellow"})
 
-	def test_color_rgb(self):
-		self.assertEqual(Color(0, 100, 50).rgb, (255, 0, 0))
-		self.assertEqual(Color(120, 100, 50).rgb, (0, 255, 0))
-		self.assertEqual(Color(600, 100, 50).rgb, (0, 0, 255))
-		self.assertEqual(Color(0, 0, 100).rgb, (255, 255, 255))
-		self.assertEqual(Color(-120, 100, 25).rgb, (0, 0, 128))
+	def test_no_fill_leaves_the_page_readable(self):
+		palette, _, _ = resolve({ "preset": "classic" }, "bw")
+		self.assertEqual((palette.bg_fill, palette.text_on_fill), (palette.bg_page, palette.text_primary))
+
+	def test_the_classic_preset_on_each_ink_set(self):
+		def roles(ink_set):
+			p, _, _ = resolve({ "preset": "classic" }, ink_set)
+			return (p.text_primary, p.text_secondary_1, p.text_secondary_2, p.bg_fill, p.text_on_fill)
+		self.assertEqual(roles("spectra6"), ("black", "red", "blue", "yellow", "black"))
+		self.assertEqual(roles("acep7"), ("black", "red", "blue", "yellow", "black"))
+		self.assertEqual(roles("bwry"), ("black", "red", "black", "yellow", "black"))
+		self.assertEqual(roles("bwr"), ("black", "red", "black", "red", "white"))
+		self.assertEqual(roles("bwy"), ("black", "black", "black", "yellow", "black"))
+		self.assertEqual(roles("bw"), ("black", "black", "black", "white", "black"))
+
+	def test_the_other_presets(self):
+		warm, _, _ = resolve({ "preset": "warm" }, "acep7")
+		self.assertEqual((warm.text_secondary_2, warm.bg_fill), ("orange", "yellow"))
+		cool, _, _ = resolve({ "preset": "cool" }, "spectra6")
+		self.assertEqual((cool.text_secondary_1, cool.text_secondary_2, cool.bg_fill, cool.text_on_fill), ("blue", "green", "blue", "white"))
+		mono, _, _ = resolve({ "preset": "mono" }, "acep7")
+		self.assertEqual((mono.text_primary, mono.text_secondary_1, mono.bg_fill, mono.text_on_fill), ("black", "black", "black", "white"))
+
+	def test_orange_falls_back_to_red_then_black(self):
+		def second(ink_set):
+			return resolve({ "preset": "warm" }, ink_set)[0].text_secondary_2
+		self.assertEqual((second("acep7"), second("spectra6"), second("bwry"), second("bwr"), second("bw")), ("orange", "red", "red", "red", "black"))
+
+	def test_a_black_page_swaps_the_inks(self):
+		p, _, _ = resolve({ "preset": "classic", "background": "black" }, "spectra6")
+		self.assertEqual((p.bg_page, p.text_primary, p.text_secondary_1, p.text_secondary_2, p.bg_fill, p.text_on_fill, p.text_outline), ("black", "white", "yellow", "red", "yellow", "black", "black"))
+		self.assertEqual((p.bg_strong, p.text_on_strong), ("white", "black"))
+		p, _, _ = resolve({ "preset": "mono", "background": "black" }, "spectra6")
+		self.assertEqual((p.text_primary, p.text_secondary_1, p.text_secondary_2), ("white", "white", "white"))
+		self.assertEqual(BLACK_PAGE_INKS[0], "white")
+
+	def test_yellow_text_is_never_on_white(self):
+		p, _, _ = resolve({ "preset": "custom", "textPrimary": "yellow", "textSecondary1": "yellow", "textSecondary2": "yellow" }, "spectra6")
+		self.assertEqual((p.text_primary, p.text_secondary_1, p.text_secondary_2), ("black", "black", "black"))
+		p, _, _ = resolve({ "preset": "custom", "background": "black", "textPrimary": "yellow" }, "spectra6")
+		self.assertEqual(p.text_primary, "yellow")
+
+	def test_custom_inks_are_used_and_a_missing_one_is_the_classic_ink(self):
+		p, _, _ = resolve({ "preset": "custom", "textPrimary": "blue", "textSecondary1": "green", "fill": "red", "textOnFill": "white" }, "spectra6")
+		self.assertEqual((p.text_primary, p.text_secondary_1, p.text_secondary_2, p.bg_fill, p.text_on_fill), ("blue", "green", "blue", "red", "white"))
+
+	def test_the_text_on_a_fill_it_does_not_read_on_is_black_or_white(self):
+		p, _, _ = resolve({ "preset": "custom", "fill": "blue", "textOnFill": "blue" }, "spectra6")
+		self.assertEqual(p.text_on_fill, "white")
+		p, _, _ = resolve({ "preset": "custom", "fill": "yellow", "textOnFill": "white" }, "spectra6")
+		self.assertEqual(p.text_on_fill, "black")
 
 class TestSettings(unittest.TestCase):
 	def test_bad_or_missing_values_fall_back_to_the_defaults_with_one_warning(self):
 		with self.assertLogs("python.model.theme", level="WARNING") as logs:
-			inputs = inputs_from({ "theme": "plaid", "hue": "red", "saturation": 120, "lightness": True })
+			inputs = inputs_from({ "preset": "plaid", "background": "tinted" }, "spectra6")
 		self.assertEqual(len(logs.output), 1)
 		self.assertEqual(inputs, DEFAULT_INPUTS)
 
 	def test_no_settings_is_the_default_theme(self):
-		with self.assertLogs("python.model.theme", level="WARNING"):
-			self.assertEqual(inputs_from(None), DEFAULT_INPUTS)
+		self.assertEqual(inputs_from(None, "spectra6"), DEFAULT_INPUTS)
 		self.assertEqual(current_inputs(None), DEFAULT_INPUTS)
 
 	def test_current_theme_reads_the_settings_each_time(self):
-		scm = FakeSettings({ "theme": "triadic", "hue": 30, "saturation": 50, "lightness": 60 })
-		self.assertEqual(current_inputs(scm).scheme, "triadic")  # type: ignore[arg-type]
-		scm.settings = { "theme": "analogous", "hue": 30, "saturation": 50, "lightness": 60 }
-		self.assertEqual(current_palette(scm).text_secondary_1.h, 0)  # type: ignore[arg-type]
+		scm = FakeSettings({ "preset": "cool" })
+		self.assertEqual(current_inputs(cast(Any, scm)).preset, "cool")
+		scm.settings = { "preset": "mono" }
+		self.assertEqual(current_palette(cast(Any, scm)).text_secondary_1, "black")
 
 	def test_settings_that_cannot_be_read_give_the_default_theme(self):
 		with self.assertLogs("python.model.theme", level="WARNING"):
-			self.assertEqual(current_inputs(FakeSettings(error=OSError("disk"))), DEFAULT_INPUTS)  # type: ignore[arg-type]
+			self.assertEqual(current_inputs(cast(Any, FakeSettings(error=OSError("disk")))), DEFAULT_INPUTS)
+
+	def test_the_theme_resolves_against_the_panel_that_is_attached(self):
+		try:
+			publish_panel_ink_set("bw")
+			self.assertEqual(current_inputs(cast(Any, FakeSettings({ "preset": "classic" }))).palette.bg_fill, "white")
+			publish_panel_ink_set("spectra6")
+			self.assertEqual(current_inputs(cast(Any, FakeSettings({ "preset": "classic" }))).palette.bg_fill, "yellow")
+		finally:
+			publish_panel_ink_set(None)
 
 class TestTypography(unittest.TestCase):
 	def test_the_defaults_are_jost_at_full_size(self):
 		self.assertEqual((DEFAULT_INPUTS.font_body, DEFAULT_INPUTS.font_heading, DEFAULT_INPUTS.font_scale), ("Jost", "Jost", 1.0))
 		# a document from before the fonts existed reads the same, and says nothing about it
 		with self.assertNoLogs("python.model.theme", level="WARNING"):
-			self.assertEqual(inputs_from({ "theme": "analogous", "hue": 10, "saturation": 50, "lightness": 50 }).font_body, "Jost")
+			self.assertEqual(inputs_from({ "preset": "warm" }).font_body, "Jost")
 
 	def test_choices_are_read_and_the_heading_follows_the_body_when_unset(self):
 		inputs = inputs_from({ "fontBody": "League Spartan", "fontHeading": None, "fontScale": 1.25 })
@@ -99,7 +159,7 @@ class TestTypography(unittest.TestCase):
 		self.assertEqual(inputs_from({ "fontBody": "Jost", "fontOverlay": "Dogica" }).font_overlay, "Dogica")
 		self.assertEqual(inputs_from({ "fontBody": "Jost", "fontOverlay": "../x" }).font_overlay, "Jost")
 		self.assertIn("--font-overlay: Dogica;", css_vars(inputs_from({ "fontOverlay": "Dogica" })))
-		self.assertEqual(current_typography(FakeSettings({ "fontOverlay": "DSEG7" })).overlay, "DSEG7")  # type: ignore[arg-type]
+		self.assertEqual(current_typography(cast(Any, FakeSettings({ "fontOverlay": "DSEG7" }))).overlay, "DSEG7")
 
 	def test_only_the_fonts_we_ship_and_sizes_in_range_are_used(self):
 		inputs = inputs_from({ "fontBody": "../../etc/passwd", "fontHeading": "Comic Sans", "fontScale": 9 })
@@ -124,33 +184,16 @@ class TestTypography(unittest.TestCase):
 class TestBackground(unittest.TestCase):
 	def test_the_page_is_white_unless_asked_otherwise(self):
 		self.assertEqual(DEFAULT_INPUTS.background, "white")
-		self.assertEqual(inputs_from({ "theme": "analogous", "hue": 10, "saturation": 50, "lightness": 50 }).background, "white")
 		self.assertEqual(inputs_from({ "background": "plaid" }).background, "white")
-		self.assertEqual(palette_of(DEFAULT_INPUTS).bg_page.rgb, (255, 255, 255))
-		self.assertIn("--page-bg: hsl(0 0% 100%);", css_vars(DEFAULT_INPUTS))
+		self.assertEqual(DEFAULT_INPUTS.palette.rgb("bg_page"), (255, 255, 255))
+		self.assertIn("--page-bg: #ffffff;", css_vars(DEFAULT_INPUTS))
 
-	def test_the_overlay_outline_is_white_or_black_on_a_black_page(self):
-		for background, rgb, css in (("white", (255, 255, 255), "hsl(0 0% 100%)"), ("tinted", (255, 255, 255), "hsl(0 0% 100%)"), ("black", (0, 0, 0), "hsl(0 0% 0%)")):
+	def test_the_overlay_outline_is_the_pages_color(self):
+		for background, rgb, css in (("white", (255, 255, 255), "#ffffff"), ("black", (0, 0, 0), "#000000")):
 			with self.subTest(background=background):
-				inputs = inputs_from({ "theme": "analogous", "hue": 200, "saturation": 60, "lightness": 50, "background": background })
-				self.assertEqual(palette_of(inputs).text_outline.rgb, rgb)
+				inputs = inputs_from({ "background": background }, "spectra6")
+				self.assertEqual(inputs.palette.rgb("text_outline"), rgb)
 				self.assertIn(f"--outline-color: {css};", css_vars(inputs))
-
-	def test_tinted_is_the_themes_light_color(self):
-		inputs = inputs_from({ "theme": "analogous", "hue": 200, "saturation": 60, "lightness": 50, "background": "tinted" })
-		self.assertEqual(palette_of(inputs).bg_page, palette_of(inputs).bg_primary)
-		self.assertIn("--page-bg: hsl(from var(--theme-base) h s var(--l-bg-light));", css_vars(inputs))
-
-	def test_black_is_dark_mode_with_the_tones_traded(self):
-		light = inputs_from({ "theme": "analogous", "hue": 200, "saturation": 60, "lightness": 50 })
-		dark = inputs_from({ "theme": "analogous", "hue": 200, "saturation": 60, "lightness": 50, "background": "black" })
-		self.assertEqual(palette_of(dark).bg_page.rgb, (0, 0, 0))
-		self.assertIn("--page-bg: hsl(0 0% 0%);", css_vars(dark))
-		# text that was dark is light, a panel that was light is dark, and the other way round
-		self.assertEqual((dark.l_text_dark, dark.l_text_light, dark.l_bg_light, dark.l_bg_dark), (light.l_text_light, light.l_text_dark, light.l_bg_dark, light.l_bg_light))
-		self.assertGreater(palette_of(dark).text_primary.l, 80)
-		self.assertLess(palette_of(dark).bg_primary.l, 30)
-		self.assertEqual(palette_of(dark).bg_primary_accent, palette_of(light).bg_primary_accent)
 
 class TestPagesUseTheTheme(unittest.TestCase):
 	"""No page sets a font of its own: the body font is the theme's (plugin.css), headings take var(--font-heading), overlay text var(--font-overlay)."""
@@ -169,32 +212,33 @@ class TestPagesUseTheTheme(unittest.TestCase):
 					self.assertRegex(found, r"var\(--font-(body|heading|overlay)", f"{page} sets a font of its own")
 
 class TestCss(unittest.TestCase):
-	def test_css_vars_are_hsl_only(self):
-		text = css_vars(inputs_from({ "theme": "split-complementary", "hue": 10, "saturation": 85, "lightness": 45 }))
-		self.assertIn("--theme-base: hsl(10 85% 45%);", text)
-		self.assertIn("--theme-h1-offset: 150;", text)
-		self.assertIn("--theme-h2-offset: 210;", text)
-		self.assertIn("--l-accent: 45%;", text)
+	def test_css_vars_are_drive_hex_only(self):
+		text = css_vars(inputs_from({ "preset": "warm" }, "acep7"))
+		self.assertIn("--ink-text-secondary-2: #ff8000;", text)
+		self.assertIn("--ink-bg-fill: #ffff00;", text)
+		self.assertNotIn("hsl", text)
 		self.assertNotIn("rgb", text)
-		self.assertNotIn("#", text)
+		for role in Palette.roles():
+			if role not in ("bg-page", "text-outline"):
+				self.assertRegex(text, rf"--ink-{role}: #[0-9a-f]{{6}};")
 
 	def test_every_themes_css_class_is_a_palette_role(self):
 		with open(THEMES_CSS, encoding="utf-8") as f:
 			css = f.read()
-		classes = set(re.findall(r"^\.((?:text|bg)-[a-z0-9-]+)\s*\{", css, re.MULTILINE)) - { "bg-transparent" }
+		classes = set(re.findall(r"^\.((?:text|bg|fill)-[a-z0-9-]+)\s*\{", css, re.MULTILINE)) - { "bg-transparent", "fill-ink" }
 		self.assertEqual(classes, set(Palette.roles()))
 
-	def test_themes_css_uses_hsl_only(self):
+	def test_themes_css_derives_nothing(self):
 		with open(THEMES_CSS, encoding="utf-8") as f:
-			css = f.read()
-		self.assertNotRegex(css, r"rgb\(|#[0-9a-fA-F]{3,8}\b")
+			css = re.sub(r"/\*.*?\*/", "", f.read(), flags=re.DOTALL)
+		self.assertNotRegex(css, r"hsl|rgb|color-mix|calc\(")
 
 	def test_render_session_puts_the_theme_after_the_stylesheets(self):
 		captured = {}
 		def fake_render(html, args):
 			captured["html"] = html
 			return None
-		inputs = inputs_from({ "theme": "triadic", "hue": 100, "saturation": 70, "lightness": 50 })
+		inputs = inputs_from({ "preset": "cool" })
 		with tempfile.TemporaryDirectory() as folder:
 			with open(os.path.join(folder, "page.html"), "w", encoding="utf-8") as f:
 				f.write('{% extends "plugin.html" %}{% block content %}x{% endblock %}')
@@ -203,7 +247,20 @@ class TestCss(unittest.TestCase):
 		html = captured["html"]
 		self.assertIn(css_vars(inputs), html)
 		self.assertGreater(html.index(css_vars(inputs)), html.index("themes.css"))
-		self.assertNotIn("theme-triadic", html)
+
+class TestNoTranslucency(unittest.TestCase):
+	"""A page is made of the panel's inks only: a tint, a fade, a gradient or a shadow is a color the panel does not have, and is dithered into dots."""
+	BANNED = r"opacity|rgba\(|hsla\(|linear-gradient|radial-gradient|conic-gradient|box-shadow|text-shadow|drop-shadow|color-mix|backdrop-filter"
+	def test_no_page_or_stylesheet_fades_tints_or_shades(self):
+		root = os.path.dirname(STATIC)
+		files = [os.path.join(d, f) for top in ("datasources", "static") for d, _, names in os.walk(os.path.join(root, top)) for f in names
+			if f.endswith((".html", ".css")) and "waveshare_epd" not in d]
+		self.assertGreater(len(files), 10)
+		for path in files:
+			with open(path, encoding="utf-8") as f:
+				text = re.sub(r"/\*.*?\*/", "", f.read(), flags=re.DOTALL)
+			with self.subTest(os.path.relpath(path, root)):
+				self.assertNotRegex(text, self.BANNED)
 
 @unittest.skipUnless(HAVE_CHROME, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")
 class TestFontsInChromium(unittest.TestCase):
@@ -213,7 +270,7 @@ class TestFontsInChromium(unittest.TestCase):
 			with open(os.path.join(folder, "page.html"), "w", encoding="utf-8") as f:
 				f.write('{% extends "plugin.html" %}{% block style %}<style>.t { font-size: calc(10dvh * var(--font-scale)); } .h { font-family: var(--font-heading); }</style>{% endblock %}'
 					'{% block content %}<div class="t">Hamburgefonstiv</div><div class="t h">Hamburgefonstiv</div>{% endblock %}')
-			image = RenderSession(StaticConfigurationManager(STATIC), folder, "page.html", inputs_from({ "theme": "analogous", "hue": 200, "saturation": 50, "lightness": 50, **theme })).render((400, 200), { "settings": {} })
+			image = RenderSession(StaticConfigurationManager(STATIC), folder, "page.html", inputs_from({ **theme })).render((400, 200), { "settings": {} })
 		assert image is not None
 		return image.convert("L").tobytes()
 
@@ -224,30 +281,11 @@ class TestFontsInChromium(unittest.TestCase):
 		self.assertNotEqual(base, self._page(fontScale=1.4))
 		self.assertEqual(base, self._page(fontBody="Jost", fontScale=1.0))
 
-@unittest.skipUnless(HAVE_CHROME, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")
-class TestBackgroundInChromium(unittest.TestCase):
-	def _corner(self, **theme):
-		with tempfile.TemporaryDirectory() as folder:
-			with open(os.path.join(folder, "page.html"), "w", encoding="utf-8") as f:
-				f.write('{% extends "plugin.html" %}{% block content %}<div style="font-size:30px">Hello</div>{% endblock %}')
-			image = RenderSession(StaticConfigurationManager(STATIC), folder, "page.html", inputs_from({ "theme": "analogous", "hue": 200, "saturation": 50, "lightness": 50, **theme })).render((200, 100), { "settings": {} })
-		assert image is not None
-		return image.convert("RGB").getpixel((190, 90))
-
-	def test_the_page_behind_is_white_tinted_or_black(self):
-		self.assertEqual(self._corner(), (255, 255, 255))
-		self.assertEqual(self._corner(background="black"), (0, 0, 0))
-		tinted = self._corner(background="tinted")
-		self.assertNotIn(tinted, ((255, 255, 255), (0, 0, 0)))
-		want = palette_of(inputs_from({ "theme": "analogous", "hue": 200, "saturation": 50, "lightness": 50, "background": "tinted" })).bg_page.rgb
-		# Chromium and Python round the derived color differently by a step at most
-		self.assertTrue(all(abs(a - b) <= 1 for a, b in zip(tinted, want, strict=True)), (tinted, want))
-
 SWATCH = 20
 @unittest.skipUnless(HAVE_CHROME, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")
 class TestCssMatchesPython(unittest.TestCase):
-	"""The CSS derivation (themes.css, in Chromium) and the Python one (Palette) give the same colors."""
-	def _render(self, settings):
+	"""Every role renders in Chromium as exactly its ink's drive color, which is the one Python draws with."""
+	def _render(self, settings, ink_set):
 		roles = Palette.roles()
 		swatches = "".join(
 			f'<div class="{role}" style="position:absolute;left:{i * SWATCH}px;top:0;width:{SWATCH}px;height:{SWATCH}px;'
@@ -256,23 +294,48 @@ class TestCssMatchesPython(unittest.TestCase):
 		with tempfile.TemporaryDirectory() as folder:
 			with open(os.path.join(folder, "swatches.html"), "w", encoding="utf-8") as f:
 				f.write('{% extends "plugin.html" %}{% block content %}' + swatches + '{% endblock %}')
-			image = RenderSession(StaticConfigurationManager(STATIC), folder, "swatches.html", inputs_from(settings)).render((len(roles) * SWATCH, 3 * SWATCH), { "settings": {} })
+			image = RenderSession(StaticConfigurationManager(STATIC), folder, "swatches.html", inputs_from(settings, ink_set)).render((len(roles) * SWATCH, 3 * SWATCH), { "settings": {} })
 		self.assertIsNotNone(image)
 		return roles, image.convert("RGB")
 
 	def test_swatches(self):
-		for settings in (
-			{ "theme": "complementary", "hue": 220, "saturation": 80, "lightness": 50 },
-			{ "theme": "split-complementary", "hue": 10, "saturation": 85, "lightness": 35 },
-			{ "theme": "monochrome", "hue": 300, "saturation": 40, "lightness": 70 },
-		):
-			roles, image = self._render(settings)
-			palette = palette_of(inputs_from(settings))
+		for settings, ink_set in (({ "preset": "classic" }, "spectra6"), ({ "preset": "warm" }, "acep7"), ({ "preset": "cool", "background": "black" }, "spectra6"), ({ "preset": "classic" }, "bw")):
+			roles, image = self._render(settings, ink_set)
+			palette = inputs_from(settings, ink_set).palette
 			for i, role in enumerate(roles):
-				with self.subTest(theme=settings["theme"], role=role):
-					got = image.getpixel((i * SWATCH + SWATCH // 2, SWATCH // 2))
-					want = getattr(palette, role.replace("-", "_")).rgb
-					self.assertTrue(all(abs(g - w) <= 1 for g, w in zip(got, want, strict=True)), f"{role}: CSS {got}, Python {want}")
+				with self.subTest(settings=settings, ink_set=ink_set, role=role):
+					self.assertEqual(image.getpixel((i * SWATCH + SWATCH // 2, SWATCH // 2)), palette.rgb(role))
+
+@unittest.skipUnless(sys.platform != "win32" and HAVE_CHROME, f"needs {CHROME} on PATH and fontconfig (Linux; see AGENTS.md, Test environment)")
+class TestAPageIsMadeOfInksOnly(unittest.TestCase):
+	"""The default theme on a six-color panel: text in every role and a fill behind it draw nothing but the panel's inks, so nothing is left to dither."""
+	def test_every_pixel_is_a_drive_color_of_the_set(self):
+		roles = ["text-primary", "text-secondary-1", "text-secondary-2", "text-on-fill"]
+		body = "".join(f'<div class="{role}" style="font-size:22px;font-weight:bold">Hamburgefonstiv {role}</div>' for role in roles)
+		body += '<div class="bg-fill text-on-fill" style="font-size:22px">On the highlight</div><div class="bg-strong text-on-strong" style="font-size:22px">On a solid block</div>'
+		with tempfile.TemporaryDirectory() as folder:
+			with open(os.path.join(folder, "page.html"), "w", encoding="utf-8") as f:
+				f.write('{% extends "plugin.html" %}{% block content %}' + body + '{% endblock %}')
+			image = RenderSession(StaticConfigurationManager(STATIC), folder, "page.html", inputs_from({}, "spectra6")).render((500, 260), { "settings": {} })
+		assert image is not None
+		allowed = set(ink_set_rgb("spectra6"))
+		found = {color for _, color in image.convert("RGB").getcolors(maxcolors=1 << 20) or []}
+		self.assertTrue(found <= allowed, sorted(found - allowed)[:5])
+		self.assertGreater(len(found), 3)
+
+@unittest.skipUnless(HAVE_CHROME, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")
+class TestBackgroundInChromium(unittest.TestCase):
+	def _corner(self, **theme):
+		with tempfile.TemporaryDirectory() as folder:
+			with open(os.path.join(folder, "page.html"), "w", encoding="utf-8") as f:
+				f.write('{% extends "plugin.html" %}{% block content %}<div style="font-size:30px">Hello</div>{% endblock %}')
+			image = RenderSession(StaticConfigurationManager(STATIC), folder, "page.html", inputs_from(theme, "spectra6")).render((200, 100), { "settings": {} })
+		assert image is not None
+		return image.convert("RGB").getpixel((190, 90))
+
+	def test_the_page_behind_is_white_or_black(self):
+		self.assertEqual(self._corner(), (255, 255, 255))
+		self.assertEqual(self._corner(background="black"), (0, 0, 0))
 
 if __name__ == "__main__":
 	unittest.main()

@@ -657,9 +657,9 @@ class TestRowSettingsRoutes(WebApiTestBase):
 class TestSettingsValidation(WebApiTestBase):
 	def test_put_out_of_range_and_unknown_choice_are_422_with_the_field_path(self):
 		doc = self.client.get("/api/settings/theme").json()
-		doc["hue"] = 400
+		doc["fontScale"] = 4
 		body = _error_shape(self, self.client.put("/api/settings/theme", json=doc), 422)
-		self.assertEqual(body["errors"][0], { "path": ["hue"], "message": "Maximum 360" })
+		self.assertEqual(body["errors"][0], { "path": ["fontScale"], "message": "Maximum 1.4" })
 		doc = self.client.get("/api/settings/system").json()
 		doc["timeFormat"] = "9h"
 		body = _error_shape(self, self.client.put("/api/settings/system", json=doc), 422)
@@ -675,18 +675,21 @@ class TestSchemaCaching(WebApiTestBase):
 class TestPaletteRoute(WebApiTestBase):
 	"""The Theme tab's swatches are the device's own palette for the values in the form."""
 	def test_every_role_is_computed_as_the_device_does(self):
-		from ..model.theme import Palette, inputs_from, palette_of
-		settings = { "theme": "triadic", "hue": 100, "saturation": 70, "lightness": 40 }
+		from ..model.theme import Palette, resolve
+		settings = { "preset": "warm", "background": "black" }
 		resp = self.client.post("/api/theme/palette", json=settings)
 		self.assertEqual(resp.status_code, 200, resp.text)
-		roles = resp.json()["roles"]
+		body = resp.json()
+		self.assertEqual((body["inkSet"], body["confirmed"]), ("spectra6", False))
+		roles = body["roles"]
 		self.assertEqual([r["name"] for r in roles], Palette.roles())
-		computed = palette_of(inputs_from(settings))
-		self.assertEqual({r["name"]: r["color"] for r in roles}["bg-secondary-1-accent"], computed.bg_secondary_1_accent.css)
-		self.assertTrue(all(r["color"].startswith("hsl(") for r in roles))
+		computed, _, _ = resolve(settings, "spectra6")
+		self.assertEqual({ r["name"]: r["ink"] for r in roles }["text-primary"], computed.text_primary)
+		self.assertEqual({ r["name"]: r["drive"] for r in roles }["bg-page"], "#000000")
+		self.assertTrue(all(r["appearance"].startswith("#") and len(r["appearance"]) == 7 for r in roles))
 
 	def test_values_that_are_not_valid_read_as_the_defaults(self):
-		self.assertEqual(self.client.post("/api/theme/palette", json={ "hue": "x", "theme": "nope" }).json(), self.client.post("/api/theme/palette", json={}).json())
+		self.assertEqual(self.client.post("/api/theme/palette", json={ "preset": "nope", "background": 5 }).json(), self.client.post("/api/theme/palette", json={}).json())
 
 class TestInksRoute(WebApiTestBase):
 	"""Before the display has started the panel's inks are a guess from the display settings, and say so."""
@@ -725,7 +728,7 @@ class TestFontsRoute(WebApiTestBase):
 
 class TestNonFiniteNumbers(WebApiTestBase):
 	"""Starlette's JSON parser accepts NaN, Infinity and 1e999; a stored NaN made every later GET a 500 (JSONResponse refuses it)."""
-	RAW = '{"theme": "complementary", "hue": %s, "saturation": 80, "lightness": 50}'
+	RAW = '{"preset": "classic", "fontScale": %s}'
 
 	def _put_raw(self, text: str):
 		return self.client.put("/api/settings/theme", content=text.encode(), headers={ "content-type": "application/json" })
@@ -735,7 +738,7 @@ class TestNonFiniteNumbers(WebApiTestBase):
 		for literal in ("NaN", "Infinity", "-Infinity", "1e999"):
 			with self.subTest(literal):
 				body = _error_shape(self, self._put_raw(self.RAW % literal), 422)
-				self.assertEqual(body["errors"][0], { "path": ["hue"], "message": "Must be a finite number" })
+				self.assertEqual(body["errors"][0], { "path": ["fontScale"], "message": "Must be a finite number" })
 		# nothing was stored, so the settings are still readable
 		after = self.client.get("/api/settings/theme")
 		self.assertEqual(after.status_code, 200, after.text)
