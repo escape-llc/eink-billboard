@@ -213,9 +213,10 @@ class PlaylistLayer(DispatcherTask):
 		return current_inputs(self.cm.settings_manager() if self.cm is not None else None)
 	def _track_event(self, kind: str, ts: datetime, plindex: int, playlist: Any, tkindex: int, track: PlaylistSchedule) -> None:
 		"""A track began (`track-started`) or its slot ended (`track-ended`): what a person following the device in the web app sees, whatever the slot showed."""
+		# the ids say which one (a name or an index does not: an edit moves them), so the System page's playlist panel follows it
 		self.router.send("telemetry", Telemetry(ts, "playlist_layer", {
 			"kind": kind, "state": self.state, "current_playlist_index": plindex, "current_playlist": playlist,
-			"current_track_index": tkindex, "current_track": track }))
+			"current_track_index": tkindex, "current_track": track, "playlist_id": getattr(playlist, "id", None), "track_id": track.id }))
 	async def _error_slot(self, track: PlaylistSchedule, key: tuple[int, int], playlist: Any, plindex: int, tkindex: int, tod: TimeOfDay, started: bool) -> None:
 		"""
 		The slot of a track that failed: its error page for the time the track would have taken, **between a `track-started` and a `track-ended` like any other slot** (the page is what the
@@ -334,6 +335,10 @@ class PlaylistLayer(DispatcherTask):
 	def halted(self) -> bool:
 		"""Stopped by a transport command (the Application reads it for the play/stop button)."""
 		return self._halted
+	@property
+	def position(self) -> Position|None:
+		"""The track the layer is on, or was on when it stopped (None before the first): read by the web app's thread, so it is the whole `Position`, set at once."""
+		return self._current
 	def _can_transport(self, what: str) -> bool:
 		"""A transport command needs playlists that were loaded and a layer that is not faulted (that waits for a configuration change instead)."""
 		if self.state in ('uninitialized', 'faulted') or len(self.playlists) == 0:

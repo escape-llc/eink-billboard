@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { Transport, stoppedBy } from "./Transport"
+import { Transport, positionBy, stoppedBy } from "./Transport"
 import type { TelemetryEvent } from "./TelemetryLink"
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
@@ -14,6 +14,14 @@ describe("what the events say", () => {
 	it("is nothing when no event is about it", () => {
 		expect(stoppedBy([])).toBeUndefined()
 		expect(stoppedBy([event("track-started", "playing")])).toBeUndefined()
+	})
+})
+
+describe("where the layer is", () => {
+	const started = (playlist_id: string, track_id: string): TelemetryEvent => ({ source: "playlist_layer", kind: "track-started", values: { playlist_id, track_id } })
+	it("is the newest track-started event's playlist and track", () => {
+		expect(positionBy([event("transport", "halted"), started("main", "t2"), started("main", "t1")])).toEqual({ playlistId: "main", trackId: "t2" })
+		expect(positionBy([event("transport", "halted")])).toBeUndefined()
 	})
 })
 
@@ -34,6 +42,14 @@ describe("the transport", () => {
 		await transport.load()
 		expect(calls[0]?.url).toBe("/api/transport")
 		expect(transport.state.stopped).toBe(true)
+	})
+
+	it("knows where the layer is from the answer, then from the events", async () => {
+		answer = () => json({ stopped: false, playlist_id: "main", track_id: "t1" })
+		await transport.load()
+		expect([transport.state.playlistId, transport.state.trackId]).toEqual(["main", "t1"])
+		transport.follow([{ source: "playlist_layer", kind: "track-started", values: { playlist_id: "main", track_id: "t2" } }])
+		expect([transport.state.playlistId, transport.state.trackId]).toEqual(["main", "t2"])
 	})
 
 	it("keeps what it knew when the device does not answer", async () => {

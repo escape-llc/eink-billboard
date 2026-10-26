@@ -27,7 +27,7 @@
 						<dt><i class="mi mi-play-arrow" aria-hidden="true"></i> Playlist</dt>
 						<dd>The tracks that play one after another, round and round. You can keep several playlists.</dd>
 						<dt><i class="mi mi-desktop-windows" aria-hidden="true"></i> System</dt>
-						<dd>How the device is (the header says it on every page: Running, Starting or Problem, or Offline when the page cannot reach the device; click it to come here): whether its parts started and the latest problems, the machine (load, memory, how long it and the app have been up), a Raspberry Pi's temperature, fan and power warnings, the storage by plugin and data source, and the <b>API usage</b> of each service (click a card's title to open or close it; Storage and API usage start closed, with a line that sums them up). On the right, live: <b>Now showing</b> (what the panel shows, with the layers it is made of; click for full size), <b>Recently shown</b> and <b>Activity</b> (filter it by source, or show only problems). The toolbar has play, stop and next, and Back up, Restore and the device password.</dd>
+						<dd>How the device is (the header says it on every page: Running, Starting or Problem, or Offline when the page cannot reach the device; click it to come here): whether its parts started and the latest problems, the machine (load, memory, how long it and the app have been up), a Raspberry Pi's temperature, fan and power warnings, the storage by plugin and data source, and the <b>API usage</b> of each service (click a card's title to open or close it; Storage and API usage start closed, with a line that sums them up). On the right, live: <b>Now showing</b> (what the panel shows, with the layers it is made of; click for full size), <b>Recently shown</b> and <b>Activity</b> (filter it by source, or show only problems). The <b>Playlist</b> panel has play, stop and next, with the playlist's tracks and the one playing; the toolbar has Back up, Restore and the device password.</dd>
 						<dt><i class="mi mi-settings" aria-hidden="true"></i> Settings</dt>
 						<dd>The device (System, Display, Theme, Devices such as buttons), the plugins, the data sources (what makes a page or an overlay) and the providers (where their data comes from, with the keys), each with its own settings.</dd>
 					</dl>
@@ -50,7 +50,7 @@
 			<AccordionPanel value="play">
 				<AccordionHeader>Play, stop and next</AccordionHeader>
 				<AccordionContent>
-					<p>On the System page's toolbar, <b>Stop</b> holds the panel as it is (timer tasks keep running) and <b>Play</b> carries on. <b>Next</b> skips to the following track. A button wired to the device can do the same.</p>
+					<p>On the System page's <b>Playlist</b> panel, which shows the playlist that is playing and marks the track on the panel, <b>Stop</b> holds the panel as it is (timer tasks keep running) and <b>Play</b> carries on. <b>Next</b> skips to the following track. A button wired to the device can do the same.</p>
 				</AccordionContent>
 			</AccordionPanel>
 

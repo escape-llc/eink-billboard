@@ -442,6 +442,10 @@ class PlaylistLayerTests(unittest.TestCase):
 		seen = self._slot_events()
 		self.assertEqual([kind for kind, _ in seen], ["track-started", "track-failed", "track-ended"])
 		self.assertEqual([track.title for kind, track in seen if track is not None], ["Track 0", "Track 0"])
+		# each says which playlist and track by id (the System page's playlist panel follows them), as the layer's position does
+		ids = [(msg.values["playlist_id"], msg.values["track_id"]) for route, msg in self.sent if route == "telemetry" and msg.values.get("kind") in ("track-started", "track-ended")]
+		self.assertEqual(ids, [(playlists[0]["info"].id, "t0")] * 2)
+		self.assertEqual((layer.position.playlist_id, layer.position.track_id) if layer.position else None, ids[0])
 
 	def test_a_track_that_struck_out_still_has_a_start_and_an_end_for_its_page(self):
 		class Hard:

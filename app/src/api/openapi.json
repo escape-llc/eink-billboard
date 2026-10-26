@@ -1819,10 +1819,33 @@
 			},
 			"TransportState": {
 				"additionalProperties": false,
+				"description": "Whether playback is stopped, and where the playlist layer is: its playlist and track by id (left out before its first track).",
 				"properties": {
+					"playlist_id": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Playlist Id"
+					},
 					"stopped": {
 						"title": "Stopped",
 						"type": "boolean"
+					},
+					"track_id": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Track Id"
 					}
 				},
 				"required": [
@@ -5027,7 +5050,7 @@
 		},
 		"/api/transport": {
 			"get": {
-				"description": "Whether playback is stopped, for the play/stop button.",
+				"description": "Whether playback is stopped, for the play/stop button, and the playlist and track the layer is on, for the System page's playlist panel.",
 				"operationId": "get_transport_api_transport_get",
 				"responses": {
 					"200": {

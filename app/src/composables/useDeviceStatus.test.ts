@@ -20,7 +20,7 @@ function fakeLink(status = "connecting") {
 	return { state, link: { state } as unknown as TelemetryLink }
 }
 
-beforeEach(() => mocked.get.mockReset())
+beforeEach(() => { mocked.get.mockReset() })
 
 describe("the device's state", () => {
 	it("is a failure when any part failed, running when all are up, else starting", () => {

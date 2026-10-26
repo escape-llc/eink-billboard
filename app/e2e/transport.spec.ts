@@ -62,3 +62,31 @@ test("a page opened while the playlist is stopped shows it stopped", async ({ pa
 	}
 	watch.expectNone()
 })
+
+test("the playlist panel shows the playlist that plays, and marks the track the layer says, as it moves on", async ({ page, request }) => {
+	const watch = watchProblems(page)
+	try {
+		await page.goto("/#/system")
+		const panel = page.getByRole("region", { name: "Playlist" })
+		const strip = panel.getByRole("list", { name: "Tracks" })
+		// the one playing is the layer's track, by id (GET /api/transport, then each track-started)
+		const playing = strip.locator("li[aria-current=true]")
+		await expect(playing).toHaveCount(1, { timeout: 20000 })
+		const where = await (await request.get("/api/transport")).json()
+		const list = await (await request.get("/api/schedule/playlist/list")).json()
+		const shown = list.playlists.find((p: { id: string }) => p.id === where.playlist_id)
+		await expect(panel.getByTestId("playlist-name")).toHaveText(shown.name)
+		await expect(strip.getByRole("listitem")).toHaveText(shown.items.map((t: { title: string }) => t.title))
+		// next: the mark moves to the track the layer starts
+		const before = await playing.textContent()
+		await panel.getByRole("group", { name: "Playback" }).getByRole("button", { name: "Next track" }).click()
+		await expect.poll(async () => (await (await request.get("/api/transport")).json()).track_id).not.toBe(where.track_id)
+		const now = await (await request.get("/api/transport")).json()
+		const title = shown.items.find((t: { id: string }) => t.id === now.track_id)?.title
+		if (shown.items.length > 1) await expect(playing).not.toHaveText(before ?? "")
+		await expect(playing).toHaveText(title)
+	} finally {
+		await request.post("/api/transport", { data: { command: "play" } })
+	}
+	watch.expectNone()
+})
