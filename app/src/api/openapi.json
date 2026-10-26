@@ -649,6 +649,28 @@
 						],
 						"title": "Cpu Mhz"
 					},
+					"fan_percent": {
+						"anyOf": [
+							{
+								"type": "integer"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Fan Percent"
+					},
+					"fan_rpm": {
+						"anyOf": [
+							{
+								"type": "integer"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Fan Rpm"
+					},
 					"model": {
 						"title": "Model",
 						"type": "string"

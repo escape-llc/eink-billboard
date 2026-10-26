@@ -102,6 +102,10 @@
 					<template v-if="info.pi.cpu_mhz !== undefined">
 						<dt>Clock</dt><dd>{{ info.pi.cpu_mhz }} MHz<span v-if="info.pi.cpu_max_mhz" class="muted"> (up to {{ info.pi.cpu_max_mhz }})</span></dd>
 					</template>
+					<template v-if="info.pi.fan_rpm !== undefined">
+						<dt>Fan</dt>
+						<dd data-testid="fan">{{ info.pi.fan_rpm ? `${info.pi.fan_rpm} rpm` : "Off" }}<span v-if="info.pi.fan_percent" class="muted"> ({{ info.pi.fan_percent }}% power)</span></dd>
+					</template>
 					<template v-if="info.pi.throttled">
 						<dt>Power</dt>
 						<dd>
