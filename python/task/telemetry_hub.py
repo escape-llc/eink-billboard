@@ -91,7 +91,7 @@ def _is_ours(error: Any) -> bool:
 	from ..plugins.plugin_base import PermanentError
 	return isinstance(error, PermanentError)
 
-def _ours(error: Any) -> str:
+def ours(error: Any) -> str:
 	"""The failure's own words after a colon when they are ours to show, else nothing (the caller ends the sentence)."""
 	return f": {str(error).rstrip('.')}" if _is_ours(error) else ""
 
@@ -163,9 +163,8 @@ class TelemetryHub(MessageSink):
 
 	def _event(self, msg: BasicMessage) -> dict|None:
 		if isinstance(msg, ConfigureNotify):
-			if not msg.error:
-				return None
-			return { "ts": _instant(msg.timestamp), "source": "application", "kind": "configure-failed", "message": f"'{msg.token}' could not be configured{_ours(msg.content)}.", "values": {} }
+			# kept for the status above; the Application, which runs the start, says what happened (`configured`, `configure-failed`, `running`)
+			return None
 		if not isinstance(msg, Telemetry):
 			return None
 		values = dict(msg.values or {})
@@ -215,7 +214,7 @@ class TelemetryHub(MessageSink):
 		for name in COMPONENTS:
 			current = state.get(name, "starting")
 			if current == "failed":
-				message = f"Could not be set up{_ours(reasons.get(name))}. See the log, fix the settings, then restart."
+				message = f"Could not be set up{ours(reasons.get(name))}. See the log, fix the settings, then restart."
 			elif current == "ok":
 				message = "Running."
 			elif name != "display" and state.get("display") == "failed":

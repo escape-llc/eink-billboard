@@ -58,12 +58,14 @@ test("in a short window the System page scrolls inside its area and the events i
 	const events = activity.getByRole("region", { name: "Activity" })
 	await expect(events.getByRole("listitem").first()).toBeVisible({ timeout: 20000 })
 
-	// nothing is taller than the window: the page scrolls inside its area, to its end (Storage is the last part) ...
+	// nothing is taller than the window: the page scrolls inside its area, to its end (the Activity panel ends the taller column) ...
 	const router = page.locator(".router-view")
 	expect(await page.evaluate(() => document.querySelector(".router-view")!.getBoundingClientRect().bottom)).toBeLessThanOrEqual(450)
 	expect(await router.evaluate(e => e.scrollHeight - e.clientHeight)).toBeGreaterThan(0)
 	await router.evaluate(e => { e.scrollTop = e.scrollHeight })
-	await expect(page.getByRole("region", { name: "Storage" })).toBeInViewport()
+	// (any of it: with many events the panel is taller than the window)
+	await expect(events).toBeInViewport()
+	expect(await router.evaluate(e => Math.ceil(e.scrollTop + e.clientHeight) >= e.scrollHeight)).toBe(true)
 	// ... and the events list scrolls inside its own box: its last event can be reached
 	const list = events.getByRole("list")
 	await list.evaluate(e => { e.scrollTop = e.scrollHeight })

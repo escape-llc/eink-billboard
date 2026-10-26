@@ -24,11 +24,8 @@
 	</Toolbar>
 	<div class="system">
 		<div class="system-main">
-			<section class="card" aria-label="Device">
-				<div class="card-head">
-					<strong>Device</strong>
-					<Tag :severity="deviceSeverity" :value="deviceLabel" class="ml-auto" data-testid="status" :data-state="deviceState" />
-				</div>
+			<SystemCard title="Device">
+				<template #head><Tag :severity="deviceSeverity" :value="deviceLabel" class="ml-auto" data-testid="status" :data-state="deviceState" /></template>
 				<ul v-if="status" class="plain">
 					<li v-for="(c, name) in status.components" :key="name" class="row">
 						<i :class="c.state === 'failed' ? 'mi mi-cancel' : c.state === 'ok' ? 'mi mi-check-circle' : 'mi mi-schedule'" aria-hidden="true"></i>
@@ -36,20 +33,18 @@
 					</li>
 				</ul>
 				<p v-else class="muted">Waiting for the device.</p>
-			</section>
+			</SystemCard>
 
-			<section v-if="problems.length" class="card" aria-label="Problems">
-				<div class="card-head"><strong>Problems</strong></div>
+			<SystemCard v-if="problems.length" title="Problems">
 				<ul class="plain">
 					<li v-for="e in problems" :key="e.seq" class="row problem">
 						<span class="time">{{ clockOf(e.ts) }}</span>
 						<span class="text">{{ describe(e) }}<code v-if="e.detail" class="detail">{{ e.detail }}</code></span>
 					</li>
 				</ul>
-			</section>
+			</SystemCard>
 
-			<section class="card" aria-label="Machine">
-				<div class="card-head"><strong>Machine</strong></div>
+			<SystemCard title="Machine">
 				<dl v-if="info" class="facts">
 					<dt>System</dt><dd>{{ info.host.os }} {{ info.host.os_release }} ({{ info.host.machine }})</dd>
 					<dt>App</dt>
@@ -88,11 +83,10 @@
 					</template>
 				</dl>
 				<p v-else class="muted">{{ failed ? "The readings could not be loaded." : "Loading." }}</p>
-			</section>
+			</SystemCard>
 
 			<!-- only on a Raspberry Pi: what the board says about itself -->
-			<section v-if="info?.pi" class="card" aria-label="Raspberry Pi">
-				<div class="card-head"><strong>Raspberry Pi</strong></div>
+			<SystemCard v-if="info?.pi" title="Raspberry Pi">
 				<dl class="facts">
 					<dt>Model</dt><dd>{{ info.pi.model }}</dd>
 					<template v-if="info.pi.temperature_c !== undefined">
@@ -116,11 +110,12 @@
 						</dd>
 					</template>
 				</dl>
-			</section>
+			</SystemCard>
 
-			<section class="card" aria-label="Storage">
-				<div class="card-head"><strong>Storage</strong></div>
+			<SystemCard title="Storage" collapsed>
+				<template #summary><span v-if="info" data-testid="storage-total">{{ storageLine(info.storage.areas, info.storage.volume) }}</span></template>
 				<template v-if="info">
+					<p class="total" data-testid="storage-total">{{ storageLine(info.storage.areas, info.storage.volume) }}</p>
 					<table class="usage">
 						<caption class="sr-only">Storage by area</caption>
 						<thead><tr><th scope="col">Area</th><th scope="col" class="num">Files</th><th scope="col" class="num">Size</th></tr></thead>
@@ -138,11 +133,18 @@
 					</table>
 					<p class="muted note">Kept: what a plugin or data source can fetch again (downloads, answers, lists).</p>
 				</template>
-			</section>
+			</SystemCard>
 
 			<!-- what each API data source asks of its service (#440): the calls, what went wrong, the bytes, and how much the cache spared -->
-			<section class="card" aria-label="API usage">
-				<div class="card-head"><strong>API usage</strong></div>
+			<SystemCard title="API usage" collapsed>
+				<template #summary>
+					<template v-if="info">
+						<span v-if="info.usage.length === 0">No API data source has made a call yet.</span>
+						<ul v-else class="plain" data-testid="usage-summary">
+							<li v-for="source in info.usage" :key="source.id"><b>{{ source.name }}</b>: {{ usageLine(source.month) }}</li>
+						</ul>
+					</template>
+				</template>
 				<template v-if="info">
 					<p v-if="info.usage.length === 0" class="muted note">No API data source has made a call yet.</p>
 					<div v-for="source in info.usage" :key="source.id" class="api-source" :data-source="source.id">
@@ -165,17 +167,14 @@
 					</div>
 					<p class="muted note">Calls the service saw, with the bytes of their bodies as they went over the wire. Cache: the share of lookups answered without a download (hover for the bytes saved). Days are the device's.</p>
 				</template>
-			</section>
+			</SystemCard>
 		</div>
 
 		<!-- what the device is doing now, and what it did: the telemetry link; two panels, as on the left -->
 		<div class="system-live" :data-link="link.state.status">
 			<!-- a media player: the picture, its title and the time it was sent, and one line per layer (its glyph, then the track or task that made it) -->
-			<section class="card" aria-label="Now showing">
-				<div class="card-head">
-					<strong>Now showing</strong>
-					<Tag v-if="link.state.status !== 'live'" :severity="statusSeverity" :value="statusText" class="ml-auto" data-testid="link-status" />
-				</div>
+			<SystemCard title="Now showing">
+				<template #head><Tag v-if="link.state.status !== 'live'" :severity="statusSeverity" :value="statusText" class="ml-auto" data-testid="link-status" /></template>
 				<div v-if="current" class="now">
 					<button type="button" class="thumb" :aria-label="`Show ${title(current)} full size`" @click="full = current">
 						<!-- the panel's own pixels: the card is wider than the 320 pixel thumbnail, which the browser blurred when it enlarged it -->
@@ -195,10 +194,9 @@
 					</div>
 				</div>
 				<p v-else class="muted">Nothing has been shown yet.</p>
-			</section>
+			</SystemCard>
 
-			<section class="card" aria-label="Recently shown">
-				<div class="card-head"><strong>Recently shown</strong></div>
+			<SystemCard title="Recently shown">
 				<div v-if="recent.length > 1" class="strip">
 					<button v-for="e in recent.slice(1)" :key="e.seq" type="button" class="mini" :title="`${clockOf(e.ts)} ${title(e)}`"
 						:aria-label="`Show ${title(e)} full size`" @click="full = e">
@@ -206,10 +204,9 @@
 					</button>
 				</div>
 				<p v-else class="muted">Nothing else has been shown yet.</p>
-			</section>
+			</SystemCard>
 
-			<section class="card" aria-label="Activity">
-				<div class="card-head"><strong>Activity</strong></div>
+			<SystemCard title="Activity">
 				<div class="filters">
 					<Select v-model="source" :options="sources" optionLabel="label" optionValue="value" size="small" aria-label="Source" />
 					<label class="toggle"><ToggleSwitch v-model="problemsOnly" aria-label="Problems only" /> Problems only</label>
@@ -222,7 +219,7 @@
 					</li>
 					<li v-if="shownEvents.length === 0" class="muted">Nothing yet.</li>
 				</ol>
-			</section>
+			</SystemCard>
 		</div>
 
 		<Dialog :visible="dialog === 'backup'" modal header="Back up" @update:visible="v => { if (!v) dialog = null }" style="width:36rem;max-width:95vw">
@@ -250,8 +247,9 @@ import { onBeforeUnmount, onMounted, ref } from "vue"
 import { Button, Dialog, InputGroup, Select, Tag, Toolbar, ToggleSwitch, useToast } from "primevue"
 import { LAYERS, clockOf, isProblem, type TelemetryEvent } from "../components/TelemetryLink"
 import BackupRestore from "../components/BackupRestore.vue"
+import SystemCard from "../components/SystemCard.vue"
 import PasswordForm from "../components/PasswordForm.vue"
-import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, statusSummary, temperatureSeverity } from "../components/SystemFormat"
+import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, statusSummary, storageLine, temperatureSeverity, usageLine } from "../components/SystemFormat"
 import { SOURCES as sources, describeEvent as describe, eventIcon as iconOf, useSystem } from "../composables/useSystem"
 
 const periods = [{ key: "today", label: "Today" }, { key: "week", label: "7 days" }, { key: "month", label: "Month" }] as const
@@ -289,21 +287,9 @@ const title = (e: TelemetryEvent): string => String(e.values?.title ?? "")
 	gap: .75rem;
 	min-width: 0;
 }
-/* each part has its own surface, as the other panels have: it follows the theme and dark mode */
-.card {
-	display: flex;
-	flex-direction: column;
-	gap: .5rem;
-	min-width: 0;
-	padding: .5rem .75rem;
-	border-radius: var(--p-toolbar-border-radius);
-	border: solid 1px var(--p-toolbar-border-color);
-	background: var(--p-content-background);
-}
-.card-head {
-	display: flex;
-	align-items: center;
-	gap: .5rem;
+.total {
+	margin: 0;
+	font-weight: bold;
 }
 .plain {
 	list-style: none;

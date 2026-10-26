@@ -4,6 +4,7 @@ import { RouterLink, RouterView } from 'vue-router'
 import ThemeSelector from './components/ThemeSelector.vue'
 import AuthDialog from './components/AuthDialog.vue'
 import HelpDrawer from './components/HelpDrawer.vue'
+import DeviceStatusTag from './components/DeviceStatusTag.vue'
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useQueryCache } from '@pinia/colada'
@@ -147,6 +148,7 @@ const items = ref([
 		-->
 	</template>
 	<template #end>
+		<DeviceStatusTag class="mr-2" />
 		<InputGroup>
 			<ThemeSelector class="p-button-sm"/>
 			<Button size="small"
