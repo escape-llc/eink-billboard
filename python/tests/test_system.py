@@ -62,6 +62,28 @@ class TestPi(unittest.TestCase):
 		with self.fake(files), patch.object(system_info, "_entries", lambda path: ["hwmon0", "hwmon1", "hwmon2"]):
 			self.assertNotIn("fan_rpm", pi_info() or {})
 
+	def test_a_pi_without_get_throttled_says_under_voltage_from_its_voltage_sensor(self):
+		# a Pi 5 has no `get_throttled`; its `rpi_volt` sensor's alarm is the warning that remains
+		alarm = os.path.join(system_info.HWMON, "hwmon3", "in0_lcrit_alarm")
+		files = { system_info.PI_MODEL: "Raspberry Pi 5 Model B Rev 1.1", os.path.join(system_info.HWMON, "hwmon3", "name"): "rpi_volt", alarm: "1" }
+		entries = patch.object(system_info, "_entries", lambda path: ["hwmon3"])
+		with self.fake(files), entries:
+			info = pi_info()
+		assert info is not None
+		self.assertEqual((info["throttled"], info["throttled_now"]), (["Under-voltage now"], True))
+		files[alarm] = "0"
+		with self.fake(files), entries:
+			info = pi_info()
+		assert info is not None
+		self.assertEqual((info["throttled"], info["throttled_now"]), ([], False))
+		# `get_throttled`, where there is one, is the reading (it says more)
+		with self.fake({ **files, alarm: "1", system_info.PI_THROTTLED: "0" }), entries:
+			self.assertEqual((pi_info() or {})["throttled"], [])
+		# neither: no power row
+		del files[alarm]
+		with self.fake(files), entries:
+			self.assertNotIn("throttled", pi_info() or {})
+
 	def test_the_power_bits_are_in_words(self):
 		self.assertEqual(throttle_flags(0), [])
 		self.assertEqual(throttle_flags(1 << 3), ["Temperature limit now"])

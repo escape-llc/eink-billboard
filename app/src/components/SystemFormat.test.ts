@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { deviceMoment, failedCalls, formatBytes, formatShare, formatUptime, gaugeSeverity, statusSummary, temperatureSeverity } from "./SystemFormat"
+import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, statusSummary, temperatureSeverity } from "./SystemFormat"
 
 describe("sizes", () => {
 	it("are in the largest unit that keeps them readable", () => {
@@ -60,5 +60,16 @@ describe("API usage", () => {
 		expect(deviceMoment("2026-10-21T23:59:00-07:00")).toBe("2026-10-21 23:59")
 		expect(deviceMoment(null)).toBe("")
 		expect(deviceMoment("yesterday")).toBe("")
+	})
+})
+
+describe("the fan", () => {
+	it("is off only when it is not driven", () => {
+		expect(fanText(0, 0)).toBe("Off")
+		expect(fanText(0, undefined)).toBe("Off")
+		// the Pi 5's first step (75 of 255) on a fan that reports no speed
+		expect(fanText(0, 29)).toBe("29% power, no speed reported")
+		expect(fanText(3120, 40)).toBe("3120 rpm (40% power)")
+		expect(fanText(3120, undefined)).toBe("3120 rpm")
 	})
 })

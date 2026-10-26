@@ -22,6 +22,8 @@ PI_THROTTLED = "/sys/devices/platform/soc/soc:firmware/get_throttled"
 # the kernel's sensors, each a folder `hwmonN` found by its `name` (the numbers are given in the order the drivers start): the Pi's fan is `pwmfan`
 HWMON = "/sys/class/hwmon"
 PI_FAN = "pwmfan"
+# a Pi 5 has no `get_throttled` (on the device either), but its `rpi_volt` sensor raises `in0_lcrit_alarm` while the supply is too low
+PI_VOLT = "rpi_volt"
 
 # `get_throttled` bits (the Pi firmware's): what is wrong now, and what has been wrong since the start
 THROTTLE_NOW = { 0: "Under-voltage now", 1: "Frequency capped now", 2: "Throttled now", 3: "Temperature limit now" }
@@ -65,6 +67,14 @@ def _number(path: str) -> int|None:
 	value = _read(path)
 	return int(value) if value is not None and value.isdigit() else None
 
+def voltage_info() -> dict[str, Any]:
+	"""The power warnings of a Pi without `get_throttled`: under-voltage now, or none (what happened since the start is not kept by the sensor)."""
+	folder = hwmon(PI_VOLT)
+	alarm = _number(os.path.join(folder, "in0_lcrit_alarm")) if folder is not None else None
+	if alarm is None:
+		return {}
+	return { "throttled": [THROTTLE_NOW[0]] if alarm else [], "throttled_now": bool(alarm) }
+
 def fan_info() -> dict[str, Any]:
 	"""The Pi's fan, when it has one: its speed, and how hard it is driven (`pwm1`, 0 to 255) as a share."""
 	folder = hwmon(PI_FAN)
@@ -100,6 +110,8 @@ def pi_info() -> dict[str, Any]|None:
 			info["throttled_now"] = bool(value & 0xF)
 		except ValueError:
 			pass
+	else:
+		info.update(voltage_info())
 	info.update(fan_info())
 	try:
 		freq = psutil.cpu_freq()

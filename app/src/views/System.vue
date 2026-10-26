@@ -102,9 +102,9 @@
 					<template v-if="info.pi.cpu_mhz !== undefined">
 						<dt>Clock</dt><dd>{{ info.pi.cpu_mhz }} MHz<span v-if="info.pi.cpu_max_mhz" class="muted"> (up to {{ info.pi.cpu_max_mhz }})</span></dd>
 					</template>
-					<template v-if="info.pi.fan_rpm !== undefined">
+					<template v-if="info.pi.fan_rpm !== undefined || info.pi.fan_percent !== undefined">
 						<dt>Fan</dt>
-						<dd data-testid="fan">{{ info.pi.fan_rpm ? `${info.pi.fan_rpm} rpm` : "Off" }}<span v-if="info.pi.fan_percent" class="muted"> ({{ info.pi.fan_percent }}% power)</span></dd>
+						<dd data-testid="fan">{{ fanText(info.pi.fan_rpm, info.pi.fan_percent) }}</dd>
 					</template>
 					<template v-if="info.pi.throttled">
 						<dt>Power</dt>
@@ -251,7 +251,7 @@ import { Button, Dialog, InputGroup, Select, Tag, Toolbar, ToggleSwitch, useToas
 import { LAYERS, clockOf, isProblem, type TelemetryEvent } from "../components/TelemetryLink"
 import BackupRestore from "../components/BackupRestore.vue"
 import PasswordForm from "../components/PasswordForm.vue"
-import { deviceMoment, failedCalls, formatBytes, formatShare, formatUptime, gaugeSeverity, statusSummary, temperatureSeverity } from "../components/SystemFormat"
+import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, statusSummary, temperatureSeverity } from "../components/SystemFormat"
 import { SOURCES as sources, describeEvent as describe, eventIcon as iconOf, useSystem } from "../composables/useSystem"
 
 const periods = [{ key: "today", label: "Today" }, { key: "week", label: "7 days" }, { key: "month", label: "Month" }] as const
