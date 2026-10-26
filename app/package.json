@@ -20,7 +20,7 @@
 		"@primeuix/themes": "^2.0.3",
 		"@primevue/forms": "^4.5.5",
 		"leaflet": "^1.9.4",
-		"leaflet-geosearch": "^4.4.0",
+		"leaflet-geosearch": "^5.1.0",
 		"pinia": "4.1.0",
 		"primeflex": "^4.0.0",
 		"primevue": "^4.5.5",
