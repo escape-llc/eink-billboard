@@ -113,8 +113,9 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 				if (px.maxItems !== undefined) chosen = chosen.max(px.maxItems, { error: messages.atMostItems(px.maxItems) })
 				return optionalUnless(required, chosen)
 			}
-			const items = px.items as { key?: string, properties?: FieldDef[] } | undefined
+			const items = px.items as { key?: string, once?: { field: string, values: string[] }, properties?: FieldDef[] } | undefined
 			const key = items?.key
+			const once = items?.once
 			const itemFields = (items?.properties ?? []) as FormField[]
 			// each row has its own rules: a row's `visibleIf` reads the fields of that row, and a hidden field is not checked (and is saved as null)
 			let list = z.array(z.record(z.string(), z.unknown(), { error: messages.object }))
@@ -123,15 +124,22 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 			const rows = list
 				.superRefine((rows, ctx) => {
 					const seen = new Set<unknown>()
+					const seenOnce = new Set<unknown>()
 					rows.forEach((row, index) => {
 						const r = rowRules(itemFields, row).safeParse(row)
 						if (!r.success) {
 							for (const issue of r.error.issues) ctx.addIssue({ code: "custom", message: issue.message, path: [index, ...issue.path] })
 						}
 						const identity = key ? row[key] : undefined
-						if (key && typeof identity === "string" && identity !== "") {
+						if (key && ((typeof identity === "string" && identity !== "") || (typeof identity === "number" && Number.isInteger(identity)))) {
 							if (seen.has(identity)) ctx.addIssue({ code: "custom", message: messages.unique, path: [index, key] })
 							seen.add(identity)
+						}
+						// a value that only one row may have (the device's Play, Stop, Toggle and Next: each belongs to one button)
+						const chosen = once ? row[once.field] : undefined
+						if (once && typeof chosen === "string" && once.values.includes(chosen)) {
+							if (seenOnce.has(chosen)) ctx.addIssue({ code: "custom", message: messages.alreadyUsed, path: [index, once.field] })
+							seenOnce.add(chosen)
 						}
 					})
 				})

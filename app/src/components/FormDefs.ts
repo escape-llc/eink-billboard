@@ -37,11 +37,11 @@ export type FieldDef = {
 	maximum?: number
 	/**
 	 * of an array: how many items, and what each is. A list of objects (`type: "object"`, flat fields; `key` names the field that identifies a row
-	 * and must be unique); or a multi-select (`type: "string"`), the values chosen from the field's `lookup` or from `items.enum`
+	 * and must be unique, a whole number as well as text; `once` names a field and the values of it that only one row may have); or a multi-select (`type: "string"`), the values chosen from the field's `lookup` or from `items.enum`
 	 */
 	minItems?: number
 	maxItems?: number
-	items?: { type: "object", key?: string, properties: FieldDef[], action?: RowActionDef } | { type: "string", enum?: string[] }
+	items?: { type: "object", key?: string, once?: { field: string, values: string[] }, properties: FieldDef[], action?: RowActionDef } | { type: "string", enum?: string[] }
 	minLength?: number
 	maxLength?: number
 	/** a regular expression both JavaScript and Python read the same way */

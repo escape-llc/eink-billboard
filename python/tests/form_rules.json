@@ -1680,6 +1680,242 @@
 			"path": [
 				"0"
 			]
+		},
+		{
+			"name": "array, a whole-number key is unique",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"items": {
+					"type": "object",
+					"key": "pin",
+					"once": {
+						"field": "action",
+						"values": [
+							"play",
+							"stop",
+							"toggle",
+							"next"
+						]
+					},
+					"properties": [
+						{
+							"name": "pin",
+							"type": "integer",
+							"title": "Pin",
+							"required": true
+						},
+						{
+							"name": "action",
+							"type": "string",
+							"title": "Action",
+							"required": true,
+							"enum": [
+								"play",
+								"stop",
+								"toggle",
+								"next",
+								"other"
+							]
+						}
+					]
+				}
+			},
+			"value": [
+				{
+					"pin": 5,
+					"action": "play"
+				},
+				{
+					"pin": 5,
+					"action": "next"
+				}
+			],
+			"error": "Must be unique",
+			"path": [
+				"1",
+				"pin"
+			]
+		},
+		{
+			"name": "array, a value only one row may have",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"items": {
+					"type": "object",
+					"key": "pin",
+					"once": {
+						"field": "action",
+						"values": [
+							"play",
+							"stop",
+							"toggle",
+							"next"
+						]
+					},
+					"properties": [
+						{
+							"name": "pin",
+							"type": "integer",
+							"title": "Pin",
+							"required": true
+						},
+						{
+							"name": "action",
+							"type": "string",
+							"title": "Action",
+							"required": true,
+							"enum": [
+								"play",
+								"stop",
+								"toggle",
+								"next",
+								"other"
+							]
+						}
+					]
+				}
+			},
+			"value": [
+				{
+					"pin": 5,
+					"action": "stop"
+				},
+				{
+					"pin": 6,
+					"action": "next"
+				},
+				{
+					"pin": 16,
+					"action": "stop"
+				}
+			],
+			"error": "Already used by another row",
+			"path": [
+				"2",
+				"action"
+			]
+		},
+		{
+			"name": "array, a value that may repeat",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"items": {
+					"type": "object",
+					"key": "pin",
+					"once": {
+						"field": "action",
+						"values": [
+							"play",
+							"stop",
+							"toggle",
+							"next"
+						]
+					},
+					"properties": [
+						{
+							"name": "pin",
+							"type": "integer",
+							"title": "Pin",
+							"required": true
+						},
+						{
+							"name": "action",
+							"type": "string",
+							"title": "Action",
+							"required": true,
+							"enum": [
+								"play",
+								"stop",
+								"toggle",
+								"next",
+								"other"
+							]
+						}
+					]
+				}
+			},
+			"value": [
+				{
+					"pin": 5,
+					"action": "other"
+				},
+				{
+					"pin": 6,
+					"action": "other"
+				}
+			],
+			"error": null
+		},
+		{
+			"name": "array, different single-use values are fine",
+			"field": {
+				"name": "f",
+				"title": "F",
+				"required": false,
+				"type": "array",
+				"items": {
+					"type": "object",
+					"key": "pin",
+					"once": {
+						"field": "action",
+						"values": [
+							"play",
+							"stop",
+							"toggle",
+							"next"
+						]
+					},
+					"properties": [
+						{
+							"name": "pin",
+							"type": "integer",
+							"title": "Pin",
+							"required": true
+						},
+						{
+							"name": "action",
+							"type": "string",
+							"title": "Action",
+							"required": true,
+							"enum": [
+								"play",
+								"stop",
+								"toggle",
+								"next",
+								"other"
+							]
+						}
+					]
+				}
+			},
+			"value": [
+				{
+					"pin": 5,
+					"action": "play"
+				},
+				{
+					"pin": 6,
+					"action": "stop"
+				},
+				{
+					"pin": 16,
+					"action": "toggle"
+				},
+				{
+					"pin": 24,
+					"action": "next"
+				}
+			],
+			"error": null
 		}
 	]
 }

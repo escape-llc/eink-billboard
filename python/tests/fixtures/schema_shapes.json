@@ -307,14 +307,8 @@
 	"urn:inky:storage:schema:devices": {
 		"version": 1,
 		"properties": {
-			"buttonPlayStop": {
-				"type": "integer"
-			},
-			"buttonNext": {
-				"type": "integer"
-			},
-			"buttonStop": {
-				"type": "integer"
+			"triggers": {
+				"type": "array"
 			}
 		}
 	},

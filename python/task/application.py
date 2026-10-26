@@ -17,7 +17,7 @@ from .display import Display
 from PIL import Image
 
 from ..device.bindings import action_for
-from ..device.buttons import LABELS
+from ..device.buttons import input_label
 from ..device.pins import Panel
 from ..display.mock_display import MockDisplay
 from .basic_task import DispatcherTask, handles
@@ -197,15 +197,19 @@ class Application(DispatcherTask):
 	@handles(InputEvent)
 	def _input_event(self, msg: InputEvent):
 		"""Something happened at a device (a button pressed): what it means is decided here, by the bindings."""
-		action = action_for(msg.source, msg.name, msg.gesture)
-		if action is None or self.router is None:
+		if self.router is None or self.cm is None:
+			return
+		# what a button does is what the Devices settings say now (read each time: a change applies at once)
+		_, devices = self.cm.settings_manager().open("devices").get()
+		action = action_for(msg.source, msg.name, msg.gesture, devices if isinstance(devices, dict) else None)
+		if action is None:
 			return
 		if action == "toggle":
 			action = "play" if self.playback_stopped else "stop"
-		label = LABELS.get(msg.name, msg.name)
+		label = input_label(msg.name)
 		self.logger.info(f"'{self.name}' input: {label} {msg.gesture}: {action}")
 		self.router.send("telemetry", Telemetry(msg.timestamp, "application", { "kind": "input", "source": msg.source, "input": msg.name, "gesture": msg.gesture, "action": action,
-			"message": f"The {label} was pressed: {action}." if msg.gesture == "press" else f"The {label}: {msg.gesture}: {action}." }))
+			"message": f"The {label} was pressed: {action}." }))
 		self._transport_command(TransportCommand(msg.timestamp, action))
 	def _unclaimed(self) -> bool:
 		try:

@@ -203,8 +203,8 @@
 			<AccordionPanel value="buttons">
 				<AccordionHeader>Buttons</AccordionHeader>
 				<AccordionContent>
-					<p><b>Settings, Devices</b>: the GPIO (BCM) number of each push button, wired between that pin and ground; leave it empty when there is none. <b>Play / Stop</b> toggles playback, <b>Next</b> shows the next page, <b>Stop</b> only stops. A change applies within seconds, no restart.</p>
-					<p>The panel's own pins are refused (Waveshare 8, 10, 11, 17, 18, 24, 25; Inky 8, 10, 11, 17, 22, 27, and 16 and 26 on the 13.3 inch one), as are pins outside 2 to 27 and two buttons on one pin.</p>
+					<p><b>Settings, Devices</b>: <b>Triggers</b> has a row for each push button, wired between its GPIO (BCM) pin and ground: the pin, and what pressing it does. <b>Toggle</b> stops playback while it plays and starts it when it is stopped; <b>Play</b> only starts, <b>Stop</b> only stops, <b>Next</b> shows the next page. Each of those can be on one button only. A change applies within seconds, no restart. Without a row, a button does nothing.</p>
+					<p>The panel's own pins are refused (Waveshare 8, 10, 11, 17, 18, 24, 25; Inky 8, 10, 11, 17, 22, 27, and 16 and 26 on the 13.3 inch one), as are pins outside 2 to 27 and two rows on one pin. The Inky Impression's four buttons are usually on pins 5, 6, 16 and 24 (A to D); check your board's documentation.</p>
 				</AccordionContent>
 			</AccordionPanel>
 

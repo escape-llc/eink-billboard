@@ -16,6 +16,7 @@ export const messages = {
 	list: "Expected a list",
 	object: "Expected an object",
 	unique: "Must be unique",
+	alreadyUsed: "Already used by another row",
 	atLeastItems: (n: number) => `At least ${n} items`,
 	atMostItems: (n: number) => `At most ${n} items`,
 	atLeast: (n: number) => `At least ${n} characters`,
