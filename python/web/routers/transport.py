@@ -15,7 +15,10 @@ class TransportRequest(BaseModel):
 	command: Literal["play", "stop", "next"]
 
 class TransportState(Answer):
+	"""Whether playback is stopped, and where the playlist layer is: its playlist and track by id (left out before its first track)."""
 	stopped: bool
+	playlist_id: str | None = None
+	track_id: str | None = None
 
 def application_of(request: Request) -> Application:
 	isp = get_container(request)
@@ -27,8 +30,13 @@ def application_of(request: Request) -> Application:
 
 @router.get("", **answers(TransportState))
 def get_transport(request: Request):
-	"""Whether playback is stopped, for the play/stop button."""
-	return { "stopped": application_of(request).playback_stopped }
+	"""Whether playback is stopped, for the play/stop button, and the playlist and track the layer is on, for the System page's playlist panel."""
+	application = application_of(request)
+	answer: dict[str, object] = { "stopped": application.playback_stopped }
+	position = application.playback_position
+	if position is not None:
+		answer["playlist_id"], answer["track_id"] = position
+	return answer
 
 @router.post("", **answers(Done))
 def send_transport(body: TransportRequest, request: Request):

@@ -1,21 +1,12 @@
 <template>
 	<div class="system-page">
-	<!-- the page's commands, as on the playlist and schedule pages: the playlist's transport, then what changes the whole device (each opens its own dialog) -->
+	<!-- the page's commands: what changes the whole device (each opens its own dialog); the playlist's transport is in its panel -->
 	<Toolbar class="p-1">
 		<template #start>
 			<div style="font-size:150%">System</div>
 		</template>
 		<template #end>
-			<InputGroup class="system-actions" role="group" aria-label="Playback">
-				<Button size="small" severity="secondary" type="button" data-testid="play-stop"
-					:icon="transport.state.stopped ? 'mi mi-play-arrow' : 'mi mi-stop'"
-					:aria-label="transport.state.stopped ? 'Play' : 'Stop playback'" :title="transport.state.stopped ? 'Play' : 'Stop playback'"
-					:data-state="transport.state.stopped ? 'stopped' : 'playing'" :disabled="transport.state.busy"
-					@click="press(transport.state.stopped ? 'play' : 'stop')" />
-				<Button size="small" severity="secondary" type="button" icon="mi mi-skip-next" aria-label="Next track" title="Next track"
-					data-testid="next-track" :disabled="transport.state.busy" @click="press('next')" />
-			</InputGroup>
-			<InputGroup class="system-actions ml-2">
+			<InputGroup class="system-actions">
 				<Button size="small" severity="secondary" type="button" icon="mi mi-download" aria-label="Back up" title="Back up" data-testid="open-backup" @click="dialog = 'backup'" />
 				<Button size="small" severity="secondary" type="button" icon="mi mi-history" aria-label="Restore" title="Restore from a backup" data-testid="open-restore" @click="dialog = 'restore'" />
 				<Button size="small" severity="secondary" type="button" icon="mi mi-key" aria-label="Device password" title="Change the device password" data-testid="open-password" @click="dialog = 'password'" />
@@ -172,6 +163,29 @@
 
 		<!-- what the device is doing now, and what it did: the telemetry link; two panels, as on the left -->
 		<div class="system-live" :data-link="link.state.status">
+			<!-- the playlist the layer is on, its tracks in order and the one playing, with play, stop and next (usePlaylistPanel) -->
+			<SystemCard title="Playlist">
+				<template #head><Tag :severity="transport.state.stopped ? 'warn' : 'success'" :value="transport.state.stopped ? 'Stopped' : 'Playing'" class="ml-auto" data-testid="playback-state" /></template>
+				<div class="playlist-head">
+					<InputGroup class="system-actions" role="group" aria-label="Playback">
+						<Button size="small" severity="secondary" type="button" data-testid="play-stop"
+							:icon="transport.state.stopped ? 'mi mi-play-arrow' : 'mi mi-stop'"
+							:aria-label="transport.state.stopped ? 'Play' : 'Stop playback'" :title="transport.state.stopped ? 'Play' : 'Stop playback'"
+							:data-state="transport.state.stopped ? 'stopped' : 'playing'" :disabled="transport.state.busy"
+							@click="press(transport.state.stopped ? 'play' : 'stop')" />
+						<Button size="small" severity="secondary" type="button" icon="mi mi-skip-next" aria-label="Next track" title="Next track"
+							data-testid="next-track" :disabled="transport.state.busy" @click="press('next')" />
+					</InputGroup>
+					<span v-if="playlist" class="playlist-name" data-testid="playlist-name">{{ playlist.name }}</span>
+				</div>
+				<ol v-if="playlist && tracks.length" class="track-strip" aria-label="Tracks" data-testid="track-strip">
+					<li v-for="(t, i) in tracks" :key="t.id" :aria-current="i === playing ? 'true' : undefined" :class="{ playing: i === playing }" :title="t.title">
+						<i v-if="i === playing" class="mi mi-play-arrow" aria-hidden="true"></i><span class="track-title">{{ t.title }}</span>
+					</li>
+				</ol>
+				<p v-else class="muted">{{ !loaded ? "Loading." : playlists.length === 0 ? "No playlist yet: make one on the Playlist page." : playlist ? "This playlist has no tracks." : "Nothing has played yet." }}</p>
+			</SystemCard>
+
 			<!-- a media player: the picture, its title and the time it was sent, and one line per layer (its glyph, then the track or task that made it) -->
 			<SystemCard title="Now showing">
 				<template #head><Tag v-if="link.state.status !== 'live'" :severity="statusSeverity" :value="statusText" class="ml-auto" data-testid="link-status" /></template>
@@ -250,6 +264,7 @@ import BackupRestore from "../components/BackupRestore.vue"
 import SystemCard from "../components/SystemCard.vue"
 import PasswordForm from "../components/PasswordForm.vue"
 import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, statusSummary, storageLine, temperatureSeverity, usageLine } from "../components/SystemFormat"
+import { usePlaylistPanel } from "../composables/usePlaylistPanel"
 import { SOURCES as sources, describeEvent as describe, eventIcon as iconOf, useSystem } from "../composables/useSystem"
 
 const periods = [{ key: "today", label: "Today" }, { key: "week", label: "7 days" }, { key: "month", label: "Month" }] as const
@@ -267,8 +282,10 @@ const webCommit = __APP_COMMIT__
 const full = ref<TelemetryEvent | null>(null)
 // the dialog the toolbar opened (backup, restore, password)
 const dialog = ref<"backup" | "restore" | "password" | null>(null)
-onMounted(start)
-onBeforeUnmount(stop)
+// the playlist panel follows the playlists while the page is shown
+const { playlists, loaded, playlist, tracks, playing, start: followPlaylists, stop: unfollowPlaylists } = usePlaylistPanel({ transport })
+onMounted(() => { start(); followPlaylists() })
+onBeforeUnmount(() => { stop(); unfollowPlaylists() })
 
 const title = (e: TelemetryEvent): string => String(e.values?.title ?? "")
 </script>
@@ -376,6 +393,54 @@ const title = (e: TelemetryEvent): string => String(e.values?.title ?? "")
 	height: 1px;
 	overflow: hidden;
 	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}
+.playlist-head {
+	display: flex;
+	align-items: center;
+	gap: .5rem;
+	min-width: 0;
+}
+.playlist-head .p-inputgroup {
+	width: auto;
+	flex: none;
+}
+.playlist-name {
+	font-weight: bold;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* the tracks in a row, in order, wrapping (never a sideways scroll: a phone is narrow) */
+.track-strip {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: .25rem;
+	font-size: .85rem;
+}
+.track-strip li {
+	display: inline-flex;
+	align-items: center;
+	gap: .2rem;
+	max-width: 100%;
+	padding: .15rem .45rem;
+	border-radius: var(--p-content-border-radius);
+	border: 1px solid var(--p-content-border-color);
+}
+.track-strip li.playing {
+	background: var(--p-highlight-background);
+	color: var(--p-highlight-color);
+	border-color: var(--p-highlight-background);
+	font-weight: bold;
+}
+.track-title {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 /* the right column: Now showing, Recently shown and Activity, each a panel of its own like the facts on the left */

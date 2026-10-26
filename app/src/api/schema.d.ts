@@ -1203,7 +1203,7 @@ export interface paths {
         };
         /**
          * Get Transport
-         * @description Whether playback is stopped, for the play/stop button.
+         * @description Whether playback is stopped, for the play/stop button, and the playlist and track the layer is on, for the System page's playlist panel.
          */
         get: operations["get_transport_api_transport_get"];
         put?: never;
@@ -1894,10 +1894,17 @@ export interface components {
              */
             command: "play" | "stop" | "next";
         };
-        /** TransportState */
+        /**
+         * TransportState
+         * @description Whether playback is stopped, and where the playlist layer is: its playlist and track by id (left out before its first track).
+         */
         TransportState: {
+            /** Playlist Id */
+            playlist_id?: string | null;
             /** Stopped */
             stopped: boolean;
+            /** Track Id */
+            track_id?: string | null;
         };
         /**
          * Upgraded

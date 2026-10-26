@@ -323,6 +323,11 @@ class Application(DispatcherTask):
 	def playback_stopped(self) -> bool:
 		"""Whether the playlist layer is stopped by a transport command (what the play/stop button shows)."""
 		return self.playlist_layer is not None and self.playlist_layer.halted
+	@property
+	def playback_position(self) -> tuple[str, str]|None:
+		"""The playlist and the track the playlist layer is on, by id (None before its first track)."""
+		position = self.playlist_layer.position if self.playlist_layer is not None else None
+		return (position.playlist_id, position.track_id) if position is not None else None
 	@handles(TransportCommand)
 	def _transport_command(self, msg: TransportCommand):
 		"""The first hop of a transport command: it goes to the playlist layer only (the timer layer keeps running), and not at all while the device waits to be claimed."""

@@ -315,11 +315,18 @@ class TestApplication(unittest.TestCase):
 		self.app.playlist_layer = cast(Any, SimpleNamespace(halted=True))
 		self.assertTrue(self.app.playback_stopped)
 
+	def test_the_position_is_the_layers_by_id(self):
+		self.assertIsNone(self.app.playback_position)
+		self.app.playlist_layer = cast(Any, SimpleNamespace(position=None))
+		self.assertIsNone(self.app.playback_position)
+		self.app.playlist_layer = cast(Any, SimpleNamespace(position=Position("main", "t2", 0, 1)))
+		self.assertEqual(self.app.playback_position, ("main", "t2"))
+
 class TestTransportApi(WebApiTestBase):
 	def setUp(self):
 		super().setUp()
 		self.commands: list[str] = []
-		self.application = SimpleNamespace(playlist_layer=object(), playback_stopped=False, transport=lambda command: self.commands.append(command) or True)
+		self.application = SimpleNamespace(playlist_layer=object(), playback_stopped=False, playback_position=None, transport=lambda command: self.commands.append(command) or True)
 		self.app.state.root_container.add_service(Application, self.application)
 
 	def test_a_command_is_forwarded_to_the_application(self):
@@ -340,6 +347,10 @@ class TestTransportApi(WebApiTestBase):
 		self.application.playback_stopped = True
 		self.assertEqual(self.client.get("/api/transport").json(), { "stopped": True })
 
+	def test_get_says_where_the_layer_is_once_it_has_played(self):
+		self.application.playback_position = ("main", "t2")
+		self.assertEqual(self.client.get("/api/transport").json(), { "stopped": False, "playlist_id": "main", "track_id": "t2" })
+
 	def test_before_the_layers_exist_it_is_a_503_in_our_words(self):
 		self.application.playlist_layer = None
 		for resp in (self.client.get("/api/transport"), self.client.post("/api/transport", json={ "command": "stop" })):
@@ -355,7 +366,7 @@ class TestSignIn(WebApiTestBase):
 	auth = "required"
 
 	def test_it_needs_a_sign_in_like_the_rest_of_the_api(self):
-		self.app.state.root_container.add_service(Application, SimpleNamespace(playlist_layer=object(), playback_stopped=False, transport=lambda command: True))
+		self.app.state.root_container.add_service(Application, SimpleNamespace(playlist_layer=object(), playback_stopped=False, playback_position=None, transport=lambda command: True))
 		self.assertEqual(self.client.post("/api/transport", json={ "command": "stop" }).status_code, 401)
 		resp = self.client.post("/api/transport", json={ "command": "stop" }, headers={ "Authorization": "Bearer secret" })
 		self.assertEqual(resp.status_code, 200, resp.text)
