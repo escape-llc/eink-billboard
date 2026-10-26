@@ -299,6 +299,9 @@ def _render_slots() -> threading.BoundedSemaphore:
 			_slots = threading.BoundedSemaphore(count)
 		return _slots
 
+# the fontconfig file the renderer starts with: text without antialiasing (see the file)
+FONTS_CONF = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "render", "fonts.conf")
+
 def render_chrome_headless_arglist(source_html_path: str, arglist: list[str], timeout: float|None = None):
 	"""Render the page with headless Chromium, when one of the render slots is free (see `render_slot_count`). None when it failed, timed out, or no slot came free."""
 	slots = _render_slots()
@@ -331,6 +334,8 @@ def _render_chrome_headless(source_html_path: str, arglist: list[str], timeout: 
 			"--disable-gpu",
 			"--use-gl=swiftshader",
 			"--hide-scrollbars",
+			# text is drawn in one colour (a subpixel fringe would be dithered on the panel); fontconfig turns the antialiasing off (`FONTS_CONF`)
+			"--disable-lcd-text",
 			"--in-process-gpu",
 			"--js-flags=--jitless",
 			"--disable-zero-copy",
@@ -346,8 +351,8 @@ def _render_chrome_headless(source_html_path: str, arglist: list[str], timeout: 
 		if sys.platform == "win32":
 			popen_kwargs = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
 		else:
-			# own session/process group, so the whole tree can be killed
-			popen_kwargs = {"start_new_session": True}
+			# own session/process group, so the whole tree can be killed; Chromium's text rendering is fontconfig's, so it gets ours (Windows has no fontconfig: the panel never runs there)
+			popen_kwargs = {"start_new_session": True, "env": { **os.environ, "FONTCONFIG_FILE": FONTS_CONF }}
 		proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **popen_kwargs)
 		try:
 			_, stderr = proc.communicate(timeout=timeout)

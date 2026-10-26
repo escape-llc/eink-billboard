@@ -54,6 +54,8 @@ def plain_message_image(dimensions: tuple[int, int], title: str, text: str) -> I
 	width, height = dimensions
 	image = Image.new("RGB", (width, height), "white")
 	draw = ImageDraw.Draw(image)
+	# no antialiasing: a grey edge on a letter is dithered on the panel
+	draw.fontmode = "1"
 	size = max(10, text_size(dimensions, title, text) * 3 // 4)
 	font = ImageFont.load_default(size=size)
 	margin = max(8, width // 20)

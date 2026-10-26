@@ -100,6 +100,8 @@ def plain_error_image(dimensions: tuple[int, int], title: str, lines: list[str],
 	width, height = dimensions
 	image = Image.new("RGB", (width, height), "white")
 	draw = ImageDraw.Draw(image)
+	# no antialiasing: a grey edge on a letter is dithered on the panel
+	draw.fontmode = "1"
 	if compact:
 		# a small box: the heading and the title, one line each (and the reason if there is room), clipped at the edge
 		size = max(8, height // 4)
