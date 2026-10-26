@@ -5,9 +5,9 @@ import uuid
 from concurrent.futures import Future, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
-from .messages import ConfigurationChanged, ConfigurationWatcherEvent, InputEvent, PushedImage, RestoreBegin, RestoreEnd, RestoreSettled, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, RunTask, Telemetry, TransportCommand
+from .messages import ConfigurationChanged, ConfigurationWatcherEvent, InputEvent, PushedImage, RestoreBegin, RestoreEnd, RestoreSettled, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, RunTask, RunTrigger, Telemetry, TransportCommand
 from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
 from .coalescer import Coalescer
 from .protocols import MessageSink, IProvideTimer
@@ -16,7 +16,7 @@ from .device_io import DeviceIO
 from .display import Display
 from PIL import Image
 
-from ..device.bindings import action_for
+from ..device.bindings import row_for, row_with_pin
 from ..device.buttons import input_label
 from ..device.pins import Panel
 from ..display.mock_display import MockDisplay
@@ -201,8 +201,16 @@ class Application(DispatcherTask):
 			return
 		# what a button does is what the Devices settings say now (read each time: a change applies at once)
 		_, devices = self.cm.settings_manager().open("devices").get()
-		action = action_for(msg.source, msg.name, msg.gesture, devices if isinstance(devices, dict) else None)
-		if action is None:
+		row = row_for(msg.source, msg.name, msg.gesture, devices if isinstance(devices, dict) else None)
+		if row is None:
+			return
+		action = row["action"]
+		if action == "task":
+			label = input_label(msg.name)
+			self.logger.info(f"'{self.name}' input: {label} {msg.gesture}: run its task")
+			self.router.send("telemetry", Telemetry(msg.timestamp, "application", { "kind": "input", "source": msg.source, "input": msg.name, "gesture": msg.gesture, "action": action,
+				"message": f"The {label} was pressed: run its task." }))
+			self._run_trigger_row(msg.timestamp, row)
 			return
 		if action == "toggle":
 			action = "play" if self.playback_stopped else "stop"
@@ -270,6 +278,28 @@ class Application(DispatcherTask):
 		except ValueError:
 			self.logger.debug(f"'{self.name}' stopped before the transport command '{command}'.")
 			return False
+	def _run_trigger_row(self, timestamp: datetime, row: Mapping[str, Any]) -> bool:
+		"""Send a button's task to the timer layer: not while the device waits to be claimed, and not for a row with no task set up."""
+		content = row.get("content")
+		if self.router is None or self._held is not None or not isinstance(content, dict):
+			return False
+		self.router.send("timer-layer", RunTrigger(timestamp, f"Button on pin {row.get('pin')}", "priority-update", content))
+		return True
+	def run_trigger(self, pin: int) -> str:
+		"""
+		The web app's Run now for the button on `pin` (called from the web app's thread): the task its saved row carries runs as if the button was pressed.
+		`ok` or the reason it did not, in our words.
+		"""
+		if self.router is None or self.cm is None or self._unclaimed():
+			return "The device is not ready: it is still starting or has not been claimed yet."
+		_, devices = self.cm.settings_manager().open("devices").get()
+		row = row_with_pin(devices if isinstance(devices, dict) else None, pin)
+		if row is None or row.get("action") != "task":
+			return "That button does not run a task: save it as a task first."
+		try:
+			return "ok" if self._run_trigger_row(self._now(), row) else "The task has no settings yet."
+		except ValueError:
+			return "The device is stopping."
 	def run_task(self, task_id: str) -> bool:
 		"""Run a timer task now (the web app's Run now, later a button): the timer layer finds it by id and runs it, whatever its trigger. False: the device is not claimed, or has stopped."""
 		if self.router is None or self._unclaimed():

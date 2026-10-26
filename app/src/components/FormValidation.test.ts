@@ -154,3 +154,21 @@ describe("shared rules (form_rules.json)", () => {
 		})
 	}
 })
+
+describe("a list whose rows carry a plugin's settings", () => {
+	const triggers = field({
+		type: "array", required: false,
+		items: { type: "object", key: "pin", once: { field: "action", values: ["play", "stop", "toggle", "next"] }, plugin: { id: "priority-update", field: "content", when: { field: "action", const: "task" } },
+			properties: [{ name: "pin", type: "integer", title: "Pin", required: true, minimum: 2, maximum: 27 }, { name: "action", type: "string", title: "Action", required: true, enum: ["toggle", "play", "stop", "next", "task"] }] },
+	})
+	it("keeps the settings of a row that carries them and needs them", () => {
+		const r = schemaFor(triggers)!.safeParse([{ pin: 16, action: "task", content: { slideMinutes: 2 } }])
+		expect(r.success ? r.data : r.error.issues).toEqual([{ pin: 16, action: "task", content: { slideMinutes: 2 } }])
+		expect(firstPath(triggers, [{ pin: 16, action: "task" }])).toEqual(["0", "content"])
+		expect(check(triggers, [{ pin: 16, action: "task" }])).toBe("Required")
+	})
+	it("drops the settings of a row that does not carry them", () => {
+		const r = schemaFor(triggers)!.safeParse([{ pin: 5, action: "next", content: { slideMinutes: 2 } }])
+		expect(r.success ? r.data : r.error.issues).toEqual([{ pin: 5, action: "next" }])
+	})
+})

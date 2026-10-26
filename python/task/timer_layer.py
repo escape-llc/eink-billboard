@@ -8,7 +8,7 @@ from typing import Any, Mapping, NotRequired, ReadOnly, TypedDict, cast
 
 from ..datasources.data_source import DataSourceManager
 from ..model.configuration_manager import CollectInfoDict, ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
-from ..model.schedule import TimerTaskItem, Playlist, generate_schedule, instant, is_on_demand, next_day_start
+from ..model.schedule import TimerTaskItem, TimerTaskTask, TriggerDict, Playlist, generate_schedule, instant, next_day_start
 from ..model.schedule_loader import ScheduleLoaderDict
 from ..model.service_container import IServiceProvider, ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
@@ -19,7 +19,7 @@ from ..task.display_messages import DisplaySettings, OverlayDefinition, OverlayI
 from ..task.coalescer import Coalescer
 from ..task.message_router import MessageRouter
 from ..task.source_router import SourceRouter, image_source
-from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage, ReloadSchedules, RunTask, Telemetry
+from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage, ReloadSchedules, RunTask, RunTrigger, Telemetry
 from ..task.protocols import IProvideTimer, IRequireShutdown, MessageSink
 from ..task.configure_event import ConfigureEvent
 from ..task.playlist_layer import StartPlayback
@@ -404,13 +404,20 @@ class TimerLayer(DispatcherTask):
 			self._schedule_restart(msg.timestamp)
 	@handles(RunTask)
 	def _run_task(self, msg: RunTask):
-		"""Run one enabled, valid task now, on its own job: the daily loop may be asleep or busy, and neither waits for this."""
-		if self.task_pool is None or self.timebase is None or self.state == 'uninitialized':
-			self.logger.info(f"'{self.name}' is not ready: task run ignored.")
-			return
+		"""Run one enabled, valid stored task now (the Scheduler's Run now)."""
 		item = next((t for t in self._get_enabled_tasks(self.tasks) if t.id == msg.task_id), None)
 		if item is None:
 			self.logger.warning(f"'{self.name}' no enabled, valid task to run for that id.")
+			return
+		self._start_item(item, msg.timestamp)
+	@handles(RunTrigger)
+	def _run_trigger(self, msg: RunTrigger):
+		"""Run the task a button carries (it is not in a schedule file: it was checked when the settings were saved)."""
+		self._start_item(TimerTaskItem(f"button:{msg.title}", msg.title, True, TimerTaskTask(msg.plugin_name, dict(msg.content)), cast(TriggerDict, {})), msg.timestamp)
+	def _start_item(self, item: TimerTaskItem, timestamp: datetime):
+		"""Run `item` on its own job: the daily loop may be asleep or busy, and neither waits for this."""
+		if self.task_pool is None or self.timebase is None or self.state == 'uninitialized':
+			self.logger.info(f"'{self.name}' is not ready: task run ignored.")
 			return
 		sc = self._create_container()
 		async def run(isp: IServiceProvider, donev: threading.Event) -> BasicMessage|None:
@@ -422,7 +429,7 @@ class TimerLayer(DispatcherTask):
 		donev = threading.Event()
 		def done(fut):
 			if not self.is_stopped():
-				self.accept(AsyncTaskCompleted(msg.timestamp, "run_task", fut, donev))
+				self.accept(AsyncTaskCompleted(timestamp, "run_task", fut, donev))
 		self.task_pool.submit(run, sc, donev, callback=done)
 	@handles(ConfigurationChanged)
 	def _configuration_changed(self, msg: ConfigurationChanged):
@@ -561,8 +568,6 @@ class TimerLayer(DispatcherTask):
 		"""The (time, item) entries of `now`'s local day from `now` on, in time order. Items with a malformed trigger are skipped with a warning."""
 		scheduled: list[tuple[datetime, TimerTaskItem]] = []
 		for item in enabled_task_items:
-			if is_on_demand(item.trigger):
-				continue
 			problems = item.validate_trigger()
 			if problems:
 				self.logger.warning(f"Skipping task '{item.title}' ({item.id}) while computing the schedule: {'; '.join(problems)}")

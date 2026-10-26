@@ -319,9 +319,10 @@ def get_document(id: str, cob: ConfigurationObject, secrets: Secrets|None = None
 	document[ID_KEY] = id
 	return document
 
-def put_document(id: str, body: dict[str, Any], cob: ConfigurationObject, properties: Iterable[dict]|None = None, secrets: Secrets|None = None, lookups: dict|None = None, schema_id: str|None = None) -> dict:
+def put_document(id: str, body: dict[str, Any], cob: ConfigurationObject, properties: Iterable[dict]|None = None, secrets: Secrets|None = None, lookups: dict|None = None, schema_id: str|None = None,
+		extra_errors: Callable[[dict], list[dict]]|None = None) -> dict:
 	"""
-	Validate and store the incoming document.
+	Validate and store the incoming document. `extra_errors` is asked about the document once it is read and adds what the generic rules cannot know (the plugin settings of a row).
 	`_id` is optional, but when present it must match. `_rev` must match the stored revision (absent when nothing is stored yet).
 	A `settings` lookup among `lookups` chooses from a list of this same document: the one being saved.
 	`schema_id` is the `_schema` of the document's source (#391): the saved document carries it, whatever `_schema` the body had (the version of a document is the source's to say, not the client's), so
@@ -343,6 +344,9 @@ def put_document(id: str, body: dict[str, Any], cob: ConfigurationObject, proper
 	errors = find_non_finite(document) + unrestored_masks(document, secrets)
 	reported = { tuple(e["path"]) for e in errors }
 	errors += [e for e in validate_properties(document, properties, resolve_settings_lookups(lookups or {}, document)) if tuple(e["path"]) not in reported]
+	if extra_errors is not None:
+		errors += extra_errors(document)
+	document = drop_unused_row_plugin(document, properties)
 	if errors:
 		raise ApiError(422, "Settings validation failed", id, errors=errors)
 	committed, new_rev = cob.save(rev, document)
@@ -350,6 +354,44 @@ def put_document(id: str, body: dict[str, Any], cob: ConfigurationObject, proper
 		current_rev, _ = cob.get()
 		raise ApiError(409, "Revision mismatch: the settings changed since they were loaded.", id, rev=current_rev)
 	return { "id": id, "success": True, "message": "Success", "rev": new_rev }
+
+def plugin_rows(properties: Iterable[dict]|None) -> list[tuple[str, dict]]:
+	"""The list properties whose rows may carry a plugin's settings (`items.plugin: { id, field, when }`): the property's name and the spec."""
+	return [(p["name"], p["items"]["plugin"]) for p in properties or [] if isinstance(p, dict) and p.get("type") == "array" and isinstance((p.get("items") or {}).get("plugin"), dict)]
+
+def row_plugin_applies(spec: Mapping[str, Any], row: Mapping[str, Any]) -> bool:
+	"""Whether a row carries the plugin's settings: the field its `when` names has the value it says."""
+	when = spec.get("when") or {}
+	return row.get(str(when.get("field"))) == when.get("const")
+
+def drop_unused_row_plugin(document: dict, properties: Iterable[dict]|None) -> dict:
+	"""The document with the plugin settings left out of the rows that do not carry them (a button that is no longer a task keeps none of its fields)."""
+	out = dict(document)
+	for name, spec in plugin_rows(properties):
+		rows = out.get(name)
+		if isinstance(rows, list):
+			out[name] = [{ k: v for k, v in row.items() if k != spec["field"] } if isinstance(row, dict) and not row_plugin_applies(spec, row) else row for row in rows]
+	return out
+
+def row_plugin_errors(document: dict, properties: Iterable[dict]|None, plugins: dict, datasources: dict,
+		settings_of: Callable[[str, str], dict|None]|None = None, system: Mapping[str, Any]|None = None) -> list[dict]:
+	"""
+	The settings a row carries for its plugin follow that plugin's own rules, as a track's or a timer task's do (`plugin_content_errors`): a row that carries them has them
+	("Required" at `[name, "<row>", field]`), and each problem is at `[name, "<row>", field, "<setting>"]`.
+	"""
+	errors: list[dict] = []
+	for name, spec in plugin_rows(properties):
+		rows = document.get(name)
+		for index, row in enumerate(rows if isinstance(rows, list) else []):
+			if not isinstance(row, dict) or not row_plugin_applies(spec, row):
+				continue
+			content = row.get(spec["field"])
+			if not isinstance(content, dict):
+				errors.append({ "path": [name, str(index), spec["field"]], "message": "Required" })
+				continue
+			for e in plugin_content_errors(plugins, datasources, spec["id"], content, [], settings_of, system):
+				errors.append({ "path": [name, str(index), spec["field"], *[part for part in e["path"] if part != "content"]], "message": e["message"] })
+	return errors
 
 def load_schema_lookups(schema: dict|None) -> dict:
 	"""The `schema.lookups` map of a schema document (`ConfigurationManager.read_schema`), or empty when there is none."""

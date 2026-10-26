@@ -54,24 +54,18 @@ export type TriggerTimeSpecific = {
 }
 export type DayTrigger = TriggerDays | TriggerDayAndMonth
 export type TimeTrigger = TriggerHours | TriggerTimeSpecific | TriggerHourly
-export type TimedTriggerDef = {
+export type TriggerDef = {
 	on_startup: boolean;
 	day: DayTrigger;
 	time: TimeTrigger;
 }
-/** A task with no time of its own: it runs when it is asked to (a button, Run now). Only these plugins may have one (the server checks as well). */
-export type OnDemandTriggerDef = { on_demand: true }
-export type TriggerDef = TimedTriggerDef | OnDemandTriggerDef
 /** What a new timed task starts as: every day at 9:00. */
 export const DEFAULT_TRIGGER = {
 	on_startup: false,
 	day: { type: "dayofweek", days: [0, 1, 2, 3, 4, 5, 6] },
 	time: { type: "specific", hour: 9, minute: 0 }
 }
-export const ON_DEMAND_PLUGINS = ["priority-update"]
-export function isOnDemand(trigger: unknown): trigger is OnDemandTriggerDef {
-	return typeof trigger === "object" && trigger !== null && (trigger as { on_demand?: unknown }).on_demand === true
-}
+
 export type TimerTaskTask = Schemas["Task"]
 /** A timer task as the server sends it (`TimerTask`), its trigger read as the form's: the server sends any trigger a file holds (one it cannot evaluate is listed as invalid). */
 export type TimerTaskItem = Omit<Schemas["TimerTask"], "trigger"> & { trigger: TriggerDef }
@@ -172,23 +166,3 @@ export const TriggerDefSchema = z.object({
 		}
 	}),
 })
-/** A task's trigger as the dialog checks it: the on-demand one has nothing to check, a timed one follows `TriggerDefSchema` (its issues keep their paths). */
-export const TriggerSchema = z.unknown().superRefine((value, ctx) => {
-	if (isOnDemand(value)) return
-	const result = TriggerDefSchema.safeParse(value)
-	if (result.success) return
-	for (const issue of result.error.issues) ctx.addIssue({ code: "custom", message: issue.message, path: issue.path })
-})
-
-/**
- * The trigger to save: the form keeps the last values of inputs that are no longer shown (the day and time of a task turned on demand, its `on_demand` when turned off),
- * so each kind keeps only its own keys.
- */
-export function cleanTrigger(trigger: any): any {
-	if (isOnDemand(trigger)) return { on_demand: true }
-	if (trigger && typeof trigger === "object" && "on_demand" in trigger) {
-		const { on_demand: _unused, ...timed } = trigger
-		return timed
-	}
-	return trigger
-}

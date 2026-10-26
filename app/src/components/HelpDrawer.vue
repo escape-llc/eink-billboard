@@ -23,7 +23,7 @@
 				<AccordionContent>
 					<dl>
 						<dt><i class="mi mi-schedule" aria-hidden="true"></i> Schedule</dt>
-						<dd>Timer tasks: things that happen at a time of day, such as a priority message for ten minutes at 8:00, or an overlay (the date, the weather) drawn over the picture. Shown as a day, a week or a list; click a task to change it. A <b>Priority Update</b> task may be set to <b>Run On Demand</b>: it has no time, and starts only when you press <b>Run now</b> in the list (a button wired to the device can start it the same way). <b>Run now</b> starts any task in the list that is on. Closing it with changes not saved asks first (Cancel closes without saving).</dd>
+						<dd>Timer tasks: things that happen at a time of day, such as a priority message for ten minutes at 8:00, or an overlay (the date, the weather) drawn over the picture. Shown as a day, a week or a list; click a task to change it. <b>Run now</b> in the list starts a task that is on, to see what it does. Closing it with changes not saved asks first (Cancel closes without saving).</dd>
 						<dt><i class="mi mi-play-arrow" aria-hidden="true"></i> Playlist</dt>
 						<dd>The tracks that play one after another, round and round. You can keep several playlists.</dd>
 						<dt><i class="mi mi-desktop-windows" aria-hidden="true"></i> System</dt>
@@ -203,7 +203,7 @@
 			<AccordionPanel value="buttons">
 				<AccordionHeader>Buttons</AccordionHeader>
 				<AccordionContent>
-					<p><b>Settings, Devices</b>: <b>Triggers</b> has a row for each push button, wired between its GPIO (BCM) pin and ground: the pin, and what pressing it does. <b>Toggle</b> stops playback while it plays and starts it when it is stopped; <b>Play</b> only starts, <b>Stop</b> only stops, <b>Next</b> shows the next page. Each of those can be on one button only. A change applies within seconds, no restart. Without a row, a button does nothing.</p>
+					<p><b>Settings, Devices</b>: <b>Triggers</b> has a row for each push button, wired between its GPIO (BCM) pin and ground: the pin, and what pressing it does. <b>Toggle</b> stops playback while it plays and starts it when it is stopped; <b>Play</b> only starts, <b>Stop</b> only stops, <b>Next</b> shows the next page. Each of those can be on one button only. A change applies within seconds, no restart. <b>Task</b> shows a Priority Update when the button is pressed: press <b>Set up the task</b> on its row to choose what it shows and for how long, and <b>Run now</b> (after Save) to try it. Without a row, a button does nothing.</p>
 					<p>The panel's own pins are refused (Waveshare 8, 10, 11, 17, 18, 24, 25; Inky 8, 10, 11, 17, 22, 27, and 16 and 26 on the 13.3 inch one), as are pins outside 2 to 27 and two rows on one pin. The Inky Impression's four buttons are usually on pins 5, 6, 16 and 24 (A to D); check your board's documentation.</p>
 				</AccordionContent>
 			</AccordionPanel>

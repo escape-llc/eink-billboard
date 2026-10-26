@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from ...model.configuration_manager import CollectInfoDict
 from ..deps import CM
-from ..documents import from_source, get_document, instance_properties, load_schema_lookups, load_schema_properties, put_document, secret_fields, settings_choices, settings_lookup_items
+from ..documents import from_source, row_plugin_errors, get_document, instance_properties, load_schema_lookups, load_schema_properties, put_document, secret_fields, settings_choices, settings_lookup_items
 from ..errors import ApiError
 from ..openapi import Choice, Descriptor, Document, Saved, answers, described
 
@@ -85,7 +85,16 @@ def put_device_settings(name: str, cm: CM, body: dict[str, Any] = Body(...)):
 	if any(p.get("type") == "schema" for p in properties):
 		# what the document chooses (the display's device) brings its own fields, checked with the rest
 		properties, lookups = settings_choices({ str(d["info"].get("id")): d for d in cm.enum_displays() }, properties, lookups, body)
-	return put_document(f"{name}-settings", body, cob, properties, lookups=lookups, schema_id=(schema or {}).get("_schema"))
+	def rows(document: dict) -> list[dict]:
+		# a list whose rows carry a plugin's settings (the devices' Trigger Task): they follow that plugin's rules, as a timer task's content does
+		plugins = { p["info"].get("id"): p for p in cm.enum_plugins() }
+		datasources = { d["info"].get("id"): d for d in cm.enum_datasources() }
+		def settings_of(owner: str, ident: str) -> dict|None:
+			manager = cm.plugin_manager(ident) if owner == "plugin" else cm.datasource_manager(ident)
+			return manager.open().get()[1]
+		_, system = cm.settings_manager().open("system").get()
+		return row_plugin_errors(document, properties, plugins, datasources, settings_of, system)
+	return put_document(f"{name}-settings", body, cob, properties, lookups=lookups, schema_id=(schema or {}).get("_schema"), extra_errors=rows)
 
 @router.get('/settings/{name}/defaults')
 def get_device_defaults(name: str, cm: CM):

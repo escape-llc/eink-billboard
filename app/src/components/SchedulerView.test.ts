@@ -61,12 +61,6 @@ describe("the list of tasks", () => {
 		expect(taskRows(events, schedules, id => id, at(11)).find(r => r.title === "Clock")!.next?.getUTCHours()).toBe(12)
 		expect(triggerText({ day: { type: "dayofmonth" }, time: { type: "hourofday" } })).toBe("Day-of-Month/Hour-of-Day")
 		expect(triggerText(undefined)).toBe("")
-		expect(triggerText({ on_demand: true })).toBe("On demand")
-	})
-	it("lists a task with no time as on demand, with no run", () => {
-		const schedules = { d: { items: [{ id: "a", title: "Alert", enabled: true, trigger: { on_demand: true }, task: { plugin_name: "priority-update" } }] } }
-		const [row] = taskRows([], schedules, id => id)
-		expect([row!.onDemand, row!.startup, row!.next, row!.runs]).toEqual([true, false, null, 0])
 	})
 	it("is empty without documents", () => {
 		expect(taskRows([], {}, id => id)).toEqual([])

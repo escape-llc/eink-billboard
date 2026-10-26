@@ -170,38 +170,17 @@ test("a task can be added", async ({ page }) => {
 	watch.expectNone()
 })
 
-test("a Priority Update task can run on demand: no time, and Run now starts it", async ({ page }) => {
+test("Run now in the list starts a task that is on, and says so", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/schedule")
-	await page.getByRole("button", { name: "New task" }).click()
-	const created = page.getByRole("dialog", { name: "New task" })
-	await expect(created).toBeVisible()
-	await created.locator("input[name=title]").fill("Alert on demand")
-	// the Overlay plugin has no on-demand choice; Priority Update does
-	await expect(created.getByLabel("Run On Demand")).toHaveCount(0)
-	await created.locator(".p-select").filter({ hasText: "Overlay" }).first().click()
-	await page.getByRole("option").filter({ hasText: "Priority Update" }).first().click()
-	await created.locator(".p-select").filter({ hasText: "Data Source" }).first().click()
-	await page.getByRole("option").filter({ hasText: "Year Progress" }).first().click()
-	await created.getByLabel("Run On Demand").click()
-	// no day, time or startup once it is on demand
-	await expect(created.locator("label", { hasText: "Run On Startup" })).toHaveCount(0)
-	await expect(created.locator("label", { hasText: /^Time$/ })).toHaveCount(0)
-	await created.getByRole("button", { name: "Save", exact: true }).last().click()
-	await expect(page.getByText("Task saved")).toBeVisible()
-	await expect.poll(() => stored().items.length).toBe(3)
-	expect(stored().items.find((x: { title: string }) => x.title === "Alert on demand").trigger).toEqual({ on_demand: true })
-	// the list names it and starts it
 	await page.getByRole("button", { name: "List", exact: true }).click()
-	const row = page.getByTestId("task-list").getByRole("row").filter({ hasText: "Alert on demand" })
-	await expect(row).toContainText("On demand")
-	await expect(row).toContainText("When asked")
-	await row.getByRole("button", { name: "Run Alert on demand now" }).click()
-	await expect(page.getByText("Alert on demand was started.")).toBeVisible()
-	// turning it off goes back to a timed trigger
-	await row.getByRole("button", { name: "Edit Alert on demand" }).click()
-	await dialog(page).getByLabel("Run On Demand").click()
-	await expect(dialog(page).locator("label", { hasText: "Run On Startup" })).toBeVisible()
+	const list = page.getByTestId("task-list")
+	const row = list.getByRole("row").filter({ hasText: "Quarter-hour clock" })
+	await row.getByRole("button", { name: "Run Quarter-hour clock now" }).click()
+	await expect(page.getByText("Quarter-hour clock was started.")).toBeVisible()
+	// a task that is off has no Run now
+	const off = list.getByRole("row").filter({ hasText: "Paused year progress" })
+	await expect(off.getByRole("button", { name: /^Run / })).toHaveCount(0)
 	watch.expectNone()
 })
 

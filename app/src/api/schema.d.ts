@@ -581,6 +581,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/devices/triggers/{pin}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Button Task
+         * @description Run the task the button on `pin` carries (its saved row), as if it was pressed: the Devices settings' Run now. The answer is that it was asked to.
+         */
+        post: operations["run_button_task_api_devices_triggers__pin__run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/display/current": {
         parameters: {
             query?: never;
@@ -2928,6 +2948,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Saved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_button_task_api_devices_triggers__pin__run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pin: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Done"];
                 };
             };
             /** @description Validation Error */

@@ -26,7 +26,7 @@ from ..task.configure_event import ConfigureEvent, ConfigureNotify, ConfigureOpt
 from ..task.device_io import DeviceIO
 from ..task.display import Display
 from ..task.message_router import MessageRouter
-from ..task.messages import BasicMessage, ConfigurationChanged, InputEvent, QuitMessage, Telemetry
+from ..task.messages import BasicMessage, ConfigurationChanged, InputEvent, QuitMessage, RunTrigger, Telemetry
 from ..task.playlist_layer import NextTrack, PlaylistLayer, ResumePlayback, StopPlayback
 from ..task.timer_layer import TimerLayer
 from .test_web_api import WebApiTestBase
@@ -371,7 +371,7 @@ class TestApplicationBindings(unittest.TestCase):
 		app.cm = temp_configuration_manager(self)
 		cob = app.cm.settings_manager().open("devices")
 		rev, content = cob.get()
-		cob.save(rev, { **(content or {}), **triggers((5, "toggle"), (6, "next"), (13, "stop")) })
+		cob.save(rev, { **(content or {}), "triggers": [*triggers((5, "toggle"), (6, "next"), (13, "stop"))["triggers"], { "pin": 16, "action": "task", "content": { "slideMinutes": 2 } }, { "pin": 24, "action": "task" }] })
 		if not claimed:
 			app._held = (None, None)  # type: ignore[assignment]
 		return app, sent
@@ -412,10 +412,37 @@ class TestApplicationBindings(unittest.TestCase):
 		self.press(app, "nothing")
 		self.assertEqual(sent.messages, [])
 
+	def test_a_press_on_a_task_button_runs_its_task_in_the_timer_layer(self):
+		app, sent = self.application()
+		self.press(app, "gpio-16")
+		[run] = sent.on("timer-layer")
+		self.assertEqual((type(run), run.title, run.plugin_name, run.content), (RunTrigger, "Button on pin 16", "priority-update", { "slideMinutes": 2 }))
+		self.assertEqual(sent.on("playlist-layer"), [])
+		[event] = [m for m in sent.on("telemetry") if isinstance(m, Telemetry)]
+		self.assertEqual((event.values["action"], event.values["message"]), ("task", "The button on pin 16 was pressed: run its task."))
+
+	def test_a_task_button_with_no_task_set_up_runs_nothing(self):
+		app, sent = self.application()
+		self.press(app, "gpio-24")
+		self.assertEqual(sent.on("timer-layer"), [])
+
+	def test_run_trigger_says_why_it_did_not(self):
+		app, sent = self.application()
+		self.assertEqual(app.run_trigger(16), "ok")
+		self.assertEqual(len(sent.on("timer-layer")), 1)
+		self.assertIn("does not run a task", app.run_trigger(5))
+		self.assertIn("does not run a task", app.run_trigger(99))
+		self.assertEqual(app.run_trigger(24), "The task has no settings yet.")
+		unclaimed, _ = self.application(claimed=False)
+		unclaimed.setup_notice = lambda: True  # type: ignore[assignment]
+		self.assertIn("not ready", unclaimed.run_trigger(16))
+
 	def test_a_press_while_the_device_is_not_claimed_is_dropped(self):
 		app, sent = self.application(claimed=False)
 		self.press(app, "gpio-6")
+		self.press(app, "gpio-16")
 		self.assertEqual(sent.on("playlist-layer"), [])
+		self.assertEqual(sent.on("timer-layer"), [])
 
 class TestDevicesSettings(WebApiTestBase):
 	def test_the_factory_document_has_no_buttons(self):

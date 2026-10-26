@@ -4,7 +4,8 @@
 			<div v-for="f in itemFields" :key="f.name" class="array-cell">{{ f.title }}</div>
 			<div class="array-buttons"></div>
 		</div>
-		<div v-for="(row, index) in rows" :key="index" class="array-row">
+		<template v-for="(row, index) in rows" :key="index">
+		<div class="array-row">
 			<div v-for="f in itemFields" :key="f.name" class="array-cell" :class="{ hidden: !isVisible(f, row) }">
 				<template v-if="isVisible(f, row)">
 					<label v-if="stacked" class="array-label">{{ f.title }}</label>
@@ -17,10 +18,12 @@
 					<Select v-else-if="f.enum" size="small" fluid :options="f.enum" :modelValue="row[f.name]" :placeholder="f.title" :aria-label="`${f.title} ${index + 1}`"
 						:showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
 						@update:modelValue="(v: unknown) => change(index, f.name, v ?? null)" />
-					<Select v-else-if="f.lookup" size="small" fluid :options="choices(f, row)" optionLabel="name" optionValue="value" :modelValue="row[f.name]"
-						:placeholder="placeholder(f, row)" :aria-label="`${f.title} ${index + 1}`" :showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
-						@update:modelValue="(v: unknown) => change(index, f.name, v ?? null)" />
-					<Message v-if="f.lookup && rowLookup(f, row)?.error" severity="warn" size="small" variant="simple">{{ rowLookup(f, row)?.error }}</Message>
+					<template v-else-if="f.lookup">
+						<Select size="small" fluid :options="choices(f, row)" optionLabel="name" optionValue="value" :modelValue="row[f.name]"
+							:placeholder="placeholder(f, row)" :aria-label="`${f.title} ${index + 1}`" :showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
+							@update:modelValue="(v: unknown) => change(index, f.name, v ?? null)" />
+						<Message v-if="rowLookup(f, row)?.error" severity="warn" size="small" variant="simple">{{ rowLookup(f, row)?.error }}</Message>
+					</template>
 					<InputNumber v-else-if="f.type === 'number' || f.type === 'integer'" size="small" fluid :modelValue="numeric(row, f.name)" :aria-label="`${f.title} ${index + 1}`"
 						:min="f.minimum" :max="f.maximum" :step="f.step" :invalid="!!cellError(index, f.name)"
 						:minFractionDigits="f.type === 'integer' ? 0 : f.minFractionDigits" :maxFractionDigits="f.type === 'integer' ? 0 : f.maxFractionDigits"
@@ -44,6 +47,17 @@
 				<Button icon="mi mi-delete" size="small" severity="danger" class="p-button-text" :aria-label="`Remove ${index + 1}`" @click="remove(index)" />
 			</div>
 		</div>
+		<!-- a row that carries a plugin's settings (items.plugin): they are set in the plugin's own form, in a dialog -->
+		<div v-if="carries(row)" class="array-plugin">
+			<Button size="small" severity="secondary" icon="mi mi-settings" type="button" :label="hasContent(row) ? 'Task settings' : 'Set up the task'" :aria-label="`Task settings ${index + 1}`" @click="editing = index" />
+			<Button v-if="rowPlugin?.run && baseUrl !== undefined" size="small" severity="secondary" icon="mi mi-play-arrow" type="button" label="Run now" :aria-label="`Run task ${index + 1} now`"
+				:loading="running === index" :disabled="running === index || !hasContent(row) || row[rowItems?.key ?? ''] === undefined || row[rowItems?.key ?? ''] === null" @click="runRow(index, row)" />
+			<Message v-if="ranIndex === index && ran" :severity="ran.ok ? 'success' : 'error'" size="small" variant="simple">{{ ran.message }}</Message>
+			<Message v-if="rowPlugin && cellError(index, rowPlugin.field)" severity="error" size="small" variant="simple">{{ cellError(index, rowPlugin.field) }}</Message>
+		</div>
+		</template>
+		<RowPluginDialog v-if="rowPlugin && editing !== null && baseUrl !== undefined" :pluginId="rowPlugin.id" :title="`Task for ${field.title} ${editing + 1}`" :content="(rows[editing]?.[rowPlugin.field] as FormValues | null | undefined) ?? null"
+			:baseUrl="baseUrl" @apply="applyPlugin" @close="editing = null" />
 		<Message v-if="rowErrors(undefined).length" severity="error" size="small" variant="simple">{{ rowErrors(undefined)[0]!.message }}</Message>
 		<div>
 			<Button icon="mi mi-add" size="small" severity="secondary" label="Add" :aria-label="`Add to ${field.title}`"
@@ -52,17 +66,20 @@
 	</div>
 </template>
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, watch } from "vue"
+import { computed, defineAsyncComponent, onBeforeUnmount, reactive, ref, watch } from "vue"
 import { useQueryCache } from "@pinia/colada"
 import { readResource } from "../api/resources"
 import { lookupAddress, withStored } from "./LookupQuery"
 import { Button, InputNumber, InputText, Message, Select, ToggleSwitch } from "primevue"
 import ColorField from "./ColorField.vue"
+import { apiPost, joinUrl } from "./ApiClient"
+// a dialog that is a whole form of its own, which holds list fields: loaded when it is first opened, so the two do not import each other
+const RowPluginDialog = defineAsyncComponent(() => import("./RowPluginDialog.vue"))
 import LeafletPicker from "./LeafletPicker.vue"
 import RowAction from "./RowAction.vue"
 import TestUrlButton from "./TestUrlButton.vue"
 import { isVisible } from "./FormVisibility"
-import type { ResolvedFieldDef } from "./FormDefs"
+import type { FormValues, ResolvedFieldDef } from "./FormDefs"
 
 type Row = Record<string, unknown>
 type Choice = { name: string, value: unknown }
@@ -85,6 +102,35 @@ const rows = computed<Row[]>(() => Array.isArray(props.modelValue) ? props.model
 // more fields than fit across: each row is a block of labelled fields instead of a line under one header
 // (a map needs room: a row with a location is a block too)
 const stacked = computed(() => itemFields.value.length > 4 || itemFields.value.some(f => f.type === "location"))
+
+// the settings a row carries for a plugin (`items.plugin`), set in a dialog of the plugin's own form
+const rowPlugin = computed(() => rowItems.value?.plugin)
+const carries = (row: Row) => rowPlugin.value !== undefined && row[rowPlugin.value.when.field] === rowPlugin.value.when.const
+const hasContent = (row: Row) => rowPlugin.value !== undefined && typeof row[rowPlugin.value.field] === "object" && row[rowPlugin.value.field] !== null
+const editing = ref<number | null>(null)
+function applyPlugin(values: FormValues) {
+	if (editing.value !== null && rowPlugin.value) change(editing.value, rowPlugin.value.field, values)
+	editing.value = null
+}
+const running = ref<number | null>(null)
+const ranIndex = ref<number | null>(null)
+const ran = ref<{ ok: boolean, message: string } | null>(null)
+/** Run the saved row now (`items.plugin.run`: the address of the list, then the row's key): what was saved runs, not what is typed. */
+async function runRow(index: number, row: Row) {
+	if (!rowPlugin.value?.run || !rowItems.value?.key || props.baseUrl === undefined) return
+	running.value = index
+	ranIndex.value = index
+	try {
+		await apiPost(joinUrl(props.baseUrl, `${rowPlugin.value.run}/${row[rowItems.value.key]}/run`), undefined)
+		ran.value = { ok: true, message: "Started." }
+	}
+	catch (ex: unknown) {
+		ran.value = { ok: false, message: (ex instanceof Error && ex.message) || "The task could not be started." }
+	}
+	finally {
+		running.value = null
+	}
+}
 
 const text = (row: Row, name: string): string => typeof row[name] === "string" ? row[name] : ""
 const numeric = (row: Row, name: string): number|null => typeof row[name] === "number" ? row[name] : null
@@ -185,6 +231,13 @@ function cellError(index: number, name: string): string|undefined {
 	display: flex;
 	gap: .25rem;
 	align-items: flex-start;
+}
+.array-plugin {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: .25rem;
+	margin: 0 0 .5rem .25rem;
 }
 .array-head {
 	font-weight: bold;
