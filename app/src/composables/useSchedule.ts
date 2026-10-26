@@ -13,7 +13,7 @@ import { rangeLabel, step, switchMode, taskRows, windowOf, type SchedulerMode, t
 import type { EventInfo } from "../components/AlCalendar.vue"
 import { browserZoneDifference, zonedParts } from "../components/CalendarTime"
 import type { Descriptor } from "../components/FormDefs"
-import type { PluginDef, TimerTasks } from "../components/ScheduleDefs"
+import { DEFAULT_TRIGGER, type PluginDef, type TimerTasks } from "../components/ScheduleDefs"
 import { useEditor } from "./useEditor"
 import type { TelemetryLink } from "../components/TelemetryLink"
 import { useQueryCache } from "@pinia/colada"
@@ -35,11 +35,7 @@ type FieldError = { path: unknown[], message: string }
 // a timer task acts on the priority or overlay layer: the plugins for the playlist (background, foreground) are not offered.
 // A stored task keeps its plugin (and shows it) even when it would not be offered now
 const TIMER_LAYERS = ["layer-priority", "layer-overlay"]
-export const DEFAULT_TRIGGER = {
-	on_startup: false,
-	day: { type: "dayofweek", days: [0, 1, 2, 3, 4, 5, 6] },
-	time: { type: "specific", hour: 9, minute: 0 }
-}
+export { DEFAULT_TRIGGER }
 
 /** A 422's problems, sorted: a plugin field's goes on that field (`onField`, the path the form knows); the rest (title, trigger, plugin) is listed. */
 export function splitTaskErrors(errors: ServerError[]) {
@@ -334,6 +330,18 @@ export function useSchedule(notify: Notify, options: { link?: TelemetryLink } = 
 			return false
 		}
 	}
+	/** Ask the device to run a stored task now (a task of the list); `notify` says whether it was asked. */
+	async function runNow(row: TaskRow): Promise<boolean> {
+		try {
+			await api.post("/api/schedule/timer/{doc_id}/items/{item_id}/run", { path: { doc_id: row.data.schedule, item_id: row.data.id } }, undefined)
+			notify("success", "Running", `${row.title} was started.`)
+			return true
+		}
+		catch(ex: any) {
+			notify("error", "Error", `Failed to run the task: ${ex.message || "Unknown error"}`)
+			return false
+		}
+	}
 	async function deleteTask(): Promise<DeleteOutcome> {
 		const target = editTarget.value
 		const rev = taskRev.value
@@ -366,6 +374,6 @@ export function useSchedule(notify: Notify, options: { link?: TelemetryLink } = 
 		isStale: editor.isStale, keepEditing: editor.keep,
 		zoneNote, rangeText, rows, selectedPlugin, timerPlugins, pluginOptions,
 		loadTimeline, start, setMode, move, goToday, checkDay,
-		openTask, showTask, closeTask, newTask, saveTask, overwriteTask, reloadTask, deleteTask,
+		openTask, showTask, closeTask, newTask, saveTask, overwriteTask, reloadTask, deleteTask, runNow,
 	}
 }

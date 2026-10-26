@@ -163,6 +163,11 @@ class ReloadSchedules(BasicMessage):
 	pass
 
 @dataclass(frozen=True, slots=True)
+class RunTask(BasicMessage):
+	"""Run a timer task now, by its id (a button, the web app's Run now): sent to the timer layer, which runs it whatever its trigger says."""
+	task_id: str
+
+@dataclass(frozen=True, slots=True)
 class TimerExpired[T](BasicMessage):
 	token: str
 	state: T

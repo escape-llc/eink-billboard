@@ -238,6 +238,17 @@ describe("saving", () => {
 		expect(notices).toEqual(["error: Failed to reload the task: gone"])
 	})
 
+	it("run now asks the device to run the listed task, and says how it went", async () => {
+		const { sc, notices } = await started()
+		mocked.post.mockResolvedValueOnce({ success: true })
+		expect(await sc.runNow(sc.rows.value.find(r => r.title === "Clock")!)).toBe(true)
+		expect(mocked.post.mock.calls[0]).toEqual(["/api/schedule/timer/{doc_id}/items/{item_id}/run", { path: { doc_id: "tasks-a", item_id: "t1" } }, undefined])
+		expect(notices).toEqual(["success: Clock was started."])
+		mocked.post.mockRejectedValueOnce(new ApiError(503, "not ready"))
+		expect(await sc.runNow(sc.rows.value[0]!)).toBe(false)
+		expect(notices[1]).toMatch(/^error: Failed to run the task/)
+	})
+
 	it("a delete names the revision; a stale one is a conflict", async () => {
 		const { sc } = await started()
 		opened(sc)

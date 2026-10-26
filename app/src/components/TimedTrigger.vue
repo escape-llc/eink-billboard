@@ -1,5 +1,15 @@
 <template>
 	<div style="display:flex;flex-direction:column;flex-grow:1;justify-content: flex-start;width:100%" class="m-0 p-0">
+		<InputGroup v-if="onDemandAllowed || onDemand" class="field-row">
+			<InputGroupAddon class="field-label">
+				<label class="field-title" :style="{ '--label-width': fieldNameWidth }" for="on-demand">Run On Demand</label>
+			</InputGroupAddon>
+			<InputGroupAddon style="flex-grow:1;justify-content:flex-start">
+				<Checkbox inputId="on-demand" :modelValue="onDemand" size="small" fluid binary :name="`${parentPropName}on_demand`" @update:modelValue="onDemandChange" />
+				<span class="tt-hint">No time of its own: a button or Run now starts it.</span>
+			</InputGroupAddon>
+		</InputGroup>
+		<template v-if="!onDemand">
 		<InputGroup class="field-row">
 			<InputGroupAddon class="field-label">
 				<label class="field-title" :style="{ '--label-width': fieldNameWidth }">Run On Startup</label>
@@ -85,12 +95,14 @@
 					size="small" fluid name="time_picker" timeOnly @update:modelValue="onDatePickerChange" />
 			</InputGroupAddon>
 		</InputGroup>
+		</template>
 	</div>
 </template>
 <script setup lang="ts">
 import { InputGroup, InputGroupAddon, Select, Checkbox, CheckboxGroup, DatePicker } from "primevue"
-import { isProxy, nextTick, provide, reactive, ref, toRaw, watch } from "vue";
-import { TriggerDefSchema } from "./ScheduleDefs";
+import { computed, isProxy, nextTick, provide, reactive, ref, toRaw, watch } from "vue";
+import { DEFAULT_TRIGGER, isOnDemand, TriggerDefSchema } from "./ScheduleDefs";
+
 
 // turns off all the form field context stuff since this component doesn't want it.
 // This allows it to be used inside forms without interfering with the form context.
@@ -104,6 +116,8 @@ export interface PropsType {
 //	formContext: any
 	fieldNameWidth?: string
 	parentPropName: string
+	/** whether the task's plugin may run on demand (the checkbox is offered; a task that already is on demand always shows it, to be turned off) */
+	onDemandAllowed?: boolean
 }
 export interface EmitsType {
 //	(e: 'form-field-event', data: SchemaChangeData): void
@@ -123,10 +137,16 @@ const pickerTime = ref({} as any)
 const pickerDay = ref({} as any)
 const minutesArray = ref([])
 const hoursInvalid = ref(false)
+const onDemand = computed(() => isOnDemand(props.modelValue))
 
 watch(() => props.modelValue, (newVal) => {
 	if(newVal) {
+		// the other kind of trigger has other keys: none of the last one's stays
+		for(const key of Object.keys(editModel)) {
+			if(!(key in newVal)) delete editModel[key]
+		}
 		Object.assign(editModel, newVal);
+		if(isOnDemand(newVal)) return
 		if(newVal.day?.type === 'dayandmonth' && newVal.time?.day !== undefined && newVal.time?.month !== undefined) {
 			// create a date object for the date picker with the hour and minute
 			const pickerx = new Date(2025, newVal.time.month - 1, newVal.time.day, 0, 0);
@@ -173,6 +193,12 @@ function toRawDeep(val: any): any {
   return rawValue;
 }
 
+/** On demand has no day or time; turning it off starts a timed trigger from the default. */
+function onDemandChange(on: boolean) {
+	const next = on ? { on_demand: true } : structuredClone(DEFAULT_TRIGGER)
+	emits('update:modelValue', next)
+	emits('change', { value: next })
+}
 const emitChange = () => {
 	const vx = structuredClone(toRawDeep(editModel))
 	emits('update:modelValue', vx)
@@ -219,6 +245,11 @@ const onDatePicker2Change = (event: any) => {
 /* the controls of a row fill it, and the headings over a group of check boxes sit at its left edge (the add-on centers its content otherwise) */
 .tt-controls {
 	align-items: stretch;
+}
+.tt-hint {
+	margin-left: .5rem;
+	color: var(--p-text-muted-color);
+	font-size: .85rem;
 }
 .tt-sub {
 	margin-top: .5rem;
