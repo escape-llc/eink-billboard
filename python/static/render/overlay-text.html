@@ -42,6 +42,8 @@
 		{% endif %}
 		/* a line drawing (a weather icon): strokes only, the outline under the line */
 		.overlay-icon {
+			/* fontconfig turns the antialiasing of text off; a shape's edge is not text, and would have partial alpha that the panel's quantizer dithers */
+			shape-rendering: crispEdges;
 			fill: none;
 			stroke: currentColor;
 			stroke-linecap: round;
