@@ -1477,6 +1477,10 @@ export interface components {
             cpu_max_mhz?: number | null;
             /** Cpu Mhz */
             cpu_mhz?: number | null;
+            /** Fan Percent */
+            fan_percent?: number | null;
+            /** Fan Rpm */
+            fan_rpm?: number | null;
             /** Model */
             model: string;
             /** Temperature C */

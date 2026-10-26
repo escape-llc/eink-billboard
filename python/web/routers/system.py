@@ -43,6 +43,8 @@ class Pi(Answer):
 	throttled_now: bool | None = None
 	cpu_mhz: int | None = None
 	cpu_max_mhz: int | None = None
+	fan_rpm: int | None = None
+	fan_percent: int | None = None
 
 class Area(Answer):
 	name: str

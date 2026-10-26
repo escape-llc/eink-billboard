@@ -1,5 +1,5 @@
 """
-What the machine says about itself, for the System page (#390): the operating system, uptime, processor and memory (the storage's disk is the configuration manager's: `storage_usage`), and, on a Raspberry Pi, its model, temperature, clock and power
+What the machine says about itself, for the System page (#390): the operating system, uptime, processor and memory (the storage's disk is the configuration manager's: `storage_usage`), and, on a Raspberry Pi, its model, temperature, clock, fan and power
 warnings. Every value is a number or one of our own words: no host name, address, user or path leaves the device. Each reading is optional (a container sees less than a Pi, Windows less than
 Linux): what cannot be read is left out, never an error.
 """
@@ -15,24 +15,69 @@ logger = logging.getLogger(__name__)
 
 # the Pi's own files (the kernel's: `/proc` and `/sys` are not the storage)
 PI_MODEL = "/proc/device-tree/model"
+# a container cannot read the device tree (Podman masks `/sys/firmware`, where `/proc/device-tree` points), but the kernel's `Model` line of the processor list is there too
+PI_CPUINFO = "/proc/cpuinfo"
 PI_TEMPERATURE = "/sys/class/thermal/thermal_zone0/temp"
 PI_THROTTLED = "/sys/devices/platform/soc/soc:firmware/get_throttled"
+# the kernel's sensors, each a folder `hwmonN` found by its `name` (the numbers are given in the order the drivers start): the Pi's fan is `pwmfan`
+HWMON = "/sys/class/hwmon"
+PI_FAN = "pwmfan"
 
 # `get_throttled` bits (the Pi firmware's): what is wrong now, and what has been wrong since the start
 THROTTLE_NOW = { 0: "Under-voltage now", 1: "Frequency capped now", 2: "Throttled now", 3: "Temperature limit now" }
 THROTTLE_EVER = { 16: "Under-voltage since start", 17: "Frequency capped since start", 18: "Throttled since start", 19: "Temperature limit since start" }
 
-def _read(path: str) -> str|None:
+def _read(path: str, limit: int = 256) -> str|None:
 	try:
 		with open(path, "rb") as f:
-			return f.read(256).decode("utf-8", "ignore").strip("\x00\n ")
+			return f.read(limit).decode("utf-8", "ignore").strip("\x00\n ")
 	except OSError:
 		return None
 
+def _entries(path: str) -> list[str]:
+	try:
+		return sorted(os.listdir(path))
+	except OSError:
+		return []
+
+def _cpuinfo_model() -> str|None:
+	"""The `Model` line of `/proc/cpuinfo`, which a Raspberry Pi's kernel writes at its end."""
+	for line in (_read(PI_CPUINFO, 64 * 1024) or "").splitlines():
+		key, _, value = line.partition(":")
+		if key.strip() == "Model":
+			return value.strip()
+	return None
+
 def pi_model() -> str|None:
 	"""The Pi's model name (`Raspberry Pi 5 Model B Rev 1.0`), or None when this is not a Raspberry Pi."""
-	model = _read(PI_MODEL)
+	model = _read(PI_MODEL) or _cpuinfo_model()
 	return model if model and model.startswith("Raspberry Pi") else None
+
+def hwmon(name: str) -> str|None:
+	"""The folder of the kernel's sensor called `name`, or None when there is none."""
+	for entry in _entries(HWMON):
+		folder = os.path.join(HWMON, entry)
+		if _read(os.path.join(folder, "name")) == name:
+			return folder
+	return None
+
+def _number(path: str) -> int|None:
+	value = _read(path)
+	return int(value) if value is not None and value.isdigit() else None
+
+def fan_info() -> dict[str, Any]:
+	"""The Pi's fan, when it has one: its speed, and how hard it is driven (`pwm1`, 0 to 255) as a share."""
+	folder = hwmon(PI_FAN)
+	if folder is None:
+		return {}
+	info: dict[str, Any] = {}
+	rpm = _number(os.path.join(folder, "fan1_input"))
+	if rpm is not None:
+		info["fan_rpm"] = rpm
+	pwm = _number(os.path.join(folder, "pwm1"))
+	if pwm is not None:
+		info["fan_percent"] = round(min(pwm, 255) / 255 * 100)
+	return info
 
 def throttle_flags(value: int) -> list[str]:
 	"""What a `get_throttled` value says, in words: the ones that are true now first, then what happened since the start."""
@@ -55,6 +100,7 @@ def pi_info() -> dict[str, Any]|None:
 			info["throttled_now"] = bool(value & 0xF)
 		except ValueError:
 			pass
+	info.update(fan_info())
 	try:
 		freq = psutil.cpu_freq()
 		if freq is not None:

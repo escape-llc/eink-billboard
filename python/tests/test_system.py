@@ -13,7 +13,7 @@ from .test_web_api import WebApiTestBase
 
 class TestPi(unittest.TestCase):
 	def fake(self, files: dict[str, str]):
-		return patch.object(system_info, "_read", lambda path: files.get(path))
+		return patch.object(system_info, "_read", lambda path, limit=256: files.get(path))
 
 	def test_a_machine_that_is_not_a_pi_has_no_pi_readings(self):
 		with self.fake({}):
@@ -38,6 +38,29 @@ class TestPi(unittest.TestCase):
 		self.assertNotIn("temperature_c", info)
 		with self.fake({ system_info.PI_MODEL: "Raspberry Pi 4", system_info.PI_THROTTLED: "zz" }):
 			self.assertNotIn("throttled", pi_info() or {})
+
+	def test_a_pi_in_a_container_is_found_by_its_processor_list(self):
+		# Podman masks `/sys/firmware`, so `/proc/device-tree/model` cannot be read in the container; the kernel's `Model` line is the same name
+		cpuinfo = "\n".join(["processor\t: 0", "BogoMIPS\t: 108.00", "", "Revision\t: d04170", "Model\t\t: Raspberry Pi 5 Model B Rev 1.0"])
+		with self.fake({ system_info.PI_CPUINFO: cpuinfo, system_info.PI_TEMPERATURE: "52350" }):
+			info = pi_info()
+		assert info is not None
+		self.assertEqual((info["model"], info["temperature_c"]), ("Raspberry Pi 5 Model B Rev 1.0", 52.4))
+		with self.fake({ system_info.PI_CPUINFO: "\n".join(["processor\t: 0", "Model\t\t: Some Other Board"]) }):
+			self.assertIsNone(pi_info())
+
+	def test_the_fan_is_found_by_its_sensor_name_not_its_number(self):
+		hwmon = lambda n, name: { os.path.join(system_info.HWMON, f"hwmon{n}", "name"): name }
+		files = { system_info.PI_MODEL: "Raspberry Pi 5 Model B Rev 1.0", **hwmon(0, "cpu_thermal"), **hwmon(1, "rp1_adc"), **hwmon(2, "pwmfan"),
+			os.path.join(system_info.HWMON, "hwmon2", "fan1_input"): "3120", os.path.join(system_info.HWMON, "hwmon2", "pwm1"): "102" }
+		with self.fake(files), patch.object(system_info, "_entries", lambda path: ["hwmon0", "hwmon1", "hwmon2"]):
+			info = pi_info()
+		assert info is not None
+		self.assertEqual((info["fan_rpm"], info["fan_percent"]), (3120, 40))
+		# a Pi without a fan (or a reading it cannot give) has none
+		del files[os.path.join(system_info.HWMON, "hwmon2", "name")]
+		with self.fake(files), patch.object(system_info, "_entries", lambda path: ["hwmon0", "hwmon1", "hwmon2"]):
+			self.assertNotIn("fan_rpm", pi_info() or {})
 
 	def test_the_power_bits_are_in_words(self):
 		self.assertEqual(throttle_flags(0), [])
@@ -70,18 +93,18 @@ class TestSystemRoute(WebApiTestBase):
 			self.assertNotIn(private, text)
 
 	def test_a_pi_appears_only_on_a_pi(self):
-		with patch.object(system_info, "_read", lambda path: "Raspberry Pi 5 Model B" if path == system_info.PI_MODEL else None):
+		with patch.object(system_info, "_read", lambda path, limit=256: "Raspberry Pi 5 Model B" if path == system_info.PI_MODEL else None):
 			self.assertEqual(self.client.get("/api/system").json()["pi"]["model"], "Raspberry Pi 5 Model B")
-		with patch.object(system_info, "_read", lambda path: None):
+		with patch.object(system_info, "_read", lambda path, limit=256: None):
 			self.assertIsNone(self.client.get("/api/system").json()["pi"])
 
 	def test_the_answer_model_passes_every_reading_and_leaves_out_what_is_missing(self):
 		# the route's response model (#590) names every field: a Pi's readings all reach the page, and one it cannot give is absent, not null
 		files = { system_info.PI_MODEL: "Raspberry Pi 5 Model B", system_info.PI_TEMPERATURE: "61250", system_info.PI_THROTTLED: "50005" }
-		with patch.object(system_info, "_read", lambda path: files.get(path)):
+		with patch.object(system_info, "_read", lambda path, limit=256: files.get(path)):
 			pi = self.client.get("/api/system").json()["pi"]
 			self.assertEqual(sorted(pi), sorted(pi_info() or {}))
-		with patch.object(system_info, "_read", lambda path: "Raspberry Pi 5 Model B" if path == system_info.PI_MODEL else None):
+		with patch.object(system_info, "_read", lambda path, limit=256: "Raspberry Pi 5 Model B" if path == system_info.PI_MODEL else None):
 			self.assertNotIn("temperature_c", self.client.get("/api/system").json()["pi"])
 
 	def test_the_storage_is_counted_by_plugin_and_data_source_with_what_they_keep(self):
