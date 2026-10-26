@@ -22,7 +22,6 @@ from ..model.inks import DEFAULT_INK_SET
 from ..plugins.plugin_base import PermanentError
 from ..utils.image_utils import to_rgb
 
-DEFAULT_SATURATION = 0.5
 # the border colours the settings offer (python/displays/inky/display-info.json); which of them a board has is the driver's to say
 BORDER_COLORS = ("white", "black", "red", "yellow", "green", "blue", "orange")
 # the longest a refresh may take (the 7-color Impression takes about 35 seconds); some models wait on the busy line for good (panel_guard.py)
@@ -117,10 +116,6 @@ class InkyDisplay(DisplayBase):
 			self.logger.warning(f"'{self.name}' this board's inks are not known: six colors are assumed.")
 		return found or DEFAULT_INK_SET
 
-	def saturation(self) -> float:
-		value = self.display_settings.get("saturation", DEFAULT_SATURATION)
-		return min(max(float(value), 0.0), 1.0) if isinstance(value, (int, float)) and not isinstance(value, bool) else DEFAULT_SATURATION
-
 	def border_color(self) -> str|None:
 		"""The border color the settings choose, or None when it is not set (or not one we know): the driver's own is then left as it is."""
 		value = self.display_settings.get("borderColor")
@@ -146,14 +141,14 @@ class InkyDisplay(DisplayBase):
 		if picture.size != self.resolution:
 			# the display task makes images of the panel's size; anything else is fitted rather than refused (the driver raises on a size that differs)
 			self.logger.warning(f"'{self.name}' the image is {picture.width}x{picture.height}, the panel {self.resolution[0]}x{self.resolution[1]}: resized")
-			picture = picture.resize(self.resolution, Image.Resampling.LANCZOS)
+			picture = picture.resize(self.resolution, Image.Resampling.NEAREST)
 		with self._lock:
-			# only the 7-colour boards take a saturation (their palette is blended with it); the others quantize to their own colors
+			# the picture is already on the inks (`to_inks`): a 7-colour board's palette with a saturation of 0 is exactly the drive colours, so its own dither adds no error; the other boards take pure colours as they are
 			device = self.device
 			def refresh() -> None:
 				self._set_border(device)
 				if "saturation" in inspect.signature(device.set_image).parameters:
-					device.set_image(picture, saturation=self.saturation())
+					device.set_image(picture, saturation=0.0)
 				else:
 					device.set_image(picture)
 				device.show()

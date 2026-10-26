@@ -13,15 +13,15 @@ test("the display type offers the installed devices and shows the chosen one's f
 	await expect(page.locator("input[name=width]")).toHaveValue("800")
 	await expect(page.locator("input[name=height]")).toHaveValue("480")
 	await expect(page.locator("input[name=outputFolder]")).toBeVisible()
-	await expect(page.getByText("Inky Palette Saturation")).toHaveCount(0)
-	// an Inky has a saturation of its own and none of the mock's fields
+	await expect(page.getByText("Border Color").first()).toHaveCount(0)
+	// an Inky has a border color of its own and none of the mock's fields
 	await choose(page, "Mock", "Inky")
-	await expect(page.getByText("Inky Palette Saturation")).toBeVisible()
+	await expect(page.getByText("Border Color").first()).toBeVisible()
 	await expect(page.locator("input[name=width]")).toHaveCount(0)
 	await expect(page.locator("input[name=outputFolder]")).toHaveCount(0)
 	// a Waveshare must be told its model
 	await choose(page, "Inky", "Waveshare")
 	await expect(page.getByText("Waveshare Model", { exact: true })).toBeVisible()
-	await expect(page.getByText("Inky Palette Saturation")).toHaveCount(0)
+	await expect(page.getByText("Border Color").first()).toHaveCount(0)
 	watch.expectNone()
 })

@@ -1,8 +1,11 @@
 from dataclasses import dataclass, replace
+import logging
 from typing import Mapping, Protocol, runtime_checkable
 from PIL import Image
 
 from ..task.display_messages import DisplayImage
+
+logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, eq=False)
 class ImageOverlay:
@@ -86,7 +89,9 @@ class StackRenderPackage(RenderPackage):
 		for layer in self._layers:
 			picture = layer.img.convert("RGBA")
 			if picture.size != size:
-				picture = picture.resize(size)
+				# pages are rendered at the panel's size, so this is not expected; a layer is made of exact inks and a smooth resize would smear their edges into colors the panel does not have, so the nearest pixel is taken
+				logger.warning(f"The layer '{layer.title}' is {picture.width}x{picture.height} and the picture {size[0]}x{size[1]}: it is resized, which a page should not need")
+				picture = picture.resize(size, Image.Resampling.NEAREST)
 			canvas.alpha_composite(picture)
 		mode = self._base.img.mode if self._base is not None and self._base.img.mode in ("RGB", "RGBA", "L") else "RGB"
 		return (canvas.convert(mode), self._layers[-1].title)

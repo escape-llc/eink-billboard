@@ -21,6 +21,7 @@ from ..task.timer import TimerThreadService
 from ..task.async_worker_pool import AsyncWorkerPool
 from .message_router import MessageRouter
 from ..utils.image_compositor import ImageCompositor, ImageOverlay
+from ..display.quantize import to_appearance, to_inks
 from ..utils.image_utils import apply_image_enhancement, change_orientation, resize_image
 
 class TimedLayerControl:
@@ -323,7 +324,9 @@ class Display(DispatcherTask):
 					shown_layers = compositor.layers()
 					the_image, the_title = package.render()
 					if rotate: the_image = the_image.rotate(180)
-					the_image = apply_image_enhancement(the_image, display_settings)
+					# the frame on the panel's inks: what is already a drive colour (text, overlays, flat pages) is kept, a photograph is dithered (the picture's brightness and contrast were set before it was composited)
+					ink_set = display.ink_set()
+					the_image = await asyncio.to_thread(to_inks, the_image, ink_set)
 					digest = hashlib.sha256(the_image.tobytes() + repr(the_image.size).encode()).digest()
 					if digest == shown:
 						self.logger.info(f"Compositor v:{package.version} '{the_title}' looks the same as what is shown, not drawing it again")
@@ -335,6 +338,8 @@ class Display(DispatcherTask):
 					self.logger.info(f"Compositor v:{package.version} '{the_title}' ({displayImageCount})")
 					# render() is synchronous and slow (an e-ink refresh takes seconds): keep it off the loop; awaiting it keeps it one at a time
 					await asyncio.to_thread(display.render, the_image, displayImageCount, the_title)
+					# the telemetry shows the panel as it looks, not in the exact colours the driver is given
+					the_image = to_appearance(the_image, ink_set)
 					shown = digest
 					# the end of the refresh and what the panel shows, for a restart
 					await asyncio.to_thread(self.refresh_state.save, display.gate.last_end_wall, digest.hex())
@@ -486,6 +491,9 @@ class Display(DispatcherTask):
 			# Resize and adjust orientation
 				image = change_orientation(msg.img, display_settings.get("orientation", "landscape"))
 				image = resize_image(image, self.resolution)
+				if msg.layer == "background":
+					# brightness, contrast, saturation and sharpness are a photograph's: they are set on the background picture, before anything is composited over it, so the overlays and pages keep their exact inks
+					image = apply_image_enhancement(image, display_settings)
 				di = msg if image == msg.img else ComputedImage(msg.timestamp, msg.title, image, msg, layer=msg.layer, origin=msg.origin)
 			else:
 				di = msg

@@ -53,7 +53,7 @@ class TestSeedingAndUpgrade(unittest.TestCase):
 		assert document is not None
 		self.assertEqual((document["display_type"], document["width"], document["height"], document["outputFolder"], document["cleanOutputFolder"]), ("mock", 800, 480, "eink-billboard-mock", False))
 		self.assertNotIn("model", document)
-		self.assertNotIn("saturation", document)
+		self.assertNotIn("borderColor", document)
 
 	def test_a_document_whose_choice_changed_gets_its_devices_keys_at_the_next_start(self):
 		cm = temp_configuration_manager(self)
@@ -66,14 +66,14 @@ class TestSeedingAndUpgrade(unittest.TestCase):
 		cm.evict_all()
 		_, upgraded = cm.settings_manager().open("display").get()
 		assert upgraded is not None
-		self.assertEqual(upgraded["saturation"], 0.5)
+		self.assertEqual(upgraded["borderColor"], "white")
 		# what the person set stays
 		rev, upgraded = cm.settings_manager().open("display").get()
 		assert upgraded is not None
-		cm.settings_manager().open("display").save(rev, { **upgraded, "saturation": 0.9 })
+		cm.settings_manager().open("display").save(rev, { **upgraded, "borderColor": "black" })
 		cm.upgrade_settings()
 		cm.evict_all()
-		self.assertEqual(cm.settings_manager().open("display").get()[1]["saturation"], 0.9)  # type: ignore[index]
+		self.assertEqual(cm.settings_manager().open("display").get()[1]["borderColor"], "black")  # type: ignore[index]
 
 class TestDisplaySettingsApi(WebApiTestBase):
 	def put(self, **changes: Any):
@@ -100,12 +100,12 @@ class TestDisplaySettingsApi(WebApiTestBase):
 				self.assertEqual([e["path"] for e in resp.json()["errors"]], [[field]])
 
 	def test_only_the_chosen_devices_fields_are_checked(self):
-		# the mock is chosen: a saturation that would be refused for an Inky is not looked at
-		self.assertEqual(self.put(saturation=7).status_code, 200)
-		resp = self.put(display_type="inky", saturation=7)
+		# the mock is chosen: a border color that would be refused for an Inky is not looked at
+		self.assertEqual(self.put(borderColor="plaid").status_code, 200)
+		resp = self.put(display_type="inky", borderColor="plaid")
 		self.assertEqual(resp.status_code, 422)
-		self.assertEqual([e["path"] for e in resp.json()["errors"]], [["saturation"]])
-		self.assertEqual(self.put(display_type="inky", saturation=0.7).status_code, 200)
+		self.assertEqual([e["path"] for e in resp.json()["errors"]], [["borderColor"]])
+		self.assertEqual(self.put(display_type="inky", borderColor="red").status_code, 200)
 
 	def test_a_display_that_is_not_installed_is_refused(self):
 		for bad in ("bogus", "MOCK", ""):

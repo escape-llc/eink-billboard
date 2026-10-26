@@ -339,9 +339,6 @@
 			"imageSettings-sharpness": {
 				"type": "number"
 			},
-			"saturation": {
-				"type": "number"
-			},
 			"borderColor": {
 				"type": "string"
 			},
@@ -357,7 +354,13 @@
 			"cleanOutputFolder": {
 				"type": "boolean"
 			},
+			"inks": {
+				"type": "string"
+			},
 			"model": {
+				"type": "string"
+			},
+			"secondInk": {
 				"type": "string"
 			}
 		}

@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 from PIL import Image
 
 from ..display import inky_display
-from ..display.inky_display import DEFAULT_SATURATION, InkyDisplay, load_driver
+from ..display.inky_display import InkyDisplay, load_driver
 from ..plugins.plugin_base import PermanentError
 from ..task.configure_event import ConfigureEvent, ConfigureNotify, ConfigureOptions
 from ..task.display import Display
@@ -65,17 +65,15 @@ class TestDriver(unittest.TestCase):
 		shown = display_with(board)
 		self.assertEqual(shown.resolution, (600, 448))
 		shown.render(Image.new("RGB", (600, 448), "red"), 1, "a page")
-		self.assertEqual(board.calls, [("set_image", (600, 448), DEFAULT_SATURATION), ("show",)])
+		self.assertEqual(board.calls, [("set_image", (600, 448), 0.0), ("show",)])
 
-	def test_the_saturation_is_a_setting_and_a_board_without_one_is_not_given_it(self):
+	def test_a_7_color_board_is_given_no_saturation_and_another_is_not_given_the_argument(self):
+		# the picture is on the inks already: a saturation of 0 keeps the board's palette the drive colors, so its dither adds nothing
 		board = FakeInky()
 		display_with(board, { "saturation": 0.8 }).render(Image.new("RGB", (800, 480)), 1)
-		self.assertEqual(board.calls[0], ("set_image", (800, 480), 0.8))
-		for bad in ("x", True, None):
-			self.assertEqual(display_with(FakeInky(), { "saturation": bad }).saturation(), DEFAULT_SATURATION)
-		self.assertEqual(display_with(FakeInky(), { "saturation": 7 }).saturation(), 1.0)
+		self.assertEqual(board.calls[0], ("set_image", (800, 480), 0.0))
 		phat = FakePhat()
-		display_with(phat, { "saturation": 0.8 }).render(Image.new("RGB", (250, 122)), 1)
+		display_with(phat).render(Image.new("RGB", (250, 122)), 1)
 		self.assertEqual(phat.calls, [("set_image", (250, 122)), ("show",)])
 
 	def test_the_border_color_is_the_number_of_the_boards_own_module(self):

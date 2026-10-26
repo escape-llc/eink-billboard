@@ -190,11 +190,11 @@
 					<p><b>Settings, Display</b>: the <b>Display Type</b> and the orientation; each type's own settings appear once it is chosen. Restart after changing the type.</p>
 					<dl>
 						<dt>Inky</dt>
-						<dd>A Pimoroni Inky says which board it is. <b>Inky Palette Saturation</b> (0.5 suits most pictures) is for a 7-color Impression. <b>Border Color</b> is the thin frame the picture does not cover; a color the board has no ink for leaves the board's own.</dd>
+						<dd>A Pimoroni Inky says which board it is. <b>Border Color</b> is the thin frame the picture does not cover; a color the board has no ink for leaves the board's own.</dd>
 						<dt>Waveshare</dt>
-						<dd>A Waveshare cannot say what it is: choose its <b>Waveshare Model</b>, as Waveshare names its driver (the label on the panel or its box; <code>epd7in3e</code> is the 7.3 inch 7-color one).</dd>
+						<dd>A Waveshare cannot say what it is: choose its <b>Waveshare Model</b>, as Waveshare names its driver (the label on the panel or its box; <code>epd7in3e</code> is the 7.3 inch 7-color one). A 3-color panel whose driver serves both a red and a yellow one (the models ending in <code>bc</code>, and <code>epd1in54c</code>) has a <b>Second Ink</b>.</dd>
 						<dt>Mock and Tk</dt>
-						<dd>No panel: the pages are saved as pictures in a folder (Mock) or shown in a window (Tk), at the width and height you give.</dd>
+						<dd>No panel: the pages are saved as pictures in a folder (Mock) or shown in a window (Tk), at the width and height you give, with the <b>Ink Set</b> of the panel they stand in for.</dd>
 					</dl>
 					<p><b>Rest After a Refresh</b> (60 seconds) is how long the panel rests after each refresh before it is sent another picture; what changes meanwhile is shown together at the next one. A panel that does not answer is not replaced by the mock display: the System page's Device card says why.</p>
 				</AccordionContent>
