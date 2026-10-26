@@ -18,6 +18,7 @@ from PIL import Image
 from .display_base import DisplayBase
 from .panel_guard import PanelGuard
 from ..model.configuration_manager import ConfigurationManager
+from ..model.inks import DEFAULT_INK_SET
 from ..plugins.plugin_base import PermanentError
 from ..utils.image_utils import to_rgb
 
@@ -56,6 +57,23 @@ def border_constant(device: Any, name: str) -> int|None:
 			return value
 	return None
 
+# the ink set of a board by the module of its class (the driver has one per chip): the 6-color Spectra panels, the 7-color ones (Impression, ac073tc1a) and the 4-color red and yellow ones; the older
+# boards (`inky.inky`, `ssd1608`, `ssd1683`: the pHAT and wHAT) have one class for black, red and yellow and say which in their `colour`
+_BY_MODULE = {
+	"inky_e673": "spectra6", "inky_e640": "spectra6", "inky_el133uf1": "spectra6",
+	"inky_uc8159": "acep7", "inky_ac073tc1a": "acep7",
+	"inky_jd79661": "bwry", "inky_jd79668": "bwry", "inky_ssd2683": "bwry",
+}
+_BY_COLOUR = { "black": "bw", "red": "bwr", "yellow": "bwy" }
+
+def ink_set_of(device: Any) -> str|None:
+	"""The ink set of the board the driver found, or None for one this code does not know (the display then guesses Spectra 6)."""
+	for cls in type(device).__mro__:
+		found = _BY_MODULE.get(cls.__module__.rsplit(".", 1)[-1])
+		if found is not None:
+			return found
+	return _BY_COLOUR.get(str(getattr(device, "colour", None)))
+
 class InkyDisplay(DisplayBase):
 	"""`loader` makes the driver's board (a test gives a fake one); by default it is `load_driver`."""
 	def __init__(self, name: str, loader: Callable[[], Any]|None = None, refresh_seconds: float = REFRESH_SECONDS, start_seconds: float = START_SECONDS):
@@ -92,6 +110,12 @@ class InkyDisplay(DisplayBase):
 			raise PermanentError("The Inky driver did not say how big the display is.") from e
 		self.logger.info(f"'{self.name}' found a {self.resolution[0]}x{self.resolution[1]} panel ({type(self.device).__name__})")
 		return self.resolution
+
+	def ink_set(self) -> str:
+		found = ink_set_of(self.device)
+		if found is None:
+			self.logger.warning(f"'{self.name}' this board's inks are not known: six colors are assumed.")
+		return found or DEFAULT_INK_SET
 
 	def saturation(self) -> float:
 		value = self.display_settings.get("saturation", DEFAULT_SATURATION)

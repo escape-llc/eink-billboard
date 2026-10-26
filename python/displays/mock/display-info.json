@@ -11,7 +11,18 @@
 	"features": ["display-device", "preview"],
 	"instanceSettings": {
 		"schema": {
-			"lookups": {},
+			"lookups": {
+				"inkSet": {
+					"items": [
+						{ "name": "Black and white", "value": "bw" },
+						{ "name": "Black, white and red", "value": "bwr" },
+						{ "name": "Black, white and yellow", "value": "bwy" },
+						{ "name": "Black, white, red and yellow", "value": "bwry" },
+						{ "name": "Six colors (Spectra 6)", "value": "spectra6" },
+						{ "name": "Seven colors (ACeP)", "value": "acep7" }
+					]
+				}
+			},
 			"properties": [
 				{
 					"name": "width",
@@ -48,6 +59,15 @@
 					"description": "Delete the pictures this display made earlier when it starts, so the folder holds only this run's (nothing else in the folder is touched).",
 					"required": false,
 					"default": false
+				},
+				{
+					"name": "inks",
+					"type": "string",
+					"title": "Ink Set",
+					"description": "The inks of the panel this display stands in for, so pages are drawn and shown as that panel would show them: black and white, with red, with yellow or with both, six colors (Spectra 6) or seven (ACeP).",
+					"lookup": "inkSet",
+					"required": false,
+					"default": "spectra6"
 				}
 			]
 		}

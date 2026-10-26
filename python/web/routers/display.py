@@ -9,11 +9,13 @@ import re
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
+from ...display.waveshare_display import ink_set_of
+from ...model.inks import APPEARANCE, DEFAULT_INK_SET, DRIVE, INK_SETS
 from ...model.theme import current_inputs
-from ...task.application import PushRefused
+from ...task.application import Application, PushRefused
 from ...utils.message_image import MAX_TEXT_CHARACTERS, MAX_TITLE_CHARACTERS, render_message_image
 from ...utils.upload_image import MAX_UPLOAD_BYTES, decode_upload
-from ..deps import CM
+from ..deps import CM, get_container
 from ..errors import ApiError
 from ..openapi import Answer, Done, answers
 from .transport import application_of
@@ -37,6 +39,30 @@ class Pushed(Answer):
 	id: str
 	title: str
 	startsInSeconds: int
+
+class InkColor(Answer):
+	"""One ink of the panel: its name, the exact color the app draws with and hands to the driver, and roughly the color the panel shows."""
+	name: str
+	drive: str
+	appearance: str
+
+class PanelInks(Answer):
+	"""The inks of the panel, in palette order. `confirmed` is false while the display has not started: the set is then a guess from the display settings."""
+	inkSet: str
+	inks: list[InkColor]
+	confirmed: bool
+
+def _hex(rgb: tuple[int, int, int]) -> str:
+	return "#%02x%02x%02x" % rgb
+
+def guessed_ink_set(settings: dict | None) -> str:
+	"""The ink set the display settings imply before the display has started: a Waveshare's model (and second ink), the mock's and the Tk window's `inks`; an Inky says it only when asked, so Spectra 6."""
+	settings = settings or {}
+	kind = settings.get("display_type")
+	if kind == "waveshare":
+		return ink_set_of(settings.get("model"), settings.get("secondInk")) or DEFAULT_INK_SET
+	value = settings.get("inks")
+	return value if kind in ("mock", "tk") and isinstance(value, str) and value in INK_SETS else DEFAULT_INK_SET
 
 def _clean(text: str) -> str:
 	return _CONTROL.sub("", text).strip()
@@ -99,3 +125,15 @@ def delete_message(message_id: str, request: Request):
 	if not application_of(request).revoke_pushed(message_id):
 		raise ApiError(404, "There is no such message.", "display-push")
 	return { "success": True }
+
+@router.get("/inks", **answers(PanelInks))
+def get_inks(request: Request, cm: CM):
+	"""The inks of the panel: the display's own answer once it has started, else a guess from the display settings (`confirmed: false`)."""
+	isp = get_container(request)
+	application = isp.get_service(Application) if isp is not None else None
+	name = application.display.ink_set if application is not None and application.display is not None else None
+	confirmed = name is not None
+	if name is None:
+		_, settings = cm.settings_manager().open("display").get()
+		name = guessed_ink_set(settings)
+	return { "inkSet": name, "inks": [{ "name": ink, "drive": _hex(DRIVE[ink]), "appearance": _hex(APPEARANCE[ink]) } for ink in INK_SETS[name]], "confirmed": confirmed }

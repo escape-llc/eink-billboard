@@ -4,7 +4,7 @@ import threading
 import tkinter as tk
 from typing import Any, Callable
 from PIL import Image, ImageTk
-from .display_base import DisplayBase, picture_size
+from .display_base import DisplayBase, chosen_ink_set, picture_size
 from ..model.configuration_manager import ConfigurationManager
 
 class TkinterWindow(DisplayBase):
@@ -88,6 +88,9 @@ class TkinterWindow(DisplayBase):
 				call()
 			except Exception as e:
 				self.logger.error(f"tk call failed: {str(e)}")
+
+	def ink_set(self) -> str:
+		return chosen_ink_set(self.display_settings)
 
 	def shutdown(self):
 		root, thread = self.root, self.tkthread

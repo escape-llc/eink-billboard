@@ -688,6 +688,24 @@ class TestPaletteRoute(WebApiTestBase):
 	def test_values_that_are_not_valid_read_as_the_defaults(self):
 		self.assertEqual(self.client.post("/api/theme/palette", json={ "hue": "x", "theme": "nope" }).json(), self.client.post("/api/theme/palette", json={}).json())
 
+class TestInksRoute(WebApiTestBase):
+	"""Before the display has started the panel's inks are a guess from the display settings, and say so."""
+	def test_guess_from_the_settings(self):
+		resp = self.client.get("/api/display/inks")
+		self.assertEqual(resp.status_code, 200, resp.text)
+		body = resp.json()
+		self.assertIs(body["confirmed"], False)
+		self.assertEqual(body["inkSet"], "spectra6")
+		self.assertEqual([i["name"] for i in body["inks"]], ["black", "white", "red", "yellow", "blue", "green"])
+		self.assertEqual(body["inks"][2]["drive"], "#ff0000")
+
+	def test_the_waveshare_models_and_the_mock_setting(self):
+		from ..web.routers.display import guessed_ink_set
+		self.assertEqual(guessed_ink_set({ "display_type": "waveshare", "model": "epd1in54c" }), "bwy")
+		self.assertEqual(guessed_ink_set({ "display_type": "waveshare", "model": "epd7in5_V2" }), "bw")
+		self.assertEqual(guessed_ink_set({ "display_type": "mock", "inks": "bwr" }), "bwr")
+		self.assertEqual(guessed_ink_set(None), "spectra6")
+
 class TestFontsRoute(WebApiTestBase):
 	"""The theme preview loads the shipped fonts; the file comes from our table, never from the URL."""
 	def test_a_shipped_font_is_served(self):

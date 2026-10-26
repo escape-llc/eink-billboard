@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, cast
 from pathvalidate import sanitize_filename
 from PIL import Image
-from .display_base import DisplayBase, picture_size
+from .display_base import DisplayBase, chosen_ink_set, picture_size
 from ..model.configuration_manager import ConfigurationManager
 from pathlib import Path
 
@@ -54,6 +54,9 @@ class MockDisplay(DisplayBase):
 		self.output_folder = resolve_output_folder(self.display_settings.get("outputFolder", "eink-billboard-mock"))
 		self.logger.info(f"mock output folder: {self.output_folder}")
 		return picture_size(self.display_settings)
+
+	def ink_set(self) -> str:
+		return chosen_ink_set(self.display_settings)
 
 	def shutdown(self):
 		pass

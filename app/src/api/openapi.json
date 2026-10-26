@@ -313,6 +313,31 @@
 				"title": "Host",
 				"type": "object"
 			},
+			"InkColor": {
+				"additionalProperties": false,
+				"description": "One ink of the panel: its name, the exact color the app draws with and hands to the driver, and roughly the color the panel shows.",
+				"properties": {
+					"appearance": {
+						"title": "Appearance",
+						"type": "string"
+					},
+					"drive": {
+						"title": "Drive",
+						"type": "string"
+					},
+					"name": {
+						"title": "Name",
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"drive",
+					"appearance"
+				],
+				"title": "InkColor",
+				"type": "object"
+			},
 			"InvalidTask": {
 				"additionalProperties": false,
 				"description": "A task whose trigger cannot be evaluated, and why in our words.",
@@ -555,6 +580,34 @@
 					"roles"
 				],
 				"title": "Palette",
+				"type": "object"
+			},
+			"PanelInks": {
+				"additionalProperties": false,
+				"description": "The inks of the panel, in palette order. `confirmed` is false while the display has not started: the set is then a guess from the display settings.",
+				"properties": {
+					"confirmed": {
+						"title": "Confirmed",
+						"type": "boolean"
+					},
+					"inkSet": {
+						"title": "Inkset",
+						"type": "string"
+					},
+					"inks": {
+						"items": {
+							"$ref": "#/components/schemas/InkColor"
+						},
+						"title": "Inks",
+						"type": "array"
+					}
+				},
+				"required": [
+					"inkSet",
+					"inks",
+					"confirmed"
+				],
+				"title": "PanelInks",
 				"type": "object"
 			},
 			"Period": {
@@ -3454,6 +3507,25 @@
 					}
 				},
 				"summary": "Image"
+			}
+		},
+		"/api/display/inks": {
+			"get": {
+				"description": "The inks of the panel: the display's own answer once it has started, else a guess from the display settings (`confirmed: false`).",
+				"operationId": "get_inks_api_display_inks_get",
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PanelInks"
+								}
+							}
+						},
+						"description": "Successful Response"
+					}
+				},
+				"summary": "Get Inks"
 			}
 		},
 		"/api/display/message": {

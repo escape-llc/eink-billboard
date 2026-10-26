@@ -45,6 +45,8 @@ class Display(DispatcherTask):
 		self.router = router
 		self.cm: ConfigurationManager | None = None
 		self.display: DisplayBase | None = None
+		# the ink set of the panel, once the display has started (None before, and after it quit)
+		self.ink_set: str|None = None
 		# when the panel was last refreshed and what it shows, kept across restarts so a restart does not refresh it again at once (see refresh_gate.py)
 		self.refresh_state = RefreshState(None)
 		self.timebase: TimeOfDay | None = None
@@ -125,6 +127,7 @@ class Display(DispatcherTask):
 			self.logger.error(f"shutdown.unhandled {str(e)}", exc_info=True)
 		finally:
 			self.display = None
+			self.ink_set = None
 			super().quitMsg(msg)
 	@handles(ConfigureEvent)
 	def _configure_event(self, msg: ConfigureEvent):
@@ -148,6 +151,7 @@ class Display(DispatcherTask):
 			ts = msg.content.isp.get_service(IProvideTimer)
 			self.timer = ts if ts is not None else TimerThreadService(self.timebase)
 			self.resolution = self.display.initialize(self.cm)
+			self.ink_set = self.display.ink_set()
 			self.refresh_state = RefreshState(self.cm)
 			self.refresh_state.load()
 			# a restart inside the rest after the last refresh waits out what is left of it

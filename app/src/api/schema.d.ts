@@ -662,6 +662,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/display/inks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Inks
+         * @description The inks of the panel: the display's own answer once it has started, else a guess from the display settings (`confirmed: false`).
+         */
+        get: operations["get_inks_api_display_inks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/display/message": {
         parameters: {
             query?: never;
@@ -1390,6 +1410,18 @@ export interface components {
             uptime_seconds?: number | null;
         };
         /**
+         * InkColor
+         * @description One ink of the panel: its name, the exact color the app draws with and hands to the driver, and roughly the color the panel shows.
+         */
+        InkColor: {
+            /** Appearance */
+            appearance: string;
+            /** Drive */
+            drive: string;
+            /** Name */
+            name: string;
+        };
+        /**
          * InvalidTask
          * @description A task whose trigger cannot be evaluated, and why in our words.
          */
@@ -1479,6 +1511,18 @@ export interface components {
         Palette: {
             /** Roles */
             roles: components["schemas"]["Role"][];
+        };
+        /**
+         * PanelInks
+         * @description The inks of the panel, in palette order. `confirmed` is false while the display has not started: the set is then a guess from the display settings.
+         */
+        PanelInks: {
+            /** Confirmed */
+            confirmed: boolean;
+            /** Inkset */
+            inkSet: string;
+            /** Inks */
+            inks: components["schemas"]["InkColor"][];
         };
         /**
          * Period
@@ -3080,6 +3124,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_inks_api_display_inks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PanelInks"];
                 };
             };
         };
