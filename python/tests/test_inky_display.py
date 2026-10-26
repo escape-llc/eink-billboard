@@ -217,6 +217,9 @@ class TestDisplayTask(unittest.TestCase):
 		self.assertEqual(status["display"]["state"], "failed")
 		self.assertIn("The Inky driver is not installed", status["display"]["message"])
 		self.assertEqual(status["playlist-layer"]["message"], "Waiting for the display.")
+		# the Application says it on the telemetry, in the same words
+		from ..task.application import Application
+		Application("t", hub)._configure_notify(note)
 		[event] = hub.since(0)
 		self.assertEqual(event["kind"], "configure-failed")
 		self.assertIn("The Inky driver is not installed", event["message"])

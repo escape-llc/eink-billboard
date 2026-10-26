@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, statusSummary, temperatureSeverity } from "./SystemFormat"
+import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, statusSummary, storageLine, temperatureSeverity, usageLine } from "./SystemFormat"
 
 describe("sizes", () => {
 	it("are in the largest unit that keeps them readable", () => {
@@ -71,5 +71,18 @@ describe("the fan", () => {
 		expect(fanText(0, 29)).toBe("29% power, no speed reported")
 		expect(fanText(3120, 40)).toBe("3120 rpm (40% power)")
 		expect(fanText(3120, undefined)).toBe("3120 rpm")
+	})
+})
+
+describe("the closed cards' lines", () => {
+	it("say an API data source's month in one line", () => {
+		expect(usageLine({ calls: 70, status: { "200": 68, "429": 2 }, hitRate: 0.75 })).toBe("70 calls this month, 2 failed, 75% from cache")
+		expect(usageLine({ calls: 1, status: { "200": 1 }, hitRate: null })).toBe("1 call this month")
+	})
+	it("add the storage up, with its share of the disk", () => {
+		const areas = [{ files: 100, bytes: 1024 * 1024 * 10 }, { files: 40, bytes: 1024 * 1024 * 2 }]
+		expect(storageLine(areas, { total: 1024 * 1024 * 1200 })).toBe("12 MB in 140 files, 1% of the disk")
+		expect(storageLine(areas, { total: 1024 ** 4 })).toBe("12 MB in 140 files, less than 0.1% of the disk")
+		expect(storageLine([{ files: 1, bytes: 10 }], null)).toBe("10 bytes in 1 file")
 	})
 })

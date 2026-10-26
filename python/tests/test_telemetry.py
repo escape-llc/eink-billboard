@@ -63,13 +63,24 @@ class TestEvents(unittest.TestCase):
 		self.assertEqual(safe_value({ "a": Secretive(), "b": [1, "x" * 1000], "c": { "d": { "e": { "f": { "g": { "h": 1 } } } } } }),
 			{ "a": "Secretive", "b": [1, "x" * 299 + "…"], "c": { "d": { "e": { "f": { "g": "dict" } } } } })
 
-	def test_a_configuration_that_failed_is_an_event_and_other_messages_are_not(self):
+	def test_a_configure_notice_is_the_status_and_the_application_says_each_step(self):
+		# the hub only keeps the outcome; the Application, which runs the start, sends the events (the header's status is asked again on them)
+		from ..task.application import Application
 		hub = TelemetryHub()
-		hub.accept(ConfigureNotify(NOW, "playlist-layer", True, "Traceback with a secret"))  # type: ignore[call-arg]
-		hub.accept(ConfigureNotify(NOW, "timer-layer", False, None))  # type: ignore[call-arg]
-		[event] = hub.since(0)
-		self.assertEqual((event["kind"], event["message"]), ("configure-failed", "'playlist-layer' could not be configured."))
-		self.assertNotIn("secret", str(event))
+		hub.accept(ConfigureNotify(NOW, "display", False, None))  # type: ignore[call-arg]
+		self.assertEqual((hub.since(0), hub.status()["components"]["display"]["state"]), ([], "ok"))
+		app = Application("t", hub)
+		app._configure_notify(ConfigureNotify(NOW, "playlist-layer", True, "Traceback with a secret"))  # type: ignore[call-arg]
+		[failed] = hub.since(0)
+		self.assertEqual((failed["source"], failed["kind"], failed["message"], failed["values"]),
+			("application", "configure-failed", "'playlist-layer' could not be configured.", { "component": "playlist-layer" }))
+		self.assertNotIn("secret", str(failed))
+		for token in ("display", "playlist-layer", "timer-layer", "device-io"):
+			app._configure_notify(ConfigureNotify(NOW, token, False, None))  # type: ignore[call-arg]
+		# a token that is not a part of the status says nothing; the last part up makes the device running
+		self.assertEqual([(e["kind"], e["message"]) for e in hub.since(failed["seq"])], [
+			("configured", "'display' is running."), ("configured", "'playlist-layer' is running."), ("configured", "'timer-layer' is running."),
+			("running", "The device is running.")])
 
 	def test_status_follows_each_configure_step_in_our_words(self):
 		hub = TelemetryHub()

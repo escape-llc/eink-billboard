@@ -79,3 +79,22 @@ export function deviceMoment(moment: string | null | undefined): string {
 	const found = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(moment ?? "")
 	return found ? `${found[1]} ${found[2]}` : ""
 }
+
+/** One line for an API data source's month, for the closed API usage card: `70 calls this month, 2 failed, 75% from cache`. */
+export function usageLine(month: { calls: number, status?: Record<string, number> | null, hitRate?: number | null }): string {
+	const parts = [`${month.calls} ${month.calls === 1 ? "call" : "calls"} this month`]
+	const failed = failedCalls(month.status)
+	if (failed) parts.push(`${failed} failed`)
+	if (typeof month.hitRate === "number" && Number.isFinite(month.hitRate)) parts.push(`${formatShare(month.hitRate)} from cache`)
+	return parts.join(", ")
+}
+
+/** What the storage holds in all: its areas added up, and its share of the disk it is on when that is known (`12 MB in 140 files, 0.1% of the disk`). */
+export function storageLine(areas: { files: number, bytes: number }[], volume?: { total: number } | null): string {
+	const files = areas.reduce((sum, a) => sum + a.files, 0)
+	const bytes = areas.reduce((sum, a) => sum + a.bytes, 0)
+	const text = `${formatBytes(bytes)} in ${files} ${files === 1 ? "file" : "files"}`
+	if (!volume?.total) return text
+	const share = bytes / volume.total * 100
+	return `${text}, ${share > 0 && share < 0.1 ? "less than 0.1" : share.toFixed(1).replace(/\.0$/, "")}% of the disk`
+}

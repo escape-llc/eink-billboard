@@ -5,12 +5,13 @@ import uuid
 from concurrent.futures import Future, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Callable
+from typing import Any, Callable
 
 from .messages import ConfigurationChanged, ConfigurationWatcherEvent, InputEvent, PushedImage, RestoreBegin, RestoreEnd, RestoreSettled, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, Telemetry, TransportCommand
 from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
 from .coalescer import Coalescer
 from .protocols import MessageSink, IProvideTimer
+from .telemetry_hub import COMPONENTS, ours
 from .device_io import DeviceIO
 from .display import Display
 from PIL import Image
@@ -90,6 +91,8 @@ class Application(DispatcherTask):
 		self.setup_notice: Callable[[], list[str]|None]|None = None
 		# an unclaimed device does not play: the layers' configuration waits here until the device is claimed (None: nothing is held)
 		self._held: tuple[ConfigureEvent, ConfigureEvent]|None = None
+		# the parts that said they are configured (COMPONENTS): all of them is "running"
+		self._up: set[str] = set()
 		self._panel: tuple[int, int]|None = None
 		# a restore of a backup: `idle`, `restoring` (files are being written) or `draining` (written; waiting for the watcher's events to pass). Only this thread changes it.
 		self._restore_state = "idle"
@@ -176,6 +179,7 @@ class Application(DispatcherTask):
 			# the tracks do not go into play mode until the owner has claimed the device: the panel holds the setup page, and the layers start when it is claimed
 			self._held = (configs, configt)
 			self.logger.info(f"'{self.name}' the device is not claimed: the layers wait for it.")
+			self._startup(msg.timestamp, "waiting-for-setup", "The device is not set up yet: the playlist and the timer tasks start once it is claimed.")
 			self._show_setup_notice(msg.width, msg.height, msg.timestamp)
 			return
 		self._start_layers(configs, configt)
@@ -250,6 +254,7 @@ class Application(DispatcherTask):
 		held, self._held = self._held, None
 		if held is not None:
 			self.logger.info(f"'{self.name}' the device was claimed: the layers start.")
+			self._startup(msg.timestamp, "set-up", "The device was set up: the playlist and the timer tasks start.")
 			self._start_layers(*held)
 	def transport(self, command: str) -> bool:
 		"""A viewer's play, stop or next (called from the web app's thread, later from a button): the application's own thread forwards it. False: it is not a command, or the application has stopped."""
@@ -437,14 +442,27 @@ class Application(DispatcherTask):
 			return
 		self.router.send("display", PriorityRevoke(msg.timestamp, SETUP_TITLE))
 		self._show_setup_notice(self._panel[0], self._panel[1], msg.timestamp)
+	def _startup(self, timestamp: datetime, kind: str, message: str, **values: Any) -> None:
+		"""Say a step of the start on the telemetry (to the hub, as the configure notices go: the router may not be there yet)."""
+		if self.sink is not None:
+			self.sink.accept(Telemetry(timestamp, "application", { "kind": kind, "message": message, **values }))
 	@handles(ConfigureNotify)
 	def _configure_notify(self, msg: ConfigureNotify):
 		# STEP 4 playback started if layer configured successfully
 		self.logger.info(f"'{self.name}' ConfigureNotify {msg.token} {msg.error} {msg.content}.")
-		# the hub keeps every outcome for GET /api/status; only a failure becomes an event
+		# the hub keeps every outcome for GET /api/status, and the start says each one (the header's status is asked again on them, #520)
 		# not `if self.sink`: a hub with no events yet is falsy (it has a length)
 		if self.sink is not None:
 			self.sink.accept(msg)
+		if msg.token in COMPONENTS:
+			if msg.error:
+				self._up.discard(msg.token)
+				self._startup(msg.timestamp, "configure-failed", f"'{msg.token}' could not be configured{ours(msg.content)}.", component=msg.token)
+			else:
+				self._up.add(msg.token)
+				self._startup(msg.timestamp, "configured", f"'{msg.token}' is running.", component=msg.token)
+				if self._up == set(COMPONENTS):
+					self._startup(msg.timestamp, "running", "The device is running.")
 
 		if msg.token == "playlist-layer":
 			if not msg.error:

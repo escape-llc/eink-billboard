@@ -8,6 +8,7 @@ import { api } from "../api/client"
 import type { components } from "../api/schema"
 import { LAYERS, isProblem, layerOf, layersOf, useTelemetry, type TelemetryEvent, type TelemetryLink } from "../components/TelemetryLink"
 import { useTransport, type Transport, type TransportCommand } from "../components/Transport"
+import { LINK_WORDS, deviceStateOf } from "./useDeviceStatus"
 
 type Schemas = components["schemas"]
 type Status = Schemas["Status"]
@@ -80,10 +81,11 @@ export function useSystem(notify: Notify, options: SystemOptions = {}) {
 
 	// the build this page's code is from, and the server's: they differ when the page was opened before an update (the server's is 'unknown' outside the container)
 	const mismatch = computed(() => !!info.value && info.value.host.commit !== "unknown" && webCommit !== "dev" && info.value.host.commit !== webCommit)
-	const deviceFailed = computed(() => Object.values(status.value?.components ?? {}).some(c => c.state === "failed"))
-	const deviceState = computed(() => deviceFailed.value ? "failed" : status.value?.ok ? "ok" : "starting")
-	const deviceSeverity = computed(() => deviceFailed.value ? "danger" : status.value?.ok ? "success" : "secondary")
-	const deviceLabel = computed(() => deviceFailed.value ? "A part did not start" : status.value?.ok ? "Running" : "Starting")
+	// the same words as the header's indicator (useDeviceStatus), the long ones
+	const device = computed(() => deviceStateOf(status.value))
+	const deviceState = computed(() => device.value.state)
+	const deviceSeverity = computed(() => device.value.severity)
+	const deviceLabel = computed(() => device.value.label)
 	const owners = computed(() => info.value ? [
 		{ title: "Data sources", items: info.value.storage.datasources },
 		{ title: "Plugins", items: info.value.storage.plugins },
@@ -102,8 +104,8 @@ export function useSystem(notify: Notify, options: SystemOptions = {}) {
 		(source.value === "all" || e.source === source.value) && (!problemsOnly.value || isProblem(e))))
 	// the latest few things that went wrong, at the top where they are seen
 	const problems = computed(() => link.state.events.filter(isProblem).slice(0, 5))
-	const statusText = computed(() => ({ live: "Live", connecting: "Connecting", offline: "Offline", "signed-out": "Sign in" })[link.state.status])
-	const statusSeverity = computed(() => ({ live: "success", connecting: "info", offline: "warn", "signed-out": "danger" })[link.state.status])
+	const statusText = computed(() => LINK_WORDS[link.state.status].label)
+	const statusSeverity = computed(() => LINK_WORDS[link.state.status].severity)
 
 	// the transport's state when the link comes up (and again when it comes back), then the layer's own events keep it right
 	watch(() => link.state.status, state => { if(state === "live") void transport.load() }, { immediate: true })
