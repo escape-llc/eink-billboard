@@ -131,12 +131,19 @@ function opened(sc: ReturnType<typeof useSchedule>, index = 0) {
 	return staged
 }
 
+/** A stored task opened and changed: a save needs a change (nothing changed has nothing to send). */
+function edited(sc: ReturnType<typeof useSchedule>) {
+	const staged = opened(sc)
+	sc.values({ ...staged, title: "Edited" }, true)
+	return staged
+}
+
 describe("saving", () => {
 	const body = { title: "Clock", enabled: true, trigger: DEFAULT_TRIGGER, task: { plugin_name: "priority-update", content: { slideMinutes: 6 } } }
 
 	it("a stored task is put at its revision", async () => {
 		const { sc, notices } = await started()
-		opened(sc)
+		edited(sc)
 		mocked.put.mockResolvedValue({})
 		expect(await sc.saveTask(body, showNone)).toBe(true)
 		expect(mocked.put.mock.calls[0]).toEqual(["/api/schedule/timer/{doc_id}/items/{item_id}", { path: { doc_id: "tasks-a", item_id: "t1" } }, { ...body, _rev: "r1" }])
@@ -157,7 +164,7 @@ describe("saving", () => {
 
 	it("a stale revision is a conflict; Overwrite sends the same task at the server's revision", async () => {
 		const { sc } = await started()
-		opened(sc)
+		edited(sc)
 		mocked.put.mockRejectedValueOnce(new ApiError(409, "Revision mismatch", { rev: "r9" }))
 		expect(await sc.saveTask(body, showNone)).toBe(false)
 		expect(sc.conflict.value).toEqual({ message: "Revision mismatch", rev: "r9" })
@@ -170,9 +177,10 @@ describe("saving", () => {
 	it("a stored task is unsaved only while it differs from what the form first showed", async () => {
 		const { sc } = await started()
 		const staged = opened(sc)
-		expect([sc.hasUnsaved.value, sc.canSave.value]).toEqual([false, true])
+		// nothing changed: nothing to save
+		expect([sc.hasUnsaved.value, sc.canSave.value]).toEqual([false, false])
 		sc.values({ ...staged, title: "Other" }, true)
-		expect(sc.hasUnsaved.value).toBe(true)
+		expect([sc.hasUnsaved.value, sc.canSave.value]).toEqual([true, true])
 		sc.values({ ...staged, title: "Other" }, false)
 		expect(sc.canSave.value).toBe(false)
 		sc.values(staged, true)
@@ -183,7 +191,7 @@ describe("saving", () => {
 
 	it("a conflict the server gave no revision for is not overwritten", async () => {
 		const { sc } = await started()
-		opened(sc)
+		edited(sc)
 		mocked.put.mockRejectedValueOnce(new ApiError(409, "Revision mismatch"))
 		expect(await sc.saveTask(body, showNone)).toBe(false)
 		expect(sc.conflict.value).toEqual({ message: "Revision mismatch", rev: undefined })
@@ -203,7 +211,7 @@ describe("saving", () => {
 
 	it("a 422 shows a plugin field's problem on the field and lists the rest", async () => {
 		const { sc } = await started()
-		opened(sc)
+		edited(sc)
 		mocked.put.mockRejectedValue(new ApiError(422, "Invalid", { errors: [
 			{ path: ["task", "content", "slideMinutes"], message: "Minimum 1" },
 			{ path: ["trigger"], message: "Expected a trigger" },
