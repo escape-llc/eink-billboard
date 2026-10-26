@@ -118,7 +118,7 @@ class TestDriver(unittest.TestCase):
 		kind, black, red = panel.calls[1]
 		self.assertEqual((panel.calls[0][0], kind, panel.calls[2][0]), ("Init", "display", "sleep"))
 		self.assertEqual((black[0], red[0]), ("buffer", "buffer"))
-		layers = split_for_bi_color(image)
+		layers = split_for_bi_color(image, "bwr")
 		self.assertEqual([layer.getpixel(point) for layer, point in ((layers[0], (300, 200)), (layers[0], (50, 50)), (layers[1], (50, 50)), (layers[1], (300, 200)))], [0, 1, 0, 1])
 
 	def test_an_image_of_another_size_is_fitted_not_refused(self):

@@ -22,6 +22,7 @@ from PIL import Image
 from .display_base import DisplayBase
 from .panel_guard import PanelGuard
 from ..model.configuration_manager import ConfigurationManager
+from ..model.inks import ink_set_rgb
 from ..plugins.plugin_base import PermanentError
 from ..utils.image_utils import to_rgb
 
@@ -78,11 +79,11 @@ def load_model(model: Any) -> Any:
 		raise PermanentError(f"The Waveshare driver for {chosen} could not start here: it is made for a Raspberry Pi and found none. "
 			"On another machine choose the mock or tk display in the Display settings. The log has the detail.") from e
 
-def split_for_bi_color(image: Image.Image) -> tuple[Image.Image, Image.Image]:
-	"""A black-white-red panel takes two 1-bit layers: the black ink and the red ink, each 0 where the ink goes."""
+def split_for_bi_color(image: Image.Image, ink_set: str = "bwr") -> tuple[Image.Image, Image.Image]:
+	"""A three-color panel (`bwr` or `bwy`) takes two 1-bit layers: the black ink and the second ink, each 0 where the ink goes. The picture is already on the inks (`to_inks`): each pixel is its ink's drive color, so nothing is dithered here."""
 	palette = Image.new("P", (1, 1))
-	palette.putpalette([0, 0, 0, 255, 255, 255, 255, 0, 0])
-	indexed = image.quantize(palette=palette, dither=Image.Dither.FLOYDSTEINBERG)
+	palette.putpalette([channel for color in ink_set_rgb(ink_set) for channel in color])
+	indexed = image.convert("RGB").quantize(palette=palette, dither=Image.Dither.NONE)
 	black = indexed.point(lambda p: 0 if p == 0 else 1, mode="1")
 	red = indexed.point(lambda p: 0 if p == 2 else 1, mode="1")
 	return black, red
@@ -137,7 +138,7 @@ class WaveshareDisplay(DisplayBase):
 			raise RuntimeError("The Waveshare driver has no `display`.")
 		# the buffers it takes (a bound method: `self` is not counted; a wrapper that says what it wraps counts as what it wraps)
 		if len(inspect.signature(display).parameters) == 2:
-			black, red = split_for_bi_color(picture)
+			black, red = split_for_bi_color(picture, self._ink_set)
 			return display, [self.epd.getbuffer(black), self.epd.getbuffer(red)]
 		return display, [self.epd.getbuffer(picture)]
 
@@ -148,7 +149,7 @@ class WaveshareDisplay(DisplayBase):
 		picture = to_rgb(img).convert("RGB")
 		if picture.size != self.resolution:
 			self.logger.warning(f"'{self.name}' the image is {picture.width}x{picture.height}, the panel {self.resolution[0]}x{self.resolution[1]}: resized")
-			picture = picture.resize(self.resolution, Image.Resampling.LANCZOS)
+			picture = picture.resize(self.resolution, Image.Resampling.NEAREST)
 		with self._lock:
 			display, buffers = self._buffers(picture)
 			def refresh() -> None:

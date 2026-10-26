@@ -26,19 +26,6 @@
 			},
 			"properties": [
 				{
-					"name": "saturation",
-					"type": "number",
-					"title": "Inky Palette Saturation",
-					"description": "How saturated the colors of a 7-color Inky Impression are drawn: its palette is blended with this much of the pure colors. 0.5 suits most panels. Other Inky boards ignore it.",
-					"minimum": 0,
-					"maximum": 1,
-					"step": 0.05,
-					"minFractionDigits": 0,
-					"maxFractionDigits": 2,
-					"required": false,
-					"default": 0.5
-				},
-				{
 					"name": "borderColor",
 					"type": "string",
 					"title": "Border Color",
