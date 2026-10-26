@@ -78,6 +78,7 @@ export const editorMachine = setup({
 	},
 	guards: {
 		valid: ({ context }) => context.valid,
+		unstored: ({ context }) => context.valid && context.rev === undefined,
 		changed: ({ context, event }) => event.type === "VALUES" && event.key !== context.baseline,
 		unchanged: ({ context, event }) => event.type === "VALUES" && event.key === context.baseline && !context.sticky,
 		knowsTheirs: ({ context }) => context.theirs !== undefined,
@@ -132,8 +133,8 @@ export const editorMachine = setup({
 			on: {
 				VALUES: [{ guard: "changed", target: "dirty", actions: "values" }, { actions: "values" }],
 				EDIT: { target: "dirty", actions: "edit" },
-				// saving what was loaded is allowed: a document that is not stored yet is created from its defaults
-				SAVE: { guard: "valid", target: "saving", actions: "startSave" },
+				// nothing changed: only a document that is not stored yet (no revision) is saved as it is, created from its defaults; a stored one has nothing to send
+				SAVE: { guard: "unstored", target: "saving", actions: "startSave" },
 				LOAD: "loading",
 				REVISED: { actions: "revised" },
 				// nothing would be lost: show theirs (unless the editor holds work of its own)

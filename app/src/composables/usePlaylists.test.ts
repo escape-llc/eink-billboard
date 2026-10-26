@@ -173,6 +173,7 @@ describe("saving", () => {
 
 	it("a stale revision is a conflict that carries the server's", async () => {
 		const { pl } = await started()
+		pl.removeTrack(0)
 		mocked.put.mockRejectedValue(new ApiError(409, "Revision mismatch", { rev: "r9" }))
 		await pl.savePlaylist(() => 0)
 		expect(pl.conflict.value).toEqual({ message: "Revision mismatch", rev: "r9" })
@@ -215,6 +216,7 @@ describe("saving", () => {
 	it("a 422 shows on the selected track's fields, and lists the rest with their track", async () => {
 		const { pl } = await started()
 		pl.selectTrack(0)
+		pl.applyEdit({ slideMinutes: 0 })
 		mocked.put.mockRejectedValue(new ApiError(422, "Invalid", { errors: [
 			{ path: ["items", "0", "content", "slideMinutes"], message: "Minimum 1" },
 			{ path: ["items", "2", "content", "folder"], message: "Required" },
@@ -228,6 +230,7 @@ describe("saving", () => {
 	it("a field the form could not show is listed instead of lost", async () => {
 		const { pl } = await started()
 		pl.selectTrack(0)
+		pl.applyEdit({ slideMinutes: 0 })
 		mocked.put.mockRejectedValue(new ApiError(422, "Invalid", { errors: [{ path: ["items", "0", "content", "gone"], message: "Required" }] }))
 		await pl.savePlaylist(() => 0)
 		expect(pl.serverProblems.value).toEqual(["Invalid"])

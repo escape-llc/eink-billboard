@@ -234,7 +234,7 @@ test("an edit that is put back is not unsaved: leaving does not ask", async ({ p
 	watch.expectNone()
 })
 
-test("a settings form that only opened is not unsaved, whatever it filled in itself", async ({ page }) => {
+test("a settings form that only opened is not unsaved, whatever it filled in itself, and has nothing to save", async ({ page }) => {
 	const watch = watchProblems(page)
 	// each tab's form, and an item's settings on the item tabs (the calendar's rows hold secrets and choices; a form fills defaults and masks as it opens)
 	const forms: [string, string | null][] = [["System", null], ["Display", null], ["Theme", null], ["Master Prompts", null], ["Devices", null],
@@ -248,6 +248,8 @@ test("a settings form that only opened is not unsaved, whatever it filled in its
 		}
 		await expect(saveButton(page)).toBeVisible()
 		await page.waitForLoadState("networkidle")
+		// nothing changed: the save starts disabled (it would send the stored document back as it is)
+		await expect(saveButton(page), `${tab} ${item ?? ""}`).toBeDisabled()
 		await page.evaluate(() => { location.hash = "#/schedule" })
 		await expect(page, `${tab} ${item ?? ""}`).toHaveURL(/#\/schedule/)
 	}

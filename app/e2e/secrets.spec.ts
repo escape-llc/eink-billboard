@@ -43,8 +43,11 @@ test("saving the untouched mask keeps the stored key", async ({ page }) => {
 	const watch = watchProblems(page)
 	const input = await openKeyForm(page)
 	await expect(input).toHaveValue(MASK)
-	// retyping the same value is what makes the form valid and enables the save button
-	await input.fill(MASK)
+	// the mask alone is no change, so nothing is saved: another field changes and the mask goes back with it
+	await expect(saveButton(page)).toBeDisabled()
+	const days = page.getByRole("tabpanel").getByRole("spinbutton").last()
+	await days.fill("31")
+	await days.blur()
 	await saveButton(page).click()
 	await expect(page.getByText("Settings saved successfully")).toBeVisible()
 	expect(stored()).toBe(KEY)

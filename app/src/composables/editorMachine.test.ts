@@ -5,9 +5,10 @@ import { BUSY, UNSAVED, editorMachine, valuesKey, type EditorEvent } from "./edi
 
 type Snap = SnapshotFrom<typeof editorMachine>
 
-// the events the paths are made of: two sets of values (A is what loads, B an edit), one of them invalid, and both answers a conflict can have
+// the events the paths are made of: a stored document and one not stored yet, two sets of values (A is what loads, B an edit), one of them invalid,
+// and both answers a conflict can have
 const EVENTS: EditorEvent[] = [
-	{ type: "LOAD" }, { type: "LOADED", rev: "r1" }, { type: "LOAD_FAILED" },
+	{ type: "LOAD" }, { type: "LOADED", rev: "r1" }, { type: "LOADED" }, { type: "LOAD_FAILED" },
 	{ type: "VALUES", key: "A", valid: true }, { type: "VALUES", key: "B", valid: true }, { type: "VALUES", key: "B", valid: false },
 	{ type: "EDIT" }, { type: "SAVE" }, { type: "SAVED", rev: "r2" },
 	{ type: "CONFLICT", rev: "r9" }, { type: "CONFLICT" }, { type: "SAVE_FAILED" },
@@ -110,6 +111,15 @@ describe("editorMachine", () => {
 	it("does not save invalid values", () => {
 		const snap = replay([{ type: "LOADED", rev: "r1" }, { type: "VALUES", key: "A", valid: true }, { type: "VALUES", key: "B", valid: false }])
 		expect(snap.can({ type: "SAVE" })).toBe(false)
+	})
+	it("does not save a stored document that nothing changed", () => {
+		expect(replay([{ type: "LOADED", rev: "r1" }, { type: "VALUES", key: "A", valid: true }]).can({ type: "SAVE" })).toBe(false)
+		// an edit put back is nothing changed too
+		expect(replay([{ type: "LOADED", rev: "r1" }, { type: "VALUES", key: "A", valid: true }, { type: "VALUES", key: "B", valid: true },
+			{ type: "VALUES", key: "A", valid: true }]).can({ type: "SAVE" })).toBe(false)
+		// and after a save, until the next change
+		expect(replay([{ type: "LOADED", rev: "r1" }, { type: "VALUES", key: "A", valid: true }, { type: "VALUES", key: "B", valid: true },
+			{ type: "SAVE" }, { type: "SAVED", rev: "r2" }]).can({ type: "SAVE" })).toBe(false)
 	})
 	it("lets a document that is not stored be saved as loaded (created from its defaults)", () => {
 		const snap = replay([{ type: "LOADED" }, { type: "VALUES", key: "A", valid: true }])
