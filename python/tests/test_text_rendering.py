@@ -3,9 +3,13 @@ import shutil
 import sys
 import unittest
 
+from ..datasources.overlay_text import OverlayIcon, render_overlay
+from ..model.configuration_manager import StaticConfigurationManager
+from ..model.theme import DEFAULT_INPUTS
 from ..utils.error_image import plain_error_image
 from ..utils.image_utils import chrome_command, render_html_arglist
 from ..utils.message_image import plain_message_image
+from .test_datasource_fixes import STATIC
 
 CHROME = chrome_command()
 HAVE_CHROME = shutil.which(CHROME) is not None
@@ -36,6 +40,19 @@ class TestTextIsSolid(unittest.TestCase):
 		self.assertEqual(colors - { (255, 255, 255), (0, 0, 0), (255, 0, 0), (0, 0, 255) }, set(), "text has fringe pixels that are not a solid ink")
 		# the text really is there, in each colour
 		self.assertTrue({ (0, 0, 0), (255, 0, 0), (0, 0, 255) } <= colors)
+
+@unittest.skipUnless(HAVE_CHROME and sys.platform != "win32", f"needs {CHROME} on PATH, on Linux (see AGENTS.md, Test environment)")
+class TestOverlayIsBinary(unittest.TestCase):
+	"""An overlay (text, its outline and a line icon on a transparent page) is composited onto a picture: a pixel is either there or not, so the quantizer never has a blend to dither."""
+	def test_every_pixel_is_transparent_or_opaque_and_the_opaque_ones_are_few_flat_colors(self):
+		icon = OverlayIcon('<circle cx="32" cy="32" r="18"/><path d="M8 54 L56 54"/><path d="M20 20 L44 44"/>', 4)
+		image = render_overlay(StaticConfigurationManager(STATIC), DEFAULT_INPUTS, (400, 120), [[("Sunny ", "text-primary"), ("21", "text-secondary-1")], [("Wind 5 m/s", "text-secondary-2")]], 1.0, icon=icon)
+		pixels = image.convert("RGBA").getcolors(maxcolors=1 << 20) or []
+		partial = sum(n for n, (_, _, _, a) in pixels if 0 < a < 255)
+		self.assertEqual(partial, 0, "pixels with partial alpha are blended with the picture under them")
+		opaque = { (r, g, b) for _, (r, g, b, a) in pixels if a == 255 }
+		# the outline and three roles (text, text, icon): one flat color each, with no shades between
+		self.assertLessEqual(len(opaque), 4, f"{len(opaque)} opaque colors")
 
 class TestPilTextIsSolid(unittest.TestCase):
 	"""The pages drawn with PIL alone (the fallbacks when the browser fails) have black text on white and nothing between."""
