@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Callable
 
-from .messages import ConfigurationChanged, ConfigurationWatcherEvent, InputEvent, PushedImage, RestoreBegin, RestoreEnd, RestoreSettled, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, Telemetry, TransportCommand
+from .messages import ConfigurationChanged, ConfigurationWatcherEvent, InputEvent, PushedImage, RestoreBegin, RestoreEnd, RestoreSettled, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, RunTask, Telemetry, TransportCommand
 from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
 from .coalescer import Coalescer
 from .protocols import MessageSink, IProvideTimer
@@ -265,6 +265,16 @@ class Application(DispatcherTask):
 			return True
 		except ValueError:
 			self.logger.debug(f"'{self.name}' stopped before the transport command '{command}'.")
+			return False
+	def run_task(self, task_id: str) -> bool:
+		"""Run a timer task now (the web app's Run now, later a button): the timer layer finds it by id and runs it, whatever its trigger. False: the device is not claimed, or has stopped."""
+		if self.router is None or self._unclaimed():
+			return False
+		try:
+			self.router.send("timer-layer", RunTask(self._now(), task_id))
+			return True
+		except ValueError:
+			self.logger.debug(f"'{self.name}' stopped before the task run.")
 			return False
 	def content_size(self) -> tuple[int, int]:
 		"""The (width, height) an image must have to be shown as it is: the panel's size, swapped for a portrait display (the Display task turns every image, see `target_dimensions`). Raises `PushRefused` while the device is starting."""

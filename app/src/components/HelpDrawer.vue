@@ -23,7 +23,7 @@
 				<AccordionContent>
 					<dl>
 						<dt><i class="mi mi-schedule" aria-hidden="true"></i> Schedule</dt>
-						<dd>Timer tasks: things that happen at a time of day, such as a priority message for ten minutes at 8:00, or an overlay (the date, the weather) drawn over the picture. Shown as a day, a week or a list; click a task to change it. Closing it with changes not saved asks first (Cancel closes without saving).</dd>
+						<dd>Timer tasks: things that happen at a time of day, such as a priority message for ten minutes at 8:00, or an overlay (the date, the weather) drawn over the picture. Shown as a day, a week or a list; click a task to change it. A <b>Priority Update</b> task may be set to <b>Run On Demand</b>: it has no time, and starts only when you press <b>Run now</b> in the list (a button wired to the device can start it the same way). <b>Run now</b> starts any task in the list that is on. Closing it with changes not saved asks first (Cancel closes without saving).</dd>
 						<dt><i class="mi mi-play-arrow" aria-hidden="true"></i> Playlist</dt>
 						<dd>The tracks that play one after another, round and round. You can keep several playlists.</dd>
 						<dt><i class="mi mi-desktop-windows" aria-hidden="true"></i> System</dt>

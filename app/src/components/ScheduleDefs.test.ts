@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { TriggerDefSchema } from "./ScheduleDefs"
+import { cleanTrigger, isOnDemand, TriggerDefSchema, TriggerSchema } from "./ScheduleDefs"
 
 const valid = () => ({
 	on_startup: false,
@@ -63,5 +63,27 @@ describe("TriggerDefSchema", () => {
 		const { on_startup: _omitted, ...rest } = valid()
 		expect(problems(rest)).toContain("on_startup")
 		expect(problems({ ...valid(), day: { type: "dayofweek", days: ["monday"] } })).not.toEqual([])
+	})
+})
+
+describe("a task that runs on demand", () => {
+	it("has nothing to check", () => {
+		expect(isOnDemand({ on_demand: true })).toBe(true)
+		expect(isOnDemand({ on_demand: false })).toBe(false)
+		expect(isOnDemand(undefined)).toBe(false)
+		expect(TriggerSchema.safeParse({ on_demand: true }).success).toBe(true)
+	})
+	it("leaves a timed trigger's problems at their paths", () => {
+		expect(TriggerSchema.safeParse(valid()).success).toBe(true)
+		const result = TriggerSchema.safeParse({ ...valid(), day: { type: "dayofweek", days: [] } })
+		expect(result.success ? [] : result.error.issues.map(i => i.path.join("."))).toEqual(["day.days"])
+	})
+})
+
+describe("the trigger that is saved", () => {
+	it("keeps only the keys of its kind", () => {
+		expect(cleanTrigger({ on_demand: true, on_startup: false, day: { type: "dayofweek", days: [1] }, time: { type: "hourly", minutes: [0] } })).toEqual({ on_demand: true })
+		expect(cleanTrigger({ ...valid(), on_demand: false })).toEqual(valid())
+		expect(cleanTrigger(valid())).toEqual(valid())
 	})
 })

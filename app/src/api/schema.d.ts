@@ -1014,6 +1014,26 @@ export interface paths {
         patch: operations["timer_item_patch_api_schedule_timer__doc_id__items__item_id__patch"];
         trace?: never;
     };
+    "/api/schedule/timer/{doc_id}/items/{item_id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Timer Item Run
+         * @description Run a stored task now (the Scheduler's Run now): any enabled task that is valid, whatever its trigger. The timer layer runs it on its own; the answer is that it was asked to.
+         */
+        post: operations["timer_item_run_api_schedule_timer__doc_id__items__item_id__run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/schemas/{name}": {
         parameters: {
             query?: never;
@@ -3940,6 +3960,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaskSaved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    timer_item_run_api_schedule_timer__doc_id__items__item_id__run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                doc_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Done"];
                 };
             };
             /** @description Validation Error */

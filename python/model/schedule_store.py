@@ -73,7 +73,9 @@ def check_item_shape(item: Any, *, partial: bool = False) -> list[dict]:
 	if "enabled" in item and not isinstance(item["enabled"], bool):
 		errors.append(_error(["enabled"], "Expected true or false"))
 	if "trigger" in item:
-		for problem in validate_trigger(item["trigger"]):
+		task_for_trigger = item.get("task")
+		plugin_for_trigger = task_for_trigger.get("plugin_name") if isinstance(task_for_trigger, dict) and isinstance(task_for_trigger.get("plugin_name"), str) else None
+		for problem in validate_trigger(item["trigger"], plugin_for_trigger):
 			errors.append(_error(["trigger"], problem))
 	elif not partial:
 		errors.append(_error(["trigger"], "Required"))

@@ -39,12 +39,13 @@ export function rangeLabel(start: string, days: number): string {
 }
 
 /** A task's runs in the window: the task once, its first run and how many (an event carries the task in `data`, with its document in `schedule`). */
-export type TaskRow = { key: string, title: string, plugin: string, trigger: string, enabled: boolean, startup: boolean, next: Date|null, runs: number, data: any }
+export type TaskRow = { key: string, title: string, plugin: string, trigger: string, enabled: boolean, startup: boolean, onDemand: boolean, next: Date|null, runs: number, data: any }
 
 const DAY_NAMES: Record<string, string> = { dayofweek: "Day-of-Week", dayofmonth: "Day-of-Month", dayandmonth: "Day-and-Month" }
 const TIME_NAMES: Record<string, string> = { hourly: "Hourly", hourofday: "Hour-of-Day", specific: "Specific" }
 /** What kind of trigger a task has, as the editor names its two parts: "Day-of-Week/Hourly". */
-export function triggerText(trigger: { day?: { type?: string }, time?: { type?: string } } | undefined): string {
+export function triggerText(trigger: { on_demand?: boolean, day?: { type?: string }, time?: { type?: string } } | undefined): string {
+	if (trigger?.on_demand === true) return "On demand"
 	const day = DAY_NAMES[String(trigger?.day?.type)]
 	const time = TIME_NAMES[String(trigger?.time?.type)]
 	return [day, time].filter(Boolean).join("/")
@@ -56,7 +57,7 @@ export function taskRows(events: { start: Date, data?: any }[], schedules: Recor
 	for (const [schedule, doc] of Object.entries(schedules ?? {})) {
 		for (const item of doc?.items ?? []) {
 			const key = `${schedule}/${item.id}`
-			rows.set(key, { key, title: String(item.title ?? ""), plugin: pluginName(String(item.task?.plugin_name ?? "")), trigger: triggerText(item.trigger), enabled: !!item.enabled, startup: item.trigger?.on_startup === true, next: null, runs: 0, data: { ...item, schedule } })
+			rows.set(key, { key, title: String(item.title ?? ""), plugin: pluginName(String(item.task?.plugin_name ?? "")), trigger: triggerText(item.trigger), enabled: !!item.enabled, startup: item.trigger?.on_startup === true, onDemand: item.trigger?.on_demand === true, next: null, runs: 0, data: { ...item, schedule } })
 		}
 	}
 	for (const event of events) {

@@ -5,16 +5,17 @@ import zoneinfo
 from datetime import date, datetime, timedelta, tzinfo
 from typing import Any
 
-from fastapi import APIRouter, Body, Query
+from fastapi import APIRouter, Body, Query, Request
 from pydantic import Field
 
 from ...model.configuration_manager import HASH_KEY, create_hash
-from ...model.schedule import Playlist, TimerTasks, daily_sequence, day_start, normalize, render_task_schedule_at
-from ...model.schedule_store import PLAYLISTS, TASKS, Ambiguous, Conflict, Invalid, Kind, NotFound, ScheduleStore, ScheduleStoreError
+from ...model.schedule import Playlist, TimerTasks, daily_sequence, day_start, is_on_demand, normalize, render_task_schedule_at
+from ...model.schedule_store import PLAYLISTS, check_item_shape, TASKS, Ambiguous, Conflict, Invalid, Kind, NotFound, ScheduleStore, ScheduleStoreError
 from ..deps import CM, TOD
 from ..documents import plugin_content_errors
 from ..errors import ApiError
-from ..openapi import Answer, described
+from ..openapi import Answer, described, answers, Done
+from .transport import application_of
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/schedule")
@@ -261,6 +262,11 @@ def render_tasks_schedule(
 				logger.warning(f"Not rendering timer task '{tti.title}' ({tti.id}) of schedule '{timer_tasks.id}': {'; '.join(problems)}")
 				invalid_list.append({ "schedule": timer_tasks.id, "id": tti.id, "title": tti.title, "message": "; ".join(problems) })
 				continue
+			if is_on_demand(tti.trigger):
+				# no time of its own: never in a day, but the list shows it (with its Run now)
+				notrender_list.append({ "schedule": timer_tasks.id, "id": tti.id })
+				schedule_map.setdefault(timer_tasks.id, _with_rev(timer_tasks))
+				continue
 			idid = False
 			for schedule_ts in daily_sequence(start_ts, days):
 				tdid = render_task_schedule_at(schedule_ts, tti, timer_tasks.id, render_list)
@@ -355,6 +361,19 @@ def timer_delete(doc_id: str, cm: CM, rev: str = Query(...)):
 @router.get('/timer/{doc_id}/items/{item_id}', **described(TaskGot))
 def timer_item_get(doc_id: str, item_id: str, cm: CM):
 	return { "success": True, "task": _call(None, lambda: _store(cm).get_item(doc_id, item_id)) }
+
+@router.post('/timer/{doc_id}/items/{item_id}/run', status_code=202, **answers(Done))
+def timer_item_run(doc_id: str, item_id: str, request: Request, cm: CM):
+	"""Run a stored task now (the Scheduler's Run now): any enabled task that is valid, whatever its trigger. The timer layer runs it on its own; the answer is that it was asked to."""
+	task = _call(None, lambda: _store(cm).get_item(doc_id, item_id))
+	if task.get("enabled") is not True:
+		raise ApiError(409, "The task is disabled; enable it first.", item_id)
+	stored = { key: value for key, value in task.items() if key not in ("schedule", "schedule_rev") }
+	if check_item_shape(stored) or _item_validator(cm)(stored):
+		raise ApiError(409, "The task is not valid; fix it first.", item_id)
+	if not application_of(request).run_task(item_id):
+		raise ApiError(503, "The device is not ready to run it: it is still starting or has not been claimed yet.", item_id)
+	return { "success": True }
 
 @router.post('/timer/{doc_id}/items', status_code=201, **described(TaskSaved, 201))
 def timer_item_add(doc_id: str, cm: CM, body: dict[str, Any] = Body(...)):
