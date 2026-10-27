@@ -130,11 +130,11 @@ class TestWhatThePageSays(unittest.TestCase):
 		return seen
 
 	def test_the_logo_is_ours_and_embedded(self):
-		logo = StaticConfigurationManager(STATIC).image_data_url("logo.png")
+		logo = StaticConfigurationManager(STATIC).image_data_url("logo.svg")
 		assert logo is not None
-		self.assertTrue(logo.startswith("data:image/png;base64,"))
+		self.assertTrue(logo.startswith("data:image/svg+xml;base64,"))
 		self.assertEqual(self.context_of()["logo"], logo)
-		for name in ("../render/error.html", "logo.svg", "nothing.png"):
+		for name in ("../render/error.html", "logo.png", "nothing.png"):
 			self.assertIsNone(StaticConfigurationManager(STATIC).image_data_url(name), name)
 
 	def test_an_error_page_says_where_the_web_app_is(self):
