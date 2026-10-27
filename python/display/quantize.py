@@ -5,7 +5,7 @@ already on the panel's inks and must reach it as they are. Only a photograph nee
 import numpy as np
 from PIL import Image
 
-from ..model.inks import ink_set_rgb
+from ..model.inks import INK_SETS, ink_set_rgb
 from ..utils.image_utils import to_rgb
 
 def _palette(colors: list[tuple[int, int, int]]) -> list[int]:
@@ -43,6 +43,12 @@ def to_inks(img: Image.Image, ink_set: str) -> Image.Image:
 	out = Image.fromarray(indexes, "P")
 	out.putpalette(_palette(drive))
 	return out
+
+def in_board_order(inked: Image.Image, ink_set: str, board_order: tuple[str, ...]) -> Image.Image:
+	"""A frame from `to_inks` as a `P` image whose indexes are the board's own numbers for the inks (`board_order`: the ink names, in the board's order), not ours: a board that is given a `P` image takes the indexes as they are."""
+	names = INK_SETS[ink_set]
+	table = np.array([board_order.index(name) for name in names], dtype=np.uint8)
+	return Image.fromarray(table[ink_indexes(inked)], "P")
 
 def to_appearance(inked: Image.Image, ink_set: str) -> Image.Image:
 	"""A frame from `to_inks` as the panel shows it: RGB, each ink in its appearance colour (for a preview)."""

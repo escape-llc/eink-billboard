@@ -19,6 +19,7 @@ from .display_base import DisplayBase
 from .panel_guard import PanelGuard
 from ..model.configuration_manager import ConfigurationManager
 from ..model.inks import DEFAULT_INK_SET
+from .quantize import in_board_order, to_inks
 from ..plugins.plugin_base import PermanentError
 from ..utils.image_utils import to_rgb
 
@@ -64,6 +65,9 @@ _BY_MODULE = {
 	"inky_jd79661": "bwry", "inky_jd79668": "bwry", "inky_ssd2683": "bwry",
 }
 _BY_COLOUR = { "black": "bw", "red": "bwr", "yellow": "bwy" }
+# The 7-colour boards (`inky_uc8159`, `inky_ac073tc1a`, driver 2.6.0) number their inks black, white, green, blue, red, yellow, orange. Their own palette's orange is (255, 140, 0), ours (255, 128, 0) (`model/inks.py`), so
+# an RGB frame would be dithered by the board (a solid orange area came out 8% red): given a `P` image they skip their quantizer and take the indexes as they are, so the frame goes in their order (#723).
+BOARD_ORDER = { "acep7": ("black", "white", "green", "blue", "red", "yellow", "orange") }
 
 def ink_set_of(device: Any) -> str|None:
 	"""The ink set of the board the driver found, or None for one this code does not know (the display then guesses Spectra 6)."""
@@ -143,11 +147,18 @@ class InkyDisplay(DisplayBase):
 			self.logger.warning(f"'{self.name}' the image is {picture.width}x{picture.height}, the panel {self.resolution[0]}x{self.resolution[1]}: resized")
 			picture = picture.resize(self.resolution, Image.Resampling.NEAREST)
 		with self._lock:
-			# the picture is already on the inks (`to_inks`): a 7-colour board's palette with a saturation of 0 is exactly the drive colours, so its own dither adds no error; the other boards take pure colours as they are
+			# the picture is already on the inks (`to_inks`). A 7-colour board is given the indexes in its own order (`BOARD_ORDER`): its palette is not our drive colours, so RGB would be dithered. The Spectra boards' palette
+			# at a saturation of 0 is exactly the drive colours, so they take RGB as it is; the others (pHAT, wHAT) quantize to their own colours and take no saturation
 			device = self.device
+			ink_set = ink_set_of(device)
+			board_order = BOARD_ORDER.get(ink_set or "")
+			if ink_set is not None and board_order is not None:
+				picture = in_board_order(to_inks(picture, ink_set), ink_set, board_order)
 			def refresh() -> None:
 				self._set_border(device)
-				if "saturation" in inspect.signature(device.set_image).parameters:
+				if board_order is not None:
+					device.set_image(picture)
+				elif "saturation" in inspect.signature(device.set_image).parameters:
 					device.set_image(picture, saturation=0.0)
 				else:
 					device.set_image(picture)
