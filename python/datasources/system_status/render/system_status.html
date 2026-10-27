@@ -1,0 +1,110 @@
+{% extends "plugin.html" %}
+
+{% block style %}
+	<style>
+		/* every size is in rem: the root's font size is the page's (an em would follow the element it is on) */
+		html {
+			font-size: calc(min(4.8dvh, 4.8dvw) * var(--font-scale));
+		}
+		.ss {
+			box-sizing: border-box;
+			height: 100%;
+			width: 100%;
+			padding: 4dvh 4dvw;
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+		}
+		.ss-heading {
+			font-family: var(--font-heading);
+			flex: none;
+			margin: 0 0 .5rem 0;
+			padding-bottom: .24rem;
+			font-size: max(var(--min-text), .8rem);
+			font-weight: bold;
+			letter-spacing: .12rem;
+			text-transform: uppercase;
+			border-bottom: .128rem solid currentColor;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+		.ss-rows {
+			flex: 1 1 auto;
+			min-height: 0;
+			display: flex;
+			flex-direction: column;
+			justify-content: space-around;
+			gap: .3rem;
+		}
+		/* a label column beside what it says; a gauge under it where there is one */
+		.ss-row {
+			display: grid;
+			grid-template-columns: minmax(0, 9rem) minmax(0, 1fr);
+			column-gap: 1rem;
+			align-items: center;
+		}
+		.ss-label {
+			font-family: var(--font-heading);
+			font-size: max(var(--min-text), .8rem);
+			font-weight: bold;
+			text-transform: uppercase;
+			letter-spacing: .06rem;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+		/* a value wraps rather than being cut: a warning beside it must never be lost */
+		.ss-value {
+			font-size: max(var(--min-text), 1rem);
+			font-weight: bold;
+		}
+		/* a warning is a word in a box, so it reads on a panel where two roles are the same ink */
+		.ss-warning {
+			display: inline-block;
+			margin-left: .5rem;
+			padding: 0 .4rem;
+			font-size: max(var(--min-label), .8rem);
+			font-weight: bold;
+			text-transform: uppercase;
+			border: .128rem solid currentColor;
+		}
+		.ss-gauge {
+			grid-column: 2;
+			height: .6rem;
+			margin-top: .2rem;
+			border: .128rem solid currentColor;
+			box-sizing: border-box;
+			display: flex;
+		}
+		.ss-fill {
+			height: 100%;
+			background: currentColor;
+		}
+		/* a tall panel is narrow: the label goes above what it says */
+		@media (max-aspect-ratio: 1/1) {
+			.ss-row {
+				grid-template-columns: minmax(0, 1fr);
+			}
+			.ss-gauge {
+				grid-column: 1;
+			}
+		}
+	</style>
+{% endblock %}
+{% block content %}
+<div class="ss">
+	<div class="ss-heading text-primary">{{ heading }}</div>
+	<div class="ss-rows">
+		{% for row in rows %}
+		<div class="ss-row">
+			<div class="ss-label text-secondary-1">{{ row.label }}</div>
+			<div class="ss-value {{ 'text-secondary-2' if row.warning else 'text-primary' }}">{{ row.value }}{% if row.warning %}<span class="ss-warning">{{ row.warning }}</span>{% endif %}</div>
+			{% if row.percent is not none %}
+			<div class="ss-gauge {{ 'text-secondary-2' if row.warning else 'text-primary' }}"><div class="ss-fill" style="width: {{ [row.percent, 100]|min }}%"></div></div>
+			{% endif %}
+		</div>
+		{% endfor %}
+	</div>
+</div>
+{% endblock %}
