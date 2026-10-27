@@ -53,13 +53,16 @@ test("the System page says what each API data source has asked of its service", 
 	await page.route("**/api/system", async route => {
 		const real = await route.fetch()
 		const body = await real.json()
-		body.usage = [{ id: "openweathermap-api", name: "OpenWeatherMap", today: period(4, 0), week: period(20, 1), month: period(70, 2), lastLimited: "2026-10-21T12:17:09.5+02:00" }]
+		body.usage = [{ id: "openweathermap-api", name: "OpenWeatherMap", today: period(4, 0), week: period(20, 1), month: period(70, 2), lastLimited: "2026-10-21T12:17:09.5+02:00",
+			quota: { limit: 100, resetDay: 1, used: 25, percent: 25, since: "2026-10-01", resets: "2026-11-01" } }]
 		await route.fulfill({ response: real, json: body })
 	})
 	await page.goto("/#/system")
 	const usage = page.getByRole("region", { name: "API usage" })
-	// closed, a line per source; open, its table
-	await expect(usage.getByTestId("usage-summary")).toHaveText("OpenWeatherMap: 70 calls this month, 2 failed, 75% from cache", { timeout: 20000 })
+	// closed, a line per source as pills (label on its tone, value beside it); open, its table
+	const summary = usage.getByTestId("usage-summary")
+	await expect(summary).toContainText("OpenWeatherMap", { timeout: 20000 })
+	await expect(summary.getByRole("list", { name: "OpenWeatherMap, this month" }).getByRole("listitem")).toHaveText(["calls70", "failed2", "cache75%", "quota25%"])
 	await usage.getByRole("button", { name: "API usage" }).click()
 	const table = usage.getByRole("table", { name: "OpenWeatherMap" })
 	await expect(table).toBeVisible()
@@ -67,7 +70,11 @@ test("the System page says what each API data source has asked of its service", 
 	await expect(month.getByRole("cell").nth(0)).toHaveText("70")
 	await expect(month.getByRole("cell").nth(1)).toHaveText("2")
 	await expect(month.getByRole("cell").nth(4)).toHaveText("75%")
-	await expect(usage.getByText("200 × 68, 429 × 2")).toBeVisible()
+	// what the service answered, a pill each, and the plan's bar
+	await expect(usage.getByTestId("answers").getByRole("listitem")).toHaveCount(2)
+	await expect(usage.getByTitle("68 calls answered 200")).toBeVisible()
+	await expect(usage.getByTitle("2 calls answered 429")).toBeVisible()
+	await expect(usage.getByText("25 of 100 calls since Oct 1 (25%), resets Nov 1")).toBeVisible()
 	// the moment is the device's wall clock as the server wrote it, not converted to the browser's zone
 	await expect(usage.getByText("2026-10-21 12:17")).toBeVisible()
 	watch.expectNone()

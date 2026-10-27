@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, quotaLine, quotaSeverity, quotaWarning, statusSummary, storageLine, temperatureSeverity, usageLine } from "./SystemFormat"
+import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, quotaLine, quotaSeverity, quotaWarning, answerKind, answerPills, usagePills, storageLine, temperatureSeverity } from "./SystemFormat"
 
 describe("sizes", () => {
 	it("are in the largest unit that keeps them readable", () => {
@@ -47,8 +47,13 @@ describe("API usage", () => {
 		expect(failedCalls(undefined)).toBe(0)
 	})
 	it("lists the statuses, the most common first", () => {
-		expect(statusSummary({ "429": 2, "200": 40, "500": 2, "timeout": 1 })).toBe("200 × 40, 429 × 2, 500 × 2, timeout × 1")
-		expect(statusSummary(undefined)).toBe("")
+		expect(answerPills({ "429": 2, "200": 40, "500": 2, "timeout": 1 })).toEqual([
+			{ code: "200", count: 40, kind: "success" }, { code: "429", count: 2, kind: "warn" }, { code: "500", count: 2, kind: "danger" }, { code: "timeout", count: 1, kind: "danger" }])
+		expect(answerPills(undefined)).toEqual([])
+	})
+	it("are toned by what the answer means", () => {
+		expect(["200", "204", "301", "304", "404", "429", "500", "503", "timeout", "tls", "100"].map(answerKind))
+			.toEqual(["success", "success", "info", "info", "warn", "warn", "danger", "danger", "danger", "danger", "info"])
 	})
 	it("shows a share as a percentage and nothing counted as a dash", () => {
 		expect(formatShare(0.857)).toBe("86%")
@@ -87,8 +92,14 @@ describe("an API data source's quota", () => {
 
 describe("the closed cards' lines", () => {
 	it("say an API data source's month in one line", () => {
-		expect(usageLine({ calls: 70, status: { "200": 68, "429": 2 }, hitRate: 0.75 })).toBe("70 calls this month, 2 failed, 75% from cache")
-		expect(usageLine({ calls: 1, status: { "200": 1 }, hitRate: null })).toBe("1 call this month")
+		const pairs = (pills: { label: string, value: string, kind: string }[]) => pills.map(p => `${p.label} ${p.value} ${p.kind}`)
+		expect(pairs(usagePills({ calls: 70, status: { "200": 68, "429": 2 }, hitRate: 0.75 }))).toEqual(["calls 70 neutral", "failed 2 danger", "cache 75% neutral"])
+		// nothing failed and no cache lookups: only the calls
+		expect(pairs(usagePills({ calls: 1, status: { "200": 1 }, hitRate: null }))).toEqual(["calls 1 neutral"])
+		// a plan adds its share, toned by how much is used
+		expect(pairs(usagePills({ calls: 25 }, { percent: 25, limit: 100, used: 25 })).pop()).toBe("quota 25% success")
+		expect(pairs(usagePills({ calls: 90 }, { percent: 90, limit: 100, used: 90 })).pop()).toBe("quota 90% warn")
+		expect(pairs(usagePills({ calls: 100 }, { percent: 100, limit: 100, used: 100 })).pop()).toBe("quota 100% danger")
 	})
 	it("add the storage up, with its share of the disk", () => {
 		const areas = [{ files: 100, bytes: 1024 * 1024 * 10 }, { files: 40, bytes: 1024 * 1024 * 2 }]
