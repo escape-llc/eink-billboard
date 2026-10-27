@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, cast
 from unittest.mock import MagicMock
 
-from ..display.display_base import picture_size
+from ..display.display_base import panel_size, picture_size
 from ..display.mock_display import MockDisplay
 from ..task.configure_event import ConfigureEvent, ConfigureOptions
 from ..task.display import Display
@@ -46,12 +46,20 @@ class TestPictureSize(unittest.TestCase):
 		for bad in (0, -5, "wide", 1.5, True, None):
 			self.assertEqual(picture_size({ "width": bad, "height": bad }), (800, 480))
 
+class TestPanelSize(unittest.TestCase):
+	def test_the_mocks_size_is_one_of_the_panel_sizes_with_the_default_for_what_is_missing_or_unusable(self):
+		self.assertEqual(panel_size({ "size": "1600x1200" }), (1600, 1200))
+		self.assertEqual(panel_size({}), (800, 480))
+		self.assertEqual(panel_size(None), (800, 480))
+		for bad in ("", "wide", "0x480", "800x", "x480", "-8x4", "800X480", 800, None, True):
+			self.assertEqual(panel_size({ "size": bad }), (800, 480), bad)
+
 class TestSeedingAndUpgrade(unittest.TestCase):
 	def test_a_new_storage_has_the_chosen_displays_defaults_in_its_document(self):
 		cm = temp_configuration_manager(self)
 		_, document = cm.settings_manager().open("display").get()
 		assert document is not None
-		self.assertEqual((document["display_type"], document["width"], document["height"], document["outputFolder"], document["cleanOutputFolder"]), ("mock", 800, 480, "eink-billboard-mock", False))
+		self.assertEqual((document["display_type"], document["size"], document["outputFolder"], document["cleanOutputFolder"]), ("mock", "800x480", "eink-billboard-mock", False))
 		self.assertNotIn("model", document)
 		self.assertNotIn("borderColor", document)
 
@@ -84,7 +92,7 @@ class TestDisplaySettingsApi(WebApiTestBase):
 		listed = { d["id"]: d for d in self.client.get("/api/displays/list").json() }
 		self.assertEqual(sorted(listed), ["inky", "mock", "tk", "waveshare"])
 		names = { p["name"] for p in listed["mock"]["instanceSettings"]["schema"]["properties"] }
-		self.assertEqual(names, { "width", "height", "outputFolder", "cleanOutputFolder", "inks" })
+		self.assertEqual(names, { "size", "outputFolder", "cleanOutputFolder", "inks" })
 
 	def test_the_display_type_is_a_schema_field_that_offers_the_displays(self):
 		schema = self.client.get("/api/schemas/display").json()["schema"]
@@ -92,8 +100,8 @@ class TestDisplaySettingsApi(WebApiTestBase):
 		self.assertEqual((prop["type"], prop["lookup"], schema["lookups"]["display"]), ("schema", "display", { "schema": "displays", "features": ["display-device"] }))
 
 	def test_the_chosen_devices_fields_are_checked_like_a_tasks_content(self):
-		self.assertEqual(self.put(width=1024, height=600).status_code, 200)
-		for changes, field in (({ "width": 10 }, "width"), ({ "height": 99999 }, "height"), ({ "width": "wide" }, "width"), ({ "outputFolder": 5 }, "outputFolder")):
+		self.assertEqual(self.put(size="1600x1200").status_code, 200)
+		for changes, field in (({ "size": "1024x600" }, "size"), ({ "size": 800 }, "size"), ({ "size": "wide" }, "size"), ({ "outputFolder": 5 }, "outputFolder")):
 			with self.subTest(changes):
 				resp = self.put(**changes)
 				self.assertEqual(resp.status_code, 422, resp.text)
@@ -121,7 +129,7 @@ class TestDisplaySettingsApi(WebApiTestBase):
 		self.assertEqual(resp.json()["errors"][0]["path"], ["model"])
 
 	def test_a_saved_display_document_carries_the_displays_schema(self):
-		self.assertEqual(self.put(width=640).status_code, 200)
+		self.assertEqual(self.put(size="640x400").status_code, 200)
 		self.cm.evict_all()
 		document = self.cm.settings_manager().open("display").get()[1]
 		assert document is not None

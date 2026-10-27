@@ -6,12 +6,20 @@
 	"file": "../../display/mock_display.py",
 	"module": "python.display.mock_display",
 	"description": "A display that shows nothing: every page is saved as a picture in a folder, with the same rest after a refresh as a real panel. For developing and trying the app without a panel.",
-	"describe": "Mock display {width} x {height}",
+	"describe": "Mock display {size}",
 	"disabled": false,
 	"features": ["display-device", "preview"],
 	"instanceSettings": {
 		"schema": {
 			"lookups": {
+				"panelSize": {
+					"items": [
+						{ "name": "5.7 in, 600 x 448 (Inky Impression, Waveshare 5.65 F)", "value": "600x448" },
+						{ "name": "4 in, 640 x 400 (Waveshare 4.01 F)", "value": "640x400" },
+						{ "name": "7.3 in, 800 x 480 (Inky Impression, Waveshare 7.3 E and F)", "value": "800x480" },
+						{ "name": "13.3 in, 1600 x 1200 (Inky Impression)", "value": "1600x1200" }
+					]
+				},
 				"inkSet": {
 					"items": [
 						{ "name": "Black and white", "value": "bw" },
@@ -25,24 +33,13 @@
 			},
 			"properties": [
 				{
-					"name": "width",
-					"type": "integer",
-					"title": "Width",
-					"description": "The width of the pictures the mock display makes, in pixels (what a panel's width would be).",
-					"minimum": 100,
-					"maximum": 4096,
+					"name": "size",
+					"type": "string",
+					"title": "Panel Size",
+					"description": "The size of the pictures the mock display makes: one of the sizes of the color panels this app drives (an Inky Impression or a Waveshare), so pages are drawn at what a panel would show. Restart after changing it.",
+					"lookup": "panelSize",
 					"required": false,
-					"default": 800
-				},
-				{
-					"name": "height",
-					"type": "integer",
-					"title": "Height",
-					"description": "The height of the pictures the mock display makes, in pixels (what a panel's height would be).",
-					"minimum": 100,
-					"maximum": 4096,
-					"required": false,
-					"default": 480
+					"default": "800x480"
 				},
 				{
 					"name": "outputFolder",

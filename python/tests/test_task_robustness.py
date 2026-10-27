@@ -570,7 +570,7 @@ class MockDisplayTests(unittest.TestCase):
 
 	def _initialized(self, **settings) -> MockDisplay:
 		md = MockDisplay("mock")
-		md.initialize(fake_cm(**{"width": 8, "height": 8, **settings}))
+		md.initialize(fake_cm(**settings))
 		return md
 
 	def test_empty_output_folder_is_inside_the_system_temp_directory(self):
@@ -645,7 +645,7 @@ class TkinterWindowTests(unittest.TestCase):
 		w2 = TkinterWindow("tk")
 		with patch("python.display.tkinter_window.tk.Tk", side_effect=RuntimeError("no display")):
 			with self.assertRaises(RuntimeError):
-				run_bounded(lambda: w2.initialize(fake_cm(**{"width": 8, "height": 8})), 3)
+				run_bounded(lambda: w2.initialize(fake_cm()), 3)
 		run_bounded(lambda: w2.shutdown(), 3)
 
 	def test_render_is_marshalled_onto_the_tk_thread(self):

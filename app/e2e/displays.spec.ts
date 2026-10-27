@@ -10,14 +10,13 @@ test("the display type offers the installed devices and shows the chosen one's f
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Display" }).click()
 	// the factory display is the mock: its size, its folder, its clean-up switch
-	await expect(page.locator("input[name=width]")).toHaveValue("800")
-	await expect(page.locator("input[name=height]")).toHaveValue("480")
+	await expect(page.getByText("7.3 in, 800 x 480").first()).toBeVisible()
 	await expect(page.locator("input[name=outputFolder]")).toBeVisible()
 	await expect(page.getByText("Border Color").first()).toHaveCount(0)
 	// an Inky has a border color of its own and none of the mock's fields
 	await choose(page, "Mock", "Inky")
 	await expect(page.getByText("Border Color").first()).toBeVisible()
-	await expect(page.locator("input[name=width]")).toHaveCount(0)
+	await expect(page.getByText("Panel Size").first()).toHaveCount(0)
 	await expect(page.locator("input[name=outputFolder]")).toHaveCount(0)
 	// a Waveshare must be told its model
 	await choose(page, "Inky", "Waveshare")
