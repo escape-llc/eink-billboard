@@ -20,7 +20,7 @@
 			flex: none;
 			margin: 0 0 .4rem 0;
 			padding-bottom: .24rem;
-			font-size: .8rem;
+			font-size: max(var(--min-text), .8rem);
 			font-weight: bold;
 			letter-spacing: .12rem;
 			text-transform: uppercase;
@@ -49,13 +49,14 @@
 		.story-title {
 			font-family: var(--font-heading);
 			margin: 0;
-			font-size: 1.9rem;
+			font-size: max(var(--min-text), 1.9rem);
 			font-weight: bold;
 			line-height: 1.1;
 		}
 		.story-published {
 			margin-top: .2625rem;
-			font-size: .75rem;
+			font-size: max(var(--min-label), .75rem);
+			font-weight: bold;
 			letter-spacing: .06rem;
 			text-transform: uppercase;
 		}

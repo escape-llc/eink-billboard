@@ -21,7 +21,7 @@
 		}
 		.error-heading {
 			font-family: var(--font-heading);
-			font-size: min(7dvh, 6vw);
+			font-size: max(var(--min-text), min(7dvh, 6vw));
 			font-weight: bold;
 			letter-spacing: calc(.1 * min(7dvh, 6vw));
 			margin-bottom: 4dvh;
@@ -29,19 +29,19 @@
 		}
 		.error-title {
 			font-family: var(--font-heading);
-			font-size: min(12dvh, 9vw);
+			font-size: max(var(--min-text), min(12dvh, 9vw));
 			font-weight: bold;
 			line-height: 1.1;
 			margin-bottom: 4dvh;
 			overflow-wrap: anywhere;
 		}
 		.error-line {
-			font-size: min(6dvh, 5vw);
+			font-size: max(var(--min-text), min(6dvh, 5vw));
 			line-height: 1.3;
 			overflow-wrap: anywhere;
 		}
 		.error-hint {
-			font-size: min(4dvh, 3.5vw);
+			font-size: max(var(--min-text), min(4dvh, 3.5vw));
 			margin-top: 6dvh;
 			line-height: 1;
 		}
@@ -52,12 +52,12 @@
 			overflow: hidden;
 		}
 		.error-compact .error-heading {
-			font-size: 18dvh;
+			font-size: max(var(--min-text), 18dvh);
 			letter-spacing: .72dvh;
 			margin-bottom: 4dvh;
 		}
 		.error-compact .error-title {
-			font-size: 30dvh;
+			font-size: max(var(--min-text), 30dvh);
 			margin-bottom: 2dvh;
 		}
 		.error-compact .error-heading,
@@ -68,7 +68,7 @@
 			text-overflow: ellipsis;
 		}
 		.error-compact .error-line {
-			font-size: 20dvh;
+			font-size: max(var(--min-text), 20dvh);
 		}
 		.error-compact .error-hint {
 			display: none;

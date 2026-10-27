@@ -126,6 +126,10 @@ class CalendarPagesAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		template_params = page_params(state, params, layout)
 		return await asyncio.to_thread(generate_image, stm, render_dir, dimensions, template_params, current_inputs(scm))
 
+# the least text a panel draws solid (plugin.css: --min-text, --min-label): the page floors its sizes with them, so the count does too
+MIN_TEXT_PX = 15
+MIN_LABEL_PX = 13
+
 @dataclass(frozen=True)
 class Layout:
 	"""The page's size and text size, which decide how many events fit in a day of the grid and in the agenda."""
@@ -155,7 +159,7 @@ class Layout:
 	def _usable(self) -> float:
 		"""The height under the heading and the weekday row (or the agenda's top margin), above the notes."""
 		font = self.font_px
-		footer = font * 0.3 + self.notes * font * 0.6 * 1.3 if self.notes else 0
+		footer = font * 0.3 + self.notes * max(MIN_LABEL_PX, font * 0.6) * 1.3 if self.notes else 0
 		return self.dimensions[1] * 0.92 - font * 1.6 - font * 1.2 - footer
 
 	def month_slots(self, weeks: int) -> int:
@@ -163,7 +167,7 @@ class Layout:
 		font = self.font_px
 		cell = self._usable() / weeks
 		# a tall page's days are narrow: an event is its title alone, on up to two lines
-		line = font * 0.72 * 1.25 * (2 if self.portrait else 1)
+		line = max(MIN_TEXT_PX, font * 0.72) * 1.25 * (2 if self.portrait else 1)
 		return max(0, math.floor((cell - font * 0.95 - 4) / line))
 
 	def agenda_lines(self) -> int:
