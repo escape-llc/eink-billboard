@@ -66,7 +66,7 @@
 				<template v-if="field.lookupSearch">
 					<InputText size="small" v-model="searchText" :aria-label="`Search ${field.title}`" placeholder="Search" class="lookup-search"
 						@keydown.enter.prevent="search" />
-					<Button type="button" size="small" severity="secondary" icon="mi mi-search" :aria-label="`Search for ${field.title}`" :loading="fetching" @click="search" />
+					<Button type="button" size="small" icon="mi mi-search" :aria-label="`Search for ${field.title}`" :loading="fetching" @click="search" />
 				</template>
 			</template>
 			<template v-else-if="field.type === 'number' || field.type === 'integer'">
@@ -88,7 +88,7 @@
 				<Textarea style="flex-grow:1" :name="field.name" :id="field.name" :invalid="isInvalid" size="small" :rows="field.rows ?? 3" autoResize
 					:placeholder="field.title" fluid />
 				<!-- a settings form that knows the factory text offers it back: it goes into the field, and the user saves it or not -->
-				<Button v-if="restoreField" type="button" size="small" severity="secondary" icon="mi mi-settings-backup-restore" :aria-label="`Restore default ${field.title}`"
+				<Button v-if="restoreField" type="button" size="small" icon="mi mi-settings-backup-restore" :aria-label="`Restore default ${field.title}`"
 					title="Put back the factory text" @click="restoreField(field.name)" />
 			</template>
 			<template v-else>

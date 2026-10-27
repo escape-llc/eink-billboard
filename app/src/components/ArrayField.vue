@@ -49,8 +49,8 @@
 		</div>
 		<!-- a row that carries a plugin's settings (items.plugin): they are set in the plugin's own form, in a dialog -->
 		<div v-if="carries(row)" class="array-plugin">
-			<Button size="small" severity="secondary" icon="mi mi-settings" type="button" :label="hasContent(row) ? 'Task settings' : 'Set up the task'" :aria-label="`Task settings ${index + 1}`" @click="editing = index" />
-			<Button v-if="rowPlugin?.run && baseUrl !== undefined" size="small" severity="secondary" icon="mi mi-play-arrow" type="button" label="Run now" :aria-label="`Run task ${index + 1} now`"
+			<Button size="small" icon="mi mi-settings" type="button" :title="hasContent(row) ? 'Task settings' : 'Set up the task'" :aria-label="`Task settings ${index + 1}`" @click="editing = index" />
+			<Button v-if="rowPlugin?.run && baseUrl !== undefined" size="small" icon="mi mi-play-arrow" type="button" title="Run now" :aria-label="`Run task ${index + 1} now`"
 				:loading="running === index" :disabled="running === index || !hasContent(row) || row[rowItems?.key ?? ''] === undefined || row[rowItems?.key ?? ''] === null" @click="runRow(index, row)" />
 			<Message v-if="ranIndex === index && ran" :severity="ran.ok ? 'success' : 'error'" size="small" variant="simple">{{ ran.message }}</Message>
 			<Message v-if="rowPlugin && cellError(index, rowPlugin.field)" severity="error" size="small" variant="simple">{{ cellError(index, rowPlugin.field) }}</Message>
@@ -60,7 +60,7 @@
 			:baseUrl="baseUrl" @apply="applyPlugin" @close="editing = null" />
 		<Message v-if="rowErrors(undefined).length" severity="error" size="small" variant="simple">{{ rowErrors(undefined)[0]!.message }}</Message>
 		<div>
-			<Button icon="mi mi-add" size="small" severity="secondary" label="Add" :aria-label="`Add to ${field.title}`"
+			<Button icon="mi mi-add" size="small" title="Add" :aria-label="`Add to ${field.title}`"
 				:disabled="field.maxItems !== undefined && rows.length >= field.maxItems" @click="add" />
 		</div>
 	</div>

@@ -1,6 +1,6 @@
 <template>
 	<div class="row-action">
-		<Button size="small" severity="secondary" icon="mi mi-link" type="button" :label="action.label" :loading="busy" :disabled="busy || !rowKey"
+		<Button size="small" icon="mi mi-link" type="button" :title="action.label" :loading="busy" :disabled="busy || !rowKey"
 			:aria-label="`${action.label} ${label}`" @click="begin" />
 		<div v-if="step" class="row-action-step" role="status">
 			<div>{{ step.message }}</div>
