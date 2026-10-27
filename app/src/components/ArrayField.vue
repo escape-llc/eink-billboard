@@ -1,51 +1,66 @@
 <template>
 	<div class="array-field" :class="{ stacked }" role="group" :aria-label="field.title">
-		<div v-if="rows.length > 0 && !stacked" class="array-row array-head">
-			<div v-for="f in itemFields" :key="f.name" class="array-cell">{{ f.title }}</div>
-			<div class="array-buttons"></div>
-		</div>
 		<template v-for="(row, index) in rows" :key="index">
 		<div class="array-row">
 			<div v-for="f in itemFields" :key="f.name" class="array-cell" :class="{ hidden: !isVisible(f, row) }">
 				<template v-if="isVisible(f, row)">
-					<label v-if="stacked" class="array-label">{{ f.title }}</label>
-					<ToggleSwitch v-if="f.type === 'boolean'" size="small" :modelValue="row[f.name] === true" :aria-label="`${f.title} ${index + 1}`"
-						@update:modelValue="(v: boolean) => change(index, f.name, v)" />
-					<!-- a location is chosen on a map, as everywhere else (the System settings): the picker sits in the row, a block of its own -->
-					<div v-else-if="f.type === 'location'" class="array-location" :class="{ invalid: !!cellError(index, f.name) }">
-						<LeafletPicker :name="`${f.name}-${index}`" :modelValue="(row[f.name] as { latitude: number, longitude: number } | null) ?? undefined" @change="(e: { value: unknown }) => change(index, f.name, e.value)" />
-					</div>
-					<Select v-else-if="f.enum" size="small" fluid :options="f.enum" :modelValue="row[f.name]" :placeholder="f.title" :aria-label="`${f.title} ${index + 1}`"
-						:showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
-						@update:modelValue="(v: unknown) => change(index, f.name, v ?? null)" />
-					<template v-else-if="f.lookup">
-						<Select size="small" fluid :options="choices(f, row)" optionLabel="name" optionValue="value" :modelValue="row[f.name]"
-							:placeholder="placeholder(f, row)" :aria-label="`${f.title} ${index + 1}`" :showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
-							@update:modelValue="(v: unknown) => change(index, f.name, v ?? null)" />
-						<Message v-if="rowLookup(f, row)?.error" severity="warn" size="small" variant="simple">{{ rowLookup(f, row)?.error }}</Message>
+					<!-- a location is chosen on a map, as everywhere else (the System settings): the picker sits in the row, a block of its own, under its title -->
+					<template v-if="f.type === 'location'">
+						<label class="array-label">{{ f.title }}</label>
+						<div class="array-location" :class="{ invalid: !!cellError(index, f.name) }">
+							<LeafletPicker :name="`${f.name}-${index}`" :modelValue="(row[f.name] as { latitude: number, longitude: number } | null) ?? undefined" @change="(e: { value: unknown }) => change(index, f.name, e.value)" />
+						</div>
 					</template>
-					<InputNumber v-else-if="f.type === 'number' || f.type === 'integer'" size="small" fluid :modelValue="numeric(row, f.name)" :aria-label="`${f.title} ${index + 1}`"
-						:min="f.minimum" :max="f.maximum" :step="f.step" :invalid="!!cellError(index, f.name)"
-						:minFractionDigits="f.type === 'integer' ? 0 : f.minFractionDigits" :maxFractionDigits="f.type === 'integer' ? 0 : f.maxFractionDigits"
-						@update:modelValue="(v: number|null) => change(index, f.name, v)" />
-					<ColorField v-else-if="f.format === 'color'" :modelValue="text(row, f.name) || null" :label="`${f.title} ${index + 1}`" :invalid="!!cellError(index, f.name)"
-						@update:modelValue="(v: string|null) => change(index, f.name, v)" />
-					<InputText v-else size="small" fluid :modelValue="text(row, f.name)" :placeholder="f.title" :aria-label="`${f.title} ${index + 1}`"
-						:type="f.writeOnly ? 'password' : f.format === 'uri' ? 'url' : 'text'" :autocomplete="f.writeOnly ? 'new-password' : undefined"
-						:invalid="!!cellError(index, f.name)"
-						@update:modelValue="(v: string|undefined) => change(index, f.name, v === '' || v === undefined ? null : v)" />
+					<!-- every other cell is a group of fluid controls, as the settings form's fields are; the title is the control's own label -->
+					<InputGroup v-else class="array-group">
+						<template v-if="f.type === 'boolean'">
+							<InputGroupAddon><ToggleSwitch size="small" :inputId="idOf(index, f.name)" :modelValue="row[f.name] === true" :aria-label="`${f.title} ${index + 1}`"
+								@update:modelValue="(v: boolean) => change(index, f.name, v)" /></InputGroupAddon>
+							<InputGroupAddon class="array-toggle-label"><label :for="idOf(index, f.name)">{{ f.title }}</label></InputGroupAddon>
+						</template>
+						<IftaLabel v-else-if="f.enum">
+							<Select size="small" fluid :inputId="idOf(index, f.name)" :options="f.enum" :modelValue="row[f.name]" :aria-label="`${f.title} ${index + 1}`"
+								:showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
+								@update:modelValue="(v: unknown) => change(index, f.name, v ?? null)" />
+							<label :for="idOf(index, f.name)">{{ f.title }}</label>
+						</IftaLabel>
+						<IftaLabel v-else-if="f.lookup">
+							<Select size="small" fluid :inputId="idOf(index, f.name)" :options="choices(f, row)" optionLabel="name" optionValue="value" :modelValue="row[f.name]"
+								:placeholder="placeholder(f, row)" :aria-label="`${f.title} ${index + 1}`" :showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
+								@update:modelValue="(v: unknown) => change(index, f.name, v ?? null)" />
+							<label :for="idOf(index, f.name)">{{ f.title }}</label>
+						</IftaLabel>
+						<IftaLabel v-else-if="f.type === 'number' || f.type === 'integer'">
+							<InputNumber size="small" fluid :inputId="idOf(index, f.name)" :modelValue="numeric(row, f.name)" :aria-label="`${f.title} ${index + 1}`"
+								:min="f.minimum" :max="f.maximum" :step="f.step" :invalid="!!cellError(index, f.name)"
+								:minFractionDigits="f.type === 'integer' ? 0 : f.minFractionDigits" :maxFractionDigits="f.type === 'integer' ? 0 : f.maxFractionDigits"
+								@update:modelValue="(v: number|null) => change(index, f.name, v)" />
+							<label :for="idOf(index, f.name)">{{ f.title }}</label>
+						</IftaLabel>
+						<ColorField v-else-if="f.format === 'color'" grouped :title="f.title" :inputId="idOf(index, f.name)" :modelValue="text(row, f.name) || null" :label="`${f.title} ${index + 1}`"
+							:invalid="!!cellError(index, f.name)" @update:modelValue="(v: string|null) => change(index, f.name, v)" />
+						<IftaLabel v-else>
+							<InputText size="small" fluid :id="idOf(index, f.name)" :modelValue="text(row, f.name)" :aria-label="`${f.title} ${index + 1}`"
+								:type="f.writeOnly ? 'password' : f.format === 'uri' ? 'url' : 'text'" :autocomplete="f.writeOnly ? 'new-password' : undefined"
+								:invalid="!!cellError(index, f.name)"
+								@update:modelValue="(v: string|undefined) => change(index, f.name, v === '' || v === undefined ? null : v)" />
+							<label :for="idOf(index, f.name)">{{ f.title }}</label>
+						</IftaLabel>
+						<TestUrlButton v-if="f.test?.url && baseUrl !== undefined" bare :route="f.test.url" :baseUrl="baseUrl" :value="row[f.name]" :label="`${f.title} ${index + 1}`"
+							:disabled="!!cellError(index, f.name)" @result="(r: TestResult | null) => tested[`${index}:${f.name}`] = r" />
+					</InputGroup>
+					<Message v-if="f.lookup && rowLookup(f, row)?.error" severity="warn" size="small" variant="simple">{{ rowLookup(f, row)?.error }}</Message>
 					<Message v-if="cellError(index, f.name)" severity="error" size="small" variant="simple">{{ cellError(index, f.name) }}</Message>
-					<TestUrlButton v-if="f.test?.url && baseUrl !== undefined" :route="f.test.url" :baseUrl="baseUrl" :value="row[f.name]" :label="`${f.title} ${index + 1}`"
-						:disabled="!!cellError(index, f.name)" />
+					<Message v-if="tested[`${index}:${f.name}`]" :severity="tested[`${index}:${f.name}`]!.ok ? 'success' : 'error'" size="small" variant="simple">{{ tested[`${index}:${f.name}`]!.message }}</Message>
 				</template>
 			</div>
 			<RowAction v-if="rowItems?.action && baseUrl !== undefined" class="array-action" :action="rowItems.action" :baseUrl="baseUrl"
 				:rowKey="rowItems.key ? row[rowItems.key] : undefined" :label="`${field.title} ${index + 1}`" />
-			<div class="array-buttons">
-				<Button icon="mi mi-arrow-upward" size="small" class="p-button-text" :aria-label="`Move ${index + 1} up`" :disabled="index === 0" @click="move(index, -1)" />
-				<Button icon="mi mi-arrow-downward" size="small" class="p-button-text" :aria-label="`Move ${index + 1} down`" :disabled="index === rows.length - 1" @click="move(index, 1)" />
-				<Button icon="mi mi-delete" size="small" severity="danger" class="p-button-text" :aria-label="`Remove ${index + 1}`" @click="remove(index)" />
-			</div>
+			<InputGroup class="array-buttons">
+				<Button icon="mi mi-arrow-upward" size="small" title="Move up" :aria-label="`Move ${index + 1} up`" :disabled="index === 0" @click="move(index, -1)" />
+				<Button icon="mi mi-arrow-downward" size="small" title="Move down" :aria-label="`Move ${index + 1} down`" :disabled="index === rows.length - 1" @click="move(index, 1)" />
+				<Button icon="mi mi-delete" size="small" severity="danger" title="Remove" :aria-label="`Remove ${index + 1}`" @click="remove(index)" />
+			</InputGroup>
 		</div>
 		<!-- a row that carries a plugin's settings (items.plugin): they are set in the plugin's own form, in a dialog -->
 		<div v-if="carries(row)" class="array-plugin">
@@ -70,14 +85,14 @@ import { computed, defineAsyncComponent, onBeforeUnmount, reactive, ref, watch }
 import { useQueryCache } from "@pinia/colada"
 import { readResource } from "../api/resources"
 import { lookupAddress, withStored } from "./LookupQuery"
-import { Button, InputNumber, InputText, Message, Select, ToggleSwitch } from "primevue"
+import { Button, IftaLabel, InputGroup, InputGroupAddon, InputNumber, InputText, Message, Select, ToggleSwitch } from "primevue"
 import ColorField from "./ColorField.vue"
 import { apiPost, joinUrl } from "./ApiClient"
 // a dialog that is a whole form of its own, which holds list fields: loaded when it is first opened, so the two do not import each other
 const RowPluginDialog = defineAsyncComponent(() => import("./RowPluginDialog.vue"))
 import LeafletPicker from "./LeafletPicker.vue"
 import RowAction from "./RowAction.vue"
-import TestUrlButton from "./TestUrlButton.vue"
+import TestUrlButton, { type TestResult } from "./TestUrlButton.vue"
 import { isVisible } from "./FormVisibility"
 import type { FormValues, ResolvedFieldDef } from "./FormDefs"
 
@@ -98,8 +113,13 @@ const emits = defineEmits<{ (e: "update:modelValue", value: Row[]): void }>()
 /** a list of objects' item definition: its row fields, key and row action */
 const rowItems = computed(() => props.field.items?.type === "object" ? props.field.items : undefined)
 const itemFields = computed<ResolvedFieldDef[]>(() => rowItems.value?.properties ?? [])
+/** the answer of each Test button of the rows (`row:field`), shown under its cell */
+const tested = reactive<Record<string, TestResult | null>>({})
+/** the id of a row's control, for the label that names it */
+const uid = Math.random().toString(36).slice(2, 8)
+const idOf = (index: number, name: string) => `${props.field.name}-${name}-${index}-${uid}`
 const rows = computed<Row[]>(() => Array.isArray(props.modelValue) ? props.modelValue : [])
-// more fields than fit across: each row is a block of labelled fields instead of a line under one header
+// more fields than fit across: each row is a block of fields that wrap, instead of one line
 // (a map needs room: a row with a location is a block too)
 const stacked = computed(() => itemFields.value.length > 4 || itemFields.value.some(f => f.type === "location"))
 
@@ -239,24 +259,29 @@ function cellError(index: number, name: string): string|undefined {
 	gap: .25rem;
 	margin: 0 0 .5rem .25rem;
 }
-.array-head {
-	font-weight: bold;
-	font-size: 90%;
-}
 .array-cell {
 	flex: 1 1 0;
 	min-width: 0;
 }
-/* the editor sits inside an InputGroup, whose rule (.p-inputgroup .p-inputtext: width 1%) outweighs the controls' own `fluid`: a row's controls fill their cell */
-.array-cell > :deep(.p-inputtext),
-.array-cell > :deep(.p-select),
-.array-cell > :deep(.p-inputnumber) {
+/* a cell is a group of fluid controls: the labelled control takes what the addons leave. The editor itself may sit inside an InputGroup, whose rule
+	(.p-inputgroup .p-inputtext: width 1%) outweighs the controls' own `fluid`, so the controls say their width again */
+.array-group > :deep(.p-iftalabel) {
+	flex: 1 1 0;
+	min-width: 0;
+}
+.array-group :deep(.p-inputtext),
+.array-group :deep(.p-select),
+.array-group :deep(.p-inputnumber) {
 	width: 100%;
 }
+.array-toggle-label {
+	flex: 1 1 auto;
+	justify-content: flex-start;
+	font-size: .875rem;
+}
 .array-buttons {
-	display: flex;
 	flex: 0 0 auto;
-	min-width: 7.5rem;
+	width: auto;
 }
 .stacked .array-row {
 	flex-wrap: wrap;

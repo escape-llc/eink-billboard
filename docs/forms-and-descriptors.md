@@ -38,7 +38,7 @@ Read before adding or changing a setting, a descriptor (`*-info.json`) or a form
   - `POST {url}/start { key }` answers what to show (`message`, `link`, `code`, `input`, `poll` seconds) and a `session`;
   - then `{url}/continue { session, value }` or `{url}/poll { session }`, until `{ done, ok, message }`.
 
-  The row editor (`ArrayField.vue`) sits **outside** its `FormField`: PrimeVue inputs bind to the nearest `FormField` and would each overwrite the whole list with their own value.
+  The row editor (`ArrayField.vue`) sits **outside** its `FormField`: PrimeVue inputs bind to the nearest `FormField` and would each overwrite the whole list with their own value. A row's cells are built like the settings form's fields (#743): each is an `InputGroup` of `fluid` controls, its title the control's own `IftaLabel` (no header row, no placeholder; a color's swatch and a switch are `InputGroupAddon`s, a Test button is in the group, its answer under the cell), so a new row field type is a labelled control in a group, and its accessible name is `<title> <row number>`.
 
   **Conditional visibility.** A property may carry `visibleIf`, a predicate over the other fields' values (`app/src/components/FormVisibility.ts`, `python/web/visibility.py`, cases in `python/tests/form_visibility.json`):
   `{ "field": "x", "const" | "enum" | "set" | "contains": ... }` (`contains`: a list value, a multi-select, holds it), combined with `all` / `any` / `not`. Names are the form's field names (children of a `schema` field share them); unset (missing, `null`, `""`) reads as `null`.
