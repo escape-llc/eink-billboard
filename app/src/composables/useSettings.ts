@@ -167,7 +167,7 @@ export function useThemePreview(delay = 120) {
 	const background = ref("white")
 	// the five inks of a custom preset, by setting name
 	const inks = ref<Record<string, string | null>>({})
-	const fontBody = ref("Jost")
+	const fontBody = ref("Lexend")
 	const fontHeading = ref<string | null>(null)
 	const fontOverlay = ref<string | null>(null)
 	const fontScale = ref(1)

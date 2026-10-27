@@ -1,6 +1,6 @@
 /* the device theme's fonts (python/model/theme.py writes the variables into :root); a page uses var(--font-heading) for its headings and multiplies its text sizes by var(--font-scale) */
 body {
-	font-family: var(--font-body, "Jost"), sans-serif;
+	font-family: var(--font-body, "Lexend"), sans-serif;
 }
 /* Basic Reset */
 * {

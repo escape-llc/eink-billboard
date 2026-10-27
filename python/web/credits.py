@@ -29,13 +29,12 @@ USERS_OWN: dict[str, str] = {
 
 OFL = "SIL Open Font License 1.1"
 FONT_AUTHORS: dict[str, str] = {
-	"Jost": "The Jost Project Authors",
 	"Atkinson Hyperlegible": "Braille Institute of America",
 	"Lexend": "The Lexend Project Authors",
+	"Fira Sans": "The Mozilla Foundation and Telefonica S.A.",
+	"Barlow Semi Condensed": "The Barlow Project Authors",
 	"League Spartan": "The League Spartan Project Authors",
-	"Literata": "The Literata Project Authors",
 	"Bitter": "The Bitter Project Authors",
-	"Dogica": "Roberto Mocci",
 	"DSEG7": "keshikan",
 }
 

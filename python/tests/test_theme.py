@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import shutil
@@ -7,7 +8,7 @@ import unittest
 from typing import Any, cast
 from unittest.mock import patch
 
-from ..model.configuration_manager import StaticConfigurationManager
+from ..model.configuration_manager import FONT_FAMILIES, OFFERED_FONTS, StaticConfigurationManager
 from ..model.inks import INK_SETS, ink_set_rgb, publish_panel_ink_set
 from ..model.theme import BLACK_PAGE_INKS, DEFAULT_INPUTS, PRESETS, Palette, css_vars, current_inputs, current_palette, current_typography, inputs_from, resolve
 from ..plugins import plugin_base
@@ -141,29 +142,29 @@ class TestSettings(unittest.TestCase):
 			publish_panel_ink_set(None)
 
 class TestTypography(unittest.TestCase):
-	def test_the_defaults_are_jost_at_full_size(self):
-		self.assertEqual((DEFAULT_INPUTS.font_body, DEFAULT_INPUTS.font_heading, DEFAULT_INPUTS.font_scale), ("Jost", "Jost", 1.0))
+	def test_the_defaults_are_lexend_at_full_size(self):
+		self.assertEqual((DEFAULT_INPUTS.font_body, DEFAULT_INPUTS.font_heading, DEFAULT_INPUTS.font_scale), ("Lexend", "Lexend", 1.0))
 		# a document from before the fonts existed reads the same, and says nothing about it
 		with self.assertNoLogs("python.model.theme", level="WARNING"):
-			self.assertEqual(inputs_from({ "preset": "warm" }).font_body, "Jost")
+			self.assertEqual(inputs_from({ "preset": "warm" }).font_body, "Lexend")
 
 	def test_choices_are_read_and_the_heading_follows_the_body_when_unset(self):
 		inputs = inputs_from({ "fontBody": "League Spartan", "fontHeading": None, "fontScale": 1.25 })
 		self.assertEqual((inputs.font_body, inputs.font_heading, inputs.font_scale), ("League Spartan", "League Spartan", 1.25))
-		inputs = inputs_from({ "fontBody": "Jost", "fontHeading": "Dogica", "fontScale": 0.8 })
-		self.assertEqual((inputs.font_body, inputs.font_heading, inputs.font_scale), ("Jost", "Dogica", 0.8))
+		inputs = inputs_from({ "fontBody": "Lexend", "fontHeading": "Fira Sans", "fontScale": 0.8 })
+		self.assertEqual((inputs.font_body, inputs.font_heading, inputs.font_scale), ("Lexend", "Fira Sans", 0.8))
 
 	def test_the_overlays_share_one_font_and_it_follows_the_heading_when_unset(self):
-		self.assertEqual(inputs_from({ "fontBody": "Jost", "fontHeading": "League Spartan" }).font_overlay, "League Spartan")
+		self.assertEqual(inputs_from({ "fontBody": "Lexend", "fontHeading": "League Spartan" }).font_overlay, "League Spartan")
 		self.assertEqual(inputs_from({ "fontBody": "League Spartan" }).font_overlay, "League Spartan")
-		self.assertEqual(inputs_from({ "fontBody": "Jost", "fontOverlay": "Dogica" }).font_overlay, "Dogica")
-		self.assertEqual(inputs_from({ "fontBody": "Jost", "fontOverlay": "../x" }).font_overlay, "Jost")
-		self.assertIn("--font-overlay: Dogica;", css_vars(inputs_from({ "fontOverlay": "Dogica" })))
+		self.assertEqual(inputs_from({ "fontBody": "Lexend", "fontOverlay": "Fira Sans" }).font_overlay, "Fira Sans")
+		self.assertEqual(inputs_from({ "fontBody": "Lexend", "fontOverlay": "../x" }).font_overlay, "Lexend")
+		self.assertIn("--font-overlay: Fira Sans;", css_vars(inputs_from({ "fontOverlay": "Fira Sans" })))
 		self.assertEqual(current_typography(cast(Any, FakeSettings({ "fontOverlay": "DSEG7" }))).overlay, "DSEG7")
 
 	def test_only_the_fonts_we_ship_and_sizes_in_range_are_used(self):
 		inputs = inputs_from({ "fontBody": "../../etc/passwd", "fontHeading": "Comic Sans", "fontScale": 9 })
-		self.assertEqual((inputs.font_body, inputs.font_heading, inputs.font_scale), ("Jost", "Jost", 1.0))
+		self.assertEqual((inputs.font_body, inputs.font_heading, inputs.font_scale), ("Lexend", "Lexend", 1.0))
 		self.assertEqual(inputs_from({ "fontScale": 0.5 }).font_scale, 1.0)
 		self.assertEqual(inputs_from({ "fontScale": True }).font_scale, 1.0)
 
@@ -177,9 +178,9 @@ class TestTypography(unittest.TestCase):
 	def test_pil_code_reads_the_same_choice_each_time(self):
 		scm = FakeSettings({ "fontBody": "League Spartan", "fontScale": 1.2 })
 		self.assertEqual(current_typography(cast(Any, scm)).body, "League Spartan")
-		scm.settings = { "fontBody": "Jost", "fontScale": 1.0 }
-		self.assertEqual((current_typography(cast(Any, scm)).body, current_typography(cast(Any, scm)).scale), ("Jost", 1.0))
-		self.assertEqual(current_typography(None).body, "Jost")
+		scm.settings = { "fontBody": "Lexend", "fontScale": 1.0 }
+		self.assertEqual((current_typography(cast(Any, scm)).body, current_typography(cast(Any, scm)).scale), ("Lexend", 1.0))
+		self.assertEqual(current_typography(None).body, "Lexend")
 
 class TestBackground(unittest.TestCase):
 	def test_the_page_is_white_unless_asked_otherwise(self):
@@ -277,9 +278,9 @@ class TestFontsInChromium(unittest.TestCase):
 	def test_font_and_scale_change_the_page(self):
 		base = self._page()
 		self.assertNotEqual(base, self._page(fontBody="League Spartan"))
-		self.assertNotEqual(base, self._page(fontHeading="Dogica"))
+		self.assertNotEqual(base, self._page(fontHeading="Fira Sans"))
 		self.assertNotEqual(base, self._page(fontScale=1.4))
-		self.assertEqual(base, self._page(fontBody="Jost", fontScale=1.0))
+		self.assertEqual(base, self._page(fontBody="Lexend", fontScale=1.0))
 
 SWATCH = 20
 @unittest.skipUnless(HAVE_CHROME, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")
@@ -339,3 +340,86 @@ class TestBackgroundInChromium(unittest.TestCase):
 
 if __name__ == "__main__":
 	unittest.main()
+
+class TestOfferedFonts(unittest.TestCase):
+	"""What the theme offers is a subset of what we ship, and the schema's `font` lookup says exactly that."""
+	def _lookup(self) -> list[dict[str, str]]:
+		with open(os.path.join(os.path.dirname(STATIC), "storage", "schemas", "theme.json"), encoding="utf-8") as f:
+			return json.load(f)["schema"]["lookups"]["font"]["items"]
+
+	def test_every_offered_font_is_shipped_and_the_clock_digits_are_not_offered(self):
+		self.assertTrue(set(OFFERED_FONTS) <= set(FONT_FAMILIES))
+		self.assertIn("DSEG7", FONT_FAMILIES)
+		self.assertNotIn("DSEG7", OFFERED_FONTS)
+		self.assertEqual(len(OFFERED_FONTS), len(set(OFFERED_FONTS)))
+
+	def test_the_font_lookup_is_the_offered_list_in_order(self):
+		self.assertEqual([item["value"] for item in self._lookup()], list(OFFERED_FONTS))
+
+	def test_every_shipped_font_has_its_files_and_licence(self):
+		for family, variants in FONT_FAMILIES.items():
+			for variant in variants:
+				with self.subTest(family=family, weight=variant["font-weight"]):
+					self.assertTrue(os.path.isfile(os.path.join(STATIC, "fonts", variant["file"])))
+			self.assertTrue(os.path.isfile(os.path.join(STATIC, "fonts", os.path.dirname(variants[0]["file"]), "OFL.txt")))
+
+	def test_a_variable_font_declares_the_weight_it_is_drawn_at(self):
+		faces = {(f["font_family"], f["font_weight"]) for f in StaticConfigurationManager(STATIC).enum_fonts()}
+		self.assertIn(("Lexend", "500"), faces)
+		self.assertIn(("Lexend", "700"), faces)
+		self.assertIn(("Atkinson Hyperlegible", "normal"), faces)
+
+	def test_no_font_folder_is_left_that_nothing_ships(self):
+		shipped = {os.path.dirname(v["file"]) for variants in FONT_FAMILIES.values() for v in variants}
+		self.assertEqual({d for d in os.listdir(os.path.join(STATIC, "fonts")) if os.path.isdir(os.path.join(STATIC, "fonts", d))}, shipped)
+
+# family: (weight, the size a text is drawn at from), measured in the test container (Chromium, fontconfig without antialiasing)
+# a serif is for headings only, from 22 px, and offered in bold; Lexend, Fira Sans and League Spartan "normal" are their 500
+SOLID_BODY = { "Lexend": ("normal", 15), "Atkinson Hyperlegible": ("normal", 22), "Fira Sans": ("normal", 16), "Barlow Semi Condensed": ("normal", 15), "League Spartan": ("normal", 18), "Bitter": ("bold", 22) }
+MIN_SOLID = 0.80
+SAMPLE = "Hamburgefonstiv 0123456789 Quick brown fox"
+
+def solid_share(image, threshold=128) -> float:
+	"""The share of the ink pixels that sit in a solid 2x2 block: 85 % and up reads as solid, under 60 % as wispy."""
+	grey = image.convert("L")
+	w, h = grey.size
+	px = grey.load()
+	ink = [[px[x, y] < threshold for x in range(w)] for y in range(h)]
+	total = solid = 0
+	for y in range(h):
+		for x in range(w):
+			if not ink[y][x]:
+				continue
+			total += 1
+			if any(all(0 <= xx < w and 0 <= yy < h and ink[yy][xx] for xx in (x0, x0 + 1) for yy in (y0, y0 + 1)) for x0 in (x - 1, x) for y0 in (y - 1, y)):
+				solid += 1
+	return solid / total if total else 0.0
+
+@unittest.skipUnless(HAVE_CHROME, f"needs {CHROME} on PATH (see AGENTS.md, Test environment)")
+@unittest.skipUnless(sys.platform.startswith("linux"), "the antialiasing setting is fontconfig's (Linux)")
+class TestStrokeSolidity(unittest.TestCase):
+	"""Text is drawn without antialiasing, so a one-pixel stroke is wispy: the offered fonts hold their floors, and so do the clock's digits."""
+	def _share(self, family: str, weight: str, px: int, text: str = SAMPLE) -> float:
+		with tempfile.TemporaryDirectory() as folder:
+			with open(os.path.join(folder, "page.html"), "w", encoding="utf-8") as f:
+				f.write('{% extends "plugin.html" %}{% block style %}<style>.t { font-size: ' + str(px) + 'px; font-weight: ' + weight + '; white-space: nowrap; }</style>{% endblock %}'
+					'{% block content %}<div class="t">' + text + '</div>{% endblock %}')
+			image = RenderSession(StaticConfigurationManager(STATIC), folder, "page.html", inputs_from({ "fontBody": family })).render((800, 80), { "settings": {} })
+		assert image is not None
+		return solid_share(image)
+
+	def test_body_text_is_solid_at_its_floor(self):
+		for family, (weight, px) in SOLID_BODY.items():
+			with self.subTest(family=family):
+				share = self._share(family, weight, px)
+				self.assertGreaterEqual(share, MIN_SOLID, f"{family} {weight} at {px} px: {share:.0%}")
+
+	def test_every_offered_font_but_the_serif_is_solid_in_bold_at_13_px(self):
+		for family in (f for f in OFFERED_FONTS if f != "Bitter"):
+			with self.subTest(family=family):
+				share = self._share(family, "bold", 13)
+				self.assertGreaterEqual(share, MIN_SOLID, f"{family} bold at 13 px: {share:.0%}")
+
+	def test_the_clock_digits_are_solid(self):
+		share = self._share("DSEG7", "bold", 40, "88:88")
+		self.assertGreaterEqual(share, MIN_SOLID, f"DSEG7 88:88: {share:.0%}")
