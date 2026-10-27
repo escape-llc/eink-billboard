@@ -21,6 +21,15 @@ def picture_size(settings: Mapping[str, Any]|None) -> tuple[int, int]:
 		return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else default
 	return (whole("width", DEFAULT_SIZE[0]), whole("height", DEFAULT_SIZE[1]))
 
+def panel_size(settings: Mapping[str, Any]|None) -> tuple[int, int]:
+	"""The `size` ("600x448") a display with a choice of panel sizes (the mock) is set to; the default for a missing or unusable one."""
+	value = (settings or {}).get("size")
+	if isinstance(value, str):
+		width, _, height = value.partition("x")
+		if width.isdecimal() and height.isdecimal() and int(width) > 0 and int(height) > 0:
+			return (int(width), int(height))
+	return DEFAULT_SIZE
+
 class DisplayBase(ABC):
 	# the least rest this model accepts between refreshes, whatever the setting says; 0 unless a datasheet requires one
 	MIN_REST_SECONDS = 0.0

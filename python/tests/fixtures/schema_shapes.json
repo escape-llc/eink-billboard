@@ -376,11 +376,8 @@
 			"borderColor": {
 				"type": "string"
 			},
-			"width": {
-				"type": "integer"
-			},
-			"height": {
-				"type": "integer"
+			"size": {
+				"type": "string"
 			},
 			"outputFolder": {
 				"type": "string"
@@ -390,6 +387,12 @@
 			},
 			"inks": {
 				"type": "string"
+			},
+			"width": {
+				"type": "integer"
+			},
+			"height": {
+				"type": "integer"
 			},
 			"model": {
 				"type": "string"
