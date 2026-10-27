@@ -156,6 +156,8 @@ def run_application(args: argparse.Namespace) -> None:
 	time_base = ConfiguredTimeOfDay(system_timezone_name)
 	# what the API data sources ask of their services is counted in memory and kept in the state folder (#440)
 	METER.attach(cm, time_base.current_time)
+	# a data source renamed or removed since the counts were kept would stay on the System page by its bare id
+	METER.prune(str(item["info"].get("id")) for item in cm.enum_datasources())
 	# the cache is evicted first, so that whoever hears of a change next reads the new file; the application is added once it exists
 	watcher_sink = FanoutSink(ConfigurationManagerEvictionSink(cm))
 	# EINK_WATCH_POLL (seconds) for a storage whose file system sends no change events (a Windows folder mounted into a container)
