@@ -41,8 +41,9 @@ class TodayAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
 		self.logger = logging.getLogger(__name__)
-	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> Any:
-		return {}
+	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
+		# one generated picture: the list is one empty item (an empty list is a source with nothing to show)
+		return [{}]
 	async def render_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any], state: Any) -> MediaRenderResult | None:
 		# the timestamp is already in the device's zone (ConfiguredTimeOfDay)
 		highlight, rest = date_parts(dsec.timestamp, str(params.get("format") or "long"), params.get("customFormat"))

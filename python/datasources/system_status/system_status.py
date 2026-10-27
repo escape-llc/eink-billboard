@@ -110,9 +110,10 @@ def generate_image(stm: StaticConfigurationManager, render_dir: str, dimensions,
 
 class SystemStatusAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 	"""How the device is, as one page, read when the slot is shown."""
-	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> Any:
+	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
 		chosen_readings(params)
-		return {}
+		# one generated picture: the list is one empty item (an empty list is a source with nothing to show)
+		return [{}]
 
 	async def render_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any], state: Any) -> MediaRenderResult | None:
 		readings = chosen_readings(params)
