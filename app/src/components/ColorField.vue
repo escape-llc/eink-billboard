@@ -6,7 +6,7 @@
 				@update:modelValue="(v: unknown) => typeof v === 'string' && emit(`#${v.toLowerCase()}`)" />
 		</InputGroupAddon>
 		<IftaLabel>
-			<InputText size="small" fluid :id="inputId" :modelValue="modelValue ?? ''" :aria-label="label" :invalid="invalid"
+			<InputText size="small" fluid :id="inputId" :modelValue="modelValue ?? ''" :placeholder="placeholder ?? '#3366cc'" :aria-label="label" :invalid="invalid"
 				@update:modelValue="(v: string|undefined) => emit(v === '' || v === undefined ? null : v)" />
 			<label :for="inputId">{{ title }}</label>
 		</IftaLabel>
