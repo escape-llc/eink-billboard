@@ -30,14 +30,12 @@
 			},
 			"font": {
 				"items": [
-					{"name": "Jost", "value": "Jost" },
-					{"name": "Atkinson Hyperlegible", "value": "Atkinson Hyperlegible" },
 					{"name": "Lexend", "value": "Lexend" },
+					{"name": "Atkinson Hyperlegible", "value": "Atkinson Hyperlegible" },
+					{"name": "Fira Sans (compact)", "value": "Fira Sans" },
+					{"name": "Barlow Semi Condensed (bold, narrow)", "value": "Barlow Semi Condensed" },
 					{"name": "League Spartan", "value": "League Spartan" },
-					{"name": "Literata (serif)", "value": "Literata" },
-					{"name": "Bitter (slab serif)", "value": "Bitter" },
-					{"name": "Dogica (pixel)", "value": "Dogica" },
-					{"name": "DSEG7 (segments)", "value": "DSEG7" }
+					{"name": "Bitter (slab serif, headings)", "value": "Bitter" }
 				]
 			}
 		},
@@ -116,7 +114,7 @@
 				"title": "Body Font",
 				"lookup": "font",
 				"required": false,
-				"description": "The font of the text on every page (Jost when unset). Pixel and segment fonts read poorly in a paragraph."
+				"description": "The font of the text on every page (Lexend when unset). A serif such as Bitter reads best in headings, 22 px and up."
 			},
 			{
 				"name":"fontHeading",
@@ -156,7 +154,7 @@
 		"textSecondary2": "blue",
 		"fill": "yellow",
 		"textOnFill": "black",
-		"fontBody": "Jost",
+		"fontBody": "Lexend",
 		"fontHeading": null,
 		"fontOverlay": null,
 		"fontScale": 1

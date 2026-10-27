@@ -712,7 +712,7 @@ class TestInksRoute(WebApiTestBase):
 class TestFontsRoute(WebApiTestBase):
 	"""The theme preview loads the shipped fonts; the file comes from our table, never from the URL."""
 	def test_a_shipped_font_is_served(self):
-		for family, weight in (("Jost", "normal"), ("Jost", "bold"), ("DSEG7", "normal"), ("Atkinson Hyperlegible", "bold"), ("Literata", "bold"), ("Dogica", "bold")):
+		for family, weight in (("Lexend", "normal"), ("Lexend", "bold"), ("DSEG7", "normal"), ("Atkinson Hyperlegible", "bold"), ("Fira Sans", "bold"), ("Barlow Semi Condensed", "bold")):
 			with self.subTest(family=family, weight=weight):
 				resp = self.client.get(f"/api/fonts/{family}", params={ "weight": weight })
 				self.assertEqual(resp.status_code, 200)
@@ -720,7 +720,7 @@ class TestFontsRoute(WebApiTestBase):
 				self.assertGreater(len(resp.content), 1000)
 
 	def test_anything_else_is_not_found(self):
-		for family in ("Comic Sans", "..", "%2e%2e%2fschemas", "jost"):
+		for family in ("Comic Sans", "..", "%2e%2e%2fschemas", "lexend"):
 			with self.subTest(family=family):
 				self.assertEqual(self.client.get(f"/api/fonts/{family}").status_code, 404)
 		# an unknown weight is the family's first face

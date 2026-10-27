@@ -105,7 +105,7 @@ class TestTargetDimensions(unittest.TestCase):
 
 class TestComic(unittest.IsolatedAsyncioTestCase):
 	def _font(self, size=16):
-		return StaticConfigurationManager(STATIC).get_font("Jost", font_size=size)
+		return StaticConfigurationManager(STATIC).get_font("Lexend", font_size=size)
 	@staticmethod
 	def _rss(*items: str) -> Any:
 		import feedparser

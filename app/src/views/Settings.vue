@@ -247,10 +247,10 @@ const {
 	roles, paletteColors, shownFor, fallbackNotes, refreshPalette, fromStored, fromForm,
 } = useThemePreview()
 onMounted(refreshPalette)
-// the families the device ships, loaded under names of their own so they cannot be mistaken for a font of the computer
-const FONTS = ["Jost", "Atkinson Hyperlegible", "Lexend", "League Spartan", "Literata", "Bitter", "Dogica", "DSEG7"].map(family => [family, ["normal", "bold"]] as const)
-const fontFaces = FONTS.flatMap(([family, weights]) => weights.map(weight =>
-	`@font-face { font-family: "eink-${family}"; font-weight: ${weight}; src: url("${API_URL}api/fonts/${encodeURIComponent(family)}?weight=${weight}") format("truetype"); }`)).join(" ")
+// the families the theme offers (the schema's `font` lookup), loaded under names of their own so they cannot be mistaken for a font of the computer
+const FONTS = computed(() => (((schemaTheme.value?.schema ?? schemaTheme.value)?.lookups?.font?.items ?? []) as { value: string }[]).map(item => [item.value, ["normal", "bold"]] as const))
+const fontFaces = computed(() => FONTS.value.flatMap(([family, weights]) => weights.map(weight =>
+	`@font-face { font-family: "eink-${family}"; font-weight: ${weight}; src: url("${API_URL}api/fonts/${encodeURIComponent(family)}?weight=${weight}") format("truetype"); }`)).join(" "))
 const fontStack = (family: string) => `"eink-${family}", sans-serif`
 // the palette: the roles are the CSS classes of themes.css (text-primary, bg-fill, ...)
 // the mock-up reads the palette through variables, named like the roles

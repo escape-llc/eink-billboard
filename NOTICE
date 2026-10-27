@@ -9,8 +9,8 @@ This product includes parts by others, under their own terms:
   (where they came from and what was changed: python/display/waveshare_epd/VENDORED.md).
 * Material Symbols (the @material-symbols/svg-400 package, glyphs bundled into the web app), copyright Google, under the Apache License 2.0.
 * The fonts in python/static/fonts/, each in a folder of its own with its licence (OFL.txt), all under the SIL Open Font License 1.1:
-  Jost (The Jost Project Authors), Atkinson Hyperlegible (Braille Institute of America), Lexend (The Lexend Project Authors),
-  League Spartan (The League Spartan Project Authors), Literata (The Literata Project Authors), Bitter (The Bitter Project Authors),
-  Dogica Pixel (Roberto Mocci) and DSEG7 Classic (keshikan). Each is shipped unmodified, under its own name.
+  Lexend (The Lexend Project Authors), Atkinson Hyperlegible (Braille Institute of America),
+  Fira Sans (The Mozilla Foundation and Telefonica S.A.), Barlow Semi Condensed (The Barlow Project Authors),
+  League Spartan (The League Spartan Project Authors), Bitter (The Bitter Project Authors) and DSEG7 Classic (keshikan). Each is shipped unmodified, under its own name.
 
 The Credits section of the web app's Help drawer lists these, the other software by others, and the services whose data the device shows.
