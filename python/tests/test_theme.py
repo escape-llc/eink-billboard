@@ -369,6 +369,21 @@ class TestOfferedFonts(unittest.TestCase):
 		self.assertIn(("Lexend", "700"), faces)
 		self.assertIn(("Atkinson Hyperlegible", "normal"), faces)
 
+	def test_a_variable_fonts_face_declares_its_axis_and_a_body_face_is_not_wispy(self):
+		"""#723: a page asking for `normal` of a variable font gets the nearest declared face, so what is declared is what is drawn: Lexend at 500 is 86% solid strokes at 15 px, at 400 55%."""
+		declared = [(f["font_family"], f["font_weight"]) for f in StaticConfigurationManager(STATIC).enum_fonts()]
+		for family, variants in FONT_FAMILIES.items():
+			for variant in variants:
+				if "wght" in variant:
+					with self.subTest(family=family, weight=variant["font-weight"]):
+						self.assertIn((family, str(variant["wght"])), declared)
+		# the body faces (headings-only Bitter, and the static Atkinson, whose floor is its own size, are measured in SOLID_BODY below)
+		for family in OFFERED_FONTS:
+			normal = next(v for v in FONT_FAMILIES[family] if v["font-weight"] == "normal")
+			if "wght" in normal and family != "Bitter":
+				with self.subTest(family=family):
+					self.assertGreaterEqual(normal["wght"], 500)
+
 	def test_no_font_folder_is_left_that_nothing_ships(self):
 		shipped = {os.path.dirname(v["file"]) for variants in FONT_FAMILIES.values() for v in variants}
 		self.assertEqual({d for d in os.listdir(os.path.join(STATIC, "fonts")) if os.path.isdir(os.path.join(STATIC, "fonts", d))}, shipped)
