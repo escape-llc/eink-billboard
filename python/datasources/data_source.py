@@ -188,6 +188,16 @@ def _read_display_settings(dsec: DataSourceExecutionContext) -> Mapping[str, Any
 		logging.getLogger(__name__).warning(f"Display settings unavailable, assuming landscape: {e}")
 		return None
 
+def enhanced(dsec: DataSourceExecutionContext, picture: Image.Image) -> Image.Image:
+	"""
+	A photograph with the display settings' brightness, contrast, saturation and sharpness applied (#723). Enhancement is the photograph's and nothing else's:
+	a source that returns a photograph calls this on it, before it draws anything over it (a caption, a page around it), so what is drawn stays on its exact inks.
+	A page a source draws itself never goes through it.
+	"""
+	# imported here: image_utils imports the HTTP layer
+	from ..utils.image_utils import apply_image_enhancement
+	return apply_image_enhancement(picture, _read_display_settings(dsec))
+
 class DataSourceManager:
 	"""
 	Maintains and manages multiple data sources.

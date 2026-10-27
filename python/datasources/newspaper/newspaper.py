@@ -5,7 +5,7 @@ import logging
 
 from httpx import HTTPError
 
-from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
+from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions, enhanced
 from ...utils.image_utils import blurred_margin
 from ..content_cache import download_for
 from .constants import NEWSPAPERS
@@ -33,7 +33,7 @@ class NewspaperAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			return None
 		image = await self._generate_image(dsec, state, target_dimensions(dsec), dsec.timestamp)
 		if image is not None:
-			return MediaRenderResult(image=image, title=f"Newspaper {state}")
+			return MediaRenderResult(image=enhanced(dsec, image), title=f"Newspaper {state}")
 		return None
 	async def _generate_image(self, dsec: DataSourceExecutionContext, newspaper_slug:str, dimensions, timestamp:datetime) -> Image.Image | None:
 		if newspaper_slug not in KNOWN_SLUGS:

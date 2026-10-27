@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 from PIL import Image
 
 from ...model.configuration_manager import DatasourceConfigurationManager
-from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
+from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions, enhanced
 from ...plugins.plugin_base import PermanentError
 from ...task.async_http_worker_pool import client_var
 from ...utils.image_utils import blurred_margin, stream_to_buffer
@@ -67,7 +67,7 @@ class ImageUrlAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		if params.get("shrinkToFit", True) is not False:
 			image = blurred_margin(image, target_dimensions(dsec), enlarge=False)
 		# the host only: the rest of the address can hold a secret
-		return MediaRenderResult(image=image, title=f"Picture from {urlsplit(url).hostname or 'a web address'}")
+		return MediaRenderResult(image=enhanced(dsec, image), title=f"Picture from {urlsplit(url).hostname or 'a web address'}")
 
 	async def _download(self, url: str) -> Image.Image:
 		"""The picture at `url`. Failures are in our words and never hold the address (it can carry a key); the log has the detail."""

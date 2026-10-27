@@ -7,7 +7,7 @@ from PIL import Image, ImageOps
 from ...model.configuration_manager import DatasourceConfigurationManager
 from ...plugins.plugin_base import PermanentError
 from ...utils.image_utils import blurred_margin, to_rgb
-from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
+from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions, enhanced
 
 def list_files_in_folder(folder_path):
 	"""Return a list of image file paths in the given folder, excluding hidden files."""
@@ -67,4 +67,4 @@ class ImageFolderAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		if state is None:
 			return None
 		img = grab_image(state, target_dimensions(dsec), pad_image=True, logger=self.logger)
-		return None if img is None else MediaRenderResult(image=img, title="Image Folder")
+		return None if img is None else MediaRenderResult(image=enhanced(dsec, img), title="Image Folder")
