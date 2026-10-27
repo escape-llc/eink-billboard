@@ -61,12 +61,20 @@ export function failedCalls(status: Record<string, number> | null | undefined): 
 	return failed
 }
 
-/** The calls by what the service answered, `200 x 40, 429 x 2`: the most common first, the status codes in order among equals. */
-export function statusSummary(status: Record<string, number> | null | undefined): string {
+/** What an answer means, as the tone of its pill: 2xx success, 3xx info, 4xx warn, and 5xx or no answer at all (`timeout`, `connect`, `tls`, `error`) danger. */
+export type AnswerKind = "success" | "info" | "warn" | "danger"
+
+export function answerKind(code: string): AnswerKind {
+	const n = Number(code)
+	if (Number.isNaN(n)) return "danger"
+	return n >= 500 ? "danger" : n >= 400 ? "warn" : n >= 300 ? "info" : n >= 200 ? "success" : "info"
+}
+
+/** The calls by what the service answered, one pill each: the most common first, the status codes in order among equals. */
+export function answerPills(status: Record<string, number> | null | undefined): { code: string, count: number, kind: AnswerKind }[] {
 	return Object.entries(status ?? {})
 		.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-		.map(([code, count]) => `${code} × ${count}`)
-		.join(", ")
+		.map(([code, count]) => ({ code, count, kind: answerKind(code) }))
 }
 
 /** A share (0 to 1) as `86%`; nothing counted is a dash. */
@@ -80,13 +88,18 @@ export function deviceMoment(moment: string | null | undefined): string {
 	return found ? `${found[1]} ${found[2]}` : ""
 }
 
-/** One line for an API data source's month, for the closed API usage card: `70 calls this month, 2 failed, 75% from cache`. */
-export function usageLine(month: { calls: number, status?: Record<string, number> | null, hitRate?: number | null }): string {
-	const parts = [`${month.calls} ${month.calls === 1 ? "call" : "calls"} this month`]
+/** One pill of the usage card: its label on the tone of what it means (`neutral` is no judgment), its value beside it. */
+export type PillKind = AnswerKind | "neutral"
+export type Pill = { label: string, value: string, kind: PillKind, title: string }
+
+/** An API data source's month as pills for the closed API usage card: `calls 70`, `failed 2` (only when some failed), `cache 75%`, and `quota 62%` when a plan is set. */
+export function usagePills(month: { calls: number, status?: Record<string, number> | null, hitRate?: number | null }, quota?: { percent: number, limit: number, used: number } | null): Pill[] {
+	const pills: Pill[] = [{ label: "calls", value: String(month.calls), kind: "neutral", title: "Calls this month" }]
 	const failed = failedCalls(month.status)
-	if (failed) parts.push(`${failed} failed`)
-	if (typeof month.hitRate === "number" && Number.isFinite(month.hitRate)) parts.push(`${formatShare(month.hitRate)} from cache`)
-	return parts.join(", ")
+	if (failed) pills.push({ label: "failed", value: String(failed), kind: "danger", title: `${failed} of this month's calls failed` })
+	if (typeof month.hitRate === "number" && Number.isFinite(month.hitRate)) pills.push({ label: "cache", value: formatShare(month.hitRate), kind: "neutral", title: "Lookups answered without a download this month" })
+	if (quota) pills.push({ label: "quota", value: `${Math.round(quota.percent)}%`, kind: quotaSeverity(quota.percent), title: `${quota.used} of ${quota.limit} calls of the plan this period` })
+	return pills
 }
 
 /** The plan's quota as a colour word: warn from 80 percent of the calls, danger at the quota (#586). */

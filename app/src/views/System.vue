@@ -130,9 +130,17 @@
 				<template #summary>
 					<template v-if="info">
 						<span v-if="info.usage.length === 0">No API data source has made a call yet.</span>
-						<ul v-else class="plain" data-testid="usage-summary">
-							<li v-for="source in info.usage" :key="source.id"><b>{{ source.name }}</b>: {{ usageLine(source.month) }}</li>
-						</ul>
+						<template v-else>
+							<div class="answers-label">This month</div>
+							<ul class="plain usage-summary" data-testid="usage-summary">
+								<li v-for="source in info.usage" :key="source.id">
+									<b>{{ source.name }}</b>
+									<span class="pills" role="list" :aria-label="`${source.name}, this month`">
+										<UsagePill v-for="p in usagePills(source.month, source.quota)" :key="p.label" :label="p.label" :value="p.value" :kind="p.kind" :title="p.title" />
+									</span>
+								</li>
+							</ul>
+						</template>
 					</template>
 				</template>
 				<template v-if="info">
@@ -159,7 +167,10 @@
 							</div>
 							<Message size="small" v-if="quotaWarning(source.quota.percent)" :severity="source.quota.percent >= 100 ? 'error' : 'warn'" :closable="false" class="note" data-testid="quota-warning">{{ quotaWarning(source.quota.percent) }}</Message>
 						</div>
-						<p v-if="statusSummary(source.month.status)" class="muted note">This month, by answer: {{ statusSummary(source.month.status) }}.</p>
+						<div v-if="answerPills(source.month.status).length" class="answers" role="list" aria-label="This month, by answer" data-testid="answers">
+							<span class="answers-label">Month</span>
+							<UsagePill v-for="a in answerPills(source.month.status)" :key="a.code" :label="a.code" :value="a.count" :kind="a.kind" :title="`${a.count} ${a.count === 1 ? 'call' : 'calls'} answered ${a.code}`" />
+						</div>
 						<p v-if="source.lastLimited" class="muted note">Told "too many requests" last on {{ deviceMoment(source.lastLimited) }}.</p>
 					</div>
 					<p class="muted note">Calls the service saw, with the bytes of their bodies as they went over the wire. Cache: the share of lookups answered without a download (hover for the bytes saved). Days are the device's.</p>
@@ -268,8 +279,9 @@ import { Button, Dialog, InputGroup, Message, Select, Tag, Toolbar, ToggleSwitch
 import { LAYERS, clockOf, isProblem, type TelemetryEvent } from "../components/TelemetryLink"
 import BackupRestore from "../components/BackupRestore.vue"
 import SystemCard from "../components/SystemCard.vue"
+import UsagePill from "../components/UsagePill.vue"
 import PasswordForm from "../components/PasswordForm.vue"
-import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, statusSummary, storageLine, temperatureSeverity, usageLine, quotaLine, quotaSeverity, quotaWarning } from "../components/SystemFormat"
+import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, answerPills, usagePills, storageLine, temperatureSeverity, quotaLine, quotaSeverity, quotaWarning } from "../components/SystemFormat"
 import { usePlaylistPanel } from "../composables/usePlaylistPanel"
 import { SOURCES as sources, describeEvent as describe, eventIcon as iconOf, useSystem } from "../composables/useSystem"
 
@@ -336,6 +348,33 @@ const title = (e: TelemetryEvent): string => String(e.values?.title ?? "")
 }
 .note {
 	font-size: .8rem;
+}
+/* what the service answered and the closed card's summary: pills (UsagePill), wrapped, with a small label */
+.answers {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: .3rem;
+	margin: .35rem 0;
+}
+.answers-label {
+	font-size: .75rem;
+	color: var(--p-text-muted-color);
+	text-transform: uppercase;
+	letter-spacing: .04rem;
+	margin-right: .15rem;
+}
+.usage-summary li {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: .2rem .5rem;
+	margin: .25rem 0;
+}
+.pills {
+	display: inline-flex;
+	flex-wrap: wrap;
+	gap: .3rem;
 }
 .facts {
 	display: grid;
