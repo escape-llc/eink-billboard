@@ -81,7 +81,7 @@
 	</div>
 </template>
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, reactive, ref, watch } from "vue"
+import { computed, defineAsyncComponent, onBeforeUnmount, reactive, ref, useId, watch } from "vue"
 import { useQueryCache } from "@pinia/colada"
 import { readResource } from "../api/resources"
 import { lookupAddress, withStored } from "./LookupQuery"
@@ -116,7 +116,7 @@ const itemFields = computed<ResolvedFieldDef[]>(() => rowItems.value?.properties
 /** the answer of each Test button of the rows (`row:field`), shown under its cell */
 const tested = reactive<Record<string, TestResult | null>>({})
 /** the id of a row's control, for the label that names it */
-const uid = Math.random().toString(36).slice(2, 8)
+const uid = useId()
 const idOf = (index: number, name: string) => `${props.field.name}-${name}-${index}-${uid}`
 const rows = computed<Row[]>(() => Array.isArray(props.modelValue) ? props.modelValue : [])
 // more fields than fit across: each row is a block of fields that wrap, instead of one line
