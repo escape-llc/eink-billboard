@@ -52,9 +52,13 @@
 			justify-content: center;
 			gap: .5rem;
 		}
-		/* the column's width is what the big times are sized by */
-		.sm-sun {
+		/* the column's width is what the big times are sized by, and the moon's size */
+		.sm-sun, .sm-moon {
 			container-type: inline-size;
+		}
+		/* the rise, set, full and new moon: two cells a row, the gap small enough that "New Mon Nov 9" fits beside "Full Mon Oct 26" */
+		.sm-moon .sm-pair {
+			gap: .6rem;
 		}
 		.sm-pair {
 			display: flex;
@@ -108,9 +112,17 @@
 			align-items: center;
 			gap: .8rem;
 		}
+		/* the moon's name ("Waning Gibbous" in a wide font) may take two lines, and the moon gives way before the name is cut: it is at most 5.4rem and a third of the column */
+		.sm-moon-main > div {
+			min-width: 0;
+		}
+		.sm-moon-main .sm-mid {
+			white-space: normal;
+			overflow-wrap: anywhere;
+		}
 		.moon {
-			width: 5.4rem;
-			height: 5.4rem;
+			width: min(5.4rem, 33cqi);
+			height: min(5.4rem, 33cqi);
 			flex: none;
 		}
 		.moon-dark, .moon-lit, .arc-ground, .arc-cross, .arc-sun-now {
