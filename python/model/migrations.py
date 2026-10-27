@@ -3,7 +3,7 @@ Migrations of stored documents (#391). A document carries the `_schema` of its s
 the older number becomes. A step is a pure function, `dict -> dict`, from version `n` to `n + 1`, written by a person who knows what the change meant: it is hard-coded on purpose (a rename,
 a split, a new unit). Everything around it is generic: the numbers, running the steps in order, filling the keys a newer source added, stamping, and refusing a document that is newer than the code.
 
-Adding a step (the rule in AGENTS.md): raise the source's number (in its schema file, descriptor or constant), register the step here with `@migration`, record the new shape in
+Adding a step (the rule in docs/tasks-and-storage.md): raise the source's number (in its schema file, descriptor or constant), register the step here with `@migration`, record the new shape in
 `python/tests/fixtures/schema_shapes.json`, and add a fixture of the old shape; `test_schema_versions` fails until all four agree. A new key with a default needs none of it (it is filled in).
 """
 import copy

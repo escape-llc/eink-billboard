@@ -1,4 +1,4 @@
-/** Every message the form's validation shows, in one place (the server sends the same wording for the same rules: see AGENTS.md). */
+/** Every message the form's validation shows, in one place (the server sends the same wording for the same rules: see docs/forms-and-descriptors.md). */
 export const messages = {
 	required: "Required",
 	notAllowed: "Not one of the allowed values",
