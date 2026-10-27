@@ -44,12 +44,7 @@
 		{% endblock %}
 	</head>
 	<body>
-		<div id="container" class="container text-primary
-		{% if settings.frame == 'Corner' %}corner-frame{% endif %}
-		{% if settings.frame == 'Top and Bottom' %}top-bottom-frame{% endif %}
-		{% if settings.frame == 'Rectangle' %}rectangle-frame{% endif %}
-		bg-page
-		">
+		<div id="container" class="container text-primary bg-page">
 			{% block content %}
 			{% endblock %}
 		</div>
