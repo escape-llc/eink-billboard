@@ -12,7 +12,7 @@ test("the theme tab shows a sample of the chosen fonts, served by the device", a
 	await page.getByRole("tab", { name: "Theme" }).click()
 	const sample = page.getByTestId("type-sample")
 	await expect(sample).toBeVisible()
-	await expect(sample).toHaveCSS("font-family", /eink-Jost/)
+	await expect(sample).toHaveCSS("font-family", /eink-Lexend/)
 	await expect(page.getByText("Body Font", { exact: true }).first()).toBeVisible()
 	await expect(page.getByText("Heading Font", { exact: true }).first()).toBeVisible()
 	await expect(page.getByText("Text Size", { exact: true }).first()).toBeVisible()
@@ -25,8 +25,8 @@ test("the theme tab has a selector for each font and a swatch for every role of 
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Theme" }).click()
 	// the fonts are chosen from the ones the device ships
-	await page.getByRole("tabpanel").locator(".p-select").filter({ hasText: "Jost" }).first().click()
-	await expect(page.getByRole("option")).toHaveText(["Jost", "Atkinson Hyperlegible", "Lexend", "League Spartan", "Literata (serif)", "Bitter (slab serif)", "Dogica (pixel)", "DSEG7 (segments)"])
+	await page.getByRole("tabpanel").locator(".p-select").filter({ hasText: "Lexend" }).first().click()
+	await expect(page.getByRole("option")).toHaveText(["Lexend", "Atkinson Hyperlegible", "Fira Sans (compact)", "Barlow Semi Condensed (bold, narrow)", "League Spartan", "Bitter (slab serif, headings)"])
 	await page.getByRole("option", { name: "Atkinson Hyperlegible" }).click()
 	await expect(page.getByTestId("type-sample")).toHaveCSS("font-family", /eink-Atkinson Hyperlegible/)
 	// the device resolves each role to an ink of the attached panel, and says which panel that is
@@ -53,7 +53,7 @@ test("the theme tab has a mock-up of a page in the theme's colors, fonts and siz
 	await expect.poll(() => swatch.evaluate(e => getComputedStyle(e).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)")
 	const want = await swatch.evaluate(e => getComputedStyle(e).backgroundColor)
 	await expect(mock.locator(".mock-light .mock-title")).toHaveCSS("color", want)
-	await expect(mock.locator(".mock-light .mock-title")).toHaveCSS("font-family", /eink-Jost/)
+	await expect(mock.locator(".mock-light .mock-title")).toHaveCSS("font-family", /eink-Lexend/)
 	// the text size multiplies the mock-up's text
 	const size = async () => parseFloat(await mock.locator(".mock-light .mock-title").evaluate(e => getComputedStyle(e).fontSize))
 	const before = await size()

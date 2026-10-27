@@ -67,7 +67,7 @@ class TestViews(unittest.TestCase):
 class TestFitBlock(unittest.TestCase):
 	def _font(self):
 		stm = StaticConfigurationManager(STATIC)
-		return lambda px: stm.get_font("Jost", px, "bold")
+		return lambda px: stm.get_font("Lexend", px, "bold")
 
 	def test_the_lines_and_the_icon_fit_the_zone(self):
 		block = fit_block(["Today 19° / 10°", "Thu 19° / 8°", "Fri 18° / 6°"], (246, 96), self._font(), 1.0, False, "top", 6)

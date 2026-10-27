@@ -17,13 +17,13 @@ describe("apiUrl", () => {
 export function typeChecks() {
 	return [
 		() => api.get("/api/access"),
-		() => api.get("/api/fonts/{family}", { path: { family: "Jost" } }),
+		() => api.get("/api/fonts/{family}", { path: { family: "Lexend" } }),
 		// @ts-expect-error not a route of the server
 		() => api.get("/api/no-such-route"),
 		// @ts-expect-error the route has path parameters: they are required
 		() => api.get("/api/fonts/{family}"),
 		// @ts-expect-error a parameter of another name
-		() => api.get("/api/fonts/{family}", { path: { font: "Jost" } }),
+		() => api.get("/api/fonts/{family}", { path: { font: "Lexend" } }),
 		// @ts-expect-error the route has no POST
 		() => api.post("/api/system", {}, {}),
 	]

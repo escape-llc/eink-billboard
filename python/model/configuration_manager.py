@@ -402,43 +402,46 @@ class SettingsConfigurationManager:
 
 # The fonts we ship, by family: every one is under the SIL Open Font License, with its licence beside it in its folder (static/fonts/<folder>/OFL.txt).
 # A variant names its file; a variable font (one file for every weight) gives the weight PIL draws it at (`wght`): a page's @font-face says
-# `font-weight`, and Chromium sets the same axis from it.
+# `font-weight`, and Chromium sets the same axis from it: so the page's face declares the number (500, not `normal`), and a request for `normal` (400)
+# is matched to the nearest face and drawn at 500.
 # "font-weight" is a CSS name, so the type is spelled the functional way
 FontVariant = TypedDict("FontVariant", { "font-weight": str, "file": str, "wght": NotRequired[int] })
 FONT_FAMILIES: dict[str, list[FontVariant]] = {
-	"Jost": [
-		{ "font-weight": "normal", "file": os.path.join("Jost", "Jost.ttf") },
-		{ "font-weight": "bold", "file": os.path.join("Jost", "Jost-SemiBold.ttf") },
+	"Lexend": [
+		{ "font-weight": "normal", "file": os.path.join("Lexend", "Lexend-Variable.ttf"), "wght": 500 },
+		{ "font-weight": "bold", "file": os.path.join("Lexend", "Lexend-Variable.ttf"), "wght": 700 },
 	],
 	"Atkinson Hyperlegible": [
 		{ "font-weight": "normal", "file": os.path.join("AtkinsonHyperlegible", "AtkinsonHyperlegible-Regular.ttf") },
 		{ "font-weight": "bold", "file": os.path.join("AtkinsonHyperlegible", "AtkinsonHyperlegible-Bold.ttf") },
 	],
-	"Lexend": [
-		{ "font-weight": "normal", "file": os.path.join("Lexend", "Lexend-Variable.ttf"), "wght": 400 },
-		{ "font-weight": "bold", "file": os.path.join("Lexend", "Lexend-Variable.ttf"), "wght": 700 },
+	"Fira Sans": [
+		{ "font-weight": "normal", "file": os.path.join("FiraSans", "FiraSans-Medium.ttf") },
+		{ "font-weight": "bold", "file": os.path.join("FiraSans", "FiraSans-Bold.ttf") },
+	],
+	# bold only: its regular and medium strokes are wispy at panel sizes
+	"Barlow Semi Condensed": [
+		{ "font-weight": "normal", "file": os.path.join("BarlowSemiCondensed", "BarlowSemiCondensed-Bold.ttf") },
+		{ "font-weight": "bold", "file": os.path.join("BarlowSemiCondensed", "BarlowSemiCondensed-Bold.ttf") },
 	],
 	"League Spartan": [
-		{ "font-weight": "normal", "file": os.path.join("LeagueSpartan", "LeagueSpartan-Variable.ttf"), "wght": 400 },
+		{ "font-weight": "normal", "file": os.path.join("LeagueSpartan", "LeagueSpartan-Variable.ttf"), "wght": 500 },
 		{ "font-weight": "bold", "file": os.path.join("LeagueSpartan", "LeagueSpartan-Variable.ttf"), "wght": 700 },
 	],
-	"Literata": [
-		{ "font-weight": "normal", "file": os.path.join("Literata", "Literata-Variable.ttf"), "wght": 400 },
-		{ "font-weight": "bold", "file": os.path.join("Literata", "Literata-Variable.ttf"), "wght": 700 },
-	],
+	# a serif: headings only, 22 px and up
 	"Bitter": [
 		{ "font-weight": "normal", "file": os.path.join("Bitter", "Bitter-Variable.ttf"), "wght": 400 },
 		{ "font-weight": "bold", "file": os.path.join("Bitter", "Bitter-Variable.ttf"), "wght": 700 },
 	],
-	"Dogica": [
-		{ "font-weight": "normal", "file": os.path.join("Dogica", "dogicapixel.ttf") },
-		{ "font-weight": "bold", "file": os.path.join("Dogica", "dogicapixelbold.ttf") },
-	],
+	# the clock's digits (clock.py): as a body, heading or overlay font it turns words into segments, so it is shipped and not offered
 	"DSEG7": [
 		{ "font-weight": "normal", "file": os.path.join("DSEG7", "DSEG7Classic-Regular.ttf") },
 		{ "font-weight": "bold", "file": os.path.join("DSEG7", "DSEG7Classic-Bold.ttf") },
 	],
 }
+# The families a person may choose for the theme: the `font` lookup of the theme schema lists exactly these (test_theme). A shipped family not
+# here is for code that draws with it (the clock's digits).
+OFFERED_FONTS: tuple[str, ...] = ("Lexend", "Atkinson Hyperlegible", "Fira Sans", "Barlow Semi Condensed", "League Spartan", "Bitter")
 class StaticConfigurationManager:
 	"""
 	Rooted at the "static" folder; manages static resources like fonts and render assets.
@@ -457,7 +460,7 @@ class StaticConfigurationManager:
 				fonts_list.append({
 					"font_family": font_family,
 					"url": path_to_file_url(os.path.join(self.ROOT_PATH, "fonts", variant["file"])),
-					"font_weight": variant.get("font-weight", "normal"),
+					"font_weight": str(variant["wght"]) if "wght" in variant else variant.get("font-weight", "normal"),
 					"font_style": variant.get("font-style", "normal"),
 				})
 		return fonts_list

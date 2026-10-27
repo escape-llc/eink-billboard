@@ -122,7 +122,7 @@ class TestConfigurationManager(unittest.TestCase):
 				doc = json.load(f)
 			# what the user chose is kept, what is new has its default (a null too, so the field is there)
 			self.assertEqual((doc["theme"], doc["hue"], doc["lightness"]), ("tetradic", 5, 40))
-			self.assertEqual((doc["fontBody"], doc["fontScale"]), ("Jost", 1))
+			self.assertEqual((doc["fontBody"], doc["fontScale"]), ("Lexend", 1))
 			self.assertIn("fontHeading", doc)
 			with open(rss) as f:
 				self.assertEqual(json.load(f), { "_schema": "urn:inky:storage:schema:datasource:rss:1", "feeds": [], "feedCacheHours": 0.25, "contentCacheHours": 24, "contentCacheMB": 64, "staleDays": 30 })
@@ -130,7 +130,7 @@ class TestConfigurationManager(unittest.TestCase):
 			self.assertEqual(cm.upgrade_settings(), [])
 			_, read = cm.settings_manager().open("theme").get()
 			assert read is not None
-			self.assertEqual(read["fontBody"], "Jost")
+			self.assertEqual(read["fontBody"], "Lexend")
 
 	def test_settings_that_moved_to_another_data_source_go_there_once(self):
 		with tempfile.TemporaryDirectory() as tempdir:

@@ -32,7 +32,7 @@ BLACK_PAGE_MONO = ("white", "white", "white", "white", "black")
 CUSTOM_KEYS = ("textPrimary", "textSecondary1", "textSecondary2", "fill", "textOnFill")
 BACKGROUNDS = ("white", "black")
 # the factory defaults (python/storage/schemas/theme.json)
-DEFAULT_SETTINGS: Mapping[str, Any] = { "preset": "classic", "background": "white", "fontBody": "Jost", "fontHeading": None, "fontOverlay": None, "fontScale": 1.0 }
+DEFAULT_SETTINGS: Mapping[str, Any] = { "preset": "classic", "background": "white", "fontBody": "Lexend", "fontHeading": None, "fontOverlay": None, "fontScale": 1.0 }
 # the text size of every page is multiplied by `fontScale`, within these limits (a page is laid out to fit text a little larger or smaller, not much more)
 FONT_SCALE_MIN = 0.8
 FONT_SCALE_MAX = 1.4
@@ -73,10 +73,10 @@ class ThemeInputs:
 	preset: str = "classic"
 	background: str = "white"
 	# the typography: families we ship (FONT_FAMILIES), and a multiplier for text sizes
-	font_body: str = "Jost"
-	font_heading: str = "Jost"
+	font_body: str = "Lexend"
+	font_heading: str = "Lexend"
 	# the text of the overlays (the date in a corner): one font for all of them, so they look alike
-	font_overlay: str = "Jost"
+	font_overlay: str = "Lexend"
 	font_scale: float = 1.0
 
 def _readable(text: str, behind: str) -> bool:
