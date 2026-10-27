@@ -5,6 +5,7 @@ fill them in (the test storage and the browser tests' storage). The conventions 
 - every property says what it is (`title`, and `description` unless it is a lookup of other things) and carries a `default` key (null where the user must supply it);
 - a required property without a default is deliberate: it is listed here, so a new one is a decision, not an accident;
 - one name means one thing: the form keeps a field's state by its name, so two properties of the same name must not differ (type, choices) unless it is listed with the reason;
+- a number says what it counts in `units` (shown in the field's group), never in its title: `units` is on a `number` or `integer` only, and no title ends in "(hours)";
 - a stored item has no property the schema does not define (it would be listed as no longer used and left out on save) and lacks no required one.
 """
 import json
@@ -117,6 +118,49 @@ class TestDescriptors(unittest.TestCase):
 			mine = { p["name"] for p in properties(plugin) }
 			for sid, source in DESCRIPTORS.sources.items():
 				self.assertEqual(mine & { p["name"] for p in properties(source) }, set(), f"{pid} and {sid} are shown in one form and name the same property")
+
+def every_property(node: Any):
+	"""Each property (a dict with a `type` and a `title`) anywhere in a descriptor or schema: a setting, an instance setting, a field of a list's rows."""
+	if isinstance(node, dict):
+		if "type" in node and "title" in node:
+			yield node
+		for value in node.values():
+			yield from every_property(value)
+	elif isinstance(node, list):
+		for value in node:
+			yield from every_property(value)
+
+class TestUnits(unittest.TestCase):
+	"""What a number counts is the property's `units`, shown after the input by the form (#727): never part of the title."""
+	@staticmethod
+	def documents() -> list[tuple[str, Any]]:
+		found: list[tuple[str, Any]] = [(f"{kind} {id_}", info) for kind, id_, info in DESCRIPTORS.all()]
+		folder = os.path.join(ROOT, "storage", "schemas")
+		for name in sorted(os.listdir(folder)):
+			with open(os.path.join(folder, name), encoding="utf-8") as f:
+				found.append((f"schema {name}", json.load(f)))
+		return found
+
+	def test_units_are_a_word_on_a_number_and_nothing_else(self):
+		problems = []
+		count = 0
+		for where, document in self.documents():
+			for p in every_property(document):
+				if "units" not in p:
+					continue
+				count += 1
+				if p["type"] not in ("number", "integer"):
+					problems.append(f"{where}.{p.get('name')}: units on a {p['type']}")
+				if not isinstance(p["units"], str) or not p["units"].strip():
+					problems.append(f"{where}.{p.get('name')}: units is not a word")
+		self.assertEqual(problems, [])
+		self.assertGreater(count, 40, "the audit found no units: it is looking in the wrong place")
+
+	def test_no_title_carries_its_units(self):
+		unit = re.compile(r"\((hours?|minutes?|seconds?|days?|weeks?|MB|px|calls|%|[^)]*of the month)\)\s*$|(Minutes|Seconds|Hours)$")
+		problems = [f"{where}.{p.get('name')}: {p['title']!r}" for where, document in self.documents() for p in every_property(document)
+			if p["type"] in ("number", "integer") and unit.search(p["title"])]
+		self.assertEqual(problems, [], "move the unit out of the title into `units`")
 
 class TestUses(unittest.TestCase):
 	"""A data source that asks another says so in its descriptor (`uses`): the form can warn when the other is missing, and a cycle cannot be built."""

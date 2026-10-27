@@ -42,7 +42,8 @@
 					"step": 1,
 					"minFractionDigits": 0,
 					"maxFractionDigits": 1,
-					"title": "Keep the Model List (hours)",
+					"title": "Keep the Model List",
+					"units": "hours",
 					"description": "How long the list of models Google lets the key use is kept for the forms and tasks. A new or retired model shows up after this. 0: ask every time."
 				},
 				{
@@ -55,7 +56,8 @@
 					"step": 24,
 					"minFractionDigits": 0,
 					"maxFractionDigits": 0,
-					"title": "Keep Google's API Description (hours)",
+					"title": "Keep Google's API Description",
+					"units": "hours",
 					"description": "How long Google's description of its API (the picture shapes and sizes it takes) is kept. 0: ask every time."
 				},
 				{
@@ -64,7 +66,8 @@
 					"required": true,
 					"default": 30,
 					"minimum": 0,
-					"title": "Forget Unused Answers After (days)",
+					"title": "Forget Unused Answers After",
+					"units": "days",
 					"description": "A kept answer nobody has used for this many days (an old key's model list) is removed. 0: never."
 				},
 				{
@@ -73,7 +76,8 @@
 					"required": false,
 					"default": null,
 					"minimum": 1,
-					"title": "Monthly Quota (calls)",
+					"title": "Monthly Quota",
+					"units": "calls",
 					"description": "The calls your Google AI plan allows in a month. Only you know it, and the service is not asked. The System page's API usage card shows this period's calls against it, with a warning from 80%. Once it is used, the source stops calling and uses what it kept until the period resets. Empty: no limit."
 				},
 				{
@@ -83,7 +87,8 @@
 					"default": 1,
 					"minimum": 1,
 					"maximum": 28,
-					"title": "Quota Resets On (day of the month)",
+					"title": "Quota Resets On",
+					"units": "day of the month",
 					"description": "The day of the month your plan starts counting again (1 to 28), in the device's time zone. The period the bar shows starts on that day.",
 					"visibleIf": { "not": { "field": "monthlyQuota", "const": null } }
 				}

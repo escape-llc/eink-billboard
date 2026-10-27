@@ -19,7 +19,8 @@
 					"required": true,
 					"default": 30,
 					"minimum": 0,
-					"title": "Forget Unused Lists After (days)",
+					"title": "Forget Unused Lists After",
+					"units": "days",
 					"description": "A kept list that its slot has not used for this many days is removed (a track you deleted). 0: never."
 				}
 			]
@@ -51,6 +52,7 @@
 					"default": 4,
 					"minimum": 0,
 					"title": "Max Slides",
+					"units": "slides",
 					"description": "Maximum number of images in the slideshow. Zero for 'unlimited'. Shown only for a data source with several pages (a source of one picture shows one).",
 					"visibleIf": { "field": "dataSource.features", "contains": "media-list" }
 				},
@@ -60,7 +62,8 @@
 					"required": true,
 					"default": 15,
 					"minimum": 1,
-					"title": "Slide Duration Minutes",
+					"title": "Slide Duration",
+					"units": "minutes",
 					"description": "Minutes per image."
 				},
 				{
@@ -79,7 +82,8 @@
 					"required": false,
 					"default": 0,
 					"minimum": 0,
-					"title": "Fetch Again After (hours)",
+					"title": "Fetch Again After",
+					"units": "hours",
 					"description": "With continue: the list is shown item by item until it is used up, then fetched again and started over, so new items turn up in time. 0: only then. More than 0: also when the list is older than this, even when some is left.",
 					"visibleIf": { "all": [{ "field": "dataSource.keepsList", "const": true }, { "field": "listMode", "const": "continue" }] }
 				},

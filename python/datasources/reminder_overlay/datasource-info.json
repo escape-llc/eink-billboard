@@ -35,7 +35,8 @@
 					"default": 60,
 					"minimum": 1,
 					"maximum": 10080,
-					"title": "Window (minutes)",
+					"title": "Window",
+					"units": "minutes",
 					"description": "Events that are on now or start within this many minutes are shown, the nearest first, as many as the zone has room for. When there are none the overlay is taken off."
 				},
 				{
@@ -75,6 +76,7 @@
 					"minimum": 0,
 					"maximum": 200,
 					"title": "Edge Offset",
+					"units": "px",
 					"description": "How far the text is from the screen's edge, in pixels: from the top edge in a top zone, from the bottom edge in a bottom zone."
 				}
 			]

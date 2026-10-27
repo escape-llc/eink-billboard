@@ -46,7 +46,8 @@
 					"step": 24,
 					"minFractionDigits": 0,
 					"maxFractionDigits": 1,
-					"title": "Keep Maps (hours)",
+					"title": "Keep Maps",
+					"units": "hours",
 					"description": "The longest a map is kept and shared by every task before it is asked for again. A place and a zoom hardly change, and the free plan has a monthly quota, so a week is the default. The service's own headers can shorten this, never lengthen it. 0: ask every time."
 				},
 				{
@@ -59,7 +60,8 @@
 					"step": 16,
 					"minFractionDigits": 0,
 					"maxFractionDigits": 0,
-					"title": "Maps Pool Size (MB)",
+					"title": "Maps Pool Size",
+					"units": "MB",
 					"description": "The most disk the kept maps may use. When it is full, the one used longest ago goes first."
 				},
 				{
@@ -68,7 +70,8 @@
 					"required": true,
 					"default": 30,
 					"minimum": 0,
-					"title": "Forget Unused Maps After (days)",
+					"title": "Forget Unused Maps After",
+					"units": "days",
 					"description": "A kept map nobody has used for this many days is removed. 0: never."
 				},
 				{
@@ -77,7 +80,8 @@
 					"required": false,
 					"default": null,
 					"minimum": 1,
-					"title": "Monthly Quota (calls)",
+					"title": "Monthly Quota",
+					"units": "calls",
 					"description": "The calls your Thunderforest plan allows in a month. Only you know it, and the service is not asked. The System page's API usage card shows this period's calls against it, with a warning from 80%. Once it is used, the source stops calling and uses what it kept until the period resets. Empty: no limit."
 				},
 				{
@@ -87,7 +91,8 @@
 					"default": 1,
 					"minimum": 1,
 					"maximum": 28,
-					"title": "Quota Resets On (day of the month)",
+					"title": "Quota Resets On",
+					"units": "day of the month",
 					"description": "The day of the month your plan starts counting again (1 to 28), in the device's time zone. The period the bar shows starts on that day.",
 					"visibleIf": { "not": { "field": "monthlyQuota", "const": null } }
 				}

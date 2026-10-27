@@ -87,7 +87,7 @@
 				<AccordionContent>
 					<dl>
 						<dt>Slide Show (a playlist track)</dt>
-						<dd>Shows its data source's pages, each for <b>Slide Duration Minutes</b>, up to <b>Max Slides</b> for a source with several. A feed or folder is a list: with <b>continue</b> each visit goes on where the last stopped, and the list is fetched again when used up or after <b>Fetch Again After</b> hours; <b>restart</b> takes a new list every visit. <b>Show As</b>: <b>auto</b> (a text page covers everything, a picture is a background), <b>background</b> (overlays are drawn on it), <b>blend</b> (washes over the page before it) or <b>override</b>.</dd>
+						<dd>Shows its data source's pages, each for <b>Slide Duration</b>, up to <b>Max Slides</b> for a source with several. A feed or folder is a list: with <b>continue</b> each visit goes on where the last stopped, and the list is fetched again when used up or after <b>Fetch Again After</b> hours; <b>restart</b> takes a new list every visit. <b>Show As</b>: <b>auto</b> (a text page covers everything, a picture is a background), <b>background</b> (overlays are drawn on it), <b>blend</b> (washes over the page before it) or <b>override</b>.</dd>
 						<dt>Priority Update (a timer task)</dt>
 						<dd>Takes the panel for its minutes, then gives it back; the playlist keeps running underneath. <b>Show As</b> <b>priority</b> covers the whole screen, <b>blend</b> washes over what the playlist shows. Several queue up. A clock on the hour for a minute is one.</dd>
 						<dt>Overlay (a timer task)</dt>
@@ -216,10 +216,10 @@
 				<AccordionContent>
 					<p>Sources keep what they download, shared by every task that uses them, so a picture or a feed is not fetched again for each one and a free plan's quota goes a long way. The settings are each data source's:</p>
 					<ul>
-						<li><b>Keep Downloads (hours)</b> and <b>Keep Feeds (hours)</b>: the longest a picture or feed is kept before it is asked for again (0 keeps nothing). A site can ask for less, never for more. Asking again sends what was kept, so an unchanged picture is not downloaded twice; when the site does not answer, the old one is shown.</li>
-						<li><b>Downloads Pool Size (MB)</b>: the most disk it may use; the download used longest ago goes first. <b>Forget Unused Downloads After (days)</b> removes what nobody uses (0: never).</li>
+						<li><b>Keep Downloads</b> and <b>Keep Feeds</b> (hours): the longest a picture or feed is kept before it is asked for again (0 keeps nothing). A site can ask for less, never for more. Asking again sends what was kept, so an unchanged picture is not downloaded twice; when the site does not answer, the old one is shown.</li>
+						<li><b>Downloads Pool Size</b> (MB): the most disk it may use; the download used longest ago goes first. <b>Forget Unused Downloads After</b> (days) removes what nobody uses (0: never).</li>
 						<li>Answers are kept the same way: OpenWeatherMap's current weather and forecast, each calendar (15 minutes), Comic Vine's searches and issues, Thunderforest's maps.</li>
-						<li>A Slide Show keeps its list of a feed or folder between visits; <b>Forget Unused Lists After (days)</b> in its settings removes the list of a track you deleted.</li>
+						<li>A Slide Show keeps its list of a feed or folder between visits; <b>Forget Unused Lists After</b> (days) in its settings removes the list of a track you deleted.</li>
 					</ul>
 					<p>The System page's Storage card shows how much each source keeps; none of it is in a backup.</p>
 				</AccordionContent>

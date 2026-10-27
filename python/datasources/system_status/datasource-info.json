@@ -39,6 +39,7 @@
 					"required": false,
 					"default": 70,
 					"title": "Temperature Limit",
+					"units": "°C",
 					"description": "A Raspberry Pi at or above this temperature (°C) is marked High. The firmware slows the processor from 60 and throttles at 80.",
 					"minimum": 30,
 					"maximum": 100,
@@ -50,6 +51,7 @@
 					"required": false,
 					"default": 90,
 					"title": "Disk Warning",
+					"units": "%",
 					"description": "A disk this full (percent used) or more is marked Low space.",
 					"minimum": 50,
 					"maximum": 99

@@ -35,6 +35,7 @@ const scalarField = {
 	rows: z.number().int().optional(),
 	tokens: z.array(z.strictObject({ name: z.string(), description: z.string() })).optional(),
 	tokensFrom: z.array(z.string()).optional(),
+	units: z.string().optional(),
 	step: z.number().optional(),
 	minFractionDigits: z.number().int().optional(),
 	maxFractionDigits: z.number().int().optional(),

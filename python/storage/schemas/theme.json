@@ -136,6 +136,7 @@
 				"name":"fontScale",
 				"type": "number",
 				"title": "Text Size",
+				"units": "×",
 				"minimum": 0.8,
 				"maximum": 1.4,
 				"step": 0.05,

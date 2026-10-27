@@ -30,13 +30,16 @@
 								@update:modelValue="(v: unknown) => change(index, f.name, v ?? null)" />
 							<label :for="idOf(index, f.name)">{{ f.title }}</label>
 						</IftaLabel>
-						<IftaLabel v-else-if="f.type === 'number' || f.type === 'integer'">
+						<template v-else-if="f.type === 'number' || f.type === 'integer'">
+						<IftaLabel>
 							<InputNumber size="small" fluid :inputId="idOf(index, f.name)" :modelValue="numeric(row, f.name)" :aria-label="`${f.title} ${index + 1}`"
 								:min="f.minimum" :max="f.maximum" :step="f.step" :invalid="!!cellError(index, f.name)"
 								:minFractionDigits="f.type === 'integer' ? 0 : f.minFractionDigits" :maxFractionDigits="f.type === 'integer' ? 0 : f.maxFractionDigits"
 								@update:modelValue="(v: number|null) => change(index, f.name, v)" />
 							<label :for="idOf(index, f.name)">{{ f.title }}</label>
 						</IftaLabel>
+						<InputGroupAddon v-if="f.units" class="field-units">{{ f.units }}</InputGroupAddon>
+						</template>
 						<ColorField v-else-if="f.format === 'color'" grouped :title="f.title" :inputId="idOf(index, f.name)" :modelValue="text(row, f.name) || null" :label="`${f.title} ${index + 1}`"
 							:invalid="!!cellError(index, f.name)" @update:modelValue="(v: string|null) => change(index, f.name, v)" />
 						<IftaLabel v-else>
