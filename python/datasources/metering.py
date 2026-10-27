@@ -17,7 +17,8 @@ import logging
 import ssl
 import threading
 from contextvars import ContextVar
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from typing import Any, Callable, Iterator, Mapping
 
 import httpx
@@ -192,22 +193,48 @@ class UsageMeter:
 
 	# --- reporting
 
-	def report(self) -> list[dict[str, Any]]:
+	def report(self, quotas: Mapping[str, "Quota"]|None = None) -> list[dict[str, Any]]:
 		"""
 		For the System page: for every data source that has made a call or used a cache, its counts for today, the last seven days and the calendar month so far (the device's days),
 		the cache hit rate and the bytes the cache saved, and when the service last said "too many requests". Numbers only: the page names the source from its descriptor.
+		A source in `quotas` (the plan the user says they have, #586) also gets its calls in the plan's period, even before it has made one.
 		"""
+		quotas = quotas or {}
 		with self._lock:
 			today = self._clock().date()
 			days = { "today": {today.isoformat()}, "week": {(today - timedelta(days=n)).isoformat() for n in range(7)} }
 			month = today.strftime("%Y-%m")
 			result = []
-			for source in sorted(self._sources):
-				entry = self._sources[source]
+			for source in sorted(set(self._sources) | set(quotas)):
+				entry = self._sources.get(source) or { "days": {}, "lastLimited": None }
 				periods = { name: _total([b for day, b in entry["days"].items() if day in wanted]) for name, wanted in days.items() }
 				periods["month"] = _total([b for day, b in entry["days"].items() if day.startswith(month)])
-				result.append({ "id": source, **periods, "lastLimited": entry["lastLimited"] })
+				quota = quotas.get(source)
+				result.append({ "id": source, **periods, "lastLimited": entry["lastLimited"],
+					"quota": None if quota is None else quota.used(today, sum(b["calls"] for day, b in entry["days"].items() if quota.period(today)[0].isoformat() <= day <= today.isoformat())) })
 			return result
+
+@dataclass(frozen=True)
+class Quota:
+	"""The calls a plan allows in a period that starts on `reset_day` of each month (1 to 28, so every month has it)."""
+	limit: int
+	reset_day: int = 1
+
+	def period(self, today: date) -> tuple[date, date]:
+		"""The first day of the period `today` is in, and the first day of the next one."""
+		start = today.replace(day=self.reset_day) if today.day >= self.reset_day else _previous_month(today).replace(day=self.reset_day)
+		return start, _next_month(start).replace(day=self.reset_day)
+
+	def used(self, today: date, calls: int) -> dict[str, Any]:
+		since, resets = self.period(today)
+		return { "limit": self.limit, "resetDay": self.reset_day, "used": calls, "percent": round(calls / self.limit * 100, 1), "since": since.isoformat(), "resets": resets.isoformat() }
+
+def _previous_month(day: date) -> date:
+	first = day.replace(day=1)
+	return (first - timedelta(days=1)).replace(day=1)
+
+def _next_month(day: date) -> date:
+	return (day.replace(day=1) + timedelta(days=32)).replace(day=1)
 
 def _total(buckets: list[dict[str, Any]]) -> dict[str, Any]:
 	total = _bucket()

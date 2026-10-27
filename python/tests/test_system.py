@@ -7,9 +7,11 @@ from unittest.mock import patch
 
 import httpx
 
+from ..datasources.metering import METER
 from ..web import locate, system_info
 from ..web.system_info import pi_info, throttle_flags
 from .test_web_api import WebApiTestBase
+from .utils import save_datasource_settings
 
 class TestPi(unittest.TestCase):
 	def fake(self, files: dict[str, str]):
@@ -101,6 +103,30 @@ class TestSystemRoute(WebApiTestBase):
 		self.assertGreater(body["load"]["memory"]["total"], 0)
 		self.assertEqual([a["name"] for a in body["storage"]["areas"]], ["settings", "schedules", "plugins", "datasources", "schemas", "state"])
 		self.assertGreater(body["storage"]["volume"]["total"], 0)
+
+	def test_a_quota_the_user_set_is_on_the_usage_card_and_only_a_valid_one(self):
+		METER.reset()
+		self.addCleanup(METER.reset)
+		METER.call("openweathermap-api", 200, None, 0, 10)
+		# nothing set: no quota; set: the limit, the reset day and the period's calls
+		usage = {u["id"]: u for u in self.client.get("/api/system").json()["usage"]}
+		self.assertIsNone(usage["openweathermap-api"]["quota"])
+		save_datasource_settings(self.cm, "openweathermap-api", { **self._settings("openweathermap-api"), "monthlyQuota": 1000, "quotaResetDay": 5 })
+		save_datasource_settings(self.cm, "thunderforest-api", { **self._settings("thunderforest-api"), "monthlyQuota": 200 })
+		usage = {u["id"]: u for u in self.client.get("/api/system").json()["usage"]}
+		quota = usage["openweathermap-api"]["quota"]
+		self.assertEqual((quota["limit"], quota["resetDay"], quota["used"]), (1000, 5, 1))
+		# a source with a quota and no calls yet is there, at 0 and on the default reset day
+		self.assertEqual((usage["thunderforest-api"]["quota"]["used"], usage["thunderforest-api"]["quota"]["resetDay"]), (0, 1))
+		# a limit that is not a whole number above 0, or a reset day out of range, is no limit / the 1st
+		save_datasource_settings(self.cm, "openweathermap-api", { **self._settings("openweathermap-api"), "monthlyQuota": 0, "quotaResetDay": 31 })
+		save_datasource_settings(self.cm, "thunderforest-api", { **self._settings("thunderforest-api"), "monthlyQuota": 200, "quotaResetDay": 31 })
+		usage = {u["id"]: u for u in self.client.get("/api/system").json()["usage"]}
+		self.assertIsNone(usage["openweathermap-api"]["quota"])
+		self.assertEqual(usage["thunderforest-api"]["quota"]["resetDay"], 1)
+
+	def _settings(self, ident: str) -> dict:
+		return dict(self.cm.datasource_manager(ident).open().get()[1] or {})
 
 	def test_the_server_says_which_commit_it_is_and_nothing_else_passes_for_one(self):
 		with patch.dict(os.environ, { "EINK_COMMIT": "a1b2c3d" }):

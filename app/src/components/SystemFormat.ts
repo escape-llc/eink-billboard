@@ -89,6 +89,26 @@ export function usageLine(month: { calls: number, status?: Record<string, number
 	return parts.join(", ")
 }
 
+/** The plan's quota as a colour word: warn from 80 percent of the calls, danger at the quota (#586). */
+export function quotaSeverity(percent: number | null | undefined): "success" | "warn" | "danger" {
+	if (typeof percent !== "number") return "success"
+	return percent >= 100 ? "danger" : percent >= 80 ? "warn" : "success"
+}
+
+/** The warning above a source's bar, in words (a colour alone is not enough): none under 80 percent. */
+export function quotaWarning(percent: number | null | undefined): string {
+	if (typeof percent !== "number") return ""
+	return percent >= 100 ? "The quota is used up" : percent >= 80 ? "Over 80% of the quota is used" : ""
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+/** One plan period in a line, for the card: `620 of 1000 calls since Oct 5 (62%), resets Nov 5`. The dates are the device's days (`YYYY-MM-DD`). */
+export function quotaLine(q: { limit: number, used: number, percent: number, since: string, resets: string }): string {
+	const day = (iso: string) => { const [, m, d] = iso.split("-").map(Number); return `${MONTHS[(m ?? 1) - 1] ?? "?"} ${d}` }
+	return `${q.used} of ${q.limit} calls since ${day(q.since)} (${Math.round(q.percent)}%), resets ${day(q.resets)}`
+}
+
 /** What the storage holds in all: its areas added up, and its share of the disk it is on when that is known (`12 MB in 140 files, 0.1% of the disk`). */
 export function storageLine(areas: { files: number, bytes: number }[], volume?: { total: number } | null): string {
 	const files = areas.reduce((sum, a) => sum + a.files, 0)

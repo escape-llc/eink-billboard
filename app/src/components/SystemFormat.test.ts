@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, statusSummary, storageLine, temperatureSeverity, usageLine } from "./SystemFormat"
+import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, quotaLine, quotaSeverity, quotaWarning, statusSummary, storageLine, temperatureSeverity, usageLine } from "./SystemFormat"
 
 describe("sizes", () => {
 	it("are in the largest unit that keeps them readable", () => {
@@ -71,6 +71,17 @@ describe("the fan", () => {
 		expect(fanText(0, 29)).toBe("29% power, no speed reported")
 		expect(fanText(3120, 40)).toBe("3120 rpm (40% power)")
 		expect(fanText(3120, undefined)).toBe("3120 rpm")
+	})
+})
+
+describe("an API data source's quota", () => {
+	it("is a colour and a warning in words from 80 percent, and at the quota", () => {
+		expect([quotaSeverity(79.9), quotaSeverity(80), quotaSeverity(99.9), quotaSeverity(100), quotaSeverity(130), quotaSeverity(undefined)]).toEqual(["success", "warn", "warn", "danger", "danger", "success"])
+		expect([quotaWarning(50), quotaWarning(80), quotaWarning(100), quotaWarning(null)]).toEqual(["", "Over 80% of the quota is used", "The quota is used up", ""])
+	})
+	it("says this period's calls with its first day and the next reset", () => {
+		expect(quotaLine({ limit: 1000, used: 620, percent: 62, since: "2026-10-05", resets: "2026-11-05" })).toBe("620 of 1000 calls since Oct 5 (62%), resets Nov 5")
+		expect(quotaLine({ limit: 3, used: 0, percent: 0, since: "2026-12-01", resets: "2027-01-01" })).toBe("0 of 3 calls since Dec 1 (0%), resets Jan 1")
 	})
 })
 

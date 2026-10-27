@@ -947,6 +947,46 @@
 				"title": "Pushed",
 				"type": "object"
 			},
+			"QuotaUse": {
+				"additionalProperties": false,
+				"description": "The plan the user says they have, against this period's calls (#586): the period starts on `resetDay` of each month, `since` and `resets` are its first day and the next one's.",
+				"properties": {
+					"limit": {
+						"title": "Limit",
+						"type": "integer"
+					},
+					"percent": {
+						"title": "Percent",
+						"type": "number"
+					},
+					"resetDay": {
+						"title": "Resetday",
+						"type": "integer"
+					},
+					"resets": {
+						"title": "Resets",
+						"type": "string"
+					},
+					"since": {
+						"title": "Since",
+						"type": "string"
+					},
+					"used": {
+						"title": "Used",
+						"type": "integer"
+					}
+				},
+				"required": [
+					"limit",
+					"resetDay",
+					"used",
+					"percent",
+					"since",
+					"resets"
+				],
+				"title": "QuotaUse",
+				"type": "object"
+			},
 			"Removed": {
 				"additionalProperties": false,
 				"properties": {
@@ -1983,6 +2023,16 @@
 						"title": "Name",
 						"type": "string"
 					},
+					"quota": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/QuotaUse"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
 					"today": {
 						"$ref": "#/components/schemas/Period"
 					},
@@ -1996,7 +2046,8 @@
 					"today",
 					"week",
 					"month",
-					"lastLimited"
+					"lastLimited",
+					"quota"
 				],
 				"title": "Usage",
 				"type": "object"
