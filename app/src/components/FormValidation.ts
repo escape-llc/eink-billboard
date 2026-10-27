@@ -48,7 +48,7 @@ function oneOf(values: readonly unknown[]) {
 	return (val: unknown) => val === null || val === undefined || val === "" || values.length === 0 || values.includes(val)
 }
 
-/** The rules for one field, or `undefined` when it holds no value (a header). The same rules are written down in AGENTS.md and checked again by the server. */
+/** The rules for one field, or `undefined` when it holds no value (a header). The same rules are written down in docs/forms-and-descriptors.md and checked again by the server. */
 export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 	if (!px) return undefined
 	if (px.type === "header") return undefined

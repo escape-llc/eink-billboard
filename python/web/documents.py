@@ -157,7 +157,7 @@ def _is_location(v) -> str|None:
 	return None
 
 def _check_value(prop: dict, value: Any, lookups: dict) -> str|None:
-	"""The message when `value` (not null) breaks the field's rules, else None. These are the rules of `FormValidation.ts` (see AGENTS.md)."""
+	"""The message when `value` (not null) breaks the field's rules, else None. These are the rules of `FormValidation.ts` (see docs/forms-and-descriptors.md)."""
 	ptype = prop.get("type")
 	if ptype == "string":
 		if not isinstance(value, str):
