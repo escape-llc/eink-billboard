@@ -100,7 +100,7 @@ export function layersOf(e: TelemetryEvent | null | undefined): LayerLine[] {
 
 /** An event that says something went wrong. */
 export function isProblem(e: TelemetryEvent): boolean {
-	return ["track-failed", "task-failed", "error", "faulted", "configure-failed", "gap", "cache-stale"].includes(e.kind)
+	return ["track-failed", "task-failed", "error", "faulted", "configure-failed", "gap", "cache-stale", "quota-reached"].includes(e.kind)
 }
 
 export class TelemetryLink {

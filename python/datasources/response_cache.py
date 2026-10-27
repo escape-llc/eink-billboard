@@ -18,7 +18,7 @@ from typing import Any, Awaitable, Callable, Mapping
 
 from ..model.configuration_manager import DatasourceConfigurationManager
 from ..plugins.plugin_base import PermanentError
-from .metering import METER
+from .metering import METER, QuotaUsedUp
 from .keeping import DEFAULT_STALE_DAYS, CLOCK_SLACK, REFILL_WAIT_SECONDS, aware, number, parse_moment, prune_stale_sometimes, refill_lock
 
 logger = logging.getLogger(__name__)
@@ -78,6 +78,13 @@ async def cached(dscm: DatasourceConfigurationManager, settings: Mapping[str, An
 		try:
 			try:
 				data = await fetch()
+			except QuotaUsedUp:
+				# the plan the user set is used up: what was kept serves, however old; with nothing kept this is the failure
+				if isinstance(doc.get("data"), dict):
+					logger.info(f"'{dscm.datasource_id}' has used its quota; using the kept answer.")
+					METER.cache(source, "stale", _size(doc))
+					return doc["data"]
+				raise
 			except PermanentError:
 				raise
 			except Exception as e:

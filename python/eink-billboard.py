@@ -23,6 +23,7 @@ from .model.time_of_day import ConfiguredTimeOfDay, TimeOfDay
 from .model.configuration_manager import ConfigurationManager
 from .datasources.metering import METER
 
+from .task.messages import Telemetry
 from .task.telemetry_hub import TelemetryHub
 from .task.application import Application, StartEvent
 from .utils.error_image import WebAddress
@@ -176,6 +177,9 @@ def run_application(args: argparse.Namespace) -> None:
 	# start the application layer
 	# the telemetry route's sink: the live view of the web app (python/task/telemetry_hub.py)
 	sink = TelemetryHub()
+	# a data source that reaches the quota the user set (#586) says so once for the period; from then on it uses what it kept
+	METER.on_quota = lambda source, quota, used: sink.accept(Telemetry(time_base.current_time(), "data-source", { "kind": "quota-reached", "datasource": source, "used": used, "limit": quota.limit,
+		"message": f"'{source}' has used its quota of {quota.limit} calls; it uses what it kept until the period resets." }))
 	xapp: Application = Application(APPNAME, sink)
 	xapp.setup_notice = lambda: setup_notice(app.state.access, port, public_url, scheme)
 	app.state.access.on_claimed = xapp.setup_done

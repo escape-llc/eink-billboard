@@ -26,6 +26,7 @@ describe("addresses and times", () => {
 	it("failures and gaps are problems", () => {
 		expect(isProblem({ source: "playlist_layer", kind: "track-failed" })).toBe(true)
 		expect(isProblem({ source: "telemetry", kind: "gap" })).toBe(true)
+		expect(isProblem({ source: "data-source", kind: "quota-reached" })).toBe(true)
 		expect(isProblem({ source: "display", kind: "shown" })).toBe(false)
 	})
 })

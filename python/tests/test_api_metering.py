@@ -15,7 +15,7 @@ import httpx
 
 from ..datasources import keeping
 from ..datasources.content_cache import fetch_cached
-from ..datasources.metering import METER, STATE_NAME, USAGE_VERSION, MeteredClient, Quota, UsageMeter, failure_kind
+from ..datasources.metering import METER, STATE_NAME, USAGE_VERSION, MeteredClient, Quota, QuotaUsedUp, UsageMeter, failure_kind
 from ..datasources.response_cache import cached
 from ..utils import url_guard
 from .test_content_cache import Origin, public
@@ -112,6 +112,82 @@ class TestQuota(unittest.TestCase):
 			for month in range(1, 13):
 				start, nxt = Quota(1, reset_day).period(date(2026, month, 28))
 				self.assertLessEqual((nxt - start).days, 31)
+
+class TestBudgetGuard(unittest.TestCase):
+	"""Once a source has used the plan the user set, its calls are not sent (#586): what it kept is used, and with nothing kept the failure says so."""
+	def setUp(self):
+		self.now = NOW
+		self.plans = { "svc": Quota(3) }
+		self.meter = UsageMeter(lambda: self.now, lambda: self.plans)
+		self.told: list[tuple[str, int, int]] = []
+		self.meter.on_quota = lambda source, quota, used: self.told.append((source, quota.limit, used))
+
+	def send(self, n: int = 1):
+		"""`n` calls through a metered client that answers 200; returns how many reached the transport."""
+		sent = []
+		def handler(request):
+			sent.append(1)
+			return httpx.Response(200, content=b"ok")
+		async def go():
+			async with MeteredClient("svc", self.meter, transport=httpx.MockTransport(handler)) as client:
+				for _ in range(n):
+					await client.get("https://svc.example/x")
+		asyncio.run(go())
+		return len(sent)
+
+	def test_calls_go_until_the_plan_is_used_and_then_are_not_sent(self):
+		self.assertEqual(self.send(3), 3)
+		with self.assertRaises(QuotaUsedUp) as caught:
+			self.send(1)
+		# in our words: the source, the limit and when it asks again; never an address
+		self.assertIn("'svc' has used its quota of 3 calls", str(caught.exception))
+		self.assertIn("Nov 1", str(caught.exception))
+		self.assertNotIn("svc.example", str(caught.exception))
+		# the refused call is not counted: the meter says 3
+		self.assertEqual(only(self.meter)["today"]["calls"], 3)
+
+	def test_a_source_with_no_plan_is_never_stopped(self):
+		self.plans = {}
+		self.meter._quotas_at = None
+		self.assertEqual(self.send(10), 10)
+
+	def test_the_period_resetting_lets_calls_through_again(self):
+		self.assertEqual(self.send(3), 3)
+		with self.assertRaises(QuotaUsedUp):
+			self.send(1)
+		self.now = datetime(2026, 11, 1, 9, 0, tzinfo=timezone.utc)
+		self.assertEqual(self.send(1), 1)
+
+	def test_raising_the_plan_lets_calls_through_after_the_settings_are_read_again(self):
+		self.assertEqual(self.send(3), 3)
+		with self.assertRaises(QuotaUsedUp):
+			self.send(1)
+		self.plans = { "svc": Quota(10) }
+		# the plans are read at most every QUOTA_REFRESH_SECONDS
+		self.meter._quotas_at = None
+		self.assertEqual(self.send(1), 1)
+
+	def test_reaching_the_plan_is_told_once_for_the_period(self):
+		self.send(3)
+		self.assertEqual(self.told, [("svc", 3, 3)])
+		for _ in range(3):
+			with self.assertRaises(QuotaUsedUp):
+				self.send(1)
+		self.assertEqual(len(self.told), 1)
+		# the next period is told again
+		self.now = datetime(2026, 11, 1, 9, 0, tzinfo=timezone.utc)
+		self.meter._quotas_at = None
+		self.send(3)
+		self.assertEqual(len(self.told), 2)
+
+	def test_a_plan_that_cannot_be_read_keeps_the_last_one(self):
+		self.send(1)
+		def broken():
+			raise OSError("disk")
+		self.meter._quota_source = broken
+		self.meter._quotas_at = None
+		self.assertEqual(self.send(1), 1)
+		self.assertEqual(self.meter._quotas, { "svc": Quota(3) })
 
 class TestKeeping(unittest.TestCase):
 	def setUp(self):
@@ -303,6 +379,46 @@ class TestCacheOutcomes(unittest.TestCase):
 		for later in (timedelta(0), timedelta(minutes=30), timedelta(hours=2)):
 			asyncio.run(get(NOW + later))
 		self.assertEqual(self.outcomes(), { "miss": 1, "hit": 1, "revalidated": 1 })
+
+class TestQuotaWithTheCaches(unittest.TestCase):
+	"""A used-up quota serves what the caches kept, however old, and is the failure only when nothing is kept."""
+	def setUp(self):
+		self.cm = temp_configuration_manager(self)
+		self.dscm = self.cm.datasource_manager("wikipedia-potd")
+		METER.reset()
+		self.addCleanup(METER.reset)
+		patcher = patch.object(url_guard, "_resolve", public)
+		patcher.start()
+		self.addCleanup(patcher.stop)
+		keeping._last_prune.clear()
+
+	def test_an_answer_kept_is_used_when_the_quota_is_used_up_and_with_none_kept_it_is_the_failure(self):
+		async def run():
+			async def fetch():
+				return { "n": 1 }
+			async def used_up():
+				raise QuotaUsedUp("quota")
+			settings = { "cacheHours": 1 }
+			await cached(self.dscm, settings, "k", NOW, fetch)
+			# long after it expired: the quota stops the call, and the kept answer serves
+			self.assertEqual(await cached(self.dscm, settings, "k", NOW + timedelta(days=3), used_up), { "n": 1 })
+			with self.assertRaises(QuotaUsedUp):
+				await cached(self.dscm, settings, "other", NOW, used_up)
+		asyncio.run(run())
+
+	def test_a_download_kept_is_used_when_the_quota_is_used_up_and_with_none_kept_it_is_the_failure(self):
+		origin = Origin(headers={ "ETag": '"v1"', "Cache-Control": "max-age=3600" })
+		def used_up(request):
+			raise QuotaUsedUp("quota")
+		async def get(handler, url, now):
+			async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+				return (await fetch_cached(self.dscm, { "contentCacheHours": 24 }, client, url, now)).getvalue()
+		async def run():
+			first = await get(origin, "https://pics.example/a.jpg", NOW)
+			self.assertEqual(await get(used_up, "https://pics.example/a.jpg", NOW + timedelta(days=3)), first)
+			with self.assertRaises(QuotaUsedUp):
+				await get(used_up, "https://pics.example/never-kept.jpg", NOW)
+		asyncio.run(run())
 
 class TestThePoolsDownloads(unittest.TestCase):
 	"""

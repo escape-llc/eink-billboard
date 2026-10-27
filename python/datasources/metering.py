@@ -16,6 +16,7 @@ import contextlib
 import logging
 import ssl
 import threading
+import time
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -24,6 +25,7 @@ from typing import Any, Callable, Iterator, Mapping
 import httpx
 
 from ..model.migrations import migrate_file
+from ..plugins.plugin_base import PermanentError
 from ..model.schema_versions import stamped
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool, tls_context
 
@@ -57,10 +59,23 @@ def _clean_bucket(value: Any) -> dict[str, Any]:
 	return { "calls": _count(value.get("calls")), "status": _clean_counts(value.get("status")), "sent": _count(value.get("sent")), "received": _count(value.get("received")),
 		"cache": _clean_counts(value.get("cache")), "cacheBytes": _clean_counts(value.get("cacheBytes")) }
 
+# how long the plans the user set are remembered before the settings are read again: a quota that was raised lets calls through again within this time
+QUOTA_REFRESH_SECONDS = 30
+
+class QuotaUsedUp(PermanentError):
+	"""A call that was not sent because its data source has used the month's quota the user set (#586). The kept caches catch it and use what they kept; with nothing kept it is the failure."""
+
 class UsageMeter:
 	"""The counters. One process-wide instance (`METER`); a test makes its own."""
-	def __init__(self, clock: Callable[[], datetime]|None = None):
+	def __init__(self, clock: Callable[[], datetime]|None = None, quotas: Callable[[], Mapping[str, "Quota"]]|None = None):
 		self._clock = clock or (lambda: datetime.now().astimezone())
+		# where the plans come from (the settings, once attached), what was read last and when, and the periods already announced: source id -> the period's first day
+		self._quota_source = quotas
+		self._quotas: dict[str, Quota] = {}
+		self._quotas_at: float|None = None
+		self._announced: dict[str, str] = {}
+		# told (source, quota, used) once a source reaches its quota in a period, outside the lock: the application makes a telemetry event of it
+		self.on_quota: Callable[[str, "Quota", int], None]|None = None
 		self._lock = threading.Lock()
 		# source id -> { "days": { "YYYY-MM-DD": bucket }, "lastLimited": ISO moment|None }
 		self._sources: dict[str, dict[str, Any]] = {}
@@ -87,6 +102,61 @@ class UsageMeter:
 			day["received"] += max(0, received)
 			if status == 429:
 				self._sources[source]["lastLimited"] = self._clock().isoformat()
+			reached = self._reached(source)
+		if reached is not None and self.on_quota is not None:
+			try:
+				self.on_quota(source, reached[0], reached[1])
+			except Exception as e:
+				logger.warning(f"A quota event could not be sent ({type(e).__name__}).")
+
+	# --- the plan
+
+	def _used(self, source: str, quota: "Quota") -> int:
+		"""The calls this period (under the lock)."""
+		today = self._clock().date()
+		since = quota.period(today)[0].isoformat()
+		days = (self._sources.get(source) or { "days": {} })["days"]
+		return sum(b["calls"] for day, b in days.items() if since <= day <= today.isoformat())
+
+	def _reached(self, source: str) -> tuple["Quota", int]|None:
+		"""The plan and the calls when this source has just reached it and the period has not been announced yet (under the lock); only for a plan already read."""
+		quota = self._quotas.get(source)
+		if quota is None:
+			return None
+		used = self._used(source, quota)
+		since = quota.period(self._clock().date())[0].isoformat()
+		if used < quota.limit or self._announced.get(source) == since:
+			return None
+		self._announced[source] = since
+		return quota, used
+
+	def _plans(self) -> dict[str, "Quota"]:
+		"""The plans the user set, read from the settings at most every QUOTA_REFRESH_SECONDS (under the lock)."""
+		if self._quota_source is not None and (self._quotas_at is None or time.monotonic() - self._quotas_at >= QUOTA_REFRESH_SECONDS):
+			try:
+				self._quotas = dict(self._quota_source())
+			except Exception as e:
+				logger.warning(f"The quotas could not be read ({type(e).__name__}); keeping the last ones.")
+			self._quotas_at = time.monotonic()
+		return self._quotas
+
+	def today(self) -> date:
+		"""The device's day."""
+		return self._clock().date()
+
+	def blocked(self, source: str) -> "Quota|None":
+		"""The plan when `source` has used it up this period, else None. Asked before every call: what is kept is used instead, and the call is not sent."""
+		with self._lock:
+			quota = self._plans().get(source)
+			if quota is None or self._used(source, quota) < quota.limit:
+				return None
+			reached = self._reached(source)
+		if reached is not None and self.on_quota is not None:
+			try:
+				self.on_quota(source, reached[0], reached[1])
+			except Exception as e:
+				logger.warning(f"A quota event could not be sent ({type(e).__name__}).")
+		return quota
 
 	def received(self, source: str, size: int) -> None:
 		"""The body of a streamed answer, counted when it was closed."""
@@ -102,11 +172,13 @@ class UsageMeter:
 	# --- keeping
 
 	def attach(self, cm: Any, clock: Callable[[], datetime]|None = None) -> None:
-		"""Keep the counts in `cm`'s state folder from now on: what was counted before the start is read, what is counted now is added, and a thread writes it."""
+		"""Keep the counts in `cm`'s state folder from now on: what was counted before the start is read, what is counted now is added, and a thread writes it. The plans the user set are read from its settings."""
 		if clock is not None:
 			self._clock = clock
 		with self._lock:
 			self._cm = cm
+			if self._quota_source is None:
+				self._quota_source = lambda: quotas_of(cm)
 			self._merge(self._load())
 		if self._thread is None:
 			self._stop.clear()
@@ -186,9 +258,12 @@ class UsageMeter:
 		self.flush()
 
 	def reset(self) -> None:
-		"""Forget everything in memory (a test's)."""
+		"""Forget everything in memory (a test's): the counts, and the plans and the periods announced."""
 		with self._lock:
 			self._sources.clear()
+			self._quotas.clear()
+			self._quotas_at = None
+			self._announced.clear()
 			self._dirty = False
 
 	# --- reporting
@@ -228,6 +303,20 @@ class Quota:
 	def used(self, today: date, calls: int) -> dict[str, Any]:
 		since, resets = self.period(today)
 		return { "limit": self.limit, "resetDay": self.reset_day, "used": calls, "percent": round(calls / self.limit * 100, 1), "since": since.isoformat(), "resets": resets.isoformat() }
+
+def quotas_of(cm: Any) -> dict[str, Quota]:
+	"""The plans the user set (`monthlyQuota`, `quotaResetDay`), by data source id: only for a source whose descriptor offers them, and only a limit that is a whole number of calls above 0."""
+	quotas: dict[str, Quota] = {}
+	for item in cm.enum_datasources():
+		info = item["info"]
+		declared = { p.get("name") for p in ((info.get("settings") or {}).get("schema") or {}).get("properties", []) }
+		if "monthlyQuota" not in declared:
+			continue
+		_, stored = cm.datasource_manager(str(info.get("id"))).open().get()
+		limit, day = (stored or {}).get("monthlyQuota"), (stored or {}).get("quotaResetDay", 1)
+		if isinstance(limit, int) and not isinstance(limit, bool) and limit > 0:
+			quotas[str(info.get("id"))] = Quota(limit, day if isinstance(day, int) and not isinstance(day, bool) and 1 <= day <= 28 else 1)
+	return quotas
 
 def _previous_month(day: date) -> date:
 	first = day.replace(day=1)
@@ -314,6 +403,11 @@ class MeteredClient(httpx.AsyncClient):
 		source = self._source or current_source.get()
 		if source is None:
 			return await super().send(request, stream=stream, **kwargs)
+		quota = self._meter.blocked(source)
+		if quota is not None:
+			# not sent, so not counted: what the source kept is used instead (`cached`, `fetch_cached`), and with nothing kept this is the failure, in our words
+			resets = quota.period(self._meter.today())[1]
+			raise QuotaUsedUp(f"'{source}' has used its quota of {quota.limit} calls; it asks again on {resets:%b} {resets.day}. Raise its Monthly Quota in the settings if your plan allows more.")
 		try:
 			response = await super().send(request, stream=stream, **kwargs)
 		except httpx.HTTPError as e:

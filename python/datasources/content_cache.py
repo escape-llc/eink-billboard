@@ -34,7 +34,7 @@ from ..task.messages import Telemetry
 from ..utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, download, stream_to_buffer
 from ..utils.url_guard import UrlRefused
 from .data_source import DataSourceExecutionContext
-from .metering import METER, metered_as
+from .metering import METER, QuotaUsedUp, metered_as
 from .keeping import DEFAULT_STALE_DAYS, CLOCK_SLACK, REFILL_WAIT_SECONDS, aware, number, parse_moment, prune_stale_sometimes, refill_lock
 from .response_cache import note_use, save_quietly
 
@@ -168,6 +168,13 @@ async def fetch_cached(dscm: DatasourceConfigurationManager, settings: Mapping[s
 			sent.update(asking)
 			try:
 				got = await download(client, url, sent, ctok, max_bytes, guarded, conditional=bool(asking))
+			except QuotaUsedUp:
+				# the plan the user set is used up: the kept bytes serve, however old; with nothing kept this is the failure
+				if body is not None:
+					logger.info(f"'{dscm.datasource_id}' has used its quota; using the kept download.")
+					tell("stale", len(body))
+					return BytesIO(body)
+				raise
 			except (PermanentError, UrlRefused):
 				raise
 			except Exception as e:
