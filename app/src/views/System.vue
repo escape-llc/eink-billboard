@@ -16,7 +16,6 @@
 	<div class="system">
 		<div class="system-main">
 			<SystemCard title="Device">
-				<template #head><Tag :severity="deviceSeverity" :value="deviceLabel" class="ml-auto" data-testid="status" :data-state="deviceState" /></template>
 				<ul v-if="status" class="plain">
 					<li v-for="(c, name) in status.components" :key="name" class="row">
 						<i :class="c.state === 'failed' ? 'mi mi-cancel' : c.state === 'ok' ? 'mi mi-check-circle' : 'mi mi-schedule'" aria-hidden="true"></i>
@@ -273,7 +272,7 @@ const toast = useToast()
 // the status and the readings (asked again every few seconds), the transport, and the telemetry link's events as the panels show them
 const {
 	link, transport, status, info, failed, source, problemsOnly,
-	mismatch, deviceState, deviceSeverity, deviceLabel, owners,
+	mismatch, owners,
 	current, currentLayers, recent, shownEvents, problems, statusText, statusSeverity,
 	start, stop, press,
 } = useSystem(detail => toast.add({ severity: "error", summary: "Playback", detail, life: 5000 }))
