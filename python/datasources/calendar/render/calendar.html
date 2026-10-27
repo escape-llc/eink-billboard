@@ -37,7 +37,7 @@
 			line-height: 1.2rem;
 		}
 		.cal-weekdays div {
-			font-size: .7rem;
+			font-size: max(var(--min-label), .7rem);
 			font-weight: bold;
 			letter-spacing: .056rem;
 			text-transform: uppercase;
@@ -75,7 +75,7 @@
 			display: inline-block;
 			min-width: .93rem;
 			padding: .186rem .279rem;
-			font-size: .62rem;
+			font-size: max(var(--min-label), .62rem);
 			font-weight: bold;
 			line-height: 1;
 			border: 1px solid currentColor;
@@ -106,13 +106,13 @@
 		}
 		.cal-num span {
 			--fs: .8rem;
-			font-size: var(--fs);
+			font-size: max(var(--min-text), var(--fs));
 			font-weight: bold;
 			padding: 0 calc(.25 * var(--fs));
 			border-radius: calc(.6 * var(--fs));
 		}
 		.cal-item {
-			font-size: .72rem;
+			font-size: max(var(--min-text), .72rem);
 			line-height: 1.25;
 			white-space: nowrap;
 			overflow: hidden;
@@ -160,7 +160,7 @@
 			font-weight: bold;
 			letter-spacing: .06rem;
 			text-transform: uppercase;
-			font-size: 1rem;
+			font-size: max(var(--min-text), 1rem);
 			border-bottom: 1px solid currentColor;
 		}
 		.ag-item {
@@ -180,7 +180,7 @@
 		.ag-time {
 			flex: none;
 			width: 6.12rem;
-			font-size: .85rem;
+			font-size: max(var(--min-text), .85rem);
 		}
 		.ag-title {
 			font-weight: bold;
@@ -192,26 +192,27 @@
 			font-style: italic;
 		}
 		.ag-location {
-			font-size: .8rem;
+			font-size: max(var(--min-text), .8rem);
 			overflow: hidden;
 			text-overflow: ellipsis;
 		}
 		.ag-empty {
 			margin-top: 1.2rem;
-			font-size: 1.2rem;
+			font-size: max(var(--min-text), 1.2rem);
 		}
 		/* over before the slot began: still there, but struck through */
 		.past {
 			text-decoration: line-through;
 		}
 		.cal-more {
-			font-size: .72rem;
+			font-size: max(var(--min-label), .72rem);
 			font-weight: bold;
 		}
 		.cal-notes {
 			flex: none;
 			margin-top: .18rem;
-			font-size: .6rem;
+			font-size: max(var(--min-label), .6rem);
+			font-weight: bold;
 			line-height: 1.3;
 		}
 	</style>

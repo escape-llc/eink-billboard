@@ -35,7 +35,7 @@ def generate_startup_image(stm:StaticConfigurationManager, dimensions=(800,480))
 	image_draw = ImageDraw.Draw(image)
 
 	title_font_size = width * 0.145
-	image_draw.text((width/2, height/2), "inkypi", anchor="mm", fill=text_color, font=stm.get_font("Jost", title_font_size))
+	image_draw.text((width/2, height/2), "eink-billboard", anchor="mm", fill=text_color, font=stm.get_font("Jost", title_font_size))
 
 	text = f"To get started, visit http://{hostname}.local"
 	text_font_size = width * 0.032

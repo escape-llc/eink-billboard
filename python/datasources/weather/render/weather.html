@@ -20,7 +20,7 @@
 			flex: none;
 			margin: 0 0 .4rem 0;
 			padding-bottom: .24rem;
-			font-size: .8rem;
+			font-size: max(var(--min-text), .8rem);
 			font-weight: bold;
 			letter-spacing: .12rem;
 			text-transform: uppercase;
@@ -39,7 +39,7 @@
 		.wx-credit {
 			flex: none;
 			margin-top: .28rem;
-			font-size: .7rem;
+			font-size: max(var(--min-label), .7rem);
 			font-weight: bold;
 			letter-spacing: .042rem;
 			text-align: right;
@@ -71,12 +71,12 @@
 		}
 		.wx-now-temp {
 			font-family: var(--font-heading);
-			font-size: 5.4rem;
+			font-size: max(var(--min-text), 5.4rem);
 			font-weight: bold;
 			line-height: 1;
 		}
 		.wx-now-text {
-			font-size: 1.8rem;
+			font-size: max(var(--min-text), 1.8rem);
 			font-weight: bold;
 			text-transform: capitalize;
 		}
@@ -87,7 +87,7 @@
 			align-items: center;
 			--fs: 1.35rem;
 			gap: calc(.25 * var(--fs));
-			font-size: var(--fs);
+			font-size: max(var(--min-text), var(--fs));
 			font-weight: bold;
 		}
 		.wx-now-details > div {
@@ -97,7 +97,8 @@
 			gap: calc(.2 * var(--fs)) calc(1.2 * var(--fs));
 		}
 		.wx-now-details span b {
-			font-size: calc(.8 * var(--fs));
+			font-size: max(var(--min-label), calc(.8 * var(--fs)));
+			font-weight: bold;
 			letter-spacing: calc(.064 * var(--fs));
 			text-transform: uppercase;
 			margin-right: calc(.28 * var(--fs));
@@ -106,7 +107,7 @@
 		.wx-table {
 			--u: 1rem;
 			--p: var(--u);
-			font-size: var(--u);
+			font-size: max(var(--min-text), var(--u));
 			width: 100%;
 			height: 100%;
 			display: grid;
@@ -131,7 +132,7 @@
 			border-top: none;
 			border-bottom: calc(.16 * var(--p)) solid var(--rule);
 			--p: calc(.95 * var(--u));
-			font-size: var(--p);
+			font-size: max(var(--min-text), var(--p));
 			letter-spacing: calc(.06 * var(--p));
 		}
 		/* the column of glyphs that name the rows has no rules of its own: the rules start at the figures */
@@ -159,7 +160,7 @@
 		}
 		/* the size is on the figure, not on its cell: the cell's rules are in em, and must stay the same width in every row */
 		.wx-table .wx-big .wx-fig {
-			font-size: calc(1.35 * var(--u));
+			font-size: max(var(--min-text), calc(1.35 * var(--u)));
 		}
 		.wx-table .wx-dim {
 			font-weight: normal;
@@ -168,7 +169,8 @@
 			white-space: nowrap;
 		}
 		.wx-day {
-			font-size: calc(.65 * var(--p));
+			font-size: max(var(--min-label), calc(.65 * var(--p)));
+			font-weight: bold;
 			letter-spacing: calc(.065 * var(--p));
 			text-transform: uppercase;
 			line-height: 1;
@@ -176,7 +178,7 @@
 		.wx-portrait {
 			display: none;
 			--u: .8rem;
-			font-size: var(--u);
+			font-size: max(var(--min-text), var(--u));
 		}
 		/* sunrise and sunset stay on one line, so the row is a little smaller where the page is narrow */
 		.wx-sun { flex-wrap: nowrap !important; }

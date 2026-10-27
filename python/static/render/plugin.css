@@ -1,3 +1,8 @@
+/* the smallest text a panel draws solid (AGENTS.md, typography): text from --min-text, small print (always bold) from --min-label; a page wraps every size it computes as max(var(--min-text), ...) (test_text_floors) */
+:root {
+	--min-text: 15px;
+	--min-label: 13px;
+}
 /* the device theme's fonts (python/model/theme.py writes the variables into :root); a page uses var(--font-heading) for its headings and multiplies its text sizes by var(--font-scale) */
 body {
 	font-family: var(--font-body, "Jost"), sans-serif;

@@ -19,13 +19,13 @@
 
 		.progress-title {
 		  font-family: var(--font-heading);
-		  font-size: min(20dvh, 16vw);
+		  font-size: max(var(--min-text), min(20dvh, 16vw));
 		  font-weight: bold;
 		  line-height: 1;
 		}
 
 		.progress-subtitle {
-		  font-size: calc(min(10dvh, 8vw) * var(--font-scale));
+		  font-size: max(var(--min-text), calc(min(10dvh, 8vw) * var(--font-scale)));
 		  margin-bottom: 10dvh;
 		  line-height: 1;
 		}
@@ -51,7 +51,7 @@
 		.progress-labels {
 		  display: flex;
 		  justify-content: space-between;
-		  font-size: calc(min(5dvh, 4vw) * var(--font-scale));
+		  font-size: max(var(--min-text), calc(min(5dvh, 4vw) * var(--font-scale)));
 		  margin-top: 8px;
 		}
 	</style>

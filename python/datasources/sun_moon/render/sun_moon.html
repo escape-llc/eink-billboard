@@ -23,7 +23,7 @@
 			gap: 1rem;
 			margin: 0 0 .4rem 0;
 			padding-bottom: .24rem;
-			font-size: .8rem;
+			font-size: max(var(--min-text), .8rem);
 			font-weight: bold;
 			letter-spacing: .12rem;
 			text-transform: uppercase;
@@ -65,7 +65,7 @@
 			min-width: 0;
 		}
 		.sm-label {
-			font-size: .75rem;
+			font-size: max(var(--min-label), .75rem);
 			font-weight: bold;
 			letter-spacing: .06rem;
 			text-transform: uppercase;
@@ -77,29 +77,30 @@
 		.sm-big {
 			font-family: var(--font-heading);
 			--big: min(2.6rem, calc((50cqi - .6rem) / ({{ big_chars | default(5) }} * .62)));
-			font-size: var(--big);
+			font-size: max(var(--min-text), var(--big));
 			font-weight: bold;
 			line-height: 1.05;
 			white-space: nowrap;
 		}
 		/* what follows the digits ("PM", "(+1)"): SUFFIX_SCALE of their size (sun_moon.py counts it so) */
 		.sm-suffix {
-			font-size: calc(.42 * var(--big));
+			font-size: max(var(--min-label), calc(.42 * var(--big)));
+			font-weight: bold;
 		}
 		/* a time is never broken across lines ("1:29 PM") */
 		.sm-time {
 			white-space: nowrap;
 		}
 		.sm-mid {
-			font-size: 1.15rem;
+			font-size: max(var(--min-text), 1.15rem);
 			font-weight: bold;
 			white-space: nowrap;
 		}
 		.sm-small {
-			font-size: .9rem;
+			font-size: max(var(--min-text), .9rem);
 		}
 		.sm-note {
-			font-size: 1.3rem;
+			font-size: max(var(--min-text), 1.3rem);
 			font-weight: bold;
 		}
 		.sm-moon-main {
@@ -176,7 +177,7 @@
 			display: flex;
 			justify-content: space-between;
 			gap: 1rem;
-			font-size: .95rem;
+			font-size: max(var(--min-text), .95rem);
 			font-weight: bold;
 			white-space: nowrap;
 		}

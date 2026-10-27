@@ -39,7 +39,7 @@
 			white-space: nowrap;
 			/* room for the outline's outer half, which the overflow would cut */
 			padding: 0 calc(.1 * var(--fs));
-			font-size: var(--fs);
+			font-size: max(var(--min-text), var(--fs));
 			-webkit-text-stroke: calc(.2 * var(--fs)) var(--outline-color, #ffffff);
 			paint-order: stroke fill;
 			stroke-linejoin: round;

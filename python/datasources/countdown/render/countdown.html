@@ -18,20 +18,20 @@
 		}
 		.title {
 			font-family: var(--font-heading);
-			font-size: calc(min(11dvw, 11dvh) * var(--font-scale));
+			font-size: max(var(--min-text), calc(min(11dvw, 11dvh) * var(--font-scale)));
 			font-weight: bold;
 			letter-spacing: .3px;
 		}
 		.subtitle {
-			font-size: calc(min(5dvw, 5dvh) * var(--font-scale));
+			font-size: max(var(--min-text), calc(min(5dvw, 5dvh) * var(--font-scale)));
 		}
 		.day_count {
-			font-size: min(32dvh, 32dvw);
+			font-size: max(var(--min-text), min(32dvh, 32dvw));
 		}
 		.label {
 			letter-spacing: calc(.1 * min(8dvh, 8dvw) * var(--font-scale));
 			text-transform: uppercase;
-			font-size: calc(min(8dvh, 8dvw) * var(--font-scale))
+			font-size: max(var(--min-text), calc(min(8dvh, 8dvw) * var(--font-scale)))
 		}
 	</style>
 {% endblock %}

@@ -13,7 +13,7 @@
 			display: flex;
 			flex-direction: column;
 			overflow: hidden;
-			font-size: {{ text_px }}px;
+			font-size: max(var(--min-text), {{ text_px }}px);
 			line-height: {{ line_height }};
 		}
 		.comic-words {
