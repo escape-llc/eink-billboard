@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => stubMapTiles(page))
 test("the System page shows the device is running, and what each part reports", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/system")
-	await expect(page.getByTestId("status")).toHaveAttribute("data-state", "ok", { timeout: 20000 })
+	await expect(page.getByTestId("device-status")).toHaveAttribute("data-state", "ok", { timeout: 20000 })
 	await expect(page.getByText("Display: Running.")).toBeVisible()
 	await expect(page.getByText("Timer tasks: Running.")).toBeVisible()
 	watch.expectNone()
@@ -95,7 +95,7 @@ test("every page's header says how the device is, and opens the System page", as
 	await expect(indicator).toHaveText("Running")
 	await indicator.click()
 	await expect(page).toHaveURL(/#\/system/)
-	await expect(page.getByTestId("status")).toHaveAttribute("data-state", "ok")
+	await expect(page.getByTestId("device-status")).toHaveAttribute("data-state", "ok")
 	watch.expectNone()
 })
 
