@@ -464,7 +464,7 @@ class StaticConfigurationManager:
 					"font_style": variant.get("font-style", "normal"),
 				})
 		return fonts_list
-	IMAGES = { "logo.png": "image/png" }
+	IMAGES = { "logo.svg": "image/svg+xml" }
 	def image_data_url(self, name: str) -> str|None:
 		"""One of our pictures (`static/images`, by a name from IMAGES) as a `data:` address, the only kind a rendered page may show (its Content-Security-Policy); None when it is not there."""
 		kind = self.IMAGES.get(name)

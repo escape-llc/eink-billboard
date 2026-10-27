@@ -19,7 +19,7 @@ test("the OpenWeatherMap settings link to where an API key is got, and the key i
 	watch.expectNone()
 })
 
-test("an API key is one frame: the Test joined to the input, the link right under it, then the answer", async ({ page }) => {
+test("an API key is one frame: the Test joined to the input, the link beside them, then the answer under the row", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.route("**/api/datasource/openweathermap-api/test", route => route.fulfill({ json: { ok: false, message: "OpenWeatherMap refused this key. A new key can take a couple of hours to start working." } }))
 	await page.goto("/#/settings")
@@ -40,8 +40,12 @@ test("an API key is one frame: the Test joined to the input, the link right unde
 	// joined: the button is on the input's row, touching its right edge
 	expect(Math.abs((t!.y + t!.height / 2) - (k!.y + k!.height / 2))).toBeLessThan(4)
 	expect(t!.x - (k!.x + k!.width)).toBeLessThan(2)
-	// the link is under the input and above the answer
-	expect(l!.y).toBeGreaterThan(k!.y + k!.height - 2)
+	// the link is in the same group, on the input's row, after the Test
+	expect(l!.y).toBeLessThan(k!.y + k!.height)
+	expect(l!.y + l!.height).toBeGreaterThan(k!.y)
+	expect(l!.x).toBeGreaterThan(t!.x + t!.width - 2)
+	// the answer is under the row
+	expect(a!.y).toBeGreaterThan(k!.y + k!.height - 2)
 	expect(a!.y).toBeGreaterThan(l!.y + l!.height - 2)
 	// the key is required, as the others are
 	await key.fill("")

@@ -100,11 +100,11 @@
 			<!-- the Test is a member of the group: joined to the input -->
 			<TestUrlButton v-if="field.test?.url && field.type === 'string'" bare :route="field.test.url" :baseUrl="baseUrl ?? ''" :value="fieldState.value"
 				:label="field.title" :disabled="isInvalid" @result="(r: TestResult | null) => testResult = r" />
+			<!-- where to get a key, in the group after the Test: one frame, then the feedback under it -->
+			<div v-if="safeLink" class="field-link">
+				<Button as="a" :href="safeLink.url" target="_blank" rel="noopener noreferrer" :label="safeLink.label" icon="mi mi-open-in-new" size="small" variant="text" />
+			</div>
 		</InputGroup>
-		<!-- where to get a key, right under the input: one frame, then the feedback -->
-		<div v-if="safeLink" class="field-link">
-			<Button as="a" :href="safeLink.url" target="_blank" rel="noopener noreferrer" :label="safeLink.label" icon="mi mi-open-in-new" size="small" variant="text" />
-		</div>
 		<Message v-if="testResult" :severity="testResult.ok ? 'success' : 'error'" size="small" variant="simple" data-testid="test-result">{{ testResult.message }}</Message>
 		<slot name="message" v-bind="{ field, fieldState }">
 			<Message v-if="isInvalid && errorMessage"

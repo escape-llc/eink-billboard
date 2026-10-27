@@ -87,7 +87,7 @@ def render_error_image(stm: StaticConfigurationManager|None, dimensions: tuple[i
 		try:
 			render_dir = os.path.join(stm.ROOT_PATH, "render")
 			hint_text = (f"Check the settings in the web app at {address}" if address else "Check the settings in the web app") if hint else None
-			page = { "settings": {}, "title": title, "lines": lines, "compact": compact, "heading": heading, "hint": hint_text, "logo": stm.image_data_url("logo.png") }
+			page = { "settings": {}, "title": title, "lines": lines, "compact": compact, "heading": heading, "hint": hint_text, "logo": stm.image_data_url("logo.svg") }
 			image = RenderSession(stm, render_dir, "error.html", theme).render(dimensions, page)
 			if image is not None:
 				return image
