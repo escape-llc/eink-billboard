@@ -9,6 +9,7 @@ import logging
 from concurrent.futures import Future
 
 from ..task.protocols import IRequireShutdown
+from ..utils.url_guard import PinnedTransport
 
 @lru_cache(maxsize=1)
 def tls_context() -> ssl.SSLContext:
@@ -30,6 +31,13 @@ client_var: ContextVar[httpx.AsyncClient] = ContextVar("http_client")
 class AsyncHttpWorkerPool(IRequireShutdown):
 	# what the HTTP client talks through: None is the network. The tests set one that answers from fixtures (python/tests/fake_internet.py).
 	default_transport: httpx.AsyncBaseTransport|None = None
+
+	@classmethod
+	def make_transport(cls) -> httpx.AsyncBaseTransport:
+		"""What a client of ours talks through: the tests' transport when one is set, else the network, made to connect to the address the URL guard checked (`PinnedTransport`, #477)."""
+		if cls.default_transport is not None:
+			return cls.default_transport
+		return PinnedTransport(httpx.AsyncHTTPTransport(verify=tls_context()))
 	# bounded waits: a pool that cannot start or stop must say so instead of hanging its caller
 	START_TIMEOUT_SECONDS = 10.0
 	SHUTDOWN_JOIN_TIMEOUT_SECONDS = 5.0
@@ -50,7 +58,7 @@ class AsyncHttpWorkerPool(IRequireShutdown):
 		try:
 			# counted (#440): it belongs to no data source, and `download_for` names the one each download is for (imported here: the meter's module imports this one)
 			from ..datasources.metering import MeteredClient
-			self.client = MeteredClient(None, max_redirects=5, timeout=self.REQUEST_TIMEOUT, transport=type(self).default_transport, verify=tls_context())
+			self.client = MeteredClient(None, max_redirects=5, timeout=self.REQUEST_TIMEOUT, transport=self.make_transport(), verify=tls_context())
 		except BaseException as e:
 			# start() is waiting on _loop_ready: tell it why the loop will never run
 			self._start_error = e

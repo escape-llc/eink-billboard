@@ -228,3 +228,114 @@ class TestRunTimeFetches(unittest.IsolatedAsyncioTestCase):
 		async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, content=b"BEGIN:VCALENDAR"))) as client:
 			with self.assertRaises(UrlRefused):
 				await download(client, "GET", "http://127.0.0.1/cal.ics", {})
+
+class Recorder(httpx.AsyncBaseTransport):
+	"""What a pinned request reaches the network as: the requests it was sent (`seen`), and the addresses that refuse to connect (`down`)."""
+	def __init__(self, down: tuple[str, ...] = ()):
+		self.seen: list[httpx.Request] = []
+		self.down = down
+	async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+		self.seen.append(request)
+		if request.url.host in self.down:
+			raise httpx.ConnectError("refused", request=request)
+		return httpx.Response(200, content=b"ok")
+
+class TestPinnedTransport(unittest.IsolatedAsyncioTestCase):
+	"""The connection goes to an address the guard checked, with the name kept for the server and for TLS (#477)."""
+	async def test_a_name_that_answers_differently_the_second_time_is_not_followed(self):
+		"""The check sees a public address; a second lookup would answer 127.0.0.1. The connect does not look up again."""
+		answers = iter([[PUBLIC], ["127.0.0.1"], ["127.0.0.1"]])
+		async def rebinding(host: str, port: int) -> list[str]:
+			return next(answers)
+		inner = Recorder()
+		async with httpx.AsyncClient(transport=url_guard.PinnedTransport(inner)) as client:
+			with patch.object(url_guard, "_resolve", rebinding):
+				self.assertEqual(await fetch_checked(client, "https://rebind.test/feed"), b"ok")
+		self.assertEqual([PUBLIC], [r.url.host for r in inner.seen])
+
+	async def test_the_name_stays_for_the_server_and_for_tls(self):
+		inner = Recorder()
+		async with httpx.AsyncClient(transport=url_guard.PinnedTransport(inner)) as client:
+			with patch.object(url_guard, "_resolve", resolver({ "a.test": [PUBLIC] })):
+				await fetch_checked(client, "https://a.test:8443/feed?x=1")
+		[sent] = inner.seen
+		self.assertEqual((PUBLIC, 8443, "/feed"), (sent.url.host, sent.url.port, sent.url.path))
+		self.assertEqual("a.test:8443", sent.headers["host"])
+		self.assertEqual("a.test", sent.extensions["sni_hostname"])
+
+	async def test_the_next_address_is_tried_when_one_does_not_connect(self):
+		inner = Recorder(down=("93.184.216.1",))
+		async with httpx.AsyncClient(transport=url_guard.PinnedTransport(inner)) as client:
+			with patch.object(url_guard, "_resolve", resolver({ "a.test": ["93.184.216.1", PUBLIC] })):
+				self.assertEqual(await fetch_checked(client, "http://a.test/"), b"ok")
+		self.assertEqual(["93.184.216.1", PUBLIC], [r.url.host for r in inner.seen])
+		down = Recorder(down=("93.184.216.1", PUBLIC))
+		async with httpx.AsyncClient(transport=url_guard.PinnedTransport(down)) as client:
+			with patch.object(url_guard, "_resolve", resolver({ "a.test": ["93.184.216.1", PUBLIC] })), self.assertRaises(httpx.ConnectError):
+				await fetch_checked(client, "http://a.test/")
+
+	async def test_an_ipv6_address_is_connected_to_as_it_is(self):
+		inner = Recorder()
+		async with httpx.AsyncClient(transport=url_guard.PinnedTransport(inner)) as client:
+			with patch.object(url_guard, "_resolve", resolver({ "a.test": ["2606:2800:220:1:248:1893:25c8:1946"] })):
+				await fetch_checked(client, "http://a.test/")
+		self.assertEqual("2606:2800:220:1:248:1893:25c8:1946", inner.seen[0].url.host)
+		self.assertEqual("a.test", inner.seen[0].headers["host"])
+
+	async def test_a_request_the_guard_did_not_check_goes_as_it_is(self):
+		inner = Recorder()
+		async with httpx.AsyncClient(transport=url_guard.PinnedTransport(inner)) as client:
+			await client.get("https://api.example.test/v1")
+		self.assertEqual(["api.example.test"], [r.url.host for r in inner.seen])
+
+class TestPinnedTls(unittest.IsolatedAsyncioTestCase):
+	"""https through a pinned address still checks the certificate against the name, not the address."""
+	async def test_the_certificate_is_checked_against_the_name(self):
+		import asyncio, datetime, ssl, tempfile
+		from pathlib import Path
+		from cryptography import x509
+		from cryptography.hazmat.primitives import hashes, serialization
+		from cryptography.hazmat.primitives.asymmetric import ec
+		from cryptography.x509.oid import NameOID
+		key = ec.generate_private_key(ec.SECP256R1())
+		subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "good.test")])
+		now = datetime.datetime.now(datetime.timezone.utc)
+		cert = (x509.CertificateBuilder().subject_name(subject).issuer_name(subject).public_key(key.public_key()).serial_number(1)
+			.not_valid_before(now - datetime.timedelta(days=1)).not_valid_after(now + datetime.timedelta(days=1))
+			.add_extension(x509.SubjectAlternativeName([x509.DNSName("good.test")]), False).sign(key, hashes.SHA256()))
+		async def answer(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+			await reader.readuntil(b"\r\n\r\n")
+			writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+			await writer.drain()
+			writer.close()
+		with tempfile.TemporaryDirectory() as folder:
+			certfile, keyfile = Path(folder, "cert.pem"), Path(folder, "key.pem")
+			await asyncio.to_thread(certfile.write_bytes, cert.public_bytes(serialization.Encoding.PEM))
+			await asyncio.to_thread(keyfile.write_bytes, key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+			server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+			server_context.load_cert_chain(certfile, keyfile)
+			server = await asyncio.start_server(answer, "127.0.0.1", 0, ssl=server_context)
+			port = server.sockets[0].getsockname()[1]
+			trusting = ssl.create_default_context(cafile=str(certfile))
+			try:
+				for name, ok in (("good.test", True), ("other.test", False)):
+					with self.subTest(name):
+						async with httpx.AsyncClient(transport=url_guard.PinnedTransport(httpx.AsyncHTTPTransport(verify=trusting))) as client:
+							request = client.get(f"https://{name}:{port}/", extensions={ url_guard.VETTED: ["127.0.0.1"] })
+							if ok:
+								self.assertEqual(b"ok", (await request).content)
+							else:
+								with self.assertRaises(httpx.ConnectError):
+									await request
+			finally:
+				server.close()
+				await server.wait_closed()
+
+class TestClientsArePinned(unittest.TestCase):
+	def test_the_network_transport_of_our_clients_is_pinned_and_a_tests_is_left_alone(self):
+		from ..task.async_http_worker_pool import AsyncHttpWorkerPool
+		with patch.object(AsyncHttpWorkerPool, "default_transport", None):
+			self.assertIsInstance(AsyncHttpWorkerPool.make_transport(), url_guard.PinnedTransport)
+		fake = httpx.MockTransport(lambda r: httpx.Response(200))
+		with patch.object(AsyncHttpWorkerPool, "default_transport", fake):
+			self.assertIs(AsyncHttpWorkerPool.make_transport(), fake)
