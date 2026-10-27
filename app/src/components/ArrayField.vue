@@ -265,6 +265,10 @@ function cellError(index: number, name: string): string|undefined {
 }
 /* a cell is a group of fluid controls: the labelled control takes what the addons leave. The editor itself may sit inside an InputGroup, whose rule
 	(.p-inputgroup .p-inputtext: width 1%) outweighs the controls' own `fluid`, so the controls say their width again */
+.array-group {
+	/* the labelled controls are this tall: an addon-only group (a switch) is as tall as they are, so a row is one height */
+	min-height: 3.32rem;
+}
 .array-group > :deep(.p-iftalabel) {
 	flex: 1 1 0;
 	min-width: 0;
