@@ -836,13 +836,14 @@ class ConfigurationManager(ConfigurationObjectFactory):
 					files, size, kept = measure(os.path.join(root, name))
 					found.append({ "id": name, "files": files, "bytes": size, "kept_bytes": kept })
 			return found
-		volume = None
+		return { "areas": areas, "plugins": owners(self.storage_plugins), "datasources": owners(self.storage_ds), "volume": self.disk_volume() }
+	def disk_volume(self) -> dict[str, Any]|None:
+		"""The disk the storage is on: bytes total, used and free, and the percent used (numbers only: never a path). None when it cannot be read."""
 		try:
 			usage = shutil.disk_usage(self.STORAGE_PATH)
-			volume = { "total": usage.total, "used": usage.used, "free": usage.free, "percent": round(usage.used / usage.total * 100, 1) if usage.total else 0 }
 		except OSError:
-			pass
-		return { "areas": areas, "plugins": owners(self.storage_plugins), "datasources": owners(self.storage_ds), "volume": volume }
+			return None
+		return { "total": usage.total, "used": usage.used, "free": usage.free, "percent": round(usage.used / usage.total * 100, 1) if usage.total else 0 }
 
 	def ensure_folders(self):
 		"""Ensures that necessary directories exist.  Does not consider files."""

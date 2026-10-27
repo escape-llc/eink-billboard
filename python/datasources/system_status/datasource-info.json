@@ -1,0 +1,69 @@
+{
+	"id": "system-status",
+	"name": "System Status",
+	"version": "0.0.1",
+	"class": "SystemStatusAsync",
+	"file": "system_status.py",
+	"module": "python.datasources.system_status.system_status",
+	"description": "How the device is: the processor, memory and disk with gauges, the Raspberry Pi's temperature and power warnings, and how long the machine and the app have been up, like the System page's Machine card. A reading that is too high is marked with a word, not only a color. Read on the device: no internet, no key. A reading the machine cannot give (a container, Windows) is left out.",
+	"describe": "System status",
+	"features": ["layer-foreground", "layer-priority", "media-image"],
+	"disabled": false,
+	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:system-status:1",
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {},
+			"properties": [
+				{
+					"name": "readings",
+					"type": "array",
+					"required": false,
+					"default": ["system", "processor", "memory", "disk", "temperature", "uptime"],
+					"title": "Readings",
+					"description": "What the page shows, in this order: system (the operating system, and the board's model on a Raspberry Pi), processor (cores and how busy), memory, disk (the storage's disk), temperature (a Raspberry Pi's, and its power or heat warnings) and uptime (the machine and the app).",
+					"items": {
+						"type": "string",
+						"enum": ["system", "processor", "memory", "disk", "temperature", "uptime"]
+					}
+				},
+				{
+					"name": "temperatureLimit",
+					"type": "number",
+					"required": false,
+					"default": 70,
+					"title": "Temperature Limit",
+					"description": "A Raspberry Pi at or above this temperature (°C) is marked High. The firmware slows the processor from 60 and throttles at 80.",
+					"minimum": 30,
+					"maximum": 100,
+					"step": 1
+				},
+				{
+					"name": "diskWarnPercent",
+					"type": "integer",
+					"required": false,
+					"default": 90,
+					"title": "Disk Warning",
+					"description": "A disk this full (percent used) or more is marked Low space.",
+					"minimum": 50,
+					"maximum": 99
+				},
+				{
+					"name": "title",
+					"type": "string",
+					"required": false,
+					"default": null,
+					"title": "Title",
+					"description": "The heading of the page. Empty: System Status.",
+					"maxLength": 80
+				}
+			]
+		}
+	}
+}
