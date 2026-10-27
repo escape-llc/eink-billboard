@@ -22,7 +22,7 @@ from ...plugins.plugin_base import PermanentError, RenderSession
 from ...task.async_http_worker_pool import client_var
 from ...utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, blurred_margin
 from ..content_cache import download_for, retain
-from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
+from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions, enhanced
 from ..metering import metered_as
 from ..response_cache import cached
 from .museums import MUSEUMS, PICTURE_HEADERS, Answer, Refused, museum_of
@@ -117,7 +117,8 @@ class MuseumArtAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		except Exception as e:
 			logger.error(f"'{self.name}' could not load the picture ({type(e).__name__}).")
 			raise RuntimeError(f"'{self.name}' could not load the picture ({type(e).__name__}).") from None
-		picture = blurred_margin(image, size)
+		# the photograph is enhanced before anything is drawn over it: the caption page embeds the enhanced picture
+		picture = enhanced(dsec, blurred_margin(image, size))
 		caption = caption_of(state)
 		title = f"{caption['title']}, {caption['artist']}" if caption["artist"] else caption["title"]
 		if params.get("showCaption") is False:

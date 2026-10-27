@@ -23,7 +23,7 @@ from ..task.async_worker_pool import AsyncWorkerPool
 from .message_router import MessageRouter
 from ..utils.image_compositor import ImageCompositor, ImageOverlay
 from ..display.quantize import to_appearance, to_inks
-from ..utils.image_utils import apply_image_enhancement, change_orientation, resize_image
+from ..utils.image_utils import change_orientation, resize_image
 
 class TimedLayerControl:
 	"""What a timed layer (priority, blend) shows now, so a revoke can end it early, and the titles revoked while still queued. Only touched on the pool loop."""
@@ -494,9 +494,6 @@ class Display(DispatcherTask):
 			# Resize and adjust orientation
 				image = change_orientation(msg.img, display_settings.get("orientation", "landscape"))
 				image = resize_image(image, self.resolution)
-				if msg.layer == "background":
-					# brightness, contrast, saturation and sharpness are a photograph's: they are set on the background picture, before anything is composited over it, so the overlays and pages keep their exact inks
-					image = apply_image_enhancement(image, display_settings)
 				di = msg if image == msg.img else ComputedImage(msg.timestamp, msg.title, image, msg, layer=msg.layer, origin=msg.origin)
 			else:
 				di = msg

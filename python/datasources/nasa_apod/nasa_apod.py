@@ -19,7 +19,7 @@ from ...task.async_http_worker_pool import client_var
 from ..content_cache import download_for
 from ...utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, blurred_margin
 from ...utils.text_utils import unescape_text
-from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
+from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions, enhanced
 
 API_URL = "https://science.nasa.gov/wp-json/wp/v2/apod-basic"
 HEADERS = { "User-Agent": "Mozilla/5.0 (compatible; eink-billboard)", "Accept": "application/json" }
@@ -133,4 +133,4 @@ class ApodAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			self.logger.error(f"'{self.name}' could not load the picture ({type(e).__name__}: {e}).")
 			raise RuntimeError(f"'{self.name}' could not load the picture ({type(e).__name__}).") from None
 		title = state.get("title") or "Picture of the Day"
-		return MediaRenderResult(image=blurred_margin(image, size), title=f"NASA Picture of the Day: {title} ({state.get('date')})")
+		return MediaRenderResult(image=enhanced(dsec, blurred_margin(image, size)), title=f"NASA Picture of the Day: {title} ({state.get('date')})")

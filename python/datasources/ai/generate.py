@@ -7,7 +7,7 @@ from typing import Any, Mapping
 from ...model.configuration_manager import ConfigurationManager
 from ...plugins.plugin_base import PermanentError
 from ...utils.image_utils import blurred_margin
-from ..data_source import DataSourceExecutionContext, MediaRenderResult, target_dimensions
+from ..data_source import DataSourceExecutionContext, MediaRenderResult, target_dimensions, enhanced
 from ..contracts.ai import AiImageApi, AiTextApi
 from .prompt import master_prompts, rewrite_request
 
@@ -34,4 +34,4 @@ async def generate(dsec: DataSourceExecutionContext, params: Mapping[str, Any], 
 	width, height = target_dimensions(dsec)
 	picture = await image.open_async(image_dsec, { **params, "prompt": prompt, "width": width, "height": height })
 	# a picture in the panel's shape (a model that takes any size) fills it; another gets the picture's own blur around it
-	return MediaRenderResult(image=blurred_margin(picture, (width, height)), title=f"{label}: {prompt or 'Untitled'}")
+	return MediaRenderResult(image=enhanced(dsec, blurred_margin(picture, (width, height))), title=f"{label}: {prompt or 'Untitled'}")
