@@ -218,6 +218,26 @@ class TestKeeping(unittest.TestCase):
 		self.meter.close()
 		self.assertEqual(self.stored()["sources"]["svc"]["days"]["2026-10-21"]["calls"], 1)
 
+	def test_sources_that_are_not_installed_are_forgotten_at_the_start_and_stay_forgotten(self):
+		self.meter.attach(self.cm)
+		for source in ("svc", "renamed-away"):
+			self.meter.call(source, 200, None, 0, 0)
+		self.meter.close()
+		again = UsageMeter(lambda: NOW)
+		self.addCleanup(again.close)
+		again.attach(self.cm)
+		self.assertEqual(sorted(e["id"] for e in again.report()), ["renamed-away", "svc"])
+		self.assertEqual(again.prune(["svc", "other-installed"]), ["renamed-away"])
+		self.assertEqual([e["id"] for e in again.report()], ["svc"])
+		again.flush()
+		# and the file says so: a later start does not read it back
+		self.assertEqual(sorted(self.stored()["sources"]), ["svc"])
+
+	def test_nothing_is_forgotten_when_no_data_source_is_listed(self):
+		self.meter.call("svc", 200, None, 0, 0)
+		self.assertEqual(self.meter.prune([]), [])
+		self.assertEqual([e["id"] for e in self.meter.report()], ["svc"])
+
 	def test_nothing_is_written_when_nothing_changed(self):
 		self.meter.attach(self.cm)
 		with patch.object(self.cm, "state_file", side_effect=AssertionError("written")):

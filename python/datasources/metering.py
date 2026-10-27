@@ -20,7 +20,7 @@ import time
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import Any, Callable, Iterator, Mapping
+from typing import Any, Callable, Iterable, Iterator, Mapping
 
 import httpx
 
@@ -184,6 +184,27 @@ class UsageMeter:
 			self._stop.clear()
 			self._thread = threading.Thread(target=self._run, name="api-metering", daemon=True)
 			self._thread.start()
+
+	def prune(self, known: Iterable[str]) -> list[str]:
+		"""
+		Forget the sources that are not in `known` (the installed data sources' ids): a source renamed or removed since the counts were kept would stay on the System page by its bare id.
+		Done once at the start, after `attach` read the file; the next write removes them from it. Nothing is forgotten when `known` is empty (a storage that did not load must not wipe the counts).
+		Returns the ids it forgot.
+		"""
+		keep = set(known)
+		if not keep:
+			return []
+		with self._lock:
+			gone = sorted(source for source in self._sources if source not in keep)
+			for source in gone:
+				del self._sources[source]
+				self._quotas.pop(source, None)
+				self._announced.pop(source, None)
+			if gone:
+				self._dirty = True
+		if gone:
+			logger.info(f"Forgot the API usage kept for data sources that are not installed: {', '.join(gone)}.")
+		return gone
 
 	def _load(self) -> dict[str, Any]:
 		try:
