@@ -97,5 +97,5 @@ class ComicFeedAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			if font is not None:
 				title, caption = words_that_fit(title, caption, font, size)
 		strip = await asyncio.to_thread(strip_data_uri, buffer, size)
-		# `settings` is the task's, which plugin.html reads (its frame)
+		# `settings` is the task's: the template may read it
 		return { "strip": strip, "title": title, "caption": caption, "text_px": text_px, "line_height": LINE_HEIGHT, "settings": dict(params) }
