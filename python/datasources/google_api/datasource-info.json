@@ -30,7 +30,7 @@
 					"title": "API Key",
 					"description": "A Google AI Studio key: create one in AI Studio (it starts with AQ.; an older AIza key is not accepted). Test asks Google which image models it may use.",
 					"test": { "url": "/api/datasource/google-api/test" },
-					"link": { "url": "https://aistudio.google.com/apikey", "label": "Get a key in AI Studio" }
+					"link": { "url": "https://aistudio.google.com/apikey", "label": "AI Studio Key" }
 				},
 				{
 					"name": "modelsCacheHours",

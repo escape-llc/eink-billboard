@@ -66,7 +66,7 @@
 				<template v-if="field.lookupSearch">
 					<InputText size="small" v-model="searchText" :aria-label="`Search ${field.title}`" placeholder="Search" class="lookup-search"
 						@keydown.enter.prevent="search" />
-					<Button type="button" size="small" severity="secondary" icon="mi mi-search" :aria-label="`Search for ${field.title}`" :loading="fetching" @click="search" />
+					<Button type="button" size="small" icon="mi mi-search" :aria-label="`Search for ${field.title}`" :loading="fetching" @click="search" />
 				</template>
 			</template>
 			<template v-else-if="field.type === 'number' || field.type === 'integer'">
@@ -88,7 +88,7 @@
 				<Textarea style="flex-grow:1" :name="field.name" :id="field.name" :invalid="isInvalid" size="small" :rows="field.rows ?? 3" autoResize
 					:placeholder="field.title" fluid />
 				<!-- a settings form that knows the factory text offers it back: it goes into the field, and the user saves it or not -->
-				<Button v-if="restoreField" type="button" size="small" severity="secondary" icon="mi mi-settings-backup-restore" :aria-label="`Restore default ${field.title}`"
+				<Button v-if="restoreField" type="button" size="small" icon="mi mi-settings-backup-restore" :aria-label="`Restore default ${field.title}`"
 					title="Put back the factory text" @click="restoreField(field.name)" />
 			</template>
 			<template v-else>
@@ -101,9 +101,9 @@
 			<TestUrlButton v-if="field.test?.url && field.type === 'string'" bare :route="field.test.url" :baseUrl="baseUrl ?? ''" :value="fieldState.value"
 				:label="field.title" :disabled="isInvalid" @result="(r: TestResult | null) => testResult = r" />
 			<!-- where to get a key, in the group after the Test: one frame, then the feedback under it -->
-			<div v-if="safeLink" class="field-link">
+			<InputGroupAddon v-if="safeLink" class="field-link">
 				<Button as="a" :href="safeLink.url" target="_blank" rel="noopener noreferrer" :label="safeLink.label" icon="mi mi-open-in-new" size="small" variant="text" />
-			</div>
+			</InputGroupAddon>
 		</InputGroup>
 		<Message v-if="testResult" :severity="testResult.ok ? 'success' : 'error'" size="small" variant="simple" data-testid="test-result">{{ testResult.message }}</Message>
 		<slot name="message" v-bind="{ field, fieldState }">
@@ -363,7 +363,8 @@ const errorMessage = computed(() => {
 	color: var(--p-text-color);
 }
 .field-link {
-	margin-top: -.25rem;
+	/* an addon of the input's group (its border and ground): the link has no padding of its own beside it */
+	padding: 0 .25rem;
 }
 /* the title and its "new" tag share one centred line (.field-title, main.css): the tag is taller than the text, so inline it pushed the text up */
 /* the search box of a search lookup: beside the choice, narrower than it */

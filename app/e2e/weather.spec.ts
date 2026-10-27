@@ -10,7 +10,7 @@ test("the OpenWeatherMap settings link to where an API key is got, and the key i
 	await page.getByRole("tab", { name: "Providers" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
 	await page.getByRole("option", { name: "openweathermap-api", exact: true }).click()
-	const link = page.getByRole("link", { name: "Get a free API key" })
+	const link = page.getByRole("link", { name: "Free API Key" })
 	await expect(link).toBeVisible()
 	await expect(link).toHaveAttribute("href", "https://home.openweathermap.org/users/sign_up")
 	await expect(link).toHaveAttribute("target", "_blank")
@@ -28,7 +28,7 @@ test("an API key is one frame: the Test joined to the input, the link beside the
 	await page.getByRole("option", { name: "openweathermap-api", exact: true }).click()
 	const key = page.getByRole("textbox", { name: "API Key", exact: true })
 	const test = page.getByRole("button", { name: "Test API Key" })
-	const link = page.getByRole("link", { name: "Get a free API key" })
+	const link = page.getByRole("link", { name: "Free API Key" })
 	// nothing to test until a key is typed
 	await expect(test).toBeDisabled()
 	await key.fill("any-key")

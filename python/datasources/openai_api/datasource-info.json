@@ -29,7 +29,7 @@
 					"title": "API Key",
 					"description": "Your OpenAI API key. Test asks OpenAI which image models it may use.",
 					"test": { "url": "/api/datasource/openai-api/test" },
-					"link": { "url": "https://platform.openai.com/api-keys", "label": "Get an API key" }
+					"link": { "url": "https://platform.openai.com/api-keys", "label": "API Keys" }
 				},
 				{
 					"name": "modelsCacheHours",

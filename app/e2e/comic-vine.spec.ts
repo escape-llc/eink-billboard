@@ -10,7 +10,7 @@ test("the Comic Vine settings link to where an API key is got, and the key is a 
 	await page.getByRole("tab", { name: "Providers" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
 	await page.getByRole("option", { name: "comicvine-api", exact: true }).click()
-	const link = page.getByRole("link", { name: "Get a free API key" })
+	const link = page.getByRole("link", { name: "Free API Key" })
 	await expect(link).toBeVisible()
 	await expect(link).toHaveAttribute("href", "https://comicvine.gamespot.com/api/")
 	await expect(link).toHaveAttribute("target", "_blank")

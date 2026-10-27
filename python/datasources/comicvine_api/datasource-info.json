@@ -29,7 +29,7 @@
 					"title": "API Key",
 					"description": "Your Comic Vine key. It is free for personal use: sign in and the key is on the API page. Test asks Comic Vine whether it accepts the key.",
 					"test": { "url": "/api/datasource/comicvine-api/test-key" },
-					"link": { "url": "https://comicvine.gamespot.com/api/", "label": "Get a free API key" }
+					"link": { "url": "https://comicvine.gamespot.com/api/", "label": "Free API Key" }
 				},
 				{
 					"name": "volumeCacheHours",
