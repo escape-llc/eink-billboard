@@ -12,8 +12,12 @@ network, so the address must not be a way to reach this device itself or the pla
   from https to http, `Authorization`, `Proxy-Authorization` and `Cookie` are not sent again (the HTTP client does the same when it follows redirects itself).
   They must be the request's own headers: a client's default headers are the client's to send.
 
-Limit: the client resolves the name again when it connects, so a name that answers differently the second time (DNS rebinding) is not
-caught. The caller is signed in and the answer carries no content, only a verdict, which keeps what that could gain small.
+- the connection goes to an address that was checked, not to one the client looks up again (#477): a name that answers a public address to the check and
+  `127.0.0.1` to the connect (DNS rebinding) is not followed. `stream_checked` hands the checked addresses to the request (the `vetted_addresses` extension)
+  and `PinnedTransport` connects to them, one after the other as the lookup's order has it. The request's `Host` header and the TLS handshake (SNI and the
+  certificate check, through the `sni_hostname` extension) keep the name, so only the address the socket is opened to changes. A connection kept alive is
+  one to the checked address (the pool keys by it). This holds for the clients made with `AsyncHttpWorkerPool.make_transport()`; a client with a transport of
+  its own (a test's) connects as it chooses.
 """
 import asyncio
 import contextlib
@@ -66,8 +70,8 @@ def refused_reason(address: str) -> str|None:
 		return "a reserved address"
 	return None
 
-async def check_url(url: str) -> None:
-	"""Raise UrlRefused unless `url` is an http(s) address whose host resolves only to addresses that may be fetched."""
+async def check_url(url: str) -> list[str]:
+	"""The addresses of `url`'s host, all of which may be fetched; raise UrlRefused unless `url` is an http(s) address and every address of its host may be."""
 	parts = urlsplit(url)
 	if parts.scheme not in ("http", "https") or not parts.hostname:
 		raise UrlRefused("Only http and https addresses can be used.")
@@ -82,6 +86,35 @@ async def check_url(url: str) -> None:
 		reason = refused_reason(address)
 		if reason is not None:
 			raise UrlRefused(f"That address is {reason}, which cannot be used here.")
+	return addresses
+
+# the request's extension that names the addresses the guard checked for its host
+VETTED = "vetted_addresses"
+
+class PinnedTransport(httpx.AsyncBaseTransport):
+	"""
+	Wraps the transport that talks to the network: a request that carries `VETTED` is sent to one of those addresses (the first that connects), with the host name
+	kept for the `Host` header and for TLS (`sni_hostname`: the server name sent and the name its certificate is checked against). A request without it goes as it is.
+	"""
+	def __init__(self, inner: httpx.AsyncBaseTransport):
+		self._inner = inner
+
+	async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+		addresses = request.extensions.get(VETTED)
+		if not addresses:
+			return await self._inner.handle_async_request(request)
+		failure: Exception|None = None
+		for address in addresses:
+			pinned = httpx.Request(request.method, request.url.copy_with(host=address), headers=request.headers, stream=request.stream,
+				extensions={ **request.extensions, "sni_hostname": request.url.host })
+			try:
+				return await self._inner.handle_async_request(pinned)
+			except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+				failure = e
+		raise failure if failure is not None else httpx.ConnectError("No address to connect to.", request=request)
+
+	async def aclose(self) -> None:
+		await self._inner.aclose()
 
 def _is_ip(host: str) -> bool:
 	try:
@@ -118,8 +151,8 @@ async def stream_checked(client: httpx.AsyncClient, method: str, url: str, heade
 	"""
 	sent = dict(headers or {})
 	for _ in range(MAX_REDIRECTS + 1):
-		await check_url(url)
-		async with client.stream(method, url, headers=sent, content=content, follow_redirects=False) as resp:
+		addresses = await check_url(url)
+		async with client.stream(method, url, headers=sent, content=content, follow_redirects=False, extensions={ VETTED: addresses }) as resp:
 			if resp.is_redirect and resp.headers.get("location"):
 				target = urljoin(url, resp.headers["location"])
 				# another origin, or the same host without TLS: the credentials stay behind, for this hop and every later one

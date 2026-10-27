@@ -34,7 +34,7 @@ def describe(response: httpx.Response) -> dict[str, Any]:
 
 async def locate() -> dict[str, Any]:
 	"""Ask the service about the caller's own address: `{ ok, message, latitude?, longitude? }`."""
-	async with httpx.AsyncClient(timeout=httpx.Timeout(10.0), transport=AsyncHttpWorkerPool.default_transport, verify=tls_context()) as client:
+	async with httpx.AsyncClient(timeout=httpx.Timeout(10.0), transport=AsyncHttpWorkerPool.make_transport(), verify=tls_context()) as client:
 		try:
 			response = await client.get(API, headers={ "Accept": "application/json", "User-Agent": "eink-billboard" })
 		except httpx.HTTPError as ex:
