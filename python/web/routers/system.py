@@ -4,7 +4,7 @@ import logging
 
 from fastapi import APIRouter, Depends
 
-from ...datasources.metering import METER
+from ...datasources.metering import METER, Quota
 from ...model.configuration_manager import ConfigurationManager
 from ..deps import get_cm
 from ..locate import locate
@@ -81,6 +81,15 @@ class Period(Answer):
 	hitRate: float | None
 	bytesSaved: int
 
+class QuotaUse(Answer):
+	"""The plan the user says they have, against this period's calls (#586): the period starts on `resetDay` of each month, `since` and `resets` are its first day and the next one's."""
+	limit: int
+	resetDay: int
+	used: int
+	percent: float
+	since: str
+	resets: str
+
 class Usage(Answer):
 	id: str
 	name: str
@@ -88,6 +97,7 @@ class Usage(Answer):
 	week: Period
 	month: Period
 	lastLimited: str | None
+	quota: QuotaUse | None
 
 class SystemInfo(Answer):
 	host: Host
@@ -106,7 +116,21 @@ class Located(Answer):
 def usage_report(cm: ConfigurationManager) -> list[dict]:
 	"""What the API data sources have asked of their services (`datasources/metering.py`), each named from its descriptor (an id with no descriptor, a source removed since, keeps its id)."""
 	names = { str(item["info"].get("id")): str(item["info"].get("name") or item["info"].get("id")) for item in cm.enum_datasources() }
-	return [{ **entry, "name": names.get(entry["id"], entry["id"]) } for entry in METER.report()]
+	return [{ **entry, "name": names.get(entry["id"], entry["id"]) } for entry in METER.report(quotas_of(cm))]
+
+def quotas_of(cm: ConfigurationManager) -> dict[str, Quota]:
+	"""The plans the user has set (`monthlyQuota`, `quotaResetDay`), by data source id: only for a source whose descriptor offers them, and only a limit that is a whole number of calls above 0."""
+	quotas: dict[str, Quota] = {}
+	for item in cm.enum_datasources():
+		info = item["info"]
+		declared = { p.get("name") for p in ((info.get("settings") or {}).get("schema") or {}).get("properties", []) }
+		if "monthlyQuota" not in declared:
+			continue
+		_, stored = cm.datasource_manager(str(info.get("id"))).open().get()
+		limit, day = (stored or {}).get("monthlyQuota"), (stored or {}).get("quotaResetDay", 1)
+		if isinstance(limit, int) and not isinstance(limit, bool) and limit > 0:
+			quotas[str(info.get("id"))] = Quota(limit, day if isinstance(day, int) and not isinstance(day, bool) and 1 <= day <= 28 else 1)
+	return quotas
 
 @router.get("", **answers(SystemInfo))
 def get_system(cm: ConfigurationManager = Depends(get_cm)):

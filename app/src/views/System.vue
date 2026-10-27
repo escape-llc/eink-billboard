@@ -152,6 +152,13 @@
 								</tr>
 							</tbody>
 						</table>
+						<div v-if="source.quota" class="quota" :data-quota="source.id">
+							<div>{{ quotaLine(source.quota) }}</div>
+							<div class="gauge" role="meter" :aria-label="`${source.name} quota used`" :aria-valuenow="Math.min(source.quota.percent, 100)" aria-valuemin="0" aria-valuemax="100">
+								<div :class="quotaSeverity(source.quota.percent)" :style="{ width: `${Math.min(source.quota.percent, 100)}%` }"></div>
+							</div>
+							<Message size="small" v-if="quotaWarning(source.quota.percent)" :severity="source.quota.percent >= 100 ? 'error' : 'warn'" :closable="false" class="note" data-testid="quota-warning">{{ quotaWarning(source.quota.percent) }}</Message>
+						</div>
 						<p v-if="statusSummary(source.month.status)" class="muted note">This month, by answer: {{ statusSummary(source.month.status) }}.</p>
 						<p v-if="source.lastLimited" class="muted note">Told "too many requests" last on {{ deviceMoment(source.lastLimited) }}.</p>
 					</div>
@@ -257,12 +264,12 @@
  * (the playlist's transport, what the panel shows, and what the tasks report over the telemetry link).
  */
 import { onBeforeUnmount, onMounted, ref } from "vue"
-import { Button, Dialog, InputGroup, Select, Tag, Toolbar, ToggleSwitch, useToast } from "primevue"
+import { Button, Dialog, InputGroup, Message, Select, Tag, Toolbar, ToggleSwitch, useToast } from "primevue"
 import { LAYERS, clockOf, isProblem, type TelemetryEvent } from "../components/TelemetryLink"
 import BackupRestore from "../components/BackupRestore.vue"
 import SystemCard from "../components/SystemCard.vue"
 import PasswordForm from "../components/PasswordForm.vue"
-import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, statusSummary, storageLine, temperatureSeverity, usageLine } from "../components/SystemFormat"
+import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, statusSummary, storageLine, temperatureSeverity, usageLine, quotaLine, quotaSeverity, quotaWarning } from "../components/SystemFormat"
 import { usePlaylistPanel } from "../composables/usePlaylistPanel"
 import { SOURCES as sources, describeEvent as describe, eventIcon as iconOf, useSystem } from "../composables/useSystem"
 

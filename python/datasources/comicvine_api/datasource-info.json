@@ -65,6 +65,26 @@
 					"minimum": 0,
 					"title": "Forget Unused Answers After (days)",
 					"description": "A kept answer nobody has used for this many days (a series you stopped showing) is removed. 0: never."
+				},
+				{
+					"name": "monthlyQuota",
+					"type": "integer",
+					"required": false,
+					"default": null,
+					"minimum": 1,
+					"title": "Monthly Quota (calls)",
+					"description": "The calls your Comic Vine plan allows in a month. Only you know it, and the service is not asked. The System page's API usage card shows this period's calls against it, with a warning from 80%. Empty: no limit shown."
+				},
+				{
+					"name": "quotaResetDay",
+					"type": "integer",
+					"required": false,
+					"default": 1,
+					"minimum": 1,
+					"maximum": 28,
+					"title": "Quota Resets On (day of the month)",
+					"description": "The day of the month your plan starts counting again (1 to 28), in the device's time zone. The period the bar shows starts on that day.",
+					"visibleIf": { "not": { "field": "monthlyQuota", "const": null } }
 				}
 			]
 		},
@@ -72,7 +92,6 @@
 			"apiKey": null,
 			"volumeCacheHours": 168,
 			"issuesCacheHours": 24,
-			"staleDays": 30
-		}
+			"staleDays": 30, "monthlyQuota": null, "quotaResetDay": 1 }
 	}
 }

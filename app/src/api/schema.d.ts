@@ -1645,6 +1645,24 @@ export interface components {
             /** Title */
             title: string;
         };
+        /**
+         * QuotaUse
+         * @description The plan the user says they have, against this period's calls (#586): the period starts on `resetDay` of each month, `since` and `resets` are its first day and the next one's.
+         */
+        QuotaUse: {
+            /** Limit */
+            limit: number;
+            /** Percent */
+            percent: number;
+            /** Resetday */
+            resetDay: number;
+            /** Resets */
+            resets: string;
+            /** Since */
+            since: string;
+            /** Used */
+            used: number;
+        };
         /** Removed */
         Removed: {
             /** Id */
@@ -2024,6 +2042,7 @@ export interface components {
             month: components["schemas"]["Period"];
             /** Name */
             name: string;
+            quota: components["schemas"]["QuotaUse"] | null;
             today: components["schemas"]["Period"];
             week: components["schemas"]["Period"];
         };

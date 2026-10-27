@@ -69,6 +69,12 @@
 			},
 			"staleDays": {
 				"type": "integer"
+			},
+			"monthlyQuota": {
+				"type": "integer"
+			},
+			"quotaResetDay": {
+				"type": "integer"
 			}
 		}
 	},
@@ -103,6 +109,12 @@
 				"type": "number"
 			},
 			"staleDays": {
+				"type": "integer"
+			},
+			"monthlyQuota": {
+				"type": "integer"
+			},
+			"quotaResetDay": {
 				"type": "integer"
 			}
 		}
@@ -193,6 +205,12 @@
 			},
 			"staleDays": {
 				"type": "integer"
+			},
+			"monthlyQuota": {
+				"type": "integer"
+			},
+			"quotaResetDay": {
+				"type": "integer"
 			}
 		}
 	},
@@ -209,6 +227,12 @@
 				"type": "number"
 			},
 			"staleDays": {
+				"type": "integer"
+			},
+			"monthlyQuota": {
+				"type": "integer"
+			},
+			"quotaResetDay": {
 				"type": "integer"
 			}
 		}
@@ -262,6 +286,12 @@
 				"type": "number"
 			},
 			"staleDays": {
+				"type": "integer"
+			},
+			"monthlyQuota": {
+				"type": "integer"
+			},
+			"quotaResetDay": {
 				"type": "integer"
 			}
 		}

@@ -7,7 +7,7 @@ import json
 import os
 import ssl
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import patch
 
@@ -15,7 +15,7 @@ import httpx
 
 from ..datasources import keeping
 from ..datasources.content_cache import fetch_cached
-from ..datasources.metering import METER, STATE_NAME, USAGE_VERSION, MeteredClient, UsageMeter, failure_kind
+from ..datasources.metering import METER, STATE_NAME, USAGE_VERSION, MeteredClient, Quota, UsageMeter, failure_kind
 from ..datasources.response_cache import cached
 from ..utils import url_guard
 from .test_content_cache import Origin, public
@@ -70,6 +70,48 @@ class TestCounting(unittest.TestCase):
 	def test_a_source_that_asked_nothing_has_no_rate(self):
 		self.meter.call("svc", 200, None, 0, 0)
 		self.assertIsNone(only(self.meter)["today"]["hitRate"])
+
+class TestQuota(unittest.TestCase):
+	"""The plan the user says they have (#586): this period's calls against it, the period starting on the reset day."""
+	def setUp(self):
+		self.now = NOW
+		self.meter = UsageMeter(lambda: self.now)
+
+	def test_a_period_starts_on_the_reset_day_of_this_month_or_last(self):
+		q = Quota(100, 15)
+		self.assertEqual(q.period(date(2026, 10, 21)), (date(2026, 10, 15), date(2026, 11, 15)))
+		self.assertEqual(q.period(date(2026, 10, 15)), (date(2026, 10, 15), date(2026, 11, 15)))
+		self.assertEqual(q.period(date(2026, 10, 14)), (date(2026, 9, 15), date(2026, 10, 15)))
+		# across a year, and the first of the month
+		self.assertEqual(Quota(100, 28).period(date(2027, 1, 3)), (date(2026, 12, 28), date(2027, 1, 28)))
+		self.assertEqual(Quota(100).period(date(2026, 12, 31)), (date(2026, 12, 1), date(2027, 1, 1)))
+
+	def test_the_calls_since_the_reset_day_are_counted_against_the_limit(self):
+		for days_ago in (30, 10, 7, 6, 0, 0):
+			self.now = NOW - timedelta(days=days_ago)
+			self.meter.call("svc", 200, None, 0, 0)
+		self.now = NOW
+		# the 21st with the plan resetting on the 15th: the period began on the 15th, six days back, so the 6, 0 and 0 count
+		entry = next(e for e in self.meter.report({ "svc": Quota(10, 15) }))
+		self.assertEqual(entry["quota"], { "limit": 10, "resetDay": 15, "used": 3, "percent": 30.0, "since": "2026-10-15", "resets": "2026-11-15" })
+
+	def test_failed_calls_count_too_and_a_source_with_no_quota_has_none(self):
+		self.meter.call("svc", 429, None, 0, 0)
+		self.meter.call("svc", None, "timeout", 0, 0)
+		self.meter.call("other", 200, None, 0, 0)
+		report = { e["id"]: e for e in self.meter.report({ "svc": Quota(4) }) }
+		self.assertEqual(report["svc"]["quota"]["used"], 2)
+		self.assertIsNone(report["other"]["quota"])
+
+	def test_a_source_with_a_quota_is_reported_before_its_first_call(self):
+		entry = self.meter.report({ "new": Quota(500) })[0]
+		self.assertEqual((entry["id"], entry["month"]["calls"], entry["quota"]["used"], entry["quota"]["percent"]), ("new", 0, 0, 0.0))
+
+	def test_a_period_is_never_longer_than_the_days_kept(self):
+		for reset_day in range(1, 29):
+			for month in range(1, 13):
+				start, nxt = Quota(1, reset_day).period(date(2026, month, 28))
+				self.assertLessEqual((nxt - start).days, 31)
 
 class TestKeeping(unittest.TestCase):
 	def setUp(self):
