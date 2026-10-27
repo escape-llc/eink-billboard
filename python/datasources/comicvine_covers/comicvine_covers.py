@@ -16,7 +16,7 @@ from ...plugins.plugin_base import PermanentError
 from ...utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, blurred_margin
 from ..content_cache import download_for
 from ..comicvine_api.comicvine_api import HEADERS, PAGE, ComicVineApi
-from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
+from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions, enhanced
 
 COMICVINE_ID = "comicvine-api"
 MAX_IMAGE_BYTES = DEFAULT_MAX_DOWNLOAD_BYTES
@@ -68,4 +68,4 @@ class ComicVineCoversAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		except Exception as e:
 			logger.error(f"'{self.name}' could not load the cover ({type(e).__name__}).")
 			raise RuntimeError(f"'{self.name}' could not load the cover ({type(e).__name__}).") from None
-		return MediaRenderResult(image=blurred_margin(image, size), title=str(state.get("title") or "Comic Vine"))
+		return MediaRenderResult(image=enhanced(dsec, blurred_margin(image, size)), title=str(state.get("title") or "Comic Vine"))

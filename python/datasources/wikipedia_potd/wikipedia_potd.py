@@ -23,7 +23,7 @@ from datetime import datetime
 import logging
 from random import randint
 
-from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
+from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions, enhanced
 from ...task.async_http_worker_pool import client_var
 from ..content_cache import download_for
 from ...utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, blurred_margin
@@ -68,7 +68,7 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			max_width, max_height = target_dimensions(dsec)
 			image = self._shrink_to_fit(image, max_width, max_height)
 			self.logger.info(f"'{self.name}' Image resized: {max_width},{max_height}")
-		return MediaRenderResult(image=image, title=f"Wikipedia Picture of the Day: {state.get('date', 'Unknown Date')}")
+		return MediaRenderResult(image=enhanced(dsec, image), title=f"Wikipedia Picture of the Day: {state.get('date', 'Unknown Date')}")
 		pass
 	def _shrink_to_fit(self, image: Image.Image, max_width: int, max_height: int) -> Image.Image:
 		"""
