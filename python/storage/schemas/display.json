@@ -36,6 +36,7 @@
 				"name": "refreshInterval",
 				"type": "integer",
 				"title": "Rest After a Refresh",
+				"units": "seconds",
 				"description": "Seconds the panel rests after a refresh before it is sent another image, so the picture has time to settle and the panel is not worn by refreshing it too often. Pages that arrive meanwhile wait and the newest is drawn when the rest is over. A panel model may need more than this; 0 for no rest (a mock display).",
 				"minimum": 0,
 				"maximum": 3600,

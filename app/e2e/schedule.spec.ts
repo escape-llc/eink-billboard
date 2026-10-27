@@ -47,7 +47,7 @@ test("the playlist editor fills the window: the page does not scroll, its panes 
 	await page.goto("/#/playlist")
 	await page.locator(".track-row").first().click()
 	await expect(page.getByText("Track Settings")).toBeVisible()
-	await expect(page.getByText("Slide Duration Minutes")).toBeVisible()
+	await expect(page.getByText("Slide Duration")).toBeVisible()
 	const sizes = await page.evaluate(() => {
 		const area = document.querySelector(".router-view") as HTMLElement
 		const editor = document.querySelector(".track-editor") as HTMLElement

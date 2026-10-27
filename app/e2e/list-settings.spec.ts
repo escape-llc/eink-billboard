@@ -16,10 +16,10 @@ test("the list settings are shown for a source with a list and not for a picture
 		await page.getByRole("option").filter({ hasText: name }).first().click()
 	}
 	const listMode = editor.getByText("Slides in a List", { exact: true })
-	const refresh = editor.getByText("Fetch Again After (hours)", { exact: true })
+	const refresh = editor.getByText("Fetch Again After", { exact: true })
 
 	await choose("NASA Picture of the Day")
-	await expect(editor.getByText("Slide Duration Minutes", { exact: true })).toBeVisible()
+	await expect(editor.getByText("Slide Duration", { exact: true })).toBeVisible()
 	// one picture: the count is 1, so it is not asked
 	const maxSlides = editor.getByText("Max Slides", { exact: true })
 	await expect(maxSlides).toHaveCount(0)

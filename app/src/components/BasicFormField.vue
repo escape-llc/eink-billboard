@@ -76,6 +76,8 @@
 					:maxFractionDigits="field.type === 'integer' ? 0 : field.maxFractionDigits"
 					:showClear="field.required === false"
 					:placeholder="field.title" fluid />
+				<!-- what the number counts, in the group after the number and before any button -->
+				<InputGroupAddon v-if="field.units" class="field-units">{{ field.units }}</InputGroupAddon>
 			</template>
 			<template v-else-if="field.type === 'location'">
 				<InputGroupAddon style="flex:1 1 0;min-width:0">

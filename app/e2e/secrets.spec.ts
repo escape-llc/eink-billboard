@@ -45,7 +45,7 @@ test("saving the untouched mask keeps the stored key", async ({ page }) => {
 	await expect(input).toHaveValue(MASK)
 	// the mask alone is no change, so nothing is saved: another field changes and the mask goes back with it
 	await expect(saveButton(page)).toBeDisabled()
-	const days = page.getByRole("tabpanel").getByRole("spinbutton", { name: "Forget Unused Answers After (days)" })
+	const days = page.getByRole("tabpanel").getByRole("spinbutton", { name: "Forget Unused Answers After" })
 	await days.fill("31")
 	await days.blur()
 	await saveButton(page).click()
@@ -59,11 +59,13 @@ test("a monthly quota can be set, shows its reset day, and is saved without touc
 	const input = await openKeyForm(page)
 	await expect(input).toHaveValue(MASK)
 	// the reset day only matters once there is a quota
-	await expect(page.getByRole("spinbutton", { name: "Quota Resets On (day of the month)" })).toHaveCount(0)
-	const quota = page.getByRole("spinbutton", { name: "Monthly Quota (calls)" })
+	await expect(page.getByRole("spinbutton", { name: "Quota Resets On" })).toHaveCount(0)
+	const quota = page.getByRole("spinbutton", { name: "Monthly Quota" })
+	// what the quota counts is an addon of its group, after the number (#727), not part of the title
+	await expect(page.locator(".p-inputgroupaddon", { hasText: /^calls$/ })).toBeVisible()
 	await quota.fill("1000")
 	await quota.blur()
-	const day = page.getByRole("spinbutton", { name: "Quota Resets On (day of the month)" })
+	const day = page.getByRole("spinbutton", { name: "Quota Resets On" })
 	await expect(day).toBeVisible()
 	await day.fill("15")
 	await day.blur()

@@ -56,6 +56,8 @@ export type FieldDef = {
 	tokens?: { name: string, description: string }[]
 	/** the capabilities whose contracts supply `tokens` (copied in when the descriptors are read, so the form sees `tokens`) */
 	tokensFrom?: string[]
+	/** of a number: what it is counted in (`hours`, `MB`), shown in the input's group, after the number */
+	units?: string
 	step?: number
 	minFractionDigits?: number
 	maxFractionDigits?: number

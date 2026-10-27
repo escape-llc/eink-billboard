@@ -82,6 +82,7 @@
 					"minimum": 0,
 					"maximum": 8,
 					"title": "Weeks Ahead",
+					"units": "weeks",
 					"description": "How many weeks the weekly view shows after the current one.",
 					"visibleIf": { "field": "views", "contains": "weeks" }
 				},
@@ -93,6 +94,7 @@
 					"minimum": 1,
 					"maximum": 31,
 					"title": "Agenda Days",
+					"units": "days",
 					"description": "How many days the agenda shows, today included.",
 					"visibleIf": { "field": "views", "contains": "agenda" }
 				},

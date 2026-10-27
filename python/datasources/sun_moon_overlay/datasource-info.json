@@ -56,6 +56,7 @@
 					"minimum": 0,
 					"maximum": 200,
 					"title": "Edge Offset",
+					"units": "px",
 					"description": "How far the text is from the screen's edge, in pixels: from the top edge in a top zone, from the bottom edge in a bottom zone."
 				}
 			]

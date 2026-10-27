@@ -32,7 +32,8 @@
 					"step": 0.05,
 					"minFractionDigits": 0,
 					"maxFractionDigits": 2,
-					"title": "Keep an Answer (hours)",
+					"title": "Keep an Answer",
+					"units": "hours",
 					"description": "How long what each calendar answered is kept and shared by every page, task and overlay that shows its events, so the calendars are asked once in that time. An edit to a calendar shows up after it. 0: ask every time."
 				},
 				{
@@ -41,7 +42,8 @@
 					"required": true,
 					"default": 30,
 					"minimum": 0,
-					"title": "Forget Unused Answers After (days)",
+					"title": "Forget Unused Answers After",
+					"units": "days",
 					"description": "A kept answer nobody has used for this many days (a calendar you removed) is removed. 0: never."
 				},
 				{
