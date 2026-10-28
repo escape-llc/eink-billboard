@@ -449,8 +449,10 @@ def _museums(request: httpx.Request) -> httpx.Response | None:
 	return None
 
 # Transitland's REST API (#429): the key in the `apikey` header only ("tl-good" the fixtures, "tl-busy" a 429, any other a 401 whose text quotes it, as a service's
-# error might; a key in the address is a 400). Its answers are written by hand in the OpenAPI schema's shapes: the stops' departures by stop key, the stops near a point, a stop by its key.
-TRANSITLAND_DEPARTURES = { "s-c23nb-mainst~3rd": "transitland-departures.json", "s-c23p0-ferry": "transitland-departures-intervals.json", "s-c23nc-central": "transitland-departures-station.json" }
+# error might; a key in the address is a 400). Its answers are written by hand in the OpenAPI schema's shapes: the stops' departures by stop key, the stops near a point, a stop by its key,
+# and the routes that serve a stop with their alerts.
+TRANSITLAND_DEPARTURES = { "s-c23nb-mainst~3rd": "transitland-departures.json", "s-c23p0-ferry": "transitland-departures-intervals.json", "s-c23nc-central": "transitland-departures-station.json",
+	"f-c23-metro:77": "transitland-departures.json" }
 TRANSITLAND_STOP = re.compile(r"^/api/v2/rest/stops/([^/]+)(/departures)?$")
 
 def _transitland(request: httpx.Request) -> httpx.Response | None:
@@ -466,6 +468,10 @@ def _transitland(request: httpx.Request) -> httpx.Response | None:
 	path = request.url.path
 	if path == "/api/v2/rest/operators":
 		return httpx.Response(200, json={ "operators": [{ "onestop_id": "o-c23-metro", "name": "Metro" }] })
+	if path == "/api/v2/rest/routes":
+		if request.url.params.get("serves_stop_onestop_id") != "s-c23nb-mainst~3rd" or request.url.params.get("include_alerts") != "true":
+			return httpx.Response(200, json={ "routes": [] })
+		return httpx.Response(200, text=fixture_text("transitland-routes.json"), headers={ "Content-Type": "application/json" })
 	if path == "/api/v2/rest/stops":
 		params = request.url.params
 		if not params.get("lat") or not params.get("lon") or not params.get("radius"):

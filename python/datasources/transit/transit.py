@@ -72,7 +72,7 @@ def page_params(report: TransitReport, now: datetime, params: Mapping[str, Any],
 	shown = report.catchable(local_now)[:count]
 	rows = [{ "time": clock(d.when, twelve_hour), "live": d.live, "delay": delay_text(d), "route": d.route.label, "chip": chip(d.route.color, ink_set, page_ink),
 		"headsign": d.headsign, "platform": d.platform or "", "cancelled": d.status == CANCELLED or not d.running } for d in shown]
-	active = sorted(report.active_alerts(local_now), key=lambda a: ({ "severe": 0, "warning": 1 }.get(a.severity, 2), a.header))
+	active = sorted(report.active_alerts(local_now), key=lambda a: (a.rank, a.header))
 	if rows:
 		message = ""
 	elif report.notes:

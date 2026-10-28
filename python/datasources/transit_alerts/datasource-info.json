@@ -1,0 +1,101 @@
+{
+	"id": "transit-alerts",
+	"name": "Service Alerts",
+	"version": "0.0.1",
+	"class": "TransitAlertsAsync",
+	"file": "transit_alerts.py",
+	"module": "python.datasources.transit_alerts.transit_alerts",
+	"description": "The service alerts in force for your stops and their routes: as an overlay (an Overlay task: outlined text in a zone, taken off when there are none) or as a page (a Slide Show track). The stops are the transit provider's (Transitland's settings, My Stops); a stop's own alerts come with its departures, so a Departure Board of the same stop shares the call.",
+	"describe": "Service alerts {stops}",
+	"disabled": false,
+	"requires": ["data-transit"],
+	"features": ["api-client", "layer-foreground", "layer-overlay", "media-image"],
+	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:transit-alerts:1",
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+				"stop": {
+					"settings": "stops",
+					"from": "data-transit",
+					"value": "name"
+				}
+			},
+			"properties": [
+				{
+					"name": "stops",
+					"type": "array",
+					"required": false,
+					"default": [],
+					"title": "Stops",
+					"lookup": "stop",
+					"description": "Which of My Stops (Transitland settings) to show the alerts of. None chosen: all of them. An alert of two stops is shown once.",
+					"items": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "severity",
+					"type": "string",
+					"required": false,
+					"default": "any",
+					"title": "Severity",
+					"description": "The least severe alert shown. any: every alert, notices included. warning: warnings and severe ones. severe: only those the agency marks severe.",
+					"enum": ["any", "warning", "severe"]
+				},
+				{
+					"name": "routeAlerts",
+					"type": "boolean",
+					"required": false,
+					"default": false,
+					"title": "Route Alerts",
+					"description": "Also show the alerts of every route that serves the stops, not only those that come with the departures. One more call per stop, kept for Keep Route Alerts (Transitland settings): about 1,500 calls a month for a stop shown around the clock, so leave it off unless you need it."
+				},
+				{
+					"name": "title",
+					"type": "string",
+					"required": false,
+					"default": null,
+					"title": "Title",
+					"description": "The heading of the page (a Slide Show track). Empty: Service Alerts.",
+					"maxLength": 80
+				},
+				{
+					"name": "fontSize",
+					"type": "string",
+					"required": false,
+					"default": "normal",
+					"title": "Text Size",
+					"description": "The size of the text on the page (a Slide Show track).",
+					"enum": ["x-small", "small", "normal", "large", "x-large"]
+				},
+				{
+					"name": "weight",
+					"type": "string",
+					"required": false,
+					"default": "bold",
+					"title": "Weight",
+					"description": "How heavy the overlay's letters are (an Overlay task). bold: the font's bold face. heavy: bolder than the font has it.",
+					"enum": ["normal", "bold", "heavy"]
+				},
+				{
+					"name": "offset",
+					"type": "integer",
+					"required": false,
+					"default": 6,
+					"minimum": 0,
+					"maximum": 200,
+					"title": "Edge Offset",
+					"units": "px",
+					"description": "How far the overlay's text is from the screen's edge (an Overlay task), in pixels: from the top edge in a top zone, from the bottom edge in a bottom zone."
+				}
+			]
+		}
+	}
+}

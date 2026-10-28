@@ -7,6 +7,7 @@ API, and nothing drawn. The transit pages and overlays ask `dsec.provide(Transit
 the plan (`routineShare`, default 80%), so the stop lookup and Test still work to the end of it; at the whole plan the budget guard (#586) stops every call.
 The key goes in the `apikey` header only, never the address. A failure is our words and the status code, never Transitland's text.
 """
+from dataclasses import replace
 from datetime import datetime
 import logging
 import math
@@ -38,6 +39,9 @@ NEARBY_LIMIT = 50
 # the settings' floors and defaults (the descriptor says the same: a hand-edited file below the floor is raised to it)
 MIN_CACHE_MINUTES = 15
 DEFAULT_DEPARTURES_MINUTES = 15
+DEFAULT_ALERTS_MINUTES = 30
+# the routes that serve a stop, asked for their alerts (`routeAlerts`)
+ROUTES_LIMIT = 100
 DEFAULT_LOOKUP_HOURS = 24
 DEFAULT_RADIUS = 800
 DEFAULT_SHARE = 80
@@ -145,7 +149,7 @@ def stop_key_of(stop: Mapping[str, Any]) -> str:
 	stop_id = stop.get("stop_id")
 	return f"{feed}:{stop_id}" if isinstance(feed, str) and feed and isinstance(stop_id, str) and stop_id else ""
 
-def _alert(raw: Mapping[str, Any], language: str, zone: ZoneInfo) -> Alert|None:
+def _alert(raw: Mapping[str, Any], language: str, zone: ZoneInfo, route: str = "") -> Alert|None:
 	header = translated(raw.get("header_text"), language)
 	if not header:
 		return None
@@ -153,7 +157,27 @@ def _alert(raw: Mapping[str, Any], language: str, zone: ZoneInfo) -> Alert|None:
 	key = f"{raw.get('entity_id') or header}|" + ",".join(f"{p.get('start')}-{p.get('end')}" for p in (raw.get("active_period") or []) if isinstance(p, dict))
 	severity = SEVERITIES.get(str(raw.get("severity_level") or ""), "unknown")
 	return Alert(key, header, translated(raw.get("description_text"), language), severity, str(raw.get("effect") or "").lower(), str(raw.get("cause") or "").lower(),
-		periods, translated(raw.get("url"), language) or None)
+		periods, translated(raw.get("url"), language) or None, (route,) if route else ())
+
+class AlertsSeen:
+	"""The alerts of an answer, each once by its key, while they are not over: one seen on several routes is one alert that names them all."""
+	def __init__(self, language: str, zone: ZoneInfo, fetched_at: datetime):
+		self.language, self.zone, self.fetched_at = language, zone, fetched_at
+		self.found: dict[str, Alert] = {}
+
+	def note(self, alerts: Any, route: str = "") -> None:
+		for raw in alerts if isinstance(alerts, list) else []:
+			alert = _alert(raw, self.language, self.zone, route) if isinstance(raw, dict) else None
+			if alert is None or not any(end is None or end > self.fetched_at for _, end in alert.periods or ((None, None),)):
+				continue
+			known = self.found.get(alert.key)
+			if known is None:
+				self.found[alert.key] = alert
+			elif route and route not in known.routes:
+				self.found[alert.key] = replace(known, routes=known.routes + (route,))
+
+	def alerts(self) -> list[Alert]:
+		return list(self.found.values())
 
 def _departure(raw: Mapping[str, Any], zone: ZoneInfo, platform: str|None) -> Departure|None:
 	times = _object(raw.get("departure")) if _object(raw.get("departure")).get("scheduled_utc") else _object(raw.get("arrival"))
@@ -188,16 +212,11 @@ def parse_departures(data: Mapping[str, Any], entry: Mapping[str, Any], fetched_
 	report = TransitReport(Stop(stop_key_of(stop) or str(entry.get("stopKey") or ""), str(stop.get("stop_name") or entry.get("name") or "").strip(), zone.key,
 		str(stop.get("platform_code") or "") or None), fetched_at.astimezone(zone), CREDIT, int(_number(entry.get("walkMinutes")) or 0))
 	wanted = _routes_wanted(entry.get("routes"))
-	seen: dict[str, Alert] = {}
-	def note(alerts: Any) -> None:
-		for raw in alerts if isinstance(alerts, list) else []:
-			alert = _alert(raw, language, zone) if isinstance(raw, dict) else None
-			if alert is not None and alert.key not in seen and any(end is None or end > fetched_at for _, end in alert.periods or ((None, None),)):
-				seen[alert.key] = alert
+	seen = AlertsSeen(language, zone, fetched_at)
 	intervals = 0
 	places = [(stop, report.stop.platform)] + [(c, str(c.get("platform_code") or "") or None) for c in (stop.get("children") or []) if isinstance(c, dict)]
 	for place, platform in places:
-		note(place.get("alerts"))
+		seen.note(place.get("alerts"))
 		for raw in place.get("departures") or []:
 			if not isinstance(raw, dict):
 				continue
@@ -209,14 +228,31 @@ def parse_departures(data: Mapping[str, Any], entry: Mapping[str, Any], fetched_
 				continue
 			if wanted and departure.route.short_name.lower() not in wanted and departure.route.long_name.lower() not in wanted:
 				continue
-			note(trip.get("alerts"))
-			note(_object(trip.get("route")).get("alerts"))
+			seen.note(trip.get("alerts"), departure.route.label)
+			seen.note(_object(trip.get("route")).get("alerts"), departure.route.label)
 			report.departures.append(departure)
 	report.departures.sort(key=lambda d: (d.when, d.route.label, d.headsign))
-	report.alerts = list(seen.values())
+	report.alerts = seen.alerts()
 	if intervals and not any(d.live for d in report.departures) and intervals >= len(report.departures):
 		report.notes.append(INTERVALS_ONLY)
 	return report
+
+def add_route_alerts(report: TransitReport, data: Mapping[str, Any], entry: Mapping[str, Any], language: str) -> None:
+	"""
+	The alerts of the routes that serve the stop (the `/routes` answer), added to the report's: each once, the routes it was seen on named, the stop's route filter
+	applied, kept while they are not over (as of when the departures were asked).
+	"""
+	seen = AlertsSeen(language, ZoneInfo(report.stop.zone), report.fetched_at)
+	seen.found = { a.key: a for a in report.alerts }
+	wanted = _routes_wanted(entry.get("routes"))
+	for route in data.get("routes") or []:
+		if not isinstance(route, dict):
+			continue
+		short, long = str(route.get("route_short_name") or "").strip(), str(route.get("route_long_name") or "").strip()
+		if wanted and short.lower() not in wanted and long.lower() not in wanted:
+			continue
+		seen.note(route.get("alerts"), short or long)
+	report.alerts = seen.alerts()
 
 def _metres(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 	"""The distance between two points (haversine, on a sphere: near enough for a walk to a stop)."""
@@ -307,6 +343,10 @@ class TransitlandApi(TransitApi):
 		_, settings = dsec.provider.required(DatasourceConfigurationManager).open().get()
 		return has_key(settings)
 
+	def stop_names(self, dsec: DataSourceExecutionContext) -> list[str]:
+		_, settings = dsec.provider.required(DatasourceConfigurationManager).open().get()
+		return [str(e["name"]) for e in (settings or {}).get("stops") or [] if isinstance(e, dict) and isinstance(e.get("name"), str) and e["name"]]
+
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> TransitReport:
 		dscm = dsec.provider.required(DatasourceConfigurationManager)
 		_, settings = dscm.open().get()
@@ -320,20 +360,37 @@ class TransitlandApi(TransitApi):
 		now = device_now(dsec.timestamp)
 		device_zone = _zone(system.get("timezoneName"), ZoneInfo("UTC"))
 		share = (_number(settings.get("routineShare")) or DEFAULT_SHARE) / 100
+		language = str(system.get("locale") or "en-US")
+		# the kept times are minutes, with a floor; the cache counts hours
+		hours = { **settings, "departuresCacheHours": minutes_of(settings, "departuresCacheMinutes", DEFAULT_DEPARTURES_MINUTES) / 60,
+			"alertsCacheHours": minutes_of(settings, "alertsCacheMinutes", DEFAULT_ALERTS_MINUTES) / 60 }
 		async with client() as http:
-			async def ask() -> dict[str, Any]:
-				# the routine share of the plan (#429): past it, what was kept is shown, and the lookups and Test keep the rest
-				used = METER.share(self.id)
-				if used is not None and used >= share:
-					raise QuotaUsedUp(f"Transitland's routine refreshes stop at {round(share * 100)}% of the monthly quota; what was kept is shown until the period resets.")
-				data = await fetch(http, stop_path(stop_key) + "/departures", { "next": WINDOW_SECONDS, "include_alerts": "true", "limit": DEPARTURES_LIMIT }, key)
-				# the moment it was asked goes with it: a kept answer is shown "as of" then, not as of the slot that reads it
-				return { "answer": data, "fetched_at": now.isoformat() }
-			# the kept time is minutes, with a floor; the cache counts hours
-			hours = { **settings, "departuresCacheHours": minutes_of(settings, "departuresCacheMinutes", DEFAULT_DEPARTURES_MINUTES) / 60 }
-			kept = await cached(dscm, hours, f"departures|{stop_key}|{WINDOW_SECONDS}", dsec.timestamp, ask, DEFAULT_DEPARTURES_MINUTES / 60, "departuresCacheHours")
-		fetched_at = _moment(kept.get("fetched_at")) or now
-		answer = kept.get("answer")
-		if not isinstance(answer, dict):
-			raise RuntimeError("Transitland's kept answer could not be read.")
-		return parse_departures(answer, entry, fetched_at, str(system.get("locale") or "en-US"), device_zone)
+			def asker(path: str, query: Mapping[str, Any]):
+				async def ask() -> dict[str, Any]:
+					# the routine share of the plan (#429): past it, what was kept is shown, and the lookups and Test keep the rest
+					used = METER.share(self.id)
+					if used is not None and used >= share:
+						raise QuotaUsedUp(f"Transitland's routine refreshes stop at {round(share * 100)}% of the monthly quota; what was kept is shown until the period resets.")
+					data = await fetch(http, path, query, key)
+					# the moment it was asked goes with it: a kept answer is shown "as of" then, not as of the slot that reads it
+					return { "answer": data, "fetched_at": now.isoformat() }
+				return ask
+			kept = await cached(dscm, hours, f"departures|{stop_key}|{WINDOW_SECONDS}", dsec.timestamp,
+				asker(stop_path(stop_key) + "/departures", { "next": WINDOW_SECONDS, "include_alerts": "true", "limit": DEPARTURES_LIMIT }), DEFAULT_DEPARTURES_MINUTES / 60, "departuresCacheHours")
+			fetched_at = _moment(kept.get("fetched_at")) or now
+			answer = kept.get("answer")
+			if not isinstance(answer, dict):
+				raise RuntimeError("Transitland's kept answer could not be read.")
+			report = parse_departures(answer, entry, fetched_at, language, device_zone)
+			# a route's alerts are a call of their own, kept longer: only when asked, and only for a stop with a Onestop ID (Transitland finds the routes by it)
+			if params.get("routeAlerts") is True and ":" not in stop_key:
+				try:
+					routes = await cached(dscm, hours, f"routes|{stop_key}", dsec.timestamp,
+						asker("/routes", { "serves_stop_onestop_id": stop_key, "include_alerts": "true", "limit": ROUTES_LIMIT }), DEFAULT_ALERTS_MINUTES / 60, "alertsCacheHours")
+				except (RuntimeError, QuotaUsedUp) as problem:
+					# the departures are worth showing without them: the stop's own alerts are there already
+					self.logger.info(f"'{self.id}' the routes' alerts could not be had ({type(problem).__name__}); the stop's own are shown.")
+				else:
+					if isinstance(routes.get("answer"), dict):
+						add_route_alerts(report, routes["answer"], entry, language)
+		return report
