@@ -215,6 +215,11 @@ class TestPublicUrl(unittest.TestCase):
 		access = MagicMock()
 		access.setup_code.return_value = "1234 5678"
 		self.assertEqual(self.main.setup_notice(access, 8080, "http://localhost:8080"), ["Open http://localhost:8080", "Setup code 1234 5678"])
+		# the QR code opens the claim route with the digits only (the fragment is never sent to a server)
+		self.assertEqual(self.main.setup_claim_url(access, 8080, "http://localhost:8080"), "http://localhost:8080/#/claim/12345678")
+		access.setup_code.return_value = None
+		self.assertIsNone(self.main.setup_claim_url(access, 8080, "http://localhost:8080"))
+		access.setup_code.return_value = "1234 5678"
 		with self.assertLogs(self.main.logger, "WARNING") as logged:
 			self.main.announce_setup_code(access, 8080, "http://localhost:8080")
 		# a block of its own, the address and the code each on a line: easy to find in a long log, and to copy
@@ -256,6 +261,20 @@ class TestSetupPageOnThePanel(unittest.TestCase):
 		self.assertEqual(route, "display")
 		self.assertIsInstance(message, PriorityImage)
 		self.assertEqual((message.title, message.img.size), ("Set up this device", (800, 480)))
+
+	def test_the_setup_page_gets_the_claim_address_for_its_qr_code(self):
+		from unittest import mock
+		app, now = self.application(lambda: ["Open http://pi.local", "Setup code 1234 5678"])
+		app.setup_claim_url = lambda: "http://pi.local/#/claim/12345678"
+		with mock.patch("python.task.application.render_error_image", return_value=None) as render:
+			with mock.patch("python.task.application.PriorityImage"):
+				app._show_setup_notice(800, 480, now)
+		self.assertEqual(render.call_args.kwargs["qr"], "http://pi.local/#/claim/12345678")
+		app.setup_claim_url = None
+		with mock.patch("python.task.application.render_error_image", return_value=None) as render:
+			with mock.patch("python.task.application.PriorityImage"):
+				app._show_setup_notice(800, 480, now)
+		self.assertIsNone(render.call_args.kwargs["qr"])
 
 	def test_claiming_revokes_the_setup_page(self):
 		from ..task.display_messages import PriorityRevoke

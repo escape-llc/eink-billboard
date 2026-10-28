@@ -38,14 +38,14 @@
 /** The sign-in and first-run setup dialog (AuthPrompt.ts has the state; ApiClient.ts opens it on a 401). */
 import { computed, ref, watch } from "vue"
 import { Button, Dialog, InputOtp, InputText, Message } from "primevue"
-import { authPrompt, cancelAuth, submitAuth } from "./AuthPrompt"
+import { authPrompt, cancelAuth, submitAuth, takeClaimCode } from "./AuthPrompt"
 
 const secret = ref("")
 const again = ref("")
 const code = ref("")
 
-// each time it opens it starts empty: nothing typed is kept
-watch(() => authPrompt.open, open => { if (open) { secret.value = ""; again.value = ""; code.value = "" } })
+// each time it opens it starts empty: nothing typed is kept (but the setup code the QR code on the panel brought, once)
+watch(() => authPrompt.open, open => { if (open) { secret.value = ""; again.value = ""; code.value = takeClaimCode() } })
 
 const title = computed(() => authPrompt.mode === "setup" ? "Set up this device" : "Sign in")
 const secretLabel = computed(() => authPrompt.mode === "setup" ? "New password" : authPrompt.mode === "token" ? "API token" : "Password")

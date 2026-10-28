@@ -37,7 +37,24 @@ export function setupProblem(code: string, password: string, again: string): str
 	return null
 }
 
-export const authPrompt = reactive({ open: false, mode: "password" as AuthMode, error: "", busy: false })
+export const authPrompt = reactive({ open: false, mode: "password" as AuthMode, error: "", busy: false,
+	/** the setup code the claim route (`#/claim/12345678`, the panel's QR code) brought: the setup dialog starts with it filled in, once */
+	claim: "" })
+
+/** The digits of a setup code from an address: spaces and the rest are dropped, and nothing but 1 to 8 digits counts ("" otherwise). */
+export function claimCodeOf(text: unknown): string {
+	const digits = (Array.isArray(text) ? text[0] : text)
+	if (typeof digits !== "string") return ""
+	const plain = digits.replace(/\s/g, "")
+	return /^\d{1,8}$/.test(plain) ? plain : ""
+}
+
+/** The code the dialog opens with (and forgets): only a setup dialog takes it. */
+export function takeClaimCode(): string {
+	const code = authPrompt.mode === "setup" ? authPrompt.claim : ""
+	authPrompt.claim = ""
+	return code
+}
 
 let resolve: ((ok: boolean) => void) | null = null
 let send: Sender | null = null
@@ -54,6 +71,8 @@ function finish(ok: boolean) {
 /** Open the dialog and wait for it: true once the server accepted the credentials, false when the user closes it. */
 export function promptForAuth(info: Partial<AccessInfo> | null | undefined, sender: Sender): Promise<boolean> {
 	authPrompt.mode = modeOf(info)
+	// a claim code is for a device that wants one: a claimed device is asked for its password and the code is dropped
+	if (authPrompt.mode !== "setup") authPrompt.claim = ""
 	authPrompt.error = ""
 	authPrompt.busy = false
 	authPrompt.open = true

@@ -15,6 +15,17 @@ test.describe("every page renders from the seeded storage, without errors", () =
 		watch.expectNone()
 	})
 
+	test("an address that is no page is the welcome page, and so is a claim address on a claimed device (#491)", async ({ page }) => {
+		const watch = watchProblems(page)
+		for (const address of ["/#/no/such/page", "/#/claim/12345678", "/#/claim", "/#/claim/not-a-code"]) {
+			await page.goto(address)
+			await expect(page.getByText("Welcome to eInk Billboard!"), address).toBeVisible()
+			// the claim code is not left in the address
+			expect(new URL(page.url()).hash, address).toBe("#/")
+		}
+		watch.expectNone()
+	})
+
 	test("settings shows the system settings form", async ({ page }) => {
 		const watch = watchProblems(page)
 		await page.goto("/#/settings")

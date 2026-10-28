@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { authPrompt, cancelAuth, modeOf, promptForAuth, setupProblem, submitAuth, type Sender } from "./AuthPrompt"
+import { authPrompt, cancelAuth, claimCodeOf, modeOf, promptForAuth, setupProblem, submitAuth, takeClaimCode, type Sender } from "./AuthPrompt"
 
 const info = { required: true, setupRequired: false, passwordSet: false, localOnly: false }
 
@@ -61,5 +61,27 @@ describe("the dialog's steps", () => {
 		cancelAuth()
 		expect(await result).toBe(false)
 		expect(authPrompt.open).toBe(false)
+	})
+})
+
+describe("the setup code from the claim address (#491)", () => {
+	it("is the digits, and nothing that is not one to eight of them", () => {
+		expect(claimCodeOf("12345678")).toBe("12345678")
+		expect(claimCodeOf("1234 5678")).toBe("12345678")
+		expect(claimCodeOf(["12345678", "x"])).toBe("12345678")
+		for (const bad of ["", "abcd", "123456789", "1234-5678", "<script>", undefined, null, 12345678]) expect(claimCodeOf(bad), String(bad)).toBe("")
+	})
+	it("is taken once, and only by a setup dialog", async () => {
+		const send: Sender = async () => ({ ok: true })
+		authPrompt.claim = "12345678"
+		void promptForAuth({ setupRequired: true }, send)
+		expect(takeClaimCode()).toBe("12345678")
+		expect(takeClaimCode()).toBe("")
+		cancelAuth()
+		// a claimed device asks for its password: the code is dropped, not kept for a later setup
+		authPrompt.claim = "12345678"
+		void promptForAuth({ passwordSet: true }, send)
+		expect(authPrompt.claim).toBe("")
+		cancelAuth()
 	})
 })
