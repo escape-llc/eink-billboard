@@ -114,7 +114,6 @@
 				"name":"maxStrikes",
 				"type": "integer",
 				"title": "Failures Before a Track Stops Running",
-				"units": "failures",
 				"description": "How many times in a row a playlist track may fail before it is struck out: it is not run again for a while and its slot shows its error page instead (a permanent problem, such as a missing setting, strikes it out at once).",
 				"minimum": 1,
 				"maximum": 10,
