@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, quotaLine, quotaSeverity, quotaWarning, answerKind, answerPills, usagePills, storageLine, temperatureSeverity } from "./SystemFormat"
+import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, quotaLine, quotaSeverity, quotaWarning, answerKind, answerPills, usagePills, storageLine, storagePills, temperatureSeverity } from "./SystemFormat"
 
 describe("sizes", () => {
 	it("are in the largest unit that keeps them readable", () => {
@@ -46,9 +46,14 @@ describe("API usage", () => {
 		expect(failedCalls({})).toBe(0)
 		expect(failedCalls(undefined)).toBe(0)
 	})
-	it("lists the statuses, the most common first", () => {
-		expect(answerPills({ "429": 2, "200": 40, "500": 2, "timeout": 1 })).toEqual([
-			{ code: "200", count: 40, kind: "success" }, { code: "429", count: 2, kind: "warn" }, { code: "500", count: 2, kind: "danger" }, { code: "timeout", count: 1, kind: "danger" }])
+	it("lists the statuses by code, then the calls with no answer, each titled with what it means", () => {
+		expect(answerPills({ "timeout": 1, "404": 48, "500": 2, "200": 7, "304": 6, "299": 1 })).toEqual([
+			{ code: "200", count: 7, kind: "success", title: "200 OK: 7 calls" },
+			{ code: "299", count: 1, kind: "success", title: "299: 1 call" },
+			{ code: "304", count: 6, kind: "info", title: "304 Not Modified: 6 calls" },
+			{ code: "404", count: 48, kind: "warn", title: "404 Not Found: 48 calls" },
+			{ code: "500", count: 2, kind: "danger", title: "500 Internal Server Error: 2 calls" },
+			{ code: "timeout", count: 1, kind: "danger", title: "1 call: no answer in time" }])
 		expect(answerPills(undefined)).toEqual([])
 	})
 	it("are toned by what the answer means", () => {
@@ -106,5 +111,12 @@ describe("the closed cards' lines", () => {
 		expect(storageLine(areas, { total: 1024 * 1024 * 1200 })).toBe("12 MB in 140 files, 1% of the disk")
 		expect(storageLine(areas, { total: 1024 ** 4 })).toBe("12 MB in 140 files, less than 0.1% of the disk")
 		expect(storageLine([{ files: 1, bytes: 10 }], null)).toBe("10 bytes in 1 file")
+	})
+	it("are pills for the closed card, the free space toned by how full the disk is", () => {
+		const areas = [{ files: 100, bytes: 1024 * 1024 * 8 }, { files: 40, bytes: 1024 * 1024 * 4 }]
+		const pills = (volume: { total: number, free: number, percent: number } | null) => storagePills(areas, volume).map(p => `${p.label} ${p.value} ${p.kind}`)
+		expect(pills({ total: 1024 ** 4, free: 1024 ** 4 / 2, percent: 50 })).toEqual(["size 12 MB neutral", "files 140 neutral", "disk <0.1% neutral", "free 512 GB success"])
+		expect(pills({ total: 1024 * 1024 * 1200, free: 1024 * 1024 * 60, percent: 95 })).toEqual(["size 12 MB neutral", "files 140 neutral", "disk 1% neutral", "free 60 MB danger"])
+		expect(pills(null)).toEqual(["size 12 MB neutral", "files 140 neutral"])
 	})
 })

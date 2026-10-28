@@ -103,7 +103,9 @@
 			</SystemCard>
 
 			<SystemCard title="Storage" collapsed>
-				<template #summary><span v-if="info" data-testid="storage-total">{{ storageLine(info.storage.areas, info.storage.volume) }}</span></template>
+				<template #summary><span v-if="info" class="pills" role="list" aria-label="Storage" data-testid="storage-pills">
+					<UsagePill v-for="p in storagePills(info.storage.areas, info.storage.volume)" :key="p.label" :label="p.label" :value="p.value" :kind="p.kind" :title="p.title" />
+				</span></template>
 				<template v-if="info">
 					<p class="total" data-testid="storage-total">{{ storageLine(info.storage.areas, info.storage.volume) }}</p>
 					<table class="usage">
@@ -169,7 +171,7 @@
 						</div>
 						<div v-if="answerPills(source.month.status).length" class="answers" role="list" aria-label="This month, by answer" data-testid="answers">
 							<span class="answers-label">Month</span>
-							<UsagePill v-for="a in answerPills(source.month.status)" :key="a.code" :label="a.code" :value="a.count" :kind="a.kind" :title="`${a.count} ${a.count === 1 ? 'call' : 'calls'} answered ${a.code}`" />
+							<UsagePill v-for="a in answerPills(source.month.status)" :key="a.code" :label="a.code" :value="a.count" :kind="a.kind" :title="a.title" />
 						</div>
 						<p v-if="source.lastLimited" class="muted note">Told "too many requests" last on {{ deviceMoment(source.lastLimited) }}.</p>
 					</div>
@@ -290,7 +292,7 @@ import BackupRestore from "../components/BackupRestore.vue"
 import SystemCard from "../components/SystemCard.vue"
 import UsagePill from "../components/UsagePill.vue"
 import PasswordForm from "../components/PasswordForm.vue"
-import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, answerPills, usagePills, storageLine, temperatureSeverity, quotaLine, quotaSeverity, quotaWarning } from "../components/SystemFormat"
+import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, answerPills, usagePills, storageLine, storagePills, temperatureSeverity, quotaLine, quotaSeverity, quotaWarning } from "../components/SystemFormat"
 import { usePlaylistPanel } from "../composables/usePlaylistPanel"
 import { hasOriginal, useSaveShown } from "../composables/useGallery"
 import { SOURCES as sources, describeEvent as describe, eventIcon as iconOf, useSystem } from "../composables/useSystem"
