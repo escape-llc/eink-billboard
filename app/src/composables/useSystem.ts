@@ -9,6 +9,7 @@ import type { components } from "../api/schema"
 import { LAYERS, isProblem, layerOf, layersOf, useTelemetry, type TelemetryEvent, type TelemetryLink } from "../components/TelemetryLink"
 import { useTransport, type Transport, type TransportCommand } from "../components/Transport"
 import { LINK_WORDS, deviceStateOf } from "./useDeviceStatus"
+import { useRecentlyShown } from "./useRecentlyShown"
 
 type Schemas = components["schemas"]
 type Status = Schemas["Status"]
@@ -91,15 +92,9 @@ export function useSystem(notify: Notify, options: SystemOptions = {}) {
 		{ title: "Plugins", items: info.value.storage.plugins },
 	] : [])
 
-	const current = computed(() => link.state.current?.values?.digest ? link.state.current : null)
+	// what the panel shows and showed lately, as the Gallery page's Recently shown tab has it
+	const { current, recent } = useRecentlyShown(link)
 	const currentLayers = computed(() => layersOf(current.value))
-	/** What the panel showed lately, newest first, each picture once. */
-	const recent = computed(() => {
-		const seen = new Set<string>()
-		return [current.value, ...link.state.events.filter(e => e.kind === "shown")]
-			.filter((e): e is TelemetryEvent => !!e && !!e.values?.digest && !seen.has(e.values.digest) && !!seen.add(e.values.digest))
-			.slice(0, 7)
-	})
 	const shownEvents = computed(() => link.state.events.filter(e =>
 		(source.value === "all" || e.source === source.value) && (!problemsOnly.value || isProblem(e))))
 	// the latest few things that went wrong, at the top where they are seen

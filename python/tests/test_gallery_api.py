@@ -149,6 +149,10 @@ class TestAdding(GalleryApiBase):
 		self.add(picture("blue"))
 		self.assertEqual(len(self.store.items()), 1)
 		self.assertEqual(self.told(), ["gallery-kept", "gallery-kept", "gallery-evicted"])
+		# each says which routes changed, so the web app's cache asks for the list again
+		for e in self.hub.since(0):
+			if str(e["kind"]).startswith("gallery-"):
+				self.assertEqual(e["values"]["changed"], ["/api/datasource/gallery"])
 
 	def test_a_picture_bigger_than_the_whole_pool_is_refused(self):
 		self.write_datasource_settings(GALLERY_ID, { "_schema": "urn:inky:storage:schema:datasource:gallery:1", "maxPictures": 10, "maxMB": 0.000001 })

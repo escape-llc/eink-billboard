@@ -26,6 +26,8 @@
 						<dd>Timer tasks: things that happen at a time of day, such as a priority message for ten minutes at 8:00, or an overlay (the date, the weather) drawn over the picture. Shown as a day, a week or a list; click a task to change it. <b>Run now</b> in the list starts a task that is on, to see what it does. Closing it with changes not saved asks first (Cancel closes without saving).</dd>
 						<dt><i class="mi mi-play-arrow" aria-hidden="true"></i> Playlist</dt>
 						<dd>The tracks that play one after another, round and round. You can keep several playlists.</dd>
+						<dt><i class="mi mi-photo-library" aria-hidden="true"></i> Gallery</dt>
+						<dd>The pictures the device keeps to show again (see Gallery under Sources: pictures). Click one to see it full screen, then click it to see it at its own size, and again to fit it; the arrows go to the next one. <i class="mi mi-keep" aria-hidden="true"></i> <b>Pin</b> a picture to keep it when the Gallery is full, <i class="mi mi-delete" aria-hidden="true"></i> remove it, and <b>Add pictures</b> from the computer or phone you are on (PNG, JPEG, GIF or WEBP, at most 10 MB each). <b>Recently shown</b> is what the panel showed lately, as on the System page: <i class="mi mi-add-photo-alternate" aria-hidden="true"></i> saves one to the Gallery as it was shown, with its overlays.</dd>
 						<dt><i class="mi mi-desktop-windows" aria-hidden="true"></i> System</dt>
 						<dd>How the device is (the header says it on every page: Running, Starting or Problem, or Offline when the page cannot reach the device; click it to come here): whether its parts started and the latest problems, the machine (load, memory, how long it and the app have been up), a Raspberry Pi's temperature, fan and power warnings, the storage by plugin and data source, and the <b>API usage</b> of each service (click a card's title to open or close it; Storage and API usage start closed, with a line that sums them up). On the right, live: <b>Now showing</b> (what the panel shows, with the layers it is made of; click for full size), <b>Recently shown</b> and <b>Activity</b> (filter it by source, or show only problems). The <b>Playlist</b> panel has play, stop and next, with the playlist's tracks and the one playing; the toolbar has Back up, Restore and the device password.</dd>
 						<dt><i class="mi mi-settings" aria-hidden="true"></i> Settings</dt>
@@ -101,6 +103,8 @@
 				<AccordionContent>
 					<p>A picture is a background page: overlays may be drawn on it. One whose shape is not the panel's is shown whole on a blurred margin of itself.</p>
 					<dl>
+						<dt>Gallery</dt>
+						<dd>The pictures worth keeping, kept on the device and shown again in a Slide Show (newest first or at random, or only the pinned ones). A Generated Image and a Weather Visualizer each put what they draw here, unless the task's <b>Keep in the Gallery</b> is off, so a picture you paid for once can be shown again for nothing. Its settings say how many pictures and how many MB it keeps (200 and 512 MB); past either, the oldest that is not pinned goes. The pictures are not in a backup.</dd>
 						<dt>Image Folder</dt>
 						<dd>Your own pictures. List folders (a name and a path on the device) in its settings; a track picks one by name and shows it picture by picture.</dd>
 						<dt>Image from a Web Address</dt>

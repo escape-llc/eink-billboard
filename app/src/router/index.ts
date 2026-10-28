@@ -50,6 +50,11 @@ const router = createRouter({
 			component: () => import('../views/System.vue')
 		},
 		{
+			path: '/gallery',
+			name: 'gallery',
+			component: () => import('../views/Gallery.vue')
+		},
+		{
 			path: '/playlist',
 			name: 'playlist',
 			component: () => import('../views/PlaylistEditor.vue')

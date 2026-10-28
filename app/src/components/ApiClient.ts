@@ -185,6 +185,11 @@ export async function apiDownload(url: string, data: unknown): Promise<{ blob: B
 	return { blob: await rx.blob(), filename: named?.[1] ?? "eink-billboard.einkbackup" }
 }
 
+/** POST a file as the request's body (a picture), in its own type, and parse the JSON answer; rejects with ApiError when the status is not 2xx. */
+export function apiUpload<T = any>(url: string, file: Blob): Promise<T> {
+	return apiJson<T>(url, { method: "POST", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file })
+}
+
 export function apiPatch<T = any>(url: string, data: unknown): Promise<T> {
 	return apiSend<T>("PATCH", url, data)
 }
