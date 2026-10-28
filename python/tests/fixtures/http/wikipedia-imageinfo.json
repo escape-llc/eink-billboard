@@ -28,7 +28,11 @@
       },
       "url": "https://upload.wikimedia.org/wikipedia/commons/c/cf/Alhambra_evening_panorama_Mirador_San_Nicolas_sRGB-1.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=original",
       "descriptionurl": "https://commons.wikimedia.org/wiki/File:Alhambra_evening_panorama_Mirador_San_Nicolas_sRGB-1.jpg",
-      "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=35203662"
+      "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=35203662",
+      "extmetadata": {
+       "Artist": { "value": "<a href=\"//commons.wikimedia.org/wiki/User:Example\" title=\"User:Example\">Example Photographer</a>", "source": "commons-desc-page" },
+       "LicenseShortName": { "value": "CC BY-SA 4.0", "source": "commons-desc-page", "hidden": "" }
+      }
      }
     ]
    }

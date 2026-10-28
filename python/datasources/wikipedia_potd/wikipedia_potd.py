@@ -1,20 +1,11 @@
 """
-It supports optional manual date selection or random dates and can resize the image to fit the device's dimensions.
+Wikipedia's Picture of the Day: today's, a chosen day's or a random day's, credited to its author under its licence.
 
-Wikipedia API Documentation: https://www.mediawiki.org/wiki/API:Main_page
-Picture of the Day example: https://www.mediawiki.org/wiki/API:Picture_of_the_day_viewer
-Github Repository: https://github.com/wikimedia/mediawiki-api-demos/tree/master/apps/picture-of-the-day-viewer
-Wikimedia requires a User Agent header for API requests, which is set in the request headers:
+The day's picture is named by the page `Template:POTD/<date>`; its file's `imageinfo` gives a rendition sized for the panel and the file's
+description (`extmetadata`), whose `Artist` and `LicenseShortName` are the credit. This is the method of Wikimedia's own tutorial:
+https://www.mediawiki.org/wiki/API:Picture_of_the_day_viewer. Many pictures are CC BY-SA, which asks for the author to be named, so the
+page's title carries the credit. Wikimedia asks every client to name itself (`HEADERS`):
 https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy
-
-Flow:
-1. Fetch the date to use for the Picture of the Day (POTD) based on settings. (_determine_date)
-2. Make an API request to fetch the POTD data for that date. (_fetch_potd)
-3. Extract the image filename from the response. (_fetch_potd)
-4. Make another API request to get the image URL. (_fetch_image_src)
-5. Download the image from the URL. (_download_image)
-5a. NOTE: sometimes the "image" is actually a video: raise error
-6. Optionally resize the image to fit the device dimensions. (_shrink_to_fit))
 """
 from typing import Any, Mapping
 from PIL import Image, UnidentifiedImageError
@@ -26,6 +17,7 @@ from random import randint
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions, enhanced
 from ...task.async_http_worker_pool import client_var
 from ..content_cache import download_for
+from ...utils.html_text import html_text
 from ...utils.image_utils import DEFAULT_MAX_DOWNLOAD_BYTES, blurred_margin
 
 # a POTD original can be tens of megabytes: ask Wikipedia for a thumbnail this many times the display's long side, and refuse bigger downloads
@@ -47,6 +39,19 @@ def _determine_date(settings: Mapping[str, Any], schedule_ts) -> date:
 	else:
 		return schedule_ts.date()
 
+def credit_of(metadata: Any) -> str:
+	"""
+	"<author>, <licence>" from a file's `extmetadata`, either part left out when it is not there. The author is HTML (a link to their page, often), read
+	as text with a parser; an empty credit is "".
+	"""
+	if not isinstance(metadata, Mapping):
+		return ""
+	def field(name: str) -> str:
+		entry = metadata.get(name)
+		value = entry.get("value") if isinstance(entry, Mapping) else None
+		return html_text(value) if isinstance(value, str) else ""
+	return ", ".join(part for part in (field("Artist"), field("LicenseShortName")) if part)
+
 class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 	def __init__(self, id: str, name: str):
 		super().__init__(id, name)
@@ -55,8 +60,7 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		datetofetch = _determine_date(params, dsec.timestamp)
 		self.logger.info(f"'{self.name}' datetofetch: {datetofetch}")
 		data = await self._fetch_potd(datetofetch, max(target_dimensions(dsec)) * THUMBNAIL_FACTOR)
-		picurl = data["image_src"]
-		return [{"url": picurl, "date": datetofetch}]
+		return [{"url": data["image_src"], "date": datetofetch, "credit": data["credit"]}]
 	async def render_async(self, dsec: DataSourceExecutionContext, params:Mapping[str,Any], state:Any) -> MediaRenderResult | None:
 		if state is None:
 			return None
@@ -69,8 +73,9 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			max_width, max_height = target_dimensions(dsec)
 			image = self._shrink_to_fit(image, max_width, max_height)
 			self.logger.info(f"'{self.name}' Image resized: {max_width},{max_height}")
-		return MediaRenderResult(image=enhanced(dsec, image), title=f"Wikipedia Picture of the Day: {state.get('date', 'Unknown Date')}", original=original)
-		pass
+		title = f"Wikipedia Picture of the Day: {state.get('date', 'Unknown Date')}"
+		credit = state.get("credit")
+		return MediaRenderResult(image=enhanced(dsec, image), title=f"{title} ({credit})" if credit else title, original=original)
 	def _shrink_to_fit(self, image: Image.Image, max_width: int, max_height: int) -> Image.Image:
 		"""
 		Fit the image inside max_width x max_height (both sides), keeping the aspect ratio, and centre it on a blurred copy of itself of that size.
@@ -108,10 +113,11 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		except (KeyError, IndexError) as e:
 			self.logger.error(f"'{self.name}' Failed to retrieve POTD filename for {cur_date}: {e}")
 			raise RuntimeError(f"'{self.name}' Failed to retrieve POTD filename.") from e
-		image_src = await self._fetch_image_src(filename, thumb_width)
+		image_src, credit = await self._fetch_image_src(filename, thumb_width)
 		return {
 			"filename": filename,
 			"image_src": image_src,
+			"credit": credit,
 			"image_page_url": f"https://en.wikipedia.org/wiki/{title}",
 			"date": cur_date
 		}
@@ -124,12 +130,14 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		except Exception as e:
 			self.logger.error(f"'{self.name}' Wikipedia API request failed: {params}: {str(e)}")
 			raise RuntimeError(f"'{self.name}' Wikipedia API request failed.") from e
-	async def _fetch_image_src(self, filename: str, thumb_width: int) -> str:
+	async def _fetch_image_src(self, filename: str, thumb_width: int) -> tuple[str, str]:
+		"""The address of the file's rendition, and its credit."""
 		params = {
 			"action": "query",
 			"format": "json",
 			"prop": "imageinfo",
-			"iiprop": "url",
+			# the address, and the file's description: its author and licence
+			"iiprop": "url|extmetadata",
 			# a bounded rendition instead of the (possibly huge) original; Wikipedia returns the original's URL as thumburl when it is smaller
 			"iiurlwidth": thumb_width,
 			"titles": filename
@@ -138,7 +146,7 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		try:
 			page = next(iter(data["query"]["pages"].values()))
 			info = page["imageinfo"][0]
-			return info.get("thumburl") or info["url"]
+			return info.get("thumburl") or info["url"], credit_of(info.get("extmetadata"))
 		except (KeyError, IndexError, StopIteration) as e:
 			self.logger.error(f"'{self.name}' Failed to retrieve image URL for {filename}: {e}")
 			raise RuntimeError(f"'{self.name}' Failed to retrieve image URL.") from e
