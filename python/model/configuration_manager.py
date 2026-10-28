@@ -502,21 +502,16 @@ class StaticConfigurationManager:
 		except OSError:
 			return None
 	def get_font(self, font_name: str, font_size=50, font_weight="normal"):
-		if font_name in FONT_FAMILIES:
-			font_variants = FONT_FAMILIES[font_name]
-
-			font_entry = next((entry for entry in font_variants if entry["font-weight"] == font_weight), None)
-			if font_entry is None:
-				font_entry = font_variants[0]  # Default to first available variant
-
-			if font_entry:
-				font_path = os.path.join(self.ROOT_PATH, "fonts", font_entry["file"])
-				font = ImageFont.truetype(font_path, font_size)
-				if "wght" in font_entry:
-					# a variable font: its weight axis at the variant's weight, every other axis at its default
-					font.set_variation_by_axes([float(font_entry["wght"]) if axis.get("name") in (b"Weight", "Weight") else float(axis.get("default") or 0) for axis in font.get_variation_axes()])
-				return font
-		raise ValueError(f"Font not found: font_name={font_name}, font_weight={font_weight}")
+		"""PIL's font for a family we ship (FONT_FAMILIES), at a size and a weight ("normal", "bold"); a family without that weight gives its first. ValueError for any other family."""
+		variants = FONT_FAMILIES.get(font_name)
+		if not variants:
+			raise ValueError(f"Font not found: font_name={font_name}, font_weight={font_weight}")
+		variant = next((v for v in variants if v["font-weight"] == font_weight), variants[0])
+		font = ImageFont.truetype(os.path.join(self.ROOT_PATH, "fonts", variant["file"]), font_size)
+		if "wght" in variant:
+			# a variable font: its weight axis at the variant's weight, every other axis at its default
+			font.set_variation_by_axes([float(variant["wght"]) if axis.get("name") in (b"Weight", "Weight") else float(axis.get("default") or 0) for axis in font.get_variation_axes()])
+		return font
 
 class ConfigurationManager(ConfigurationObjectFactory):
 	"""

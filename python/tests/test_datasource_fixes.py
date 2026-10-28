@@ -8,7 +8,7 @@ import logging
 import os
 import tempfile
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, cast
 from unittest.mock import patch
 
@@ -21,6 +21,7 @@ from ..datasources.countdown import countdown
 from ..datasources.countdown.countdown import CountdownAsync
 from ..datasources.data_source import DataSourceExecutionContext, target_dimensions
 from ..datasources.image_folder.image_folder import ImageFolderAsync, grab_image
+from ..datasources.newspaper import newspaper
 from ..datasources.newspaper.newspaper import NewspaperAsync
 from ..datasources.wikipedia_potd import wikipedia_potd as wpotd
 from ..datasources.wikipedia_potd.wikipedia_potd import WpotdAsync
@@ -236,6 +237,10 @@ class FakeRenderSession:
 		return Image.new("RGB", tuple(dimensions), "white")
 
 class TestCountdown(unittest.TestCase):
+	def test_days_between_counts_whole_days_either_way(self):
+		self.assertEqual(countdown.days_between(date(2026, 12, 30), date(2027, 1, 2)), 3)
+		self.assertEqual(countdown.days_between(date(2026, 3, 1), date(2026, 3, 1)), 0)
+		self.assertEqual(countdown.days_between(date(2028, 3, 1), date(2028, 2, 28)), -2)
 	def _gen(self, ts, target):
 		stm = StaticConfigurationManager(STATIC)
 		with patch.object(countdown, "RenderSession", FakeRenderSession):
@@ -278,6 +283,18 @@ class TestYearProgress(unittest.TestCase):
 	def test_mid_year(self):
 		rs = self._gen(datetime(2026, 7, 2, 12, 0, tzinfo=TZ_TOKYO))
 		self.assertEqual(rs.params["year_percent"], 50)
+
+	def test_the_grid_has_a_cell_per_day_in_week_columns(self):
+		# 2026 starts on a Thursday: three empty cells (Monday to Wednesday) before it; 28 October is day 300 counted from 0
+		self.assertEqual(year_progress.day_grid(date(2026, 10, 28)), { "days": 365, "today": 300, "lead": 3, "weeks": 53 })
+		# a leap year starting on a Saturday: 366 days after five empty cells need 53 weeks
+		self.assertEqual(year_progress.day_grid(date(2028, 1, 1)), { "days": 366, "today": 0, "lead": 5, "weeks": 53 })
+		self.assertEqual(year_progress.day_grid(date(2028, 12, 31))["today"], 365)
+		# a year that starts on a Monday has no empty cell
+		self.assertEqual(year_progress.day_grid(date(2029, 6, 1))["lead"], 0)
+	def test_the_page_gets_the_grid(self):
+		rs = self._gen(datetime(2026, 10, 28, 9, 0, tzinfo=TZ_TOKYO))
+		self.assertEqual((rs.params["days"], rs.params["today"], rs.params["lead"], rs.params["weeks"]), (365, 300, 3, 53))
 
 class TestRenderAsyncKeepsLoopFree(unittest.IsolatedAsyncioTestCase):
 	async def test_countdown_and_year_progress_render_off_the_loop(self):
@@ -446,6 +463,25 @@ class TestNewspaper(unittest.IsolatedAsyncioTestCase):
 	def test_matching_ratio_untouched(self):
 		src = Image.new("RGB", (800, 480))
 		self.assertIs(NewspaperAsync("n", "n")._pad_to_ratio(src, (800, 480)), src)
+	def test_covers_are_looked_for_from_tomorrow_back_to_two_days_ago(self):
+		self.assertEqual(newspaper.cover_days(date(2026, 3, 1)), [date(2026, 3, 2), date(2026, 3, 1), date(2026, 2, 28), date(2026, 2, 27)])
+	async def test_the_first_day_with_a_cover_is_used(self):
+		asked = []
+		def handler(req: httpx.Request):
+			asked.append(req.url.path)
+			# only the day before yesterday's cover (the 5th) is there
+			if "/jpg5/" in req.url.path:
+				return httpx.Response(200, content=png_bytes((300, 500)), headers={"Content-Type": "image/png"})
+			return httpx.Response(404)
+		client_var.set(mock_client(handler))
+		image = await NewspaperAsync("n", "n")._generate_image(make_dsec(), "NY_NYT", (800, 480), self.TS)
+		assert image is not None
+		self.assertEqual([p.split("/")[2] for p in asked], ["jpg8", "jpg7", "jpg6", "jpg5"])
+		self.assertAlmostEqual(image.width / image.height, 800 / 480, delta=0.01)
+	async def test_no_cover_on_any_day_is_an_error(self):
+		client_var.set(mock_client(lambda req: httpx.Response(404)))
+		with self.assertRaisesRegex(RuntimeError, "front cover not found"):
+			await NewspaperAsync("n", "n")._generate_image(make_dsec(), "NY_NYT", (800, 480), self.TS)
 	async def test_unknown_slug_is_a_clear_error(self):
 		with self.assertRaisesRegex(ValueError, "Unknown newspaper"):
 			await NewspaperAsync("n", "n").open_async(make_dsec(), {"slug": "../../etc/passwd"})

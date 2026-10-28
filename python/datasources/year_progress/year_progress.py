@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import date, datetime
 import logging
 from typing import Any, Mapping
 
@@ -7,6 +7,16 @@ from ...plugins.plugin_base import RenderSession
 from ...model.theme import ThemeInputs, current_inputs
 from ...model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ...datasources.data_source import DataSource, DataSourceExecutionContext, MediaItemAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
+
+def day_grid(today: date) -> dict[str, int]:
+	"""
+	What the page's grid of days needs: one cell per day of the year in columns of a week (Monday at the top), so `lead` empty cells come before
+	the 1st of January; `today` is the day of the year counted from 0 (the days before it are past).
+	"""
+	first = date(today.year, 1, 1)
+	days = date(today.year + 1, 1, 1).toordinal() - first.toordinal()
+	lead = first.weekday()
+	return { "days": days, "today": today.toordinal() - first.toordinal(), "lead": lead, "weeks": -(-(lead + days) // 7) }
 
 def generate_image(schedule_ts:datetime, stm: StaticConfigurationManager, render_dir: str, dimensions, settings, theme: ThemeInputs|None = None):
 	"""Blocking (runs Chromium). `dimensions` is the target size (see target_dimensions)."""
@@ -28,6 +38,7 @@ def generate_image(schedule_ts:datetime, stm: StaticConfigurationManager, render
 		"year": current_time.year,
 		"year_percent": year_percent,
 		"days_left": days_left,
+		**day_grid(now.date()),
 		"settings": settings
 	}
 	rs = RenderSession(stm, render_dir, "year_progress.html", theme)

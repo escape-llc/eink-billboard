@@ -1,16 +1,14 @@
 import asyncio
 import io
-import platform
 import sys
 import shutil
 import signal
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping
 
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 from io import BytesIO
 import os
 import logging
-import hashlib
 import tempfile
 import subprocess
 import threading
@@ -121,91 +119,41 @@ def blurred_margin(img: Image.Image, size: tuple[int, int], enlarge: bool = True
 	canvas.paste(img, ((size[0] - img.width) // 2, (size[1] - img.height) // 2))
 	return canvas
 
+# how far a page is turned for the panel, by the display's orientation (a portrait page is turned a quarter counter-clockwise)
+ORIENTATION_DEGREES = { "landscape": 0, "portrait": 90 }
+
 def change_orientation(image: Image.Image, orientation: str, rotate180=False) -> Image.Image:
-	if orientation == 'landscape':
-		angle = 0
-	elif orientation == 'portrait':
-		angle = 90
-	else:
+	"""The page as the panel takes it: turned for the orientation, and half a turn more for a panel mounted upside down."""
+	if orientation not in ORIENTATION_DEGREES:
 		raise ValueError(f"Invalid orientation: {orientation}")
+	degrees = (ORIENTATION_DEGREES[orientation] + (180 if rotate180 else 0)) % 360
+	return image if degrees == 0 else image.rotate(degrees, expand=True)
 
-	if rotate180:
-		angle = (angle + 180) % 360
-	if angle == 0:
+def resize_image(image: Image.Image, desired_size: tuple[int, int]) -> Image.Image:
+	"""Exactly `desired_size`: scaled to cover it and cropped about the centre (a page is already the panel's shape, so this only trims a pixel or two)."""
+	size = (int(desired_size[0]), int(desired_size[1]))
+	if image.size == size:
 		return image
-	return image.rotate(angle, expand=1)
+	return ImageOps.fit(image, size, Image.Resampling.LANCZOS)
 
-def resize_image(image: Image.Image, desired_size: tuple[int, int], image_settings: Sequence[str] = ()) -> Image.Image:
-	img_width, img_height = image.size
-	desired_width, desired_height = desired_size
-	desired_width, desired_height = int(desired_width), int(desired_height)
-
-	if img_width == desired_width and img_height == desired_height:
-		return image
-
-	img_ratio = img_width / img_height
-	desired_ratio = desired_width / desired_height
-
-	keep_width = "keep-width" in image_settings
-
-	x_offset, y_offset = 0,0
-	new_width, new_height = img_width,img_height
-	# Step 1: Determine crop dimensions
-	desired_ratio = desired_width / desired_height
-	if img_ratio > desired_ratio:
-		# Image is wider than desired aspect ratio
-		new_width = int(img_height * desired_ratio)
-		if not keep_width:
-			x_offset = (img_width - new_width) // 2
-	else:
-		# Image is taller than desired aspect ratio
-		new_height = int(img_width / desired_ratio)
-		if not keep_width:
-			y_offset = (img_height - new_height) // 2
-
-	# Step 2: Crop the image
-	image = image.crop((x_offset, y_offset, x_offset + new_width, y_offset + new_height))
-
-	# Step 3: Resize to the exact desired dimensions (if necessary)
-	return image.resize((desired_width, desired_height), Image.Resampling.LANCZOS)
+# the display's picture settings, in the order they are applied, each with the PIL enhancer it drives; 1.0 (or unset) leaves a picture as it is
+ENHANCEMENTS = (
+	("imageSettings-brightness", ImageEnhance.Brightness),
+	("imageSettings-contrast", ImageEnhance.Contrast),
+	("imageSettings-saturation", ImageEnhance.Color),
+	("imageSettings-sharpness", ImageEnhance.Sharpness),
+)
 
 def apply_image_enhancement(img: Image.Image, image_settings: Mapping[str,Any]|None) -> Image.Image:
-	if image_settings is None:
-		return img
-
-	keys = ("imageSettings-brightness", "imageSettings-contrast", "imageSettings-saturation", "imageSettings-sharpness")
-	if all(image_settings.get(k, None) in (None, 1.0) for k in keys):
+	"""The picture with the display's picture settings applied; the same object when none of them changes anything."""
+	steps = [(enhancer, factor) for key, enhancer in ENHANCEMENTS if (factor := (image_settings or {}).get(key)) is not None and factor != 1.0]
+	if not steps:
 		return img
 	# ImageEnhance fails on palette ('P') and bilevel ('1') frames
 	img = to_rgb(img)
-
-	brightness = image_settings.get("imageSettings-brightness", None)
-	if brightness is not None and brightness != 1.0:
-		# Apply Brightness
-		img = ImageEnhance.Brightness(img).enhance(brightness)
-
-	contrast = image_settings.get("imageSettings-contrast", None)
-	if contrast is not None and contrast != 1.0:
-		# Apply Contrast
-		img = ImageEnhance.Contrast(img).enhance(contrast)
-
-	saturation = image_settings.get("imageSettings-saturation", None)
-	if saturation is not None and saturation != 1.0:
-		# Apply Saturation (Color)
-		img = ImageEnhance.Color(img).enhance(saturation)
-
-	sharpness = image_settings.get("imageSettings-sharpness", None)
-	if sharpness is not None and sharpness != 1.0:
-		# Apply Sharpness
-		img = ImageEnhance.Sharpness(img).enhance(sharpness)
-
+	for enhancer, factor in steps:
+		img = enhancer(img).enhance(factor)
 	return img
-
-def compute_image_hash(image: Image.Image) -> str:
-	"""Compute SHA-256 hash of an image."""
-	image = image.convert("RGB")
-	img_bytes = image.tobytes()
-	return hashlib.sha256(img_bytes).hexdigest()
 
 def _remove_quietly(path: str|None) -> None:
 	if path:
@@ -236,9 +184,7 @@ async def render_html_arglist_async(html_str: str, arglist: list[str]) -> Image.
 	"""Same as render_html_arglist, run in a worker thread so the event loop keeps running while Chromium works."""
 	return await asyncio.to_thread(render_html_arglist, html_str, arglist)
 
-# DO NOT USE regular Chrome it does not render correctly
-os_type = platform.system()
-# the browser by its name on PATH; a machine that keeps it elsewhere says where in `EINK_CHROME` (the environment, or a `.env` file: see `.env.example`)
+# the headless shell, never a regular Chrome (which draws a page differently); the browser by its name on PATH; a machine that keeps it elsewhere says where in `EINK_CHROME` (the environment, or a `.env` file: see `.env.example`)
 WIN_CHROME_HEADLESS = "chrome-headless-shell"
 LINUX_CHROME_HEADLESS = "chromium-headless-shell"
 CHROME_ENV = "EINK_CHROME"
@@ -256,7 +202,7 @@ def chrome_command() -> str:
 		_env_file_read = True
 		# a `.env` beside the source tree (never one the environment already answers: a real variable wins)
 		load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env"))
-	default = WIN_CHROME_HEADLESS if os_type == "Windows" else LINUX_CHROME_HEADLESS
+	default = WIN_CHROME_HEADLESS if sys.platform == "win32" else LINUX_CHROME_HEADLESS
 	configured = os.environ.get(CHROME_ENV)
 	if not configured:
 		return default
@@ -271,7 +217,7 @@ def chrome_command() -> str:
 def _kill_process_tree(proc: subprocess.Popen) -> None:
 	"""Kill the child and everything it started (Chromium spawns helper processes)."""
 	try:
-		# sys.platform, not os_type: the type checker narrows on it, and the POSIX calls exist only on the other branch
+		# sys.platform: the type checker narrows on it, and the POSIX calls exist only on the other branch
 		if sys.platform == "win32":
 			subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
 		else:
@@ -309,6 +255,20 @@ def _render_slots() -> threading.BoundedSemaphore:
 # the fontconfig file the renderer starts with: text without antialiasing (see the file)
 FONTS_CONF = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "render", "fonts.conf")
 
+# How every page is rendered, besides its own size (the caller's arguments): what each group is for
+CHROME_FLAGS = (
+	# a screenshot of the page, with no window and nothing around it
+	"--headless=new", "--hide-scrollbars",
+	# no GPU on a Pi: draw in software, in the one process, and keep shared memory small (a container's /dev/shm is 64 MB)
+	"--disable-gpu", "--use-gl=swiftshader", "--in-process-gpu", "--disable-zero-copy", "--disable-gpu-memory-buffer-compositor-resources", "--disable-dev-shm-usage",
+	# text is drawn in one colour (a subpixel fringe would be dithered on the panel); fontconfig turns the antialiasing off (`FONTS_CONF`)
+	"--disable-lcd-text",
+	# a page runs no script and needs nothing else (plugin.html's Content-Security-Policy); a JIT costs memory and buys nothing
+	"--js-flags=--jitless", "--disable-extensions", "--disable-plugins", "--mute-audio",
+	# Chromium's sandbox needs privileges the service does not have; the page can do nothing (no script, no network)
+	"--no-sandbox",
+)
+
 def render_chrome_headless_arglist(source_html_path: str, arglist: list[str], timeout: float|None = None):
 	"""Render the page with headless Chromium, when one of the render slots is free (see `render_slot_count`). None when it failed, timed out, or no slot came free."""
 	slots = _render_slots()
@@ -331,28 +291,7 @@ def _render_chrome_headless(source_html_path: str, arglist: list[str], timeout: 
 		os.close(fd)
 		# every render gets its own profile so concurrent renders do not share (and lock) one
 		profile_dir = tempfile.mkdtemp(prefix="eink-chrome-")
-		command = [
-			chrome_command(),
-			source_html_path,
-			"--headless=new",
-			f"--screenshot={img_file_path}",
-			f"--user-data-dir={profile_dir}",
-			"--disable-dev-shm-usage",
-			"--disable-gpu",
-			"--use-gl=swiftshader",
-			"--hide-scrollbars",
-			# text is drawn in one colour (a subpixel fringe would be dithered on the panel); fontconfig turns the antialiasing off (`FONTS_CONF`)
-			"--disable-lcd-text",
-			"--in-process-gpu",
-			"--js-flags=--jitless",
-			"--disable-zero-copy",
-			"--disable-gpu-memory-buffer-compositor-resources",
-			"--disable-extensions",
-			"--disable-plugins",
-			"--mute-audio",
-			"--no-sandbox"
-		]
-		command.extend(arglist)
+		command = [chrome_command(), source_html_path, f"--screenshot={img_file_path}", f"--user-data-dir={profile_dir}", *CHROME_FLAGS, *arglist]
 		# declared before the branch: the type checker reads only this platform's branch
 		popen_kwargs: dict[str, Any]
 		if sys.platform == "win32":

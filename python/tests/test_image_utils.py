@@ -14,7 +14,7 @@ import psutil
 from PIL import Image
 
 from ..utils import image_utils
-from ..utils.image_utils import apply_image_enhancement, blurred_margin, render_html_arglist, render_html_arglist_async, stream_to_buffer, to_rgb
+from ..utils.image_utils import apply_image_enhancement, blurred_margin, change_orientation, resize_image, render_html_arglist, render_html_arglist_async, stream_to_buffer, to_rgb
 
 def _alive(pid: int) -> bool:
 	"""True when the process exists and is not a zombie (Linux keeps a killed child's entry until it is reaped)."""
@@ -291,3 +291,27 @@ class TestRenderSlots(unittest.TestCase):
 				image_utils.render_chrome_headless_arglist("x.html", [])
 			self.assertTrue(slots.acquire(blocking=False), "the slot was not given back")
 
+
+
+class TestPanelShape(unittest.TestCase):
+	"""What the display does to a page before the panel: turned for the orientation, then made exactly the panel's size."""
+	def test_orientation_turns_a_portrait_page_a_quarter(self):
+		page = Image.new("RGB", (480, 800))
+		page.putpixel((0, 0), (255, 0, 0))
+		self.assertIs(change_orientation(page, "landscape"), page)
+		turned = change_orientation(page, "portrait")
+		self.assertEqual(turned.size, (800, 480))
+		# a quarter counter-clockwise: the top-left corner goes to the bottom-left
+		self.assertEqual(turned.getpixel((0, 479)), (255, 0, 0))
+		self.assertEqual(change_orientation(page, "landscape", rotate180=True).getpixel((479, 799)), (255, 0, 0))
+		with self.assertRaises(ValueError):
+			change_orientation(page, "sideways")
+	def test_resize_is_exact_and_crops_about_the_centre(self):
+		page = Image.new("RGB", (100, 50), (0, 0, 255))
+		page.paste((255, 0, 0), (45, 0, 55, 50))
+		self.assertIs(resize_image(page, (100, 50)), page)
+		out = resize_image(page, (50, 50))
+		self.assertEqual(out.size, (50, 50))
+		# the middle stays in the middle; the sides are what is cropped
+		self.assertEqual(out.getpixel((25, 25)), (255, 0, 0))
+		self.assertEqual(resize_image(page, (800, 480)).size, (800, 480))
