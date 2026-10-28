@@ -78,6 +78,18 @@
 					"description": "How long what Transitland answered for a stop's departures (and the alerts that come with them) is kept and shared by every page, overlay and task of that stop. 15 at least: the free plan's 5,000 calls a month go only so far, so there is no 'ask every time'. A board shows how old its answer is."
 				},
 				{
+					"name": "alertsCacheMinutes",
+					"type": "integer",
+					"required": true,
+					"default": 30,
+					"minimum": 15,
+					"maximum": 240,
+					"step": 5,
+					"title": "Keep Route Alerts",
+					"units": "minutes",
+					"description": "How long the alerts of the routes that serve a stop are kept, for a Service Alerts task that asks for them (Route Alerts). They are a call of their own, so they are kept longer than the departures; a stop's own alerts come with its departures at no cost. 15 at least."
+				},
+				{
 					"name": "lookupCacheHours",
 					"type": "integer",
 					"required": true,
@@ -139,6 +151,7 @@
 			"stops": [],
 			"radius": 800,
 			"departuresCacheMinutes": 15,
+			"alertsCacheMinutes": 30,
 			"lookupCacheHours": 24,
 			"staleDays": 30,
 			"monthlyQuota": 5000,

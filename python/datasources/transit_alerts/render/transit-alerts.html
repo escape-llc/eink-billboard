@@ -1,0 +1,122 @@
+{% extends "plugin.html" %}
+
+{% block style %}
+	<style>
+		/* every size is in rem: the root's font size is the page's (an em would follow the element it is on) */
+		html {
+			font-size: calc(min(4.8dvh, 4.8dvw) * {{ font_scale }} * var(--font-scale));
+		}
+		.ta {
+			box-sizing: border-box;
+			height: 100%;
+			width: 100%;
+			padding: 4dvh 4dvw;
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+		}
+		.ta-heading {
+			font-family: var(--font-heading);
+			flex: none;
+			margin: 0 0 .4rem 0;
+			padding-bottom: .24rem;
+			font-size: max(var(--min-text), .8rem);
+			font-weight: bold;
+			letter-spacing: .12rem;
+			text-transform: uppercase;
+			border-bottom: .128rem solid currentColor;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+		.ta-body {
+			flex: 1 1 auto;
+			min-height: 0;
+			display: flex;
+			flex-direction: column;
+			gap: .5rem;
+			overflow: hidden;
+		}
+		/* one alert: what it is about and until when on a line, its headline, then its description (three lines at most) */
+		.ta-alert {
+			flex: none;
+			padding-bottom: .4rem;
+			border-bottom: .08rem solid var(--ink-text-primary);
+		}
+		.ta-meta {
+			display: flex;
+			align-items: center;
+			gap: .5rem;
+			font-size: max(var(--min-label), .75rem);
+			font-weight: bold;
+			letter-spacing: .04rem;
+			white-space: nowrap;
+			overflow: hidden;
+		}
+		/* the severity is a word as well as a tone (a colour alone dithers, and not every reader sees it); square, so its edges are on whole pixels */
+		.ta-word {
+			text-transform: uppercase;
+		}
+		.ta-word.bg-strong {
+			padding: 0 .3rem;
+		}
+		.ta-header {
+			margin-top: .15rem;
+			font-family: var(--font-heading);
+			font-size: max(var(--min-text), 1.15rem);
+			font-weight: bold;
+			line-height: 1.2;
+		}
+		.ta-description {
+			margin-top: .15rem;
+			font-size: max(var(--min-text), .85rem);
+			line-height: 1.25;
+			display: -webkit-box;
+			-webkit-line-clamp: 3;
+			-webkit-box-orient: vertical;
+			overflow: hidden;
+		}
+		.ta-message {
+			margin: auto;
+			text-align: center;
+			font-size: max(var(--min-text), 1.2rem);
+			font-weight: bold;
+		}
+		.ta-foot {
+			flex: none;
+			margin-top: .28rem;
+			display: flex;
+			flex-wrap: wrap;
+			justify-content: space-between;
+			gap: .1rem 1rem;
+			font-size: max(var(--min-label), .7rem);
+			font-weight: bold;
+			letter-spacing: .042rem;
+			white-space: nowrap;
+		}
+	</style>
+{% endblock %}
+{% block content %}
+<div class="ta">
+	<div class="ta-heading text-secondary-1">{{ heading }}</div>
+	<div class="ta-body">
+		{% for a in alerts %}
+		<div class="ta-alert">
+			<div class="ta-meta">
+				<span class="ta-word {{ 'bg-strong text-on-strong' if a.severity == 'severe' else ('text-secondary-1' if a.severity == 'warning' else 'text-secondary-2') }}">{{ a.word }}</span>
+				<span class="text-secondary-1">{{ a.where }}</span>
+				{% if a.until %}<span class="text-secondary-2">{{ a.until }}</span>{% endif %}
+			</div>
+			<div class="ta-header text-primary">{{ a.header }}</div>
+			{% if a.description %}<div class="ta-description text-primary">{{ a.description }}</div>{% endif %}
+		</div>
+		{% else %}
+		<div class="ta-message text-secondary-1">{{ message }}</div>
+		{% endfor %}
+	</div>
+	<div class="ta-foot">
+		<span class="text-secondary-1">{% if as_of %}as of {{ as_of }}{% endif %}</span>
+		<span>{{ credit }}</span>
+	</div>
+</div>
+{% endblock %}

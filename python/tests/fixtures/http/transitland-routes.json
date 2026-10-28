@@ -1,0 +1,67 @@
+{
+	"routes": [
+		{
+			"onestop_id": "r-c22z-23",
+			"route_short_name": "23",
+			"route_long_name": "Downtown Express",
+			"alerts": [
+				{
+					"entity_id": "a-23-change",
+					"severity_level": "INFO",
+					"effect": "MODIFIED_SERVICE",
+					"cause": "OTHER_CAUSE",
+					"active_period": [
+						{
+							"start": 1791378000,
+							"end": null
+						}
+					],
+					"header_text": [
+						{
+							"language": "en",
+							"text": "Route 23 runs every 20 minutes this week"
+						}
+					],
+					"description_text": [
+						{
+							"language": "en",
+							"text": "Weekday service is reduced until Friday."
+						}
+					]
+				}
+			]
+		},
+		{
+			"onestop_id": "r-c22z-45x",
+			"route_short_name": "45X",
+			"route_long_name": "Airport",
+			"alerts": [
+				{
+					"entity_id": "a-detour",
+					"severity_level": "SEVERE",
+					"effect": "DETOUR",
+					"cause": "CONSTRUCTION",
+					"active_period": [
+						{
+							"start": 1791392400,
+							"end": 1791421200
+						}
+					],
+					"header_text": [
+						{
+							"language": "en",
+							"text": "Route 45X detoured"
+						}
+					],
+					"description_text": []
+				}
+			]
+		},
+		{
+			"onestop_id": "r-c22z-7",
+			"route_short_name": "7",
+			"route_long_name": "Uptown",
+			"alerts": []
+		}
+	]
+}

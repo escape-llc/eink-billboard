@@ -323,6 +323,10 @@
 		"version": 1,
 		"properties": {}
 	},
+	"urn:inky:storage:schema:datasource:transit-alerts": {
+		"version": 1,
+		"properties": {}
+	},
 	"urn:inky:storage:schema:datasource:transitland-api": {
 		"version": 1,
 		"properties": {
@@ -336,6 +340,9 @@
 				"type": "integer"
 			},
 			"departuresCacheMinutes": {
+				"type": "integer"
+			},
+			"alertsCacheMinutes": {
 				"type": "integer"
 			},
 			"lookupCacheHours": {
