@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test"
 import { stubMapTiles, watchProblems } from "./support"
 
-// Every credit is in one list (#534), the Help drawer's last section: the data the providers and data sources download, the fonts and the software by others.
+// Every credit is in one list (#534), the Help drawer's last section: the data the providers and data sources download, the fonts, the software and the artwork by others, and the project that inspired this one.
 test.beforeEach(async ({ page }) => stubMapTiles(page))
 
 test("the Help drawer's last section is the credits: the data, the fonts and the software", async ({ page }) => {
@@ -19,6 +19,12 @@ test("the Help drawer's last section is the credits: the data, the fonts and the
 	// the fonts with their authors, and the software
 	await expect(credits.getByText("Braille Institute of America")).toBeVisible()
 	await expect(credits.getByText("Leaflet", { exact: true })).toBeVisible()
+	await expect(credits.getByText("segno", { exact: true })).toBeVisible()
+	// the clock's artwork, by its maker under CC BY, and the project that inspired this one
+	await expect(credits.getByRole("heading", { name: "Artwork" })).toBeVisible()
+	await expect(credits.getByRole("link", { name: "eScape Technology LLC" })).toHaveAttribute("href", "https://creativecommons.org/licenses/by/4.0/")
+	await expect(credits.getByRole("heading", { name: "Inspiration" })).toBeVisible()
+	await expect(credits.getByText("InkyPi", { exact: true })).toBeVisible()
 	watch.expectNone()
 })
 

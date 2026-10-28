@@ -11,7 +11,7 @@ from ..datasources.open_meteo_api.open_meteo_api import CREDIT as OPEN_METEO
 from ..datasources.openweathermap_api.openweathermap_api import CREDIT as OPENWEATHERMAP
 from ..datasources.thunderforest_map.thunderforest_map import ATTRIBUTION
 from ..model.configuration_manager import FONT_FAMILIES
-from ..web.credits import FONT_AUTHORS, SOFTWARE, USERS_OWN
+from ..web.credits import ARTWORK, ARTWORK_BY, FONT_AUTHORS, INSPIRATION, SOFTWARE, USERS_OWN
 from .test_web_api import WebApiTestBase
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -65,6 +65,32 @@ class TestEveryCreditIsDeclared(unittest.TestCase):
 		for item in SOFTWARE:
 			self.assertTrue(item["by"] and item["license"] and item.get("url", "https://").startswith("https://"), item["name"])
 
+	def test_the_artwork_is_credited_wherever_it_goes(self):
+		# CC BY asks for the maker's name with the work: in NOTICE, beside the files, and on every artwork face the clock shows
+		with open(os.path.join(ROOT, "NOTICE"), encoding="utf-8") as f:
+			notice = " ".join(f.read().split())
+		self.assertIn(f"copyright {ARTWORK_BY}", notice)
+		self.assertIn("CC BY 4.0", notice)
+		render = os.path.join(ROOT, "python", "datasources", "clock", "render")
+		with open(os.path.join(render, "ARTWORK.md"), encoding="utf-8") as f:
+			self.assertIn(ARTWORK_BY, f.read())
+		with open(os.path.join(render, "faces.json"), encoding="utf-8") as f:
+			faces = json.load(f)["faces"]
+		artwork = [face for face in faces if face.get("kind", "artwork") == "artwork"]
+		self.assertTrue(artwork)
+		for face in artwork:
+			with self.subTest(face=face["id"]):
+				self.assertTrue(str(face.get("credit", "")).startswith(ARTWORK_BY))
+		self.assertEqual([a["by"] for a in ARTWORK], [ARTWORK_BY])
+
+	def test_the_inspiration_is_named_in_notice_too(self):
+		with open(os.path.join(ROOT, "NOTICE"), encoding="utf-8") as f:
+			notice = f.read()
+		for item in INSPIRATION:
+			with self.subTest(item["name"]):
+				self.assertIn(item["name"], notice)
+				self.assertTrue(item.get("url", "").startswith("https://"))
+
 class TestCreditsRoute(WebApiTestBase):
 	def test_the_page_gets_the_data_the_fonts_and_the_software(self):
 		body = self.client.get("/api/credits").json()
@@ -77,3 +103,5 @@ class TestCreditsRoute(WebApiTestBase):
 		self.assertEqual([d["name"].casefold() for d in body["data"]], sorted(d["name"].casefold() for d in body["data"]))
 		self.assertEqual({ f["name"] for f in body["fonts"] }, set(FONT_FAMILIES))
 		self.assertIn("Leaflet", { s["name"] for s in body["software"] })
+		self.assertEqual([a["by"] for a in body["artwork"]], [ARTWORK_BY])
+		self.assertEqual([i["name"] for i in body["inspiration"]], ["InkyPi"])

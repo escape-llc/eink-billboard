@@ -102,6 +102,13 @@
 			"Credits": {
 				"additionalProperties": false,
 				"properties": {
+					"artwork": {
+						"items": {
+							"$ref": "#/components/schemas/SoftwareCredit"
+						},
+						"title": "Artwork",
+						"type": "array"
+					},
 					"data": {
 						"items": {
 							"$ref": "#/components/schemas/DataCredit"
@@ -116,6 +123,13 @@
 						"title": "Fonts",
 						"type": "array"
 					},
+					"inspiration": {
+						"items": {
+							"$ref": "#/components/schemas/SoftwareCredit"
+						},
+						"title": "Inspiration",
+						"type": "array"
+					},
 					"software": {
 						"items": {
 							"$ref": "#/components/schemas/SoftwareCredit"
@@ -127,7 +141,9 @@
 				"required": [
 					"data",
 					"fonts",
-					"software"
+					"software",
+					"artwork",
+					"inspiration"
 				],
 				"title": "Credits",
 				"type": "object"
@@ -1563,7 +1579,7 @@
 			},
 			"SoftwareCredit": {
 				"additionalProperties": false,
-				"description": "A font or other software by others: whose it is, its licence, and what it does here.",
+				"description": "A font, other software or artwork by others (or the project that inspired this one): whose it is, its licence, and what it is here.",
 				"properties": {
 					"by": {
 						"title": "By",

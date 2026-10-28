@@ -262,4 +262,6 @@ class ClockAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 			twelve_hour = (system or {}).get("timeFormat") == "12h"
 			stm = dsec.provider.required(StaticConfigurationManager)
 			image = await asyncio.to_thread(render_type_face, face, dimensions, t, theme.palette, stm, theme.font_heading, twelve_hour)
-		return MediaRenderResult(image=image, title=f"{face.name} {t:%H:%M}")
+		# an artwork face names its maker wherever it is shown, as its licence (CC BY) asks
+		credit = face.credit if isinstance(face, Face) else ""
+		return MediaRenderResult(image=image, title=f"{face.name} {t:%H:%M} ({credit})" if credit else f"{face.name} {t:%H:%M}")
