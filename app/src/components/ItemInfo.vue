@@ -49,6 +49,7 @@ const FEATURE_HELP: Record<string, string> = {
 	"data-calendar": "Supplies calendar events: any page or overlay that needs a calendar provider can use it.",
 	"data-ai-text": "An AI text part: writes text for a generator.",
 	"data-ai-image": "An AI image part: draws a picture for a generator.",
+	"data-transit": "Transit: the departures and alerts of a stop, for the transit pages.",
 	"layer-background": "Can be shown as the playlist's background page.",
 	"layer-foreground": "Can be shown over the background, as a page of its own that nothing hides.",
 	"layer-priority": "Can be shown for a while over everything (a Priority Update).",

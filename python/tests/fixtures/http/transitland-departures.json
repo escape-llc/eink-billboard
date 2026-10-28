@@ -1,0 +1,296 @@
+{
+	"stops": [
+		{
+			"onestop_id": "s-c23nb-mainst~3rd",
+			"stop_id": "1001",
+			"stop_name": "Main St & 3rd Ave",
+			"stop_timezone": "America/Los_Angeles",
+			"platform_code": null,
+			"location_type": 0,
+			"geometry": {
+				"type": "Point",
+				"coordinates": [
+					-122.3305,
+					47.6105
+				]
+			},
+			"alerts": [
+				{
+					"entity_id": "a-elevator",
+					"severity_level": "WARNING",
+					"effect": "ACCESSIBILITY_ISSUE",
+					"cause": "MAINTENANCE",
+					"active_period": [
+						{
+							"start": 1791393600,
+							"end": null
+						}
+					],
+					"header_text": [
+						{
+							"language": "en",
+							"text": "Elevator out of service"
+						},
+						{
+							"language": "es",
+							"text": "Ascensor fuera de servicio"
+						}
+					],
+					"description_text": [
+						{
+							"language": "en",
+							"text": "Use the ramp on 3rd Ave."
+						}
+					],
+					"url": [
+						{
+							"language": "en",
+							"text": "https://example.org/alerts/elevator"
+						}
+					]
+				},
+				{
+					"entity_id": "a-over",
+					"severity_level": "INFO",
+					"effect": "OTHER_EFFECT",
+					"cause": "OTHER_CAUSE",
+					"active_period": [
+						{
+							"start": 1791300000,
+							"end": 1791310000
+						}
+					],
+					"header_text": [
+						{
+							"language": "en",
+							"text": "Yesterday's parade"
+						}
+					]
+				}
+			],
+			"departures": [
+				{
+					"departure": {
+						"scheduled_utc": "2026-10-07T19:05:00Z",
+						"scheduled_local": null,
+						"scheduled": null,
+						"estimated_utc": "2026-10-07T19:07:00Z",
+						"estimated_delay": 120
+					},
+					"arrival": {
+						"scheduled_utc": "2026-10-07T19:05:00Z",
+						"scheduled_local": null,
+						"scheduled": null
+					},
+					"schedule_relationship": "SCHEDULED",
+					"stop_headsign": null,
+					"service_date": "2026-10-07",
+					"trip": {
+						"trip_headsign": "Downtown",
+						"direction_id": 0,
+						"schedule_relationship": "SCHEDULED",
+						"route": {
+							"onestop_id": "r-c22z-23",
+							"route_short_name": "23",
+							"route_long_name": "Downtown Express",
+							"route_type": 3,
+							"route_color": "0066CC",
+							"route_text_color": "FFFFFF"
+						},
+						"alerts": [
+							{
+								"entity_id": "a-elevator",
+								"severity_level": "WARNING",
+								"effect": "ACCESSIBILITY_ISSUE",
+								"cause": "MAINTENANCE",
+								"active_period": [
+									{
+										"start": 1791393600,
+										"end": null
+									}
+								],
+								"header_text": [
+									{
+										"language": "en",
+										"text": "Elevator out of service"
+									},
+									{
+										"language": "es",
+										"text": "Ascensor fuera de servicio"
+									}
+								],
+								"description_text": [
+									{
+										"language": "en",
+										"text": "Use the ramp on 3rd Ave."
+									}
+								],
+								"url": [
+									{
+										"language": "en",
+										"text": "https://example.org/alerts/elevator"
+									}
+								]
+							}
+						]
+					}
+				},
+				{
+					"departure": {
+						"scheduled_utc": "2026-10-07T19:12:00Z",
+						"scheduled_local": null,
+						"scheduled": null
+					},
+					"arrival": {
+						"scheduled_utc": "2026-10-07T19:12:00Z",
+						"scheduled_local": null,
+						"scheduled": null
+					},
+					"schedule_relationship": "CANCELED",
+					"stop_headsign": null,
+					"service_date": "2026-10-07",
+					"trip": {
+						"trip_headsign": "Airport",
+						"direction_id": 0,
+						"schedule_relationship": "CANCELED",
+						"route": {
+							"onestop_id": "r-c22z-45x",
+							"route_short_name": "45X",
+							"route_long_name": "Airport",
+							"route_type": 3,
+							"route_color": "CC3300",
+							"route_text_color": "FFFFFF",
+							"alerts": [
+								{
+									"entity_id": "a-detour",
+									"severity_level": "SEVERE",
+									"effect": "DETOUR",
+									"cause": "CONSTRUCTION",
+									"active_period": [
+										{
+											"start": 1791392400,
+											"end": 1791421200
+										}
+									],
+									"header_text": [
+										{
+											"language": "en",
+											"text": "Route 45X detoured"
+										}
+									],
+									"description_text": []
+								}
+							]
+						}
+					}
+				},
+				{
+					"departure": {
+						"scheduled_utc": "2026-10-07T19:02:00Z",
+						"scheduled_local": null,
+						"scheduled": null
+					},
+					"arrival": {
+						"scheduled_utc": "2026-10-07T19:02:00Z",
+						"scheduled_local": null,
+						"scheduled": null
+					},
+					"schedule_relationship": "STATIC",
+					"stop_headsign": null,
+					"service_date": "2026-10-07",
+					"trip": {
+						"trip_headsign": "Uptown",
+						"direction_id": 0,
+						"schedule_relationship": "STATIC",
+						"route": {
+							"onestop_id": "r-c22z-7",
+							"route_short_name": "7",
+							"route_long_name": "Uptown",
+							"route_type": 3,
+							"route_color": null,
+							"route_text_color": null
+						}
+					}
+				},
+				{
+					"departure": {
+						"scheduled_utc": "2026-10-07T19:20:00Z",
+						"scheduled_local": null,
+						"scheduled": null
+					},
+					"arrival": {
+						"scheduled_utc": "2026-10-07T19:20:00Z",
+						"scheduled_local": null,
+						"scheduled": null
+					},
+					"schedule_relationship": "STATIC",
+					"stop_headsign": null,
+					"service_date": "2026-10-07",
+					"trip": {
+						"trip_headsign": "Downtown",
+						"direction_id": 0,
+						"schedule_relationship": "STATIC",
+						"route": {
+							"onestop_id": "r-c22z-23",
+							"route_short_name": "23",
+							"route_long_name": "Downtown Express",
+							"route_type": 3,
+							"route_color": "0066CC",
+							"route_text_color": "FFFFFF"
+						}
+					}
+				},
+				{
+					"departure": {
+						"scheduled_utc": "2026-10-07T19:35:00Z",
+						"scheduled_local": null,
+						"scheduled": null
+					},
+					"arrival": {
+						"scheduled_utc": "2026-10-07T19:35:00Z",
+						"scheduled_local": null,
+						"scheduled": null
+					},
+					"schedule_relationship": "STATIC",
+					"stop_headsign": null,
+					"service_date": "2026-10-07",
+					"trip": {
+						"trip_headsign": "Airport",
+						"direction_id": 0,
+						"schedule_relationship": "STATIC",
+						"route": {
+							"onestop_id": "r-c22z-45x",
+							"route_short_name": "45X",
+							"route_long_name": "Airport",
+							"route_type": 3,
+							"route_color": "CC3300",
+							"route_text_color": "FFFFFF",
+							"alerts": [
+								{
+									"entity_id": "a-detour",
+									"severity_level": "SEVERE",
+									"effect": "DETOUR",
+									"cause": "CONSTRUCTION",
+									"active_period": [
+										{
+											"start": 1791392400,
+											"end": 1791421200
+										}
+									],
+									"header_text": [
+										{
+											"language": "en",
+											"text": "Route 45X detoured"
+										}
+									],
+									"description_text": []
+								}
+							]
+						}
+					}
+				}
+			],
+			"children": []
+		}
+	]
+}

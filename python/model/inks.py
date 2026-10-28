@@ -48,6 +48,10 @@ INK_SETS: dict[str, tuple[str, ...]] = {
 }
 DEFAULT_INK_SET = "spectra6"
 
+def nearest_ink(rgb: tuple[int, int, int], ink_set: str) -> str:
+	"""The ink of `ink_set` that a colour someone else chose (a bus route's) is drawn in, by what the inks look like (`APPEARANCE`), so a page stays inks only (#429)."""
+	return min(INK_SETS.get(ink_set, INK_SETS[DEFAULT_INK_SET]), key=lambda ink: sum((a - b) ** 2 for a, b in zip(APPEARANCE[ink], rgb, strict=True)))
+
 def ink_set_rgb(name: str, which: Literal["drive", "appearance"] = "drive") -> list[tuple[int, int, int]]:
 	"""The colours of an ink set's inks, in palette order (`drive`: what is drawn and handed to the driver; `appearance`: what the panel shows)."""
 	table = DRIVE if which == "drive" else APPEARANCE

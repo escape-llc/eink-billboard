@@ -1,0 +1,82 @@
+{
+	"stops": [
+		{
+			"onestop_id": "s-c23p0-ferry",
+			"stop_id": "F1",
+			"stop_name": "Ferry Terminal",
+			"stop_timezone": "America/Los_Angeles",
+			"departures": [
+				{
+					"departure": {
+						"scheduled_utc": "2026-10-07T19:15:00Z",
+						"scheduled_local": null,
+						"scheduled": null
+					},
+					"arrival": {
+						"scheduled_utc": "2026-10-07T19:15:00Z",
+						"scheduled_local": null,
+						"scheduled": null
+					},
+					"schedule_relationship": "STATIC",
+					"stop_headsign": null,
+					"service_date": "2026-10-07",
+					"trip": {
+						"trip_headsign": "Island",
+						"direction_id": 0,
+						"schedule_relationship": "STATIC",
+						"route": {
+							"onestop_id": "r-c22z-f",
+							"route_short_name": "F",
+							"route_long_name": "Island Ferry",
+							"route_type": 3,
+							"route_color": null,
+							"route_text_color": null
+						},
+						"frequencies": [
+							{
+								"start_time": "06:00:00",
+								"end_time": "22:00:00",
+								"headway_secs": 1800
+							}
+						]
+					}
+				},
+				{
+					"departure": {
+						"scheduled_utc": "2026-10-07T19:45:00Z",
+						"scheduled_local": null,
+						"scheduled": null
+					},
+					"arrival": {
+						"scheduled_utc": "2026-10-07T19:45:00Z",
+						"scheduled_local": null,
+						"scheduled": null
+					},
+					"schedule_relationship": "STATIC",
+					"stop_headsign": null,
+					"service_date": "2026-10-07",
+					"trip": {
+						"trip_headsign": "Island",
+						"direction_id": 0,
+						"schedule_relationship": "STATIC",
+						"route": {
+							"onestop_id": "r-c22z-f",
+							"route_short_name": "F",
+							"route_long_name": "Island Ferry",
+							"route_type": 3,
+							"route_color": null,
+							"route_text_color": null
+						},
+						"frequencies": [
+							{
+								"start_time": "06:00:00",
+								"end_time": "22:00:00",
+								"headway_secs": 1800
+							}
+						]
+					}
+				}
+			]
+		}
+	]
+}

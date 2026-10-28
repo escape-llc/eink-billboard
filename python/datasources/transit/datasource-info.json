@@ -1,0 +1,71 @@
+{
+	"id": "transit",
+	"name": "Departure Board",
+	"version": "0.0.1",
+	"class": "TransitAsync",
+	"file": "transit.py",
+	"module": "python.datasources.transit.transit",
+	"description": "The next departures from one of your stops, with their routes, live or timetable times and any service alert. The stops and the key are the transit provider's (Transitland's settings, My Stops). Not a real-time display: it says how old its times are, and leaves out what you could no longer catch.",
+	"describe": "Departures {stop}",
+	"disabled": false,
+	"requires": ["data-transit"],
+	"features": ["api-client", "layer-foreground", "media-image"],
+	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:transit:1",
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+				"stop": {
+					"settings": "stops",
+					"from": "data-transit",
+					"value": "name"
+				}
+			},
+			"properties": [
+				{
+					"name": "stop",
+					"type": "string",
+					"required": true,
+					"default": null,
+					"lookup": "stop",
+					"title": "Stop",
+					"description": "One of My Stops (Transitland settings). Its walk time decides which departures are still worth showing."
+				},
+				{
+					"name": "rows",
+					"type": "integer",
+					"required": false,
+					"default": 6,
+					"minimum": 1,
+					"maximum": 12,
+					"title": "Departures",
+					"description": "How many departures the board shows at most."
+				},
+				{
+					"name": "title",
+					"type": "string",
+					"required": false,
+					"default": null,
+					"title": "Title",
+					"description": "The heading above the board. Empty: the stop's name.",
+					"maxLength": 80
+				},
+				{
+					"name": "fontSize",
+					"type": "string",
+					"required": false,
+					"default": "normal",
+					"title": "Text Size",
+					"description": "The size of the text on the page.",
+					"enum": ["x-small", "small", "normal", "large", "x-large"]
+				}
+			]
+		}
+	}
+}

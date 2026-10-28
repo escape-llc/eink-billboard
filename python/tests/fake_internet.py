@@ -448,7 +448,42 @@ def _museums(request: httpx.Request) -> httpx.Response | None:
 		return _image(723, 900, path.rsplit("/", 1)[-1], "JPEG")
 	return None
 
-ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _apod, _apod_image, _rss_feed, _rss_image, _picture_at_an_address, _calendar, _caldav, _weather, _open_meteo, _thunderforest, _ip_location, _openai, _google, _comicvine, _museums]
+# Transitland's REST API (#429): the key in the `apikey` header only ("tl-good" the fixtures, "tl-busy" a 429, any other a 401 whose text quotes it, as a service's
+# error might; a key in the address is a 400). Its answers are written by hand in the OpenAPI schema's shapes: the stops' departures by stop key, the stops near a point, a stop by its key.
+TRANSITLAND_DEPARTURES = { "s-c23nb-mainst~3rd": "transitland-departures.json", "s-c23p0-ferry": "transitland-departures-intervals.json", "s-c23nc-central": "transitland-departures-station.json" }
+TRANSITLAND_STOP = re.compile(r"^/api/v2/rest/stops/([^/]+)(/departures)?$")
+
+def _transitland(request: httpx.Request) -> httpx.Response | None:
+	if request.url.host != "transit.land":
+		return None
+	if "apikey" in request.url.params:
+		return httpx.Response(400, json={ "error": "the key belongs in the apikey header" })
+	key = request.headers.get("apikey", "")
+	if key == "tl-busy":
+		return httpx.Response(429, json={ "error": "rate limit exceeded" })
+	if key != "tl-good":
+		return httpx.Response(401, json={ "error": f"invalid apikey {key}" })
+	path = request.url.path
+	if path == "/api/v2/rest/operators":
+		return httpx.Response(200, json={ "operators": [{ "onestop_id": "o-c23-metro", "name": "Metro" }] })
+	if path == "/api/v2/rest/stops":
+		params = request.url.params
+		if not params.get("lat") or not params.get("lon") or not params.get("radius"):
+			return httpx.Response(400, json={ "error": "lat, lon and radius are needed" })
+		return httpx.Response(200, text=fixture_text("transitland-stops-near.json"), headers={ "Content-Type": "application/json" })
+	found = TRANSITLAND_STOP.match(path)
+	if found is None:
+		return httpx.Response(404, json={ "error": "not found" })
+	stop_key, departures = found.group(1).replace("%7E", "~"), found.group(2)
+	name = TRANSITLAND_DEPARTURES.get(stop_key)
+	if name is None:
+		return httpx.Response(404, json={ "error": f"stop {stop_key} not found" })
+	if departures is None:
+		stop = json.loads(fixture_text(name))["stops"][0]
+		return httpx.Response(200, json={ "stops": [{ k: v for k, v in stop.items() if k not in ("departures", "children") }] })
+	return httpx.Response(200, text=fixture_text(name), headers={ "Content-Type": "application/json" })
+
+ROUTES: list[Callable[[httpx.Request], httpx.Response | None]] = [_comic_feed, _comic_image, _freedom_forum, _wikipedia_api, _wikimedia_image, _apod, _apod_image, _rss_feed, _rss_image, _picture_at_an_address, _calendar, _caldav, _weather, _open_meteo, _thunderforest, _ip_location, _openai, _google, _comicvine, _museums, _transitland]
 
 def install() -> FakeInternet | None:
 	"""Make every `AsyncHttpWorkerPool` talk to the fake (unless EINK_TEST_LIVE is set)."""

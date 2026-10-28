@@ -319,6 +319,42 @@
 		"version": 1,
 		"properties": {}
 	},
+	"urn:inky:storage:schema:datasource:transit": {
+		"version": 1,
+		"properties": {}
+	},
+	"urn:inky:storage:schema:datasource:transitland-api": {
+		"version": 1,
+		"properties": {
+			"apiKey": {
+				"type": "string"
+			},
+			"stops": {
+				"type": "array"
+			},
+			"radius": {
+				"type": "integer"
+			},
+			"departuresCacheMinutes": {
+				"type": "integer"
+			},
+			"lookupCacheHours": {
+				"type": "integer"
+			},
+			"staleDays": {
+				"type": "integer"
+			},
+			"monthlyQuota": {
+				"type": "integer"
+			},
+			"quotaResetDay": {
+				"type": "integer"
+			},
+			"routineShare": {
+				"type": "integer"
+			}
+		}
+	},
 	"urn:inky:storage:schema:datasource:weather": {
 		"version": 1,
 		"properties": {}

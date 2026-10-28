@@ -119,7 +119,7 @@ class TestPluginsAndSourcesAgree(unittest.TestCase):
 # (The Data Source settings tab explains each in a tooltip: app/src/components/ItemInfo.vue.)
 VOCABULARY = (
 	"internet", "filesystem", "api-key", "paid-service",
-	"api", "api-client", "ai-provider", "data-weather", "data-calendar", "data-ai-text", "data-ai-image",
+	"api", "api-client", "ai-provider", "data-weather", "data-calendar", "data-ai-text", "data-ai-image", "data-transit",
 	"layer-background", "layer-foreground", "layer-priority", "layer-overlay",
 	"media-image", "media-list",
 )

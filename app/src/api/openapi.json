@@ -3747,6 +3747,123 @@
 				"summary": "Test Key"
 			}
 		},
+		"/api/datasource/transitland-api/lookups/stops": {
+			"get": {
+				"description": "The stops near the device's location, within the radius of the settings, nearest first: kept a day, so opening the form spends no quota.",
+				"operationId": "stop_choices_api_datasource_transitland_api_lookups_stops_get",
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Choice"
+									},
+									"title": "Response Stop Choices Api Datasource Transitland Api Lookups Stops Get",
+									"type": "array"
+								}
+							}
+						},
+						"description": "Successful Response"
+					}
+				},
+				"summary": "Stop Choices"
+			}
+		},
+		"/api/datasource/transitland-api/test": {
+			"post": {
+				"description": "Ask Transitland with the key typed (or the saved one, when the field shows the mask): `{ ok, message }`. Never kept.",
+				"operationId": "test_key_api_datasource_transitland_api_test_post",
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"additionalProperties": true,
+								"description": "A Test button's question: the field's value as typed (a write-only field's mask, or nothing, means the saved one).",
+								"properties": {
+									"value": {
+										"title": "Value"
+									}
+								},
+								"title": "TestBody",
+								"type": "object"
+							}
+						}
+					},
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TestAnswer"
+								}
+							}
+						},
+						"description": "Successful Response"
+					},
+					"422": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPValidationError"
+								}
+							}
+						},
+						"description": "Validation Error"
+					}
+				},
+				"summary": "Test Key"
+			}
+		},
+		"/api/datasource/transitland-api/test-stop": {
+			"post": {
+				"description": "Ask Transitland, with the saved key, whether it knows a stop's key: `{ ok, message }` with the stop's name.",
+				"operationId": "test_stop_api_datasource_transitland_api_test_stop_post",
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"additionalProperties": true,
+								"description": "A Test button's question: the field's value as typed (a write-only field's mask, or nothing, means the saved one).",
+								"properties": {
+									"value": {
+										"title": "Value"
+									}
+								},
+								"title": "TestBody",
+								"type": "object"
+							}
+						}
+					},
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TestAnswer"
+								}
+							}
+						},
+						"description": "Successful Response"
+					},
+					"422": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPValidationError"
+								}
+							}
+						},
+						"description": "Validation Error"
+					}
+				},
+				"summary": "Test Stop"
+			}
+		},
 		"/api/datasources/list": {
 			"get": {
 				"operationId": "datasources_list_api_datasources_list_get",

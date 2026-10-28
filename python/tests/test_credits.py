@@ -10,6 +10,7 @@ import unittest
 from ..datasources.open_meteo_api.open_meteo_api import CREDIT as OPEN_METEO
 from ..datasources.openweathermap_api.openweathermap_api import CREDIT as OPENWEATHERMAP
 from ..datasources.thunderforest_map.thunderforest_map import ATTRIBUTION
+from ..datasources.transitland_api.transitland_api import CREDIT as TRANSITLAND
 from ..model.configuration_manager import FONT_FAMILIES
 from ..web.credits import ARTWORK, ARTWORK_BY, FONT_AUTHORS, INSPIRATION, SOFTWARE, USERS_OWN
 from .test_web_api import WebApiTestBase
@@ -51,6 +52,7 @@ class TestEveryCreditIsDeclared(unittest.TestCase):
 		self.assertEqual(found["open-meteo-api"]["credit"]["text"], OPEN_METEO)
 		self.assertEqual(found["openweathermap-api"]["credit"]["text"], OPENWEATHERMAP)
 		self.assertEqual(found["thunderforest-api"]["credit"]["text"], ATTRIBUTION)
+		self.assertEqual(found["transitland-api"]["credit"]["text"], TRANSITLAND)
 
 	def test_every_font_we_ship_is_credited_here_and_in_notice(self):
 		self.assertEqual(set(FONT_AUTHORS), set(FONT_FAMILIES))
