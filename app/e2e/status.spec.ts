@@ -26,9 +26,9 @@ test("the System page reports the machine and the storage by data source, with n
 	await expect(machine.getByText("Machine up for")).toBeVisible()
 	await expect(machine.getByTestId("app-uptime")).toHaveText(/^\d+ (s|min)|^\d+ h/)
 	await expect(machine.getByRole("meter", { name: "Memory in use" })).toBeVisible()
-	// the storage starts closed, with its total; open, it has the tables (and the total again)
+	// the storage starts closed, with its totals as pills; open, it has the tables and the total in words
 	const storage = page.getByRole("region", { name: "Storage" })
-	await expect(storage.getByTestId("storage-total")).toHaveText(/^\d+(\.\d)? (bytes|KB|MB|GB) in \d+ files?(, .*% of the disk)?$/)
+	await expect(storage.getByTestId("storage-pills").getByRole("listitem").first()).toHaveText(/^size\s*\d+(\.\d)? (bytes|KB|MB|GB)$/)
 	await expect(storage.getByRole("table")).toHaveCount(0)
 	await storage.getByRole("button", { name: "Storage" }).click()
 	await expect(storage.getByRole("button", { name: "Storage" })).toHaveAttribute("aria-expanded", "true")
@@ -72,8 +72,8 @@ test("the System page says what each API data source has asked of its service", 
 	await expect(month.getByRole("cell").nth(4)).toHaveText("75%")
 	// what the service answered, a pill each, and the plan's bar
 	await expect(usage.getByTestId("answers").getByRole("listitem")).toHaveCount(2)
-	await expect(usage.getByTitle("68 calls answered 200")).toBeVisible()
-	await expect(usage.getByTitle("2 calls answered 429")).toBeVisible()
+	await expect(usage.getByTitle("200 OK: 68 calls")).toBeVisible()
+	await expect(usage.getByTitle("429 Too Many Requests: 2 calls")).toBeVisible()
 	await expect(usage.getByText("25 of 100 calls since Oct 1 (25%), resets Nov 1")).toBeVisible()
 	// the moment is the device's wall clock as the server wrote it, not converted to the browser's zone
 	await expect(usage.getByText("2026-10-21 12:17")).toBeVisible()

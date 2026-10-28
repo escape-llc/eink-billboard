@@ -70,11 +70,32 @@ export function answerKind(code: string): AnswerKind {
 	return n >= 500 ? "danger" : n >= 400 ? "warn" : n >= 300 ? "info" : n >= 200 ? "success" : "info"
 }
 
-/** The calls by what the service answered, one pill each: the most common first, the status codes in order among equals. */
-export function answerPills(status: Record<string, number> | null | undefined): { code: string, count: number, kind: AnswerKind }[] {
+/** What a status means, in words, for its pill's title: the HTTP statuses a service is likely to answer, and the ways of getting no answer at all. */
+const ANSWER_NAMES: Record<string, string> = {
+	"200": "OK", "201": "Created", "202": "Accepted", "204": "No Content", "206": "Partial Content",
+	"301": "Moved Permanently", "302": "Found", "303": "See Other", "304": "Not Modified", "307": "Temporary Redirect", "308": "Permanent Redirect",
+	"400": "Bad Request", "401": "Unauthorized", "402": "Payment Required", "403": "Forbidden", "404": "Not Found", "405": "Method Not Allowed",
+	"406": "Not Acceptable", "408": "Request Timeout", "409": "Conflict", "410": "Gone", "413": "Content Too Large", "415": "Unsupported Media Type",
+	"422": "Unprocessable Content", "429": "Too Many Requests",
+	"500": "Internal Server Error", "501": "Not Implemented", "502": "Bad Gateway", "503": "Service Unavailable", "504": "Gateway Timeout",
+	"timeout": "no answer in time", "connect": "could not connect", "tls": "the secure connection failed", "error": "no answer",
+}
+
+export function answerName(code: string): string {
+	return ANSWER_NAMES[code] ?? ""
+}
+
+/** The calls by what the service answered, one pill each: the status codes in order, then the calls with no answer at all (`timeout`...) by name. */
+export function answerPills(status: Record<string, number> | null | undefined): { code: string, count: number, kind: AnswerKind, title: string }[] {
+	const order = (code: string) => { const n = Number(code); return Number.isNaN(n) ? Infinity : n }
 	return Object.entries(status ?? {})
-		.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-		.map(([code, count]) => ({ code, count, kind: answerKind(code) }))
+		.sort((a, b) => order(a[0]) - order(b[0]) || a[0].localeCompare(b[0]))
+		.map(([code, count]) => {
+			const name = answerName(code)
+			const calls = `${count} ${count === 1 ? "call" : "calls"}`
+			const title = Number.isNaN(Number(code)) ? `${calls}: ${name || code}` : `${code}${name ? ` ${name}` : ""}: ${calls}`
+			return { code, count, kind: answerKind(code), title }
+		})
 }
 
 /** A share (0 to 1) as `86%`; nothing counted is a dash. */
@@ -123,6 +144,21 @@ export function quotaLine(q: { limit: number, used: number, percent: number, sin
 }
 
 /** What the storage holds in all: its areas added up, and its share of the disk it is on when that is known (`12 MB in 140 files, 0.1% of the disk`). */
+/** The storage as pills for the closed Storage card: `size 73 MB`, `files 226`, and with the disk known `disk <0.1%` (our share of it) and `free 12 GB`, toned by how full the disk is. */
+export function storagePills(areas: { files: number, bytes: number }[], volume?: { total: number, free: number, percent: number } | null): Pill[] {
+	const files = areas.reduce((sum, a) => sum + a.files, 0)
+	const bytes = areas.reduce((sum, a) => sum + a.bytes, 0)
+	const pills: Pill[] = [
+		{ label: "size", value: formatBytes(bytes), kind: "neutral", title: "What the device keeps, in all" },
+		{ label: "files", value: String(files), kind: "neutral", title: `${files} ${files === 1 ? "file" : "files"} in all` },
+	]
+	if (!volume?.total) return pills
+	const share = bytes / volume.total * 100
+	pills.push({ label: "disk", value: share > 0 && share < 0.1 ? "<0.1%" : `${share.toFixed(1).replace(/\.0$/, "")}%`, kind: "neutral", title: "The device's share of the disk" })
+	pills.push({ label: "free", value: formatBytes(volume.free), kind: gaugeSeverity(volume.percent), title: `${formatBytes(volume.free)} of ${formatBytes(volume.total)} free; the disk is ${Math.round(volume.percent)}% full` })
+	return pills
+}
+
 export function storageLine(areas: { files: number, bytes: number }[], volume?: { total: number } | null): string {
 	const files = areas.reduce((sum, a) => sum + a.files, 0)
 	const bytes = areas.reduce((sum, a) => sum + a.bytes, 0)
