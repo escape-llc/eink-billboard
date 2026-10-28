@@ -654,6 +654,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/datasource/transitland-api/lookups/stops": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stop Choices
+         * @description The stops near the device's location, within the radius of the settings, nearest first: kept a day, so opening the form spends no quota.
+         */
+        get: operations["stop_choices_api_datasource_transitland_api_lookups_stops_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasource/transitland-api/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Key
+         * @description Ask Transitland with the key typed (or the saved one, when the field shows the mask): `{ ok, message }`. Never kept.
+         */
+        post: operations["test_key_api_datasource_transitland_api_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasource/transitland-api/test-stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Stop
+         * @description Ask Transitland, with the saved key, whether it knows a stop's key: `{ ok, message }` with the stop's name.
+         */
+        post: operations["test_stop_api_datasource_transitland_api_test_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/datasources/list": {
         parameters: {
             query?: never;
@@ -3299,6 +3359,102 @@ export interface operations {
         };
     };
     test_key_api_datasource_thunderforest_api_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Value */
+                    value?: unknown;
+                } & {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestAnswer"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_choices_api_datasource_transitland_api_lookups_stops_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Choice"][];
+                };
+            };
+        };
+    };
+    test_key_api_datasource_transitland_api_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Value */
+                    value?: unknown;
+                } & {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestAnswer"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_stop_api_datasource_transitland_api_test_stop_post: {
         parameters: {
             query?: never;
             header?: never;

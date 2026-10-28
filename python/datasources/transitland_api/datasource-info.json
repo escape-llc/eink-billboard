@@ -1,0 +1,149 @@
+{
+	"id": "transitland-api",
+	"name": "Transitland",
+	"version": "0.0.1",
+	"class": "TransitlandApi",
+	"file": "transitland_api.py",
+	"module": "python.datasources.transitland_api.transitland_api",
+	"description": "A transit provider: the departures and service alerts of the stops you list (My Stops), from Transitland, for the transit pages and overlays. Holds the API key and the answers they share. Not a real-time display: an answer is kept at least 15 minutes, so every board says how old it is.",
+	"credit": { "text": "Transit data: Transitland", "url": "https://www.transit.land/terms" },
+	"disabled": false,
+	"features": ["internet", "api-key", "api", "data-transit"],
+	"router": {
+		"id": "transitland-router",
+		"class": "transitland_router",
+		"file": "api.py",
+		"module": "python.datasources.transitland_api.api"
+	},
+	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:transitland-api:1",
+		"schema": {
+			"lookups": {
+				"stop": { "url": "/api/datasource/transitland-api/lookups/stops" }
+			},
+			"properties": [
+				{
+					"name": "apiKey",
+					"type": "string",
+					"widget": "api-key",
+					"required": true,
+					"writeOnly": true,
+					"default": null,
+					"title": "API Key",
+					"description": "Your own Transitland key: each device brings its own, none is shipped. The free plan is for non-commercial use. Test asks Transitland whether it accepts the key.",
+					"test": { "url": "/api/datasource/transitland-api/test" },
+					"link": { "url": "https://www.transit.land/plans-pricing/", "label": "Free API Key" }
+				},
+				{
+					"name": "stops",
+					"type": "array",
+					"required": false,
+					"default": [],
+					"title": "My Stops",
+					"description": "The stops the transit pages and overlays can show, each under a name a task chooses it by. A stop is chosen from those near the device's location (System settings), and Test asks Transitland for its name. The walk is how long it takes you to get there: a board leaves out what you could no longer catch.",
+					"items": {
+						"type": "object",
+						"key": "name",
+						"properties": [
+							{ "name": "name", "type": "string", "required": true, "title": "Name", "minLength": 1, "maxLength": 40 },
+							{ "name": "stopKey", "type": "string", "required": true, "title": "Stop", "lookup": "stop", "maxLength": 200, "pattern": "^[^/?#\\s]+$",
+								"test": { "url": "/api/datasource/transitland-api/test-stop" } },
+							{ "name": "walkMinutes", "type": "integer", "required": false, "default": 5, "minimum": 0, "maximum": 60, "title": "Walk", "units": "minutes" },
+							{ "name": "routes", "type": "string", "required": false, "title": "Only Routes", "maxLength": 200 }
+						]
+					}
+				},
+				{
+					"name": "radius",
+					"type": "integer",
+					"required": true,
+					"default": 800,
+					"minimum": 100,
+					"maximum": 3000,
+					"step": 100,
+					"title": "Stops Within",
+					"units": "metres",
+					"description": "How far from the device's location the stop list reaches when you choose a stop."
+				},
+				{
+					"name": "departuresCacheMinutes",
+					"type": "integer",
+					"required": true,
+					"default": 15,
+					"minimum": 15,
+					"maximum": 240,
+					"step": 5,
+					"title": "Keep Departures",
+					"units": "minutes",
+					"description": "How long what Transitland answered for a stop's departures (and the alerts that come with them) is kept and shared by every page, overlay and task of that stop. 15 at least: the free plan's 5,000 calls a month go only so far, so there is no 'ask every time'. A board shows how old its answer is."
+				},
+				{
+					"name": "lookupCacheHours",
+					"type": "integer",
+					"required": true,
+					"default": 24,
+					"minimum": 1,
+					"maximum": 720,
+					"title": "Keep the Stop List",
+					"units": "hours",
+					"description": "How long the list of stops near the device is kept, so opening the form to choose a stop spends no calls."
+				},
+				{
+					"name": "staleDays",
+					"type": "integer",
+					"required": true,
+					"default": 30,
+					"minimum": 0,
+					"title": "Forget Unused Answers After",
+					"units": "days",
+					"description": "A kept answer nobody has used for this many days (a stop you removed) is removed. 0: never."
+				},
+				{
+					"name": "monthlyQuota",
+					"type": "integer",
+					"required": false,
+					"default": 5000,
+					"minimum": 1,
+					"title": "Monthly Quota",
+					"description": "The calls your Transitland plan allows in a month: 5,000 on the free plan. The System page's API usage card shows this period's calls against it, with a warning from 80%. Once it is used, Transitland is not asked again until the period resets, and what was kept is shown. Empty: no limit."
+				},
+				{
+					"name": "quotaResetDay",
+					"type": "integer",
+					"required": false,
+					"default": 1,
+					"minimum": 1,
+					"maximum": 28,
+					"title": "Quota Resets On",
+					"units": "day of the month",
+					"description": "The day of the month your plan starts counting again (1 to 28), in the device's time zone. Transitland does not say which day it is; the 1st is a guess.",
+					"visibleIf": { "not": { "field": "monthlyQuota", "const": null } }
+				},
+				{
+					"name": "routineShare",
+					"type": "integer",
+					"required": true,
+					"default": 80,
+					"minimum": 10,
+					"maximum": 100,
+					"step": 5,
+					"title": "Routine Share",
+					"units": "%",
+					"description": "The share of the monthly quota the boards may spend refreshing. Past it they show what was kept, and the rest is left for choosing and testing stops. 100: the boards may use all of it.",
+					"visibleIf": { "not": { "field": "monthlyQuota", "const": null } }
+				}
+			]
+		},
+		"default": {
+			"apiKey": null,
+			"stops": [],
+			"radius": 800,
+			"departuresCacheMinutes": 15,
+			"lookupCacheHours": 24,
+			"staleDays": 30,
+			"monthlyQuota": 5000,
+			"quotaResetDay": 1,
+			"routineShare": 80
+		}
+	}
+}

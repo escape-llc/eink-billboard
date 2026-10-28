@@ -1,0 +1,181 @@
+{% extends "plugin.html" %}
+
+{% block style %}
+	<style>
+		/* every size is in rem: the root's font size is the page's (an em would follow the element it is on) */
+		html {
+			font-size: calc(min(4.8dvh, 4.8dvw) * {{ font_scale }} * var(--font-scale));
+		}
+		.tb {
+			box-sizing: border-box;
+			height: 100%;
+			width: 100%;
+			padding: 4dvh 4dvw;
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+		}
+		.tb-heading {
+			font-family: var(--font-heading);
+			flex: none;
+			margin: 0 0 .4rem 0;
+			padding-bottom: .24rem;
+			font-size: max(var(--min-text), .8rem);
+			font-weight: bold;
+			letter-spacing: .12rem;
+			text-transform: uppercase;
+			border-bottom: .128rem solid currentColor;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+		/* an alert's headline: a block of the strong ink, so it reads as a notice whatever the colours */
+		.tb-alert {
+			flex: none;
+			margin: 0 0 .35rem 0;
+			padding: .15rem .45rem;
+			font-size: max(var(--min-text), .85rem);
+			font-weight: bold;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+		.tb-body {
+			flex: 1 1 auto;
+			min-height: 0;
+			display: flex;
+			flex-direction: column;
+			justify-content: flex-start;
+		}
+		.tb-rows {
+			display: grid;
+			align-content: start;
+			font-size: max(var(--min-text), 1.15rem);
+			font-weight: bold;
+		}
+		/* the space between the columns is the cells' own, so the rule under a row runs unbroken */
+		.tb-rows > div {
+			display: flex;
+			align-items: center;
+			min-width: 0;
+			padding: .2rem .55rem .2rem 0;
+			border-top: .08rem solid var(--ink-text-primary);
+			white-space: nowrap;
+		}
+		.tb-rows > .tb-first {
+			border-top: none;
+		}
+		.tb-time {
+			font-family: var(--font-heading);
+			font-size: max(var(--min-text), 1.35rem);
+			font-variant-numeric: tabular-nums;
+			justify-content: flex-end;
+		}
+		/* live or timetable: a symbol, not only a colour; the delay beside it in whole minutes */
+		.tb-mark {
+			gap: .2rem;
+			font-size: max(var(--min-label), .8rem);
+			font-weight: bold;
+		}
+		.tb-chip {
+			display: inline-block;
+			min-width: 1.6rem;
+			/* square: a rounded corner is drawn smoothed, in colours the panel does not have */
+			padding: .05rem .35rem;
+			text-align: center;
+			font-size: max(var(--min-text), .95rem);
+			overflow: hidden;
+			text-overflow: ellipsis;
+			max-width: 4.5rem;
+		}
+		.tb-sign {
+			overflow: hidden;
+		}
+		.tb-sign span {
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+		.tb-platform {
+			font-size: max(var(--min-label), .8rem);
+			font-weight: bold;
+			justify-content: flex-end;
+		}
+		/* a cancelled departure is struck out and says so: it is news, so it is not left out. The strike is a box's border, which is drawn on whole pixels:
+		   a text decoration is drawn where the font puts it, between pixels, and smoothed in colours the panel does not have */
+		.tb-cancelled {
+			position: relative;
+			font-weight: normal;
+		}
+		.tb-cancelled::after {
+			content: "";
+			position: absolute;
+			left: 0;
+			right: 0;
+			top: 50%;
+			border-top: 2px solid currentColor;
+		}
+		.tb-word {
+			margin-left: .4rem;
+			font-size: max(var(--min-label), .75rem);
+			font-weight: bold;
+			text-transform: uppercase;
+			letter-spacing: .05rem;
+			display: inline-block;
+		}
+		.tb-message {
+			margin: auto;
+			text-align: center;
+			font-size: max(var(--min-text), 1.2rem);
+			font-weight: bold;
+		}
+		.tb-note {
+			margin-top: .3rem;
+			font-size: max(var(--min-label), .8rem);
+			font-weight: bold;
+		}
+		/* the "as of" and the credit: side by side, or one above the other where the page is narrow */
+		.tb-foot {
+			flex: none;
+			margin-top: .28rem;
+			display: flex;
+			flex-wrap: wrap;
+			justify-content: space-between;
+			gap: .1rem 1rem;
+			font-size: max(var(--min-label), .7rem);
+			font-weight: bold;
+			letter-spacing: .042rem;
+			white-space: nowrap;
+		}
+		@media (orientation: portrait) {
+			.tb-rows { font-size: max(var(--min-text), .95rem); }
+			.tb-time { font-size: max(var(--min-text), 1.1rem); }
+		}
+	</style>
+{% endblock %}
+{% block content %}
+<div class="tb">
+	<div class="tb-heading text-secondary-1">{{ heading }}</div>
+	{% if alerts %}<div class="tb-alert bg-strong text-on-strong">⚠ {{ alerts[0] }}{% if more_alerts %} (+{{ more_alerts }} more){% endif %}</div>{% endif %}
+	<div class="tb-body">
+		{% if rows %}
+		<div class="tb-rows" style="grid-template-columns: auto auto auto 1fr{% if platforms %} auto{% endif %};">
+			{% for r in rows %}
+				{% set first = ' tb-first' if loop.first else '' %}
+				<div class="tb-time{{ first }} {{ 'text-secondary-2' if r.cancelled else 'text-primary' }}"><span class="{{ 'tb-cancelled' if r.cancelled else '' }}">{{ r.time }}</span></div>
+				<div class="tb-mark{{ first }} {{ 'text-secondary-1' if r.delay else 'text-secondary-2' }}">{{ '●' if r.live else '○' }}{% if r.delay %}<span>{{ r.delay }}</span>{% endif %}</div>
+				<div class="{{ first.strip() }}">{% if r.chip %}<span class="tb-chip" style="background: {{ r.chip.background }}; color: {{ r.chip.color }};">{{ r.route }}</span>{% else %}<span class="tb-chip bg-strong text-on-strong">{{ r.route }}</span>{% endif %}</div>
+				<div class="tb-sign{{ first }} {{ 'text-secondary-2' if r.cancelled else 'text-primary' }}"><span class="{{ 'tb-cancelled' if r.cancelled else '' }}">{{ r.headsign }}</span>{% if r.cancelled %}<span class="tb-word text-secondary-1">Cancelled</span>{% endif %}</div>
+				{% if platforms %}<div class="tb-platform{{ first }} text-secondary-1">{% if r.platform %}Pl. {{ r.platform }}{% endif %}</div>{% endif %}
+			{% endfor %}
+		</div>
+		{% if note %}<div class="tb-note text-secondary-1">{{ note }}</div>{% endif %}
+		{% else %}
+		<div class="tb-message text-secondary-1">{{ message }}</div>
+		{% endif %}
+	</div>
+	<div class="tb-foot">
+		<span class="text-secondary-1">{% if as_of %}as of {{ as_of }}{% endif %}{% if any_live %} · ● live{% endif %}{% if any_timetable %} · ○ timetable{% endif %}</span>
+		<span>{{ credit }}</span>
+	</div>
+</div>
+{% endblock %}

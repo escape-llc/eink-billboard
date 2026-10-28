@@ -1,0 +1,65 @@
+{
+	"stops": [
+		{
+			"onestop_id": "s-c23nb-mainst~3rd",
+			"stop_id": "1001",
+			"stop_name": "Main St & 3rd Ave",
+			"stop_desc": "Northbound",
+			"geometry": {
+				"type": "Point",
+				"coordinates": [
+					-122.3305,
+					47.6105
+				]
+			}
+		},
+		{
+			"onestop_id": "s-c23nb-mainst~3rd~sb",
+			"stop_id": "1002",
+			"stop_name": "Main St & 3rd Ave",
+			"stop_desc": "Southbound",
+			"geometry": {
+				"type": "Point",
+				"coordinates": [
+					-122.329,
+					47.612
+				]
+			}
+		},
+		{
+			"onestop_id": "",
+			"stop_id": "77",
+			"stop_name": "Pine St",
+			"feed_version": {
+				"feed": {
+					"onestop_id": "f-c23-metro"
+				}
+			},
+			"geometry": {
+				"type": "Point",
+				"coordinates": [
+					-122.335,
+					47.615
+				]
+			}
+		},
+		{
+			"onestop_id": "s-c23nc-central",
+			"stop_id": "CEN",
+			"stop_name": "Central Station",
+			"platform_code": null,
+			"geometry": {
+				"type": "Point",
+				"coordinates": [
+					-122.33,
+					47.6
+				]
+			}
+		},
+		{
+			"onestop_id": "s-c23nx-nowhere",
+			"stop_id": "X",
+			"stop_name": "No Position"
+		}
+	]
+}

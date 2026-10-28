@@ -158,6 +158,12 @@ class UsageMeter:
 				logger.warning(f"A quota event could not be sent ({type(e).__name__}).")
 		return quota
 
+	def share(self, source: str) -> float|None:
+		"""How much of its plan `source` has used this period (1.0 is all of it); None with no plan. A source that keeps part of its plan for what the person asks (#429) stops its routine calls at a share of it."""
+		with self._lock:
+			quota = self._plans().get(source)
+			return None if quota is None else self._used(source, quota) / quota.limit
+
 	def received(self, source: str, size: int) -> None:
 		"""The body of a streamed answer, counted when it was closed."""
 		with self._lock:

@@ -90,7 +90,7 @@ class TestOpenWeatherMapIsAWeatherProvider(unittest.TestCase):
 
 class TestContracts(unittest.TestCase):
 	def test_each_capability_has_its_contract(self):
-		self.assertEqual(set(CONTRACTS), { "data-weather", "data-calendar", "data-ai-text", "data-ai-image" })
+		self.assertEqual(set(CONTRACTS), { "data-weather", "data-calendar", "data-ai-text", "data-ai-image", "data-transit" })
 		for capability, contract in CONTRACTS.items():
 			self.assertEqual(contract.capability, capability)
 			self.assertTrue(contract.noun)

@@ -1,0 +1,85 @@
+{
+	"stops": [
+		{
+			"onestop_id": "s-c23nc-central",
+			"stop_id": "CEN",
+			"stop_name": "Central Station",
+			"stop_timezone": "",
+			"location_type": 1,
+			"parent": null,
+			"departures": [],
+			"children": [
+				{
+					"stop_id": "CEN1",
+					"stop_name": "Central Station",
+					"platform_code": "1",
+					"departures": [
+						{
+							"departure": {
+								"scheduled_utc": "2026-10-07T19:30:00Z",
+								"scheduled_local": null,
+								"scheduled": null
+							},
+							"arrival": {
+								"scheduled_utc": "2026-10-07T19:30:00Z",
+								"scheduled_local": null,
+								"scheduled": null
+							},
+							"schedule_relationship": "STATIC",
+							"stop_headsign": null,
+							"service_date": "2026-10-07",
+							"trip": {
+								"trip_headsign": "North",
+								"direction_id": 0,
+								"schedule_relationship": "STATIC",
+								"route": {
+									"onestop_id": "r-c22z-red",
+									"route_short_name": "Red",
+									"route_long_name": "Red Line",
+									"route_type": 3,
+									"route_color": "D00000",
+									"route_text_color": "FFFFFF"
+								}
+							}
+						}
+					]
+				},
+				{
+					"stop_id": "CEN2",
+					"stop_name": "Central Station",
+					"platform_code": "2",
+					"departures": [
+						{
+							"departure": {
+								"scheduled_utc": "2026-10-07T19:10:00Z",
+								"scheduled_local": null,
+								"scheduled": null
+							},
+							"arrival": {
+								"scheduled_utc": "2026-10-07T19:10:00Z",
+								"scheduled_local": null,
+								"scheduled": null
+							},
+							"schedule_relationship": "STATIC",
+							"stop_headsign": null,
+							"service_date": "2026-10-07",
+							"trip": {
+								"trip_headsign": "South",
+								"direction_id": 0,
+								"schedule_relationship": "STATIC",
+								"route": {
+									"onestop_id": "r-c22z-red",
+									"route_short_name": "Red",
+									"route_long_name": "Red Line",
+									"route_type": 3,
+									"route_color": "D00000",
+									"route_text_color": "FFFFFF"
+								}
+							}
+						}
+					]
+				}
+			]
+		}
+	]
+}

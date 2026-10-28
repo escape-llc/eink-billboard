@@ -5,9 +5,10 @@ to its contract class. See `provider.py`.
 from .ai import AiImageApi, AiTextApi
 from .calendar import CalendarApi
 from .provider import ProviderContract
+from .transit import TransitApi
 from .weather import WeatherApi
 
-CONTRACTS: dict[str, type[ProviderContract]] = { c.capability: c for c in (WeatherApi, CalendarApi, AiTextApi, AiImageApi) }
+CONTRACTS: dict[str, type[ProviderContract]] = { c.capability: c for c in (WeatherApi, CalendarApi, AiTextApi, AiImageApi, TransitApi) }
 
 def tokens_of(capability: str) -> list[dict[str, str]]:
 	"""The fields a prompt may use for a capability's data (`tokensFrom`): its contract's `tokens`, none for an unknown capability."""
