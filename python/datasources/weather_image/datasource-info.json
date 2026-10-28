@@ -63,6 +63,14 @@
 					"title": "Image Source",
 					"description": "Who draws the picture.",
 					"lookup": "imageSource"
+				},
+				{
+					"name": "keepInGallery",
+					"type": "boolean",
+					"required": false,
+					"default": true,
+					"title": "Keep in the Gallery",
+					"description": "Keep each picture in the Gallery (a data source of its own: enable it) so it can be shown again without paying for it again."
 				}
 			]
 		}

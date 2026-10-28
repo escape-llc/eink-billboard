@@ -10,6 +10,12 @@
 	"keepsList": true,
 	"disabled": false,
 	"features": ["filesystem", "layer-background", "media-list"],
+	"router": {
+		"id": "gallery-router",
+		"class": "gallery_router",
+		"file": "api.py",
+		"module": "python.datasources.gallery.api"
+	},
 	"settings": {
 		"_schema": "urn:inky:storage:schema:datasource:gallery:1",
 		"schema": {

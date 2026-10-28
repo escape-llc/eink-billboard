@@ -53,6 +53,9 @@ test("a Generated Image track shows each part's fields under its choice and save
 	await editor(page).locator(".p-toggleswitch").filter({ has: page.locator("#randomizePrompt") }).click()
 	await expect(editor(page).getByText("Text Source", { exact: true })).toBeHidden()
 	await expect(editor(page).getByText("Text Model", { exact: true })).toBeHidden()
+	// each picture is kept in the Gallery unless the task says not to (#238)
+	await expect(editor(page).getByText("Keep in the Gallery", { exact: true })).toBeVisible()
+	await expect(editor(page).locator("#keepInGallery")).toBeChecked()
 	await editor(page).locator("textarea[name=prompt]").fill("a lighthouse in a storm,\nat night")
 	await field(page, "gpt-image-2").click()
 	await page.getByRole("option").filter({ hasText: "gpt-image-2.5-flare" }).first().click()
@@ -60,7 +63,7 @@ test("a Generated Image track shows each part's fields under its choice and save
 	await page.getByRole("button", { name: "Save playlist" }).click()
 	await expect(page.getByText("Playlist saved")).toBeVisible()
 	const saved = JSON.parse(fs.readFileSync(FILE, "utf8")).items.find((x: { title: string }) => x.title === "Pictures").content
-	expect(saved).toMatchObject({ dataSource: "ai-image", prompt: "a lighthouse in a storm,\nat night", randomizePrompt: false, imageSource: "openai-image",
+	expect(saved).toMatchObject({ dataSource: "ai-image", prompt: "a lighthouse in a storm,\nat night", randomizePrompt: false, keepInGallery: true, imageSource: "openai-image",
 		imageModel: "gpt-image-2.5-flare", quality: "auto", moderation: "auto" })
 	// hidden: saved as nothing
 	expect(saved.textSource ?? null).toBeNull()

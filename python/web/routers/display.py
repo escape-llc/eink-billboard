@@ -14,10 +14,11 @@ from ...model.inks import APPEARANCE, DEFAULT_INK_SET, DRIVE, INK_SETS
 from ...model.theme import current_inputs
 from ...task.application import Application, PushRefused
 from ...utils.message_image import MAX_TEXT_CHARACTERS, MAX_TITLE_CHARACTERS, render_message_image
-from ...utils.upload_image import MAX_UPLOAD_BYTES, decode_upload
+from ...utils.upload_image import decode_upload
 from ..deps import CM, get_container
 from ..errors import ApiError
 from ..openapi import Answer, Done, answers
+from ..uploads import read_limited
 from .transport import application_of
 
 logger = logging.getLogger(__name__)
@@ -88,19 +89,8 @@ def push_message(body: MessageRequest, request: Request, cm: CM):
 		raise _refused(e) from None
 
 async def _limited_body(request: Request) -> bytes:
-	"""The request's body, refused as soon as it is larger than a picture may be (a sender that does not say how long it is is cut off at the same size)."""
-	declared = request.headers.get("content-length", "")
-	too_big = ApiError(413, f"The picture is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.", "display-push")
-	if declared.isdigit() and int(declared) > MAX_UPLOAD_BYTES:
-		raise too_big
-	chunks: list[bytes] = []
-	total = 0
-	async for chunk in request.stream():
-		total += len(chunk)
-		if total > MAX_UPLOAD_BYTES:
-			raise too_big
-		chunks.append(chunk)
-	return b"".join(chunks)
+	"""The request's body, refused as soon as it is larger than a picture may be (`web/uploads.py`)."""
+	return await read_limited(request, "display-push")
 
 @router.post("/image", **answers(Pushed), openapi_extra={ "requestBody": { "required": True, "content": { kind: { "schema": { "type": "string", "format": "binary" } } for kind in ("image/png", "image/jpeg", "image/gif", "image/webp") } } })
 def push_image(request: Request, picture: bytes = Depends(_limited_body), title: str = Query("", max_length=MAX_TITLE_CHARACTERS), minutes: int = Query(DEFAULT_MINUTES, ge=1, le=MAX_MINUTES)):

@@ -28,7 +28,7 @@ def check_parts(dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> 
 async def generate(dsec: DataSourceExecutionContext, params: Mapping[str, Any], prompt: str, label: str, origin: str) -> MediaRenderResult:
 	"""
 	The picture for `prompt`: rewritten first when the task says `randomizePrompt`, then drawn, then fitted to the panel with a blurred margin.
-	The picture as drawn is offered to the Gallery (#238) first, under the data source that asked for it (`origin`): it cost money, and the Gallery can show it again.
+	The picture as drawn is offered to the Gallery (#238) first (unless the task says `keepInGallery: false`), under the data source that asked for it (`origin`): it cost money, and the Gallery can show it again.
 	"""
 	if params.get("randomizePrompt") is True:
 		text, text_dsec = dsec.use(chosen(params, "textSource", "text source"), AiTextApi)
@@ -39,5 +39,6 @@ async def generate(dsec: DataSourceExecutionContext, params: Mapping[str, Any], 
 	picture = await image.open_async(image_dsec, { **params, "prompt": prompt, "width": width, "height": height })
 	# a picture in the panel's shape (a model that takes any size) fills it; another gets the picture's own blur around it
 	title = f"{label}: {prompt or 'Untitled'}"
-	offer_to_gallery(dsec, origin, picture, title, prompt or None)
+	if params.get("keepInGallery") is not False:
+		offer_to_gallery(dsec, origin, picture, title, prompt or None)
 	return MediaRenderResult(image=enhanced(dsec, blurred_margin(picture, (width, height))), title=title)

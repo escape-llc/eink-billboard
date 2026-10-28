@@ -35,6 +35,17 @@ class Kept:
 	count: int = 0
 	bytes: int = 0
 
+DEFAULT_MAX_PICTURES = 200
+DEFAULT_MAX_MB = 512.0
+
+def bounds(settings: Mapping[str, Any]|None) -> tuple[int, int]:
+	"""The Gallery's limits from its settings: the most pictures, and the most bytes (a setting that is not a positive number is the default)."""
+	settings = settings or {}
+	pictures = settings.get("maxPictures")
+	megabytes = settings.get("maxMB")
+	return (pictures if isinstance(pictures, int) and not isinstance(pictures, bool) and pictures >= 1 else DEFAULT_MAX_PICTURES,
+		int((megabytes if isinstance(megabytes, (int, float)) and not isinstance(megabytes, bool) and megabytes > 0 else DEFAULT_MAX_MB) * 1024 * 1024))
+
 def picture_id(data: bytes) -> str:
 	return hashlib.sha256(data).hexdigest()[:32]
 
