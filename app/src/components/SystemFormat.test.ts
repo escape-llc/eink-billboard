@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, quotaLine, quotaSeverity, quotaWarning, answerKind, answerPills, usagePills, storageLine, storagePills, temperatureSeverity } from "./SystemFormat"
+import { devicePills, machinePills, periodPills, piPills, sizePills, deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, quotaLine, quotaSeverity, quotaWarning, answerKind, answerPills, usagePills, storageLine, storagePills, temperatureSeverity } from "./SystemFormat"
 
 describe("sizes", () => {
 	it("are in the largest unit that keeps them readable", () => {
@@ -118,5 +118,42 @@ describe("the closed cards' lines", () => {
 		expect(pills({ total: 1024 ** 4, free: 1024 ** 4 / 2, percent: 50 })).toEqual(["size 12 MB neutral", "files 140 neutral", "disk <0.1% neutral", "free 512 GB success"])
 		expect(pills({ total: 1024 * 1024 * 1200, free: 1024 * 1024 * 60, percent: 95 })).toEqual(["size 12 MB neutral", "files 140 neutral", "disk 1% neutral", "free 60 MB danger"])
 		expect(pills(null)).toEqual(["size 12 MB neutral", "files 140 neutral"])
+	})
+})
+
+describe("the cards' pills (#796)", () => {
+	const pairs = (pills: { label: string, value: string, kind: string }[]) => pills.map(p => `${p.label} ${p.value} ${p.kind}`)
+	it("show each part of the device on the tone of its state, with what it said in the title", () => {
+		const pills = devicePills({ "display": { state: "ok", message: "Running." }, "timer-layer": { state: "failed", message: "Broken." }, "playlist-layer": { state: "starting", message: "Starting." } }, { "display": "Display", "timer-layer": "Timer tasks" })
+		expect(pairs(pills)).toEqual(["Display running success", "Timer tasks failed danger", "playlist-layer starting info"])
+		expect(pills.map(p => p.icon)).toEqual(["tv", "schedule", "playlist_play"])
+		expect(pills[1].title).toBe("Timer tasks: Broken.")
+	})
+	it("show the machine, leaving out what it cannot read, with memory and disk toned by how full they are", () => {
+		const host = { os: "Linux", os_release: "6.12", machine: "aarch64", python: "3.13.7", cpus: 4, commit: "abc1234", uptime_seconds: 3 * 86400, app_uptime_seconds: 30, clock: "unsynced" as const }
+		const load = { cpu_percent: 12, load: [0.5, 0.4, 0.3], memory: { total: 8 * 1024 ** 3, used: 7.4 * 1024 ** 3, percent: 92 }, app_memory: 120 * 1024 ** 2 }
+		const pills = machinePills(host, load, { total: 100 * 1024 ** 3, free: 40 * 1024 ** 3, percent: 60 }, "abc1234", false)
+		expect(pairs(pills)).toEqual(["system Linux 6.12 neutral", "build abc1234 neutral", "python 3.13.7 neutral", "up 3 days 0 h neutral", "app 30 s neutral", "clock not set warn",
+			"processor 4 cores · 12% neutral", "memory 7.4 GB / 8 GB danger", "this app 120 MB neutral", "disk 40 GB free success"])
+		expect(pills.find(p => p.label === "processor")?.title).toBe("4 cores, 12% busy (load 0.5 0.4 0.3)")
+		const bare = machinePills({ ...host, uptime_seconds: null, app_uptime_seconds: null, clock: null }, {}, null, "def5678", true)
+		expect(pairs(bare)).toEqual(["system Linux 6.12 neutral", "build abc1234 / def5678 warn", "python 3.13.7 neutral", "processor 4 cores neutral"])
+		expect(bare[1].title).toContain("Reload the page")
+	})
+	it("show a Pi's temperature and power on their tones", () => {
+		expect(pairs(piPills({ model: "Raspberry Pi 5", temperature_c: 82, cpu_mhz: 1500, cpu_max_mhz: 2400, fan_rpm: 2100, throttled: [] })))
+			.toEqual(["model Raspberry Pi 5 neutral", "temperature 82 °C danger", "speed 1500 MHz neutral", "fan 2100 rpm neutral", "power ok success"])
+		expect(pairs(piPills({ model: "Pi", throttled: ["Under-voltage now", "Throttled since start"] })))
+			.toEqual(["model Pi neutral", "power Under-voltage now danger", "power Throttled since start warn"])
+	})
+	it("show a size per name, with the files and what is kept in the title", () => {
+		const [pill] = sizePills([{ name: "rss", files: 3, bytes: 2048, kept: 1024 }])
+		expect(pairs([pill])).toEqual(["rss 2 KB neutral"])
+		expect(pill.title).toBe("rss: 2 KB in 3 files, 1 KB of it kept (can be fetched again)")
+	})
+	it("show a period of calls, the failed ones only when some failed", () => {
+		const period = { calls: 20, status: { "200": 19, "429": 1 }, sent: 2400, received: 40960, hitRate: 0.75, bytesSaved: 6000 }
+		expect(pairs(periodPills("7 days", period))).toEqual(["calls 20 neutral", "failed 1 danger", "sent 2.3 KB neutral", "received 40 KB neutral", "cache 75% neutral"])
+		expect(pairs(periodPills("Today", { calls: 4, status: { "200": 4 }, sent: 0, received: 0 }))).toEqual(["calls 4 neutral", "sent 0 bytes neutral", "received 0 bytes neutral"])
 	})
 })

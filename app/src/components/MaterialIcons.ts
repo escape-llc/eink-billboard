@@ -73,9 +73,28 @@ import add_photo_alternate from "@material-symbols/svg-400/outlined/add_photo_al
 import keep from "@material-symbols/svg-400/outlined/keep.svg?raw"
 import keep_off from "@material-symbols/svg-400/outlined/keep_off.svg?raw"
 
+// the System page's pills (#796)
+import tv from "@material-symbols/svg-400/outlined/tv.svg?raw"
+import power_settings_new from "@material-symbols/svg-400/outlined/power_settings_new.svg?raw"
+import timer from "@material-symbols/svg-400/outlined/timer.svg?raw"
+import sync from "@material-symbols/svg-400/outlined/sync.svg?raw"
+import sync_problem from "@material-symbols/svg-400/outlined/sync_problem.svg?raw"
+import memory from "@material-symbols/svg-400/outlined/memory.svg?raw"
+import memory_alt from "@material-symbols/svg-400/outlined/memory_alt.svg?raw"
+import hard_drive from "@material-symbols/svg-400/outlined/hard_drive.svg?raw"
+import thermostat from "@material-symbols/svg-400/outlined/thermostat.svg?raw"
+import mode_fan from "@material-symbols/svg-400/outlined/mode_fan.svg?raw"
+import speed from "@material-symbols/svg-400/outlined/speed.svg?raw"
+import developer_board from "@material-symbols/svg-400/outlined/developer_board.svg?raw"
+import description from "@material-symbols/svg-400/outlined/description.svg?raw"
+import cached from "@material-symbols/svg-400/outlined/cached.svg?raw"
+import swap_vert from "@material-symbols/svg-400/outlined/swap_vert.svg?raw"
+import computer from "@material-symbols/svg-400/outlined/computer.svg?raw"
+
 export const MATERIAL_ICONS = { playlist_play, schedule, layers, warning, error, play_arrow, skip_next, stop, image, cloud_off, wb_sunny, screenshot_monitor, wallpaper, flip_to_front, opacity, priority_high, picture_in_picture, calendar_view_day, calendar_view_week, view_list,
 	add, arrow_downward, arrow_upward, bolt, cancel, check, check_circle, chevron_left, chevron_right, circle, close, database, delete: deleteGlyph, desktop_windows, download, edit, help, history, key, link, menu, my_location, open_in_new, palette, play_circle, playlist_add, public: publicGlyph, refresh, save, search, settings, settings_backup_restore, stop_circle, upload, videocam, wifi,
-	photo_library, add_photo_alternate, keep, keep_off } as const
+	photo_library, add_photo_alternate, keep, keep_off,
+	tv, power_settings_new, timer, sync, sync_problem, memory, memory_alt, hard_drive, thermostat, mode_fan, speed, developer_board, description, cached, swap_vert, computer } as const
 export type MaterialIconName = keyof typeof MATERIAL_ICONS
 
 /** The class of a glyph: `skip_next` is `mi-skip-next`. */

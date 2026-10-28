@@ -16,12 +16,13 @@
 	<div class="system">
 		<div class="system-main">
 			<SystemCard title="Device">
-				<ul v-if="status" class="plain">
-					<li v-for="(c, name) in status.components" :key="name" class="row">
-						<i :class="c.state === 'failed' ? 'mi mi-cancel' : c.state === 'ok' ? 'mi mi-check-circle' : 'mi mi-schedule'" aria-hidden="true"></i>
-						<span><b>{{ TITLES[name] ?? name }}</b>: {{ c.message }}</span>
-					</li>
-				</ul>
+				<template v-if="status">
+					<div class="pills" role="list" aria-label="The parts of the device" data-testid="parts">
+						<UsagePill v-for="p in devicePills(status.components, TITLES)" :key="p.label" v-bind="p" />
+					</div>
+					<!-- what is not running says why in words, under the pills -->
+					<p v-for="(c, name) in failedParts" :key="name" class="row problem note">{{ TITLES[name] ?? name }}: {{ c.message }}</p>
+				</template>
 				<p v-else class="muted">Waiting for the device.</p>
 			</SystemCard>
 
@@ -35,102 +36,40 @@
 			</SystemCard>
 
 			<SystemCard title="Machine">
-				<dl v-if="info" class="facts">
-					<dt>System</dt><dd>{{ info.host.os }} {{ info.host.os_release }} ({{ info.host.machine }})</dd>
-					<dt>App</dt>
-					<dd data-testid="builds">
-						Server {{ info.host.commit }}, web app {{ webCommit }}
-						<Tag v-if="mismatch" severity="warn" value="Different builds: reload the page" class="ml-2" />
-					</dd>
-					<dt>Python</dt><dd>{{ info.host.python }}</dd>
-					<dt>Machine up for</dt><dd>{{ formatUptime(info.host.uptime_seconds) }}</dd>
-					<dt>App running for</dt><dd data-testid="app-uptime">{{ formatUptime(info.host.app_uptime_seconds) }}</dd>
-					<template v-if="info.host.clock">
-						<dt>Clock</dt>
-						<dd data-testid="clock">
-							<Tag v-if="info.host.clock === 'synced'" severity="success" value="Set by the network" />
-							<Tag v-else severity="warn" value="Not set yet: what shows the time may be wrong" />
-						</dd>
-					</template>
-					<dt>Processor</dt>
-					<dd>
-						{{ info.host.cpus }} {{ info.host.cpus === 1 ? "core" : "cores" }}<template v-if="info.load.cpu_percent !== undefined">, {{ info.load.cpu_percent }}% busy</template>
-						<span v-if="info.load.load" class="muted"> (load {{ info.load.load.join(" ") }})</span>
-					</dd>
-					<template v-if="info.load.memory">
-						<dt>Memory</dt>
-						<dd>
-							{{ formatBytes(info.load.memory.used) }} of {{ formatBytes(info.load.memory.total) }}
-							<div class="gauge" role="meter" aria-label="Memory in use" :aria-valuenow="info.load.memory.percent" aria-valuemin="0" aria-valuemax="100">
-								<div :class="gaugeSeverity(info.load.memory.percent)" :style="{ width: `${info.load.memory.percent}%` }"></div>
-							</div>
-						</dd>
-					</template>
-					<template v-if="info.load.app_memory !== undefined">
-						<dt>This app</dt><dd>{{ formatBytes(info.load.app_memory) }}</dd>
-					</template>
-					<template v-if="info.storage.volume">
-						<dt>Disk</dt>
-						<dd>
-							{{ formatBytes(info.storage.volume.free) }} free of {{ formatBytes(info.storage.volume.total) }}
-							<div class="gauge" role="meter" aria-label="Disk in use" :aria-valuenow="info.storage.volume.percent" aria-valuemin="0" aria-valuemax="100">
-								<div :class="gaugeSeverity(info.storage.volume.percent)" :style="{ width: `${info.storage.volume.percent}%` }"></div>
-							</div>
-						</dd>
-					</template>
-				</dl>
-				<p v-else class="muted">{{ failed ? "The readings could not be loaded." : "Loading." }}</p>
+				<template v-if="info">
+					<div class="pills" role="list" aria-label="The machine" data-testid="machine">
+						<UsagePill v-for="p in machinePills(info.host, info.load, info.storage.volume, webCommit, mismatch)" :key="p.label" v-bind="p" />
+					</div>
+					<p v-if="mismatch" class="row problem note">Different builds: reload the page.</p>
+				</template>
+				<p v-if="!info" class="muted">{{ failed ? "The readings could not be loaded." : "Loading." }}</p>
 			</SystemCard>
 
 			<!-- only on a Raspberry Pi: what the board says about itself -->
 			<SystemCard v-if="info?.pi" title="Raspberry Pi">
-				<dl class="facts">
-					<dt>Model</dt><dd>{{ info.pi.model }}</dd>
-					<template v-if="info.pi.temperature_c !== undefined">
-						<dt>Temperature</dt>
-						<dd><Tag :severity="temperatureSeverity(info.pi.temperature_c)" :value="`${info.pi.temperature_c} °C`" /></dd>
-					</template>
-					<template v-if="info.pi.cpu_mhz !== undefined">
-						<dt>Clock</dt><dd>{{ info.pi.cpu_mhz }} MHz<span v-if="info.pi.cpu_max_mhz" class="muted"> (up to {{ info.pi.cpu_max_mhz }})</span></dd>
-					</template>
-					<template v-if="info.pi.fan_rpm !== undefined || info.pi.fan_percent !== undefined">
-						<dt>Fan</dt>
-						<dd data-testid="fan">{{ fanText(info.pi.fan_rpm, info.pi.fan_percent) }}</dd>
-					</template>
-					<template v-if="info.pi.throttled">
-						<dt>Power</dt>
-						<dd>
-							<Tag v-if="info.pi.throttled.length === 0" severity="success" value="No warnings" />
-							<span v-else class="tags">
-								<Tag v-for="w in info.pi.throttled" :key="w" :severity="w.endsWith('now') ? 'danger' : 'warn'" :value="w" />
-							</span>
-						</dd>
-					</template>
-				</dl>
+				<div class="pills" role="list" aria-label="The Raspberry Pi" data-testid="pi">
+					<UsagePill v-for="p in piPills(info.pi)" :key="`${p.label}-${p.value}`" v-bind="p" />
+				</div>
 			</SystemCard>
 
 			<SystemCard title="Storage" collapsed>
 				<template #summary><span v-if="info" class="pills" role="list" aria-label="Storage" data-testid="storage-pills">
-					<UsagePill v-for="p in storagePills(info.storage.areas, info.storage.volume)" :key="p.label" :label="p.label" :value="p.value" :kind="p.kind" :title="p.title" />
+					<UsagePill v-for="p in storagePills(info.storage.areas, info.storage.volume)" :key="p.label" v-bind="p" />
 				</span></template>
 				<template v-if="info">
 					<p class="total" data-testid="storage-total">{{ storageLine(info.storage.areas, info.storage.volume) }}</p>
-					<table class="usage">
-						<caption class="sr-only">Storage by area</caption>
-						<thead><tr><th scope="col">Area</th><th scope="col" class="num">Files</th><th scope="col" class="num">Size</th></tr></thead>
-						<tbody>
-							<tr v-for="a in info.storage.areas" :key="a.name"><th scope="row">{{ a.name }}</th><td class="num">{{ a.files }}</td><td class="num">{{ formatBytes(a.bytes) }}</td></tr>
-						</tbody>
-					</table>
-					<table v-for="group in owners" :key="group.title" class="usage">
-						<caption>{{ group.title }}</caption>
-						<thead><tr><th scope="col">Name</th><th scope="col" class="num">Files</th><th scope="col" class="num">Size</th><th scope="col" class="num">Kept</th></tr></thead>
-						<tbody>
-							<tr v-for="o in group.items" :key="o.id"><th scope="row">{{ o.id }}</th><td class="num">{{ o.files }}</td><td class="num">{{ formatBytes(o.bytes) }}</td><td class="num">{{ o.kept_bytes ? formatBytes(o.kept_bytes) : "" }}</td></tr>
-							<tr v-if="group.items.length === 0"><td colspan="4" class="muted">None keep files.</td></tr>
-						</tbody>
-					</table>
-					<p class="muted note">Kept: what a plugin or data source can fetch again (downloads, answers, lists).</p>
+					<div class="group-label">Areas</div>
+					<div class="pills" role="list" aria-label="Areas">
+						<UsagePill v-for="p in sizePills(info.storage.areas)" :key="p.label" v-bind="p" />
+					</div>
+					<template v-for="group in owners" :key="group.title">
+						<div class="group-label">{{ group.title }}</div>
+						<div v-if="group.items.length" class="pills" role="list" :aria-label="group.title">
+							<UsagePill v-for="p in sizePills(group.items.map(o => ({ name: o.id, files: o.files, bytes: o.bytes, kept: o.kept_bytes })))" :key="p.label" v-bind="p" />
+						</div>
+						<p v-else class="muted note">None keep files.</p>
+					</template>
+					<p class="muted note">Hover a pill for its files, and what of it is kept: what a plugin or data source can fetch again (downloads, answers, lists).</p>
 				</template>
 			</SystemCard>
 
@@ -145,7 +84,7 @@
 								<li v-for="source in info.usage" :key="source.id">
 									<b>{{ source.name }}</b>
 									<span class="pills" role="list" :aria-label="`${source.name}, this month`">
-										<UsagePill v-for="p in usagePills(source.month, source.quota)" :key="p.label" :label="p.label" :value="p.value" :kind="p.kind" :title="p.title" />
+										<UsagePill v-for="p in usagePills(source.month, source.quota)" :key="p.label" v-bind="p" />
 									</span>
 								</li>
 							</ul>
@@ -155,24 +94,16 @@
 				<template v-if="info">
 					<p v-if="info.usage.length === 0" class="muted note">No API data source has made a call yet.</p>
 					<div v-for="source in info.usage" :key="source.id" class="api-source" :data-source="source.id">
-						<table class="usage">
-							<caption>{{ source.name }}</caption>
-							<thead><tr><th scope="col">Period</th><th scope="col" class="num">Calls</th><th scope="col" class="num">Failed</th><th scope="col" class="num">Sent</th><th scope="col" class="num">Received</th><th scope="col" class="num">Cache</th></tr></thead>
-							<tbody>
-								<tr v-for="p in periods" :key="p.key">
-									<th scope="row">{{ p.label }}</th>
-									<td class="num">{{ source[p.key].calls }}</td>
-									<td class="num">{{ failedCalls(source[p.key].status) || "" }}</td>
-									<td class="num">{{ formatBytes(source[p.key].sent) }}</td>
-									<td class="num">{{ formatBytes(source[p.key].received) }}</td>
-									<td class="num" :title="`Saved ${formatBytes(source[p.key].bytesSaved)}`">{{ formatShare(source[p.key].hitRate) }}</td>
-								</tr>
-							</tbody>
-						</table>
+						<div class="source-name">{{ source.name }}</div>
+						<div v-for="p in periods" :key="p.key" class="answers" role="list" :aria-label="`${source.name}, ${p.label}`" :data-period="p.key">
+							<span class="answers-label">{{ p.label }}</span>
+							<UsagePill v-for="pill in periodPills(p.label, source[p.key])" :key="pill.label" v-bind="pill" />
+						</div>
 						<div v-if="source.quota" class="quota" :data-quota="source.id">
-							<div>{{ quotaLine(source.quota) }}</div>
-							<div class="gauge" role="meter" :aria-label="`${source.name} quota used`" :aria-valuenow="Math.min(source.quota.percent, 100)" aria-valuemin="0" aria-valuemax="100">
-								<div :class="quotaSeverity(source.quota.percent)" :style="{ width: `${Math.min(source.quota.percent, 100)}%` }"></div>
+							<div class="answers" role="list" :aria-label="`${source.name} quota`">
+								<span class="answers-label">Plan</span>
+								<UsagePill label="quota" :value="`${Math.round(source.quota.percent)}%`" :kind="quotaSeverity(source.quota.percent)" :title="quotaLine(source.quota)" />
+								<span class="note">{{ quotaLine(source.quota) }}</span>
 							</div>
 							<Message size="small" v-if="quotaWarning(source.quota.percent)" :severity="source.quota.percent >= 100 ? 'error' : 'warn'" :closable="false" class="note" data-testid="quota-warning">{{ quotaWarning(source.quota.percent) }}</Message>
 						</div>
@@ -292,14 +223,14 @@
  * The System page (#390): how the device is (its parts, the machine, a Raspberry Pi's own readings, the storage by plugin and data source) and what it is doing
  * (the playlist's transport, what the panel shows, and what the tasks report over the telemetry link).
  */
-import { onBeforeUnmount, onMounted, ref } from "vue"
+import { computed, onBeforeUnmount, onMounted, ref } from "vue"
 import { Button, Dialog, InputGroup, Message, Select, Tag, Toolbar, ToggleSwitch, useToast } from "primevue"
 import { LAYERS, clockOf, isProblem, type TelemetryEvent } from "../components/TelemetryLink"
 import BackupRestore from "../components/BackupRestore.vue"
 import SystemCard from "../components/SystemCard.vue"
 import UsagePill from "../components/UsagePill.vue"
 import PasswordForm from "../components/PasswordForm.vue"
-import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, answerPills, usagePills, storageLine, storagePills, temperatureSeverity, quotaLine, quotaSeverity, quotaWarning } from "../components/SystemFormat"
+import { answerPills, deviceMoment, devicePills, machinePills, periodPills, piPills, quotaLine, quotaSeverity, quotaWarning, sizePills, storageLine, storagePills, usagePills } from "../components/SystemFormat"
 import { usePlaylistPanel } from "../composables/usePlaylistPanel"
 import { hasOriginal, useSaveShown } from "../composables/useGallery"
 import { SOURCES as sources, describeEvent as describe, eventIcon as iconOf, useSystem } from "../composables/useSystem"
@@ -327,6 +258,8 @@ onMounted(() => { start(); followPlaylists() })
 onBeforeUnmount(() => { stop(); unfollowPlaylists() })
 
 const title = (e: TelemetryEvent): string => String(e.values?.title ?? "")
+// the parts that are not running say why in words under the Device card's pills
+const failedParts = computed(() => Object.fromEntries(Object.entries(status.value?.components ?? {}).filter(([, c]) => c.state === "failed")))
 </script>
 <style scoped>
 .system {
@@ -392,66 +325,18 @@ const title = (e: TelemetryEvent): string => String(e.values?.title ?? "")
 	gap: .2rem .5rem;
 	margin: .25rem 0;
 }
+.group-label, .source-name {
+	font-size: .8rem;
+	font-weight: bold;
+	margin: .5rem 0 .25rem;
+}
+.group-label:first-child, .source-name:first-child {
+	margin-top: 0;
+}
 .pills {
 	display: inline-flex;
 	flex-wrap: wrap;
 	gap: .3rem;
-}
-.facts {
-	display: grid;
-	grid-template-columns: max-content minmax(0, 1fr);
-	gap: .35rem 1rem;
-	margin: 0;
-}
-.facts dt {
-	color: var(--p-text-muted-color);
-}
-.facts dd {
-	margin: 0;
-	min-width: 0;
-}
-.tags {
-	display: inline-flex;
-	flex-wrap: wrap;
-	gap: .25rem;
-}
-.gauge {
-	height: .5rem;
-	margin-top: .2rem;
-	border-radius: .25rem;
-	background: var(--p-content-hover-background);
-	overflow: hidden;
-}
-.gauge > div {
-	height: 100%;
-}
-.gauge .success { background: var(--p-green-500); }
-.gauge .warn { background: var(--p-orange-500); }
-.gauge .danger { background: var(--p-red-500); }
-.usage {
-	width: 100%;
-	border-collapse: collapse;
-	font-size: .85rem;
-}
-.usage caption {
-	text-align: left;
-	font-weight: bold;
-	padding: .35rem 0 .15rem;
-}
-.usage th, .usage td {
-	padding: .15rem .25rem;
-	border-bottom: 1px solid var(--p-content-border-color);
-	text-align: left;
-	font-weight: normal;
-}
-.usage thead th {
-	color: var(--p-text-muted-color);
-	font-size: .75rem;
-	text-transform: uppercase;
-}
-.usage .num {
-	text-align: right;
-	font-variant-numeric: tabular-nums;
 }
 .sr-only {
 	position: absolute;
