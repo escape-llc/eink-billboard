@@ -9,18 +9,13 @@ from ...plugins.plugin_base import PermanentError
 from ...utils.image_utils import blurred_margin, to_rgb
 from ..data_source import DataSource, DataSourceExecutionContext, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions, enhanced
 
-def list_files_in_folder(folder_path):
-	"""Return a list of image file paths in the given folder, excluding hidden files."""
-	image_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp')
-	return [
-		os.path.join(folder_path, fx)
-		for fx in os.listdir(folder_path)
-		if (
-			os.path.isfile(os.path.join(folder_path, fx))
-			and fx.lower().endswith(image_extensions)
-			and not fx.startswith('.')
-		)
-	]
+# the pictures a folder may hold, by extension (what PIL reads)
+PICTURE_EXTENSIONS = frozenset({ ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp" })
+
+def pictures_in(folder: str) -> list[str]:
+	"""The paths of the pictures directly in `folder`, by name; a hidden file (a name starting with a dot) is not one."""
+	with os.scandir(folder) as entries:
+		return sorted(e.path for e in entries if e.is_file() and not e.name.startswith(".") and os.path.splitext(e.name)[1].lower() in PICTURE_EXTENSIONS)
 
 def grab_image(image_path, dimensions, pad_image, logger):
 	"""Load an image from disk, auto-orient it, and resize to fit within the specified dimensions, preserving aspect ratio."""
@@ -52,7 +47,7 @@ class ImageFolderAsync(DataSource, MediaListAsync, MediaRenderAsync):
 	def _pictures_in(folder_path: str) -> list:
 		if not os.path.isdir(folder_path):
 			raise ValueError("The 'folder' setting is not a folder that exists.")
-		return list_files_in_folder(folder_path)
+		return pictures_in(folder_path)
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
 		name = params.get('folder')
 		if not name:

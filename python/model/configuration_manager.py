@@ -480,16 +480,12 @@ class StaticConfigurationManager:
 		self.ROOT_PATH = root_path
 #		logger.debug(f"ROOT_PATH: {self.ROOT_PATH}")
 	def enum_fonts(self) -> list[dict[str, str]]:
-		fonts_list = []
-		for font_family, variants in FONT_FAMILIES.items():
-			for variant in variants:
-				fonts_list.append({
-					"font_family": font_family,
-					"url": path_to_file_url(os.path.join(self.ROOT_PATH, "fonts", variant["file"])),
-					"font_weight": str(variant["wght"]) if "wght" in variant else variant.get("font-weight", "normal"),
-					"font_style": variant.get("font-style", "normal"),
-				})
-		return fonts_list
+		"""Every face we ship, as a page's `@font-face` takes it: the family, the file's address, and the weight (a variable font's own number) and style."""
+		def face(family: str, variant: FontVariant) -> dict[str, str]:
+			weight = str(variant["wght"]) if "wght" in variant else variant["font-weight"]
+			address = path_to_file_url(os.path.join(self.ROOT_PATH, "fonts", variant["file"]))
+			return { "font_family": family, "url": address, "font_weight": weight, "font_style": "normal" }
+		return [face(family, variant) for family, variants in FONT_FAMILIES.items() for variant in variants]
 	IMAGES = { "logo.svg": "image/svg+xml" }
 	def image_data_url(self, name: str) -> str|None:
 		"""One of our pictures (`static/images`, by a name from IMAGES) as a `data:` address, the only kind a rendered page may show (its Content-Security-Policy); None when it is not there."""
@@ -1142,10 +1138,8 @@ class ConfigurationManager(ConfigurationObjectFactory):
 		return item_list
 
 	def enum_plugins(self) -> list[CollectInfoDict]:
-		"""Reads the plugin-info.json config JSON from each plugin folder. Excludes the base plugin."""
-		# Iterate over all plugin folders
-		plugins_list = self._collect_info("plugins", "plugin-info.json")
-		return plugins_list
+		"""The installed plugins: the descriptor (`plugin-info.json`) of each folder under `plugins` that has one."""
+		return self._collect_info("plugins", "plugin-info.json")
 
 	def enum_displays(self) -> list[CollectInfoDict]:
 		"""Reads the display-info.json of each display device's folder under `displays` (mock, tk, inky, waveshare): what a `display_type` field chooses among (a `schema` lookup with `"schema": "displays"`)."""

@@ -166,19 +166,18 @@ def _remove_quietly(path: str|None) -> None:
 
 def render_html_arglist(html_str: str, arglist: list[str]) -> Image.Image | None:
 	"""Render HTML to an image with headless Chromium. Blocking: from async code use render_html_arglist_async."""
-	image = None
-	html_file_path = None
+	# Chromium opens a page from a file: the page is written to one of its own, removed afterwards whatever happens
+	fd, page_path = tempfile.mkstemp(suffix=".html")
 	try:
+		with os.fdopen(fd, "wb") as page:
+			page.write(html_str.encode("utf-8"))
 		logger.debug(f"render html ({len(html_str)} chars)")
-		with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as html_file:
-			html_file_path = html_file.name
-			html_file.write(html_str.encode("utf-8"))
-		image = render_chrome_headless_arglist(html_file_path, arglist)
+		return render_chrome_headless_arglist(page_path, arglist)
 	except Exception as e:
 		logger.error(f"Failed to render: {str(e)}")
+		return None
 	finally:
-		_remove_quietly(html_file_path)
-	return image
+		_remove_quietly(page_path)
 
 async def render_html_arglist_async(html_str: str, arglist: list[str]) -> Image.Image | None:
 	"""Same as render_html_arglist, run in a worker thread so the event loop keeps running while Chromium works."""
@@ -317,9 +316,9 @@ def _render_chrome_headless(source_html_path: str, arglist: list[str], timeout: 
 			logger.error(stderr.decode('utf-8', errors='replace'))
 			return None
 
-		# Load the image using PIL
-		with Image.open(img_file_path) as img:
-			image = img.copy()
+		# a copy, so the file is closed (and can be removed) before the picture is used
+		with Image.open(img_file_path) as screenshot:
+			image = screenshot.copy()
 	except Exception as e:
 		logger.error(f"Failed to render: {str(e)}")
 	finally:

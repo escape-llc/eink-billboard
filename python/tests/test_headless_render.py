@@ -25,24 +25,11 @@ class TestHeadlessRender(unittest.TestCase):
 		image_path = os.path.join(folder, sanitize_filename(f"im_{image.width}x{image.height}_{title}"))
 		logger.info(f"{image_path} {image.width}x{image.height}")
 		image.save(image_path)
-	def create_env(self):
-		px = Path(os.path.dirname(__file__))
-		loader = FileSystemLoader([str(px)])
-		env = Environment(
-			loader=loader,
-			autoescape=select_autoescape(['html', 'xml'])
-		)
-		return env
 	def run_test(self, dimensions, template_file, title, arglist = ()):
-		env = self.create_env()
-		template = env.get_template(template_file)
-		template_params = {
-			"title": title,
-			"width": dimensions[0],
-			"height": dimensions[1],
-		}
-		rendered_html = template.render(template_params)
-		image = render_html_arglist(rendered_html, arglist)
+		# the test pages are beside this file; what Chromium draws is kept in .test-output to be looked at
+		pages = Environment(loader=FileSystemLoader(os.path.dirname(__file__)), autoescape=select_autoescape())
+		html = pages.get_template(template_file).render(title=title, width=dimensions[0], height=dimensions[1])
+		image = render_html_arglist(html, list(arglist))
 		self.assertIsNotNone(image, "Failed to render image")
 		self.save_image(image, f"{title}.png")
 	def test_800x480_ws_off_si_off(self):

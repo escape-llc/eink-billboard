@@ -28,7 +28,7 @@ class NewspaperAsync(DataSource, MediaListAsync, MediaRenderAsync):
 	async def open_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> list:
 		newspaper_slug = params.get('slug')
 		if not newspaper_slug:
-			raise RuntimeError("Newspaper input not provided.")
+			raise RuntimeError("Choose a newspaper first.")
 		newspaper_slug = str(newspaper_slug).upper()
 		# only a slug from our own list may reach the URL
 		if newspaper_slug not in KNOWN_SLUGS:
@@ -67,17 +67,13 @@ class NewspaperAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		return None
 	def _pad_to_ratio(self, image: Image.Image, dimensions) -> Image.Image:
 		"""Pad (never crop) the cover with a blurred copy of itself so its aspect ratio equals the target's; the cover is centred."""
-		img_width, img_height = image.size
-		desired_width, desired_height = dimensions
-		img_ratio = img_width / img_height
-		desired_ratio = desired_width / desired_height
-
-		if img_ratio < desired_ratio:
-			# narrower than the target: widen the canvas
-			canvas_size = (int(round(img_height * desired_ratio)), img_height)
-		elif img_ratio > desired_ratio:
-			# wider than the target: make the canvas taller
-			canvas_size = (img_width, int(round(img_width / desired_ratio)))
-		else:
+		width, height = image.size
+		target_width, target_height = dimensions
+		# compared as whole numbers (cross-multiplied), so a cover already the page's shape is returned as it is
+		if width * target_height == height * target_width:
 			return image
-		return blurred_margin(image, canvas_size, enlarge=False)
+		if width * target_height < height * target_width:
+			canvas = (round(height * target_width / target_height), height)
+		else:
+			canvas = (width, round(width * target_height / target_width))
+		return blurred_margin(image, canvas, enlarge=False)

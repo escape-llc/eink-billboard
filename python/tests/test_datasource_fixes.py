@@ -427,6 +427,22 @@ class TestWpotd(unittest.IsolatedAsyncioTestCase):
 		client_var.set(mock_client(handler))
 		state = await WpotdAsync("w", "w").open_async(make_dsec(), {"customDate": "2026-01-02"})
 		self.assertEqual(state[0]["url"], "http://orig/A.jpg")
+	def test_the_day_is_random_chosen_or_today(self):
+		now = datetime(2026, 10, 28, 9, 0, tzinfo=TZ_TOKYO)
+		self.assertEqual(wpotd.day_of({}, now), date(2026, 10, 28))
+		self.assertEqual(wpotd.day_of({"customDate": "2020-02-29"}, now), date(2020, 2, 29))
+		for _ in range(50):
+			self.assertTrue(wpotd.FIRST_RANDOM_DAY <= wpotd.day_of({"randomizeDate": True, "customDate": "2020-02-29"}, now) <= date(2026, 10, 28))
+	def test_a_page_is_read_in_either_format(self):
+		page = {"title": "File:A.jpg"}
+		self.assertEqual(wpotd.first_page({"query": {"pages": [page]}}), page)
+		self.assertEqual(wpotd.first_page({"query": {"pages": {"123": page}}}), page)
+		for answer in (None, {}, {"query": {}}, {"query": {"pages": []}}, {"query": {"pages": ["x"]}}):
+			with self.subTest(answer=answer):
+				self.assertIsNone(wpotd.first_page(answer))
+	def test_an_svg_is_known_by_its_path_not_its_query(self):
+		self.assertTrue(wpotd.is_svg("https://upload.wikimedia.org/a/Logo.svg?utm_source=en.wikipedia.org"))
+		self.assertFalse(wpotd.is_svg("https://thumb.wikimedia.org/a/Logo.svg/1920px-Logo.svg.png?utm_source=en.wikipedia.org"))
 	def test_the_credit_is_the_author_and_the_licence(self):
 		meta = lambda **fields: { name: { "value": value } for name, value in fields.items() }
 		# the author is HTML (a link, often), read with a parser: the text only, its character references read

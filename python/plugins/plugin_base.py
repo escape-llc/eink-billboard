@@ -86,32 +86,17 @@ class RenderSession:
 		]
 		# the device theme (python/model/theme.py: current_inputs); without one, the factory theme
 		self.theme = theme if theme is not None else DEFAULT_INPUTS
-		self.env = self._create_render_environment(stm, render_dir)
+		# the page's own folder first, then the shared one (plugin.html, which every page extends); HTML is escaped as it is written
+		self.env = Environment(loader=FileSystemLoader([render_dir, os.path.join(stm.ROOT_PATH, "render")]), autoescape=select_autoescape(("html", "xml")))
 		self.font_faces = stm.enum_fonts()
-	def _create_render_environment(self, stm: StaticConfigurationManager, render_dir:str):
-		loader = FileSystemLoader([render_dir, os.path.join(stm.ROOT_PATH, "render")])
-		return Environment(
-			loader=loader,
-			autoescape=select_autoescape(['html', 'xml'])
-		)
 	def render(self, dimensions, template_params: dict|None = None, transparent: bool = False):
 		"""The page as an image. `transparent` (an overlay's page): Chromium draws no white under the page, so what the page does not paint stays clear;
 		the page also sets `--page-bg: transparent`, or its container paints the theme's background."""
-		template_params = dict(template_params or {})
-		template_params["style_sheets"] = self.css_files
-		template_params["theme_vars"] = css_vars(self.theme)
-		template_params["width"] = dimensions[0]
-		template_params["height"] = dimensions[1]
-		template_params["font_faces"] = self.font_faces
-
-		# load and render the given html template
-		template = self.env.get_template(self.html_file)
-		rendered_html = template.render(template_params)
-		args = [f"--window-size={dimensions[0]},{dimensions[1]}"]
-		if transparent:
-			args.append("--default-background-color=00000000")
-		return render_html_arglist(rendered_html, args)
-	pass
+		width, height = dimensions
+		page = self.env.get_template(self.html_file).render({ **(template_params or {}), "style_sheets": self.css_files, "theme_vars": css_vars(self.theme),
+			"width": width, "height": height, "font_faces": self.font_faces })
+		window = [f"--window-size={width},{height}"]
+		return render_html_arglist(page, window + ["--default-background-color=00000000"] if transparent else window)
 
 # the schedule item a plugin is given (a timer task's item, or a playlist track); TimerTaskTask is only its content
 type TrackType = ScheduleItemBase
