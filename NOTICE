@@ -7,6 +7,8 @@ This product includes parts by others, under their own terms:
 
 * The Waveshare e-Paper drivers in python/display/waveshare_epd/, copyright Waveshare, under the MIT licence in each file's header
   (where they came from and what was changed: python/display/waveshare_epd/VENDORED.md).
+* The clock faces' artwork in python/datasources/clock/render/ (the dials, hands and shadows, PNG), copyright eScape Technology LLC, under the
+  Creative Commons Attribution 4.0 International licence (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/): credit eScape Technology LLC.
 * Material Symbols (the @material-symbols/svg-400 package, glyphs bundled into the web app), copyright Google, under the Apache License 2.0.
 * The fonts in python/static/fonts/, each in a folder of its own with its licence (OFL.txt), all under the SIL Open Font License 1.1:
   Lexend (The Lexend Project Authors), Atkinson Hyperlegible (Braille Institute of America),

@@ -1,6 +1,6 @@
 <template>
 	<div class="credits" data-testid="credits">
-		<p class="intro">eInk Billboard shows data, pictures and type made by others. This is everyone it owes, in one place. The Weather pages and the maps also say it on the panel, as those services ask.</p>
+		<p class="intro">eInk Billboard shows data, pictures and type made by others. This is everyone it owes, in one place, and the project that inspired it. The Weather pages and the maps also say it on the panel, as those services ask.</p>
 		<Message v-if="failed" severity="error" size="small">The credits could not be loaded.</Message>
 		<template v-if="credits">
 			<section>
@@ -39,12 +39,25 @@
 					</template>
 				</dl>
 			</section>
+			<section v-for="part in [{ title: 'Artwork', items: credits.artwork }, { title: 'Inspiration', items: credits.inspiration }]" :key="part.title">
+				<h4>{{ part.title }}</h4>
+				<dl>
+					<template v-for="a in part.items" :key="a.name">
+						<dt>{{ a.name }}</dt>
+						<dd>
+							<span v-if="a.what">{{ a.what }}. </span>
+							<a v-if="a.url" :href="a.url" target="_blank" rel="noopener noreferrer">{{ a.by }}</a><span v-else>{{ a.by }}</span>
+							<span class="license">{{ a.license }}</span>
+						</dd>
+					</template>
+				</dl>
+			</section>
 		</template>
 	</div>
 </template>
 <script setup lang="ts">
 /**
- * The credits, the Help drawer's last section: whose data, pictures, fonts and software the device uses (`GET /api/credits`, built from the descriptors and one list on the server).
+ * The credits, the Help drawer's last section: whose data, pictures, fonts, software and artwork the device uses, and what inspired it (`GET /api/credits`, built from the descriptors and one list on the server).
  * Asked for the first time the section is opened, not every time the drawer is.
  */
 import { ref, watch } from "vue"

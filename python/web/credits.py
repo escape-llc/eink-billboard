@@ -5,6 +5,8 @@ Every credit the device owes, for the Credits section of the web app's Help draw
   `internet` feature declares one, unless it only reads addresses the user gives it (`USERS_OWN`); `test_credits` holds every descriptor to that.
 - **Fonts**: every family we ship (`FONT_FAMILIES`) is under the SIL Open Font License, by its authors here (and in `NOTICE`).
 - **Software**: the other parts by others that the device or its web app carries.
+- **Artwork**: the pictures we ship that are not ours to give away freely (the clock's faces), with their licence (also in `NOTICE`).
+- **Inspiration**: the project this one was started after; an idea, not code (#694: `scripts/provenance_scan.py` checks).
 
 Two credits are also on the panel, because the services' terms ask for them next to their data: the weather provider's footer on the Weather pages
 (`Report.credit`) and Thunderforest's strip on a map. Each is its descriptor's `text`; `test_credits` checks they agree.
@@ -50,6 +52,19 @@ SOFTWARE: list[Credit] = [
 	{ "name": "FastAPI", "by": "Sebastián Ramírez", "license": "MIT", "url": "https://fastapi.tiangolo.com/", "what": "The web API" },
 	{ "name": "Pillow", "by": "Jeffrey A. Clark and contributors", "license": "MIT-CMU", "url": "https://python-pillow.github.io/", "what": "Pictures on the device" },
 	{ "name": "Chromium", "by": "The Chromium Authors", "license": "BSD 3-Clause", "url": "https://www.chromium.org/", "what": "Draws the pages for the panel" },
+	{ "name": "segno", "by": "Lars Heuer", "license": "BSD 3-Clause", "url": "https://github.com/heuer/segno", "what": "The QR code on the setup page" },
+	{ "name": "XState", "by": "David Khourshid and Stately", "license": "MIT", "url": "https://stately.ai/docs/xstate", "what": "The settings editor's steps, in the web app" },
+]
+
+# the clock's painted faces (python/datasources/clock/render): their maker is named wherever they are shown or passed on, as CC BY asks
+ARTWORK_BY = "eScape Technology LLC"
+ARTWORK: list[Credit] = [
+	{ "name": "Clock faces", "by": ARTWORK_BY, "license": "CC BY 4.0", "url": "https://creativecommons.org/licenses/by/4.0/", "what": "The Clock's painted dials and hands" },
+]
+
+INSPIRATION: list[Credit] = [
+	{ "name": "InkyPi", "by": "fatihak and contributors", "license": "GPL-3.0", "url": "https://github.com/fatihak/InkyPi",
+		"what": "The e-ink display project for the Raspberry Pi that inspired this one. An idea, not code: none of InkyPi's code is part of eInk Billboard" },
 ]
 
 def data_credits(items: list[CollectInfoDict]) -> list[dict[str, Any]]:

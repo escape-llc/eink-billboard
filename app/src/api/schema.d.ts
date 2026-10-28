@@ -1453,10 +1453,14 @@ export interface components {
         };
         /** Credits */
         Credits: {
+            /** Artwork */
+            artwork: components["schemas"]["SoftwareCredit"][];
             /** Data */
             data: components["schemas"]["DataCredit"][];
             /** Fonts */
             fonts: components["schemas"]["SoftwareCredit"][];
+            /** Inspiration */
+            inspiration: components["schemas"]["SoftwareCredit"][];
             /** Software */
             software: components["schemas"]["SoftwareCredit"][];
         };
@@ -1997,7 +2001,7 @@ export interface components {
         };
         /**
          * SoftwareCredit
-         * @description A font or other software by others: whose it is, its licence, and what it does here.
+         * @description A font, other software or artwork by others (or the project that inspired this one): whose it is, its licence, and what it is here.
          */
         SoftwareCredit: {
             /** By */
