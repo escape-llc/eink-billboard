@@ -19,7 +19,7 @@ from .test_datasource_fixes import make_dsec
 SETTINGS = { "orientation": "landscape", "imageSettings-brightness": 0.8, "imageSettings-contrast": 1.3 }
 # the data sources that return a photograph: each calls `enhanced` on it (a page they draw themselves does not)
 PHOTO_SOURCES = {
-	os.path.join("ai", "generate.py"), os.path.join("comicvine_covers", "comicvine_covers.py"), os.path.join("image_folder", "image_folder.py"), os.path.join("image_url", "image_url.py"),
+	os.path.join("ai", "generate.py"), os.path.join("comicvine_covers", "comicvine_covers.py"), os.path.join("gallery", "gallery.py"), os.path.join("image_folder", "image_folder.py"), os.path.join("image_url", "image_url.py"),
 	os.path.join("museum_art", "museum_art.py"), os.path.join("nasa_apod", "nasa_apod.py"), os.path.join("newspaper", "newspaper.py"), os.path.join("wikipedia_potd", "wikipedia_potd.py"),
 }
 

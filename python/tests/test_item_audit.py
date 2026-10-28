@@ -218,7 +218,7 @@ class TestKeptLists(unittest.TestCase):
 		lists = { id_ for id_, info in DESCRIPTORS.sources.items() if "media-list" in (info.get("features") or []) }
 		kept = { id_ for id_ in lists if DESCRIPTORS.sources[id_].get("keepsList") is True }
 		self.assertEqual(lists - kept, set(NOT_KEPT), "a list source is kept (`keepsList`), or listed in NOT_KEPT with the reason")
-		self.assertEqual(kept, { "rss", "image-folder", "comic", "comicvine-covers", "museum-art" })
+		self.assertEqual(kept, { "rss", "image-folder", "comic", "comicvine-covers", "museum-art", "gallery" })
 
 	def test_a_kept_list_is_fetched_again_only_when_used_up_unless_the_task_says_otherwise(self):
 		refresh = next(p for p in properties(DESCRIPTORS.plugins["slide-show"]) if p["name"] == "refreshHours")

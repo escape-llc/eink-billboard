@@ -57,4 +57,4 @@ class WeatherImageAsync(DataSource, MediaListAsync, MediaRenderAsync):
 	async def render_async(self, dsec: DataSourceExecutionContext, params: Mapping[str, Any], state: Any) -> MediaRenderResult | None:
 		if not isinstance(state, dict):
 			return None
-		return await generate(dsec, params, str(state.get("prompt") or ""), "Weather Visualizer")
+		return await generate(dsec, params, str(state.get("prompt") or ""), "Weather Visualizer", self.id)
