@@ -368,6 +368,159 @@
 				"title": "InvalidTask",
 				"type": "object"
 			},
+			"Item": {
+				"additionalProperties": false,
+				"description": "One picture of the Gallery. `origin` is the data source that drew it (`upload`, or `display` for one the panel showed); `prompt` is only there for a picture that was drawn from one.",
+				"properties": {
+					"added": {
+						"title": "Added",
+						"type": "string"
+					},
+					"height": {
+						"anyOf": [
+							{
+								"type": "integer"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Height"
+					},
+					"id": {
+						"title": "Id",
+						"type": "string"
+					},
+					"origin": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Origin"
+					},
+					"pinned": {
+						"title": "Pinned",
+						"type": "boolean"
+					},
+					"prompt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Prompt"
+					},
+					"size": {
+						"title": "Size",
+						"type": "integer"
+					},
+					"title": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Title"
+					},
+					"width": {
+						"anyOf": [
+							{
+								"type": "integer"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Width"
+					}
+				},
+				"required": [
+					"id",
+					"added",
+					"size",
+					"pinned"
+				],
+				"title": "Item",
+				"type": "object"
+			},
+			"Items": {
+				"additionalProperties": false,
+				"description": "The pictures, newest first, and how many and how many bytes the Gallery holds (against its limits).",
+				"properties": {
+					"bytes": {
+						"title": "Bytes",
+						"type": "integer"
+					},
+					"count": {
+						"title": "Count",
+						"type": "integer"
+					},
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/Item"
+						},
+						"title": "Items",
+						"type": "array"
+					},
+					"maxBytes": {
+						"title": "Maxbytes",
+						"type": "integer"
+					},
+					"maxPictures": {
+						"title": "Maxpictures",
+						"type": "integer"
+					}
+				},
+				"required": [
+					"items",
+					"count",
+					"bytes",
+					"maxPictures",
+					"maxBytes"
+				],
+				"title": "Items",
+				"type": "object"
+			},
+			"KeepAnswer": {
+				"additionalProperties": false,
+				"description": "What keeping a picture did: `kept` is false for one already there (`duplicate`); `id` names it either way.",
+				"properties": {
+					"id": {
+						"title": "Id",
+						"type": "string"
+					},
+					"kept": {
+						"title": "Kept",
+						"type": "boolean"
+					},
+					"message": {
+						"title": "Message",
+						"type": "string"
+					},
+					"success": {
+						"title": "Success",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"success",
+					"kept",
+					"id",
+					"message"
+				],
+				"title": "KeepAnswer",
+				"type": "object"
+			},
 			"Load": {
 				"additionalProperties": false,
 				"description": "Each reading only when the machine gives it.",
@@ -2697,6 +2850,306 @@
 					}
 				},
 				"summary": "Test Key"
+			}
+		},
+		"/api/datasource/gallery/items": {
+			"get": {
+				"description": "The Gallery's pictures, newest first, with its totals and limits.",
+				"operationId": "list_items_api_datasource_gallery_items_get",
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Items"
+								}
+							}
+						},
+						"description": "Successful Response"
+					}
+				},
+				"summary": "List Items"
+			},
+			"post": {
+				"description": "Add a picture: the request's body is the picture itself (PNG, JPEG, GIF or WEBP, at most 10 MB, checked by its content). It is kept as a JPEG, whole, and fitted to the panel when it is shown.",
+				"operationId": "add_item_api_datasource_gallery_items_post",
+				"parameters": [
+					{
+						"in": "query",
+						"name": "title",
+						"required": false,
+						"schema": {
+							"default": "",
+							"maxLength": 200,
+							"title": "Title",
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"image/gif": {
+							"schema": {
+								"format": "binary",
+								"type": "string"
+							}
+						},
+						"image/jpeg": {
+							"schema": {
+								"format": "binary",
+								"type": "string"
+							}
+						},
+						"image/png": {
+							"schema": {
+								"format": "binary",
+								"type": "string"
+							}
+						},
+						"image/webp": {
+							"schema": {
+								"format": "binary",
+								"type": "string"
+							}
+						}
+					},
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/KeepAnswer"
+								}
+							}
+						},
+						"description": "Successful Response"
+					},
+					"422": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPValidationError"
+								}
+							}
+						},
+						"description": "Validation Error"
+					}
+				},
+				"summary": "Add Item"
+			}
+		},
+		"/api/datasource/gallery/items/from-display": {
+			"post": {
+				"description": "Keep a picture the panel showed lately (its digest is in the telemetry), as it was shown: with any caption or overlay drawn on it, not the photograph alone.",
+				"operationId": "save_shown_api_datasource_gallery_items_from_display_post",
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"additionalProperties": true,
+								"description": "A picture the panel showed (its digest, from the telemetry), and the title to keep it under.",
+								"properties": {
+									"digest": {
+										"title": "Digest",
+										"type": "string"
+									},
+									"title": {
+										"default": "",
+										"title": "Title",
+										"type": "string"
+									}
+								},
+								"required": [
+									"digest"
+								],
+								"title": "SaveBody",
+								"type": "object"
+							}
+						}
+					},
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/KeepAnswer"
+								}
+							}
+						},
+						"description": "Successful Response"
+					},
+					"422": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPValidationError"
+								}
+							}
+						},
+						"description": "Validation Error"
+					}
+				},
+				"summary": "Save Shown"
+			}
+		},
+		"/api/datasource/gallery/items/{item_id}": {
+			"delete": {
+				"description": "Remove a picture, pinned or not.",
+				"operationId": "remove_item_api_datasource_gallery_items__item_id__delete",
+				"parameters": [
+					{
+						"in": "path",
+						"name": "item_id",
+						"required": true,
+						"schema": {
+							"title": "Item Id",
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Done"
+								}
+							}
+						},
+						"description": "Successful Response"
+					},
+					"422": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPValidationError"
+								}
+							}
+						},
+						"description": "Validation Error"
+					}
+				},
+				"summary": "Remove Item"
+			}
+		},
+		"/api/datasource/gallery/items/{item_id}/image": {
+			"get": {
+				"description": "A picture as a JPEG, the whole of it or a thumbnail. A picture never changes under its id, so the answer may be kept for ever.",
+				"operationId": "get_image_api_datasource_gallery_items__item_id__image_get",
+				"parameters": [
+					{
+						"in": "path",
+						"name": "item_id",
+						"required": true,
+						"schema": {
+							"title": "Item Id",
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "size",
+						"required": false,
+						"schema": {
+							"default": "thumb",
+							"pattern": "^(thumb|full)$",
+							"title": "Size",
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {}
+							},
+							"image/jpeg": {
+								"schema": {
+									"format": "binary",
+									"type": "string"
+								}
+							}
+						},
+						"description": "Successful Response"
+					},
+					"422": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPValidationError"
+								}
+							}
+						},
+						"description": "Validation Error"
+					}
+				},
+				"summary": "Get Image"
+			}
+		},
+		"/api/datasource/gallery/items/{item_id}/pin": {
+			"put": {
+				"description": "Pin a picture (the limits never remove it) or let it go back to being one that can be removed.",
+				"operationId": "pin_item_api_datasource_gallery_items__item_id__pin_put",
+				"parameters": [
+					{
+						"in": "path",
+						"name": "item_id",
+						"required": true,
+						"schema": {
+							"title": "Item Id",
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"additionalProperties": true,
+								"properties": {
+									"pinned": {
+										"title": "Pinned",
+										"type": "boolean"
+									}
+								},
+								"required": [
+									"pinned"
+								],
+								"title": "PinBody",
+								"type": "object"
+							}
+						}
+					},
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Done"
+								}
+							}
+						},
+						"description": "Successful Response"
+					},
+					"422": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPValidationError"
+								}
+							}
+						},
+						"description": "Validation Error"
+					}
+				},
+				"summary": "Pin Item"
 			}
 		},
 		"/api/datasource/google-api/lookups/image-models": {

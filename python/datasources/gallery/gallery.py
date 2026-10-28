@@ -25,14 +25,11 @@ from ...task.message_router import MessageRouter
 from ...task.messages import Telemetry
 from ...utils.image_utils import blurred_margin, to_rgb
 from ..data_source import DataSource, DataSourceExecutionContext, DataSourceMessage, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions, enhanced
-from ..keeping import number
 from .offer import GalleryOffer
-from .store import GalleryStore, Kept
+from .store import GalleryStore, Kept, bounds
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MAX_PICTURES = 200
-DEFAULT_MAX_MB = 512.0
 MAX_TITLE = 200
 MAX_PROMPT = 1000
 # one worker for every Gallery in the process (the playlist and the timer layers each load one): the offers are kept in the order they came
@@ -67,8 +64,7 @@ class GalleryAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			dscm = context.provider.required(ConfigurationManager).datasource_manager(self.id)
 			_, settings = dscm.open().get()
 			settings = settings or {}
-			maximum = int(number(settings.get("maxPictures"), DEFAULT_MAX_PICTURES))
-			max_bytes = int(number(settings.get("maxMB"), DEFAULT_MAX_MB) * 1024 * 1024)
+			maximum, max_bytes = bounds(settings)
 			clock = context.provider.get_service(TimeOfDay)
 			now = clock.current_time() if clock is not None else datetime.now().astimezone()
 			data = encode(offer.image)

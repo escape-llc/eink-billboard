@@ -229,6 +229,12 @@ class TelemetryHub(MessageSink):
 		with self._lock:
 			return self._current
 
+	def snapshot(self, digest: str) -> Image.Image|None:
+		"""A copy of a kept image as the panel showed it (to keep it elsewhere: the Gallery's "Save"); None when the digest is not one of ours."""
+		with self._lock:
+			snap = self._images.get(digest)
+		return snap.image.copy() if snap is not None else None
+
 	def image(self, digest: str, size: str = "thumb") -> bytes|None:
 		"""A kept image as PNG, full size or a thumbnail (made once). None when the digest is not one of ours."""
 		with self._lock:

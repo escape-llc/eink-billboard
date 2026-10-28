@@ -233,6 +233,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/datasource/gallery/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Items
+         * @description The Gallery's pictures, newest first, with its totals and limits.
+         */
+        get: operations["list_items_api_datasource_gallery_items_get"];
+        put?: never;
+        /**
+         * Add Item
+         * @description Add a picture: the request's body is the picture itself (PNG, JPEG, GIF or WEBP, at most 10 MB, checked by its content). It is kept as a JPEG, whole, and fitted to the panel when it is shown.
+         */
+        post: operations["add_item_api_datasource_gallery_items_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasource/gallery/items/from-display": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save Shown
+         * @description Keep a picture the panel showed lately (its digest is in the telemetry), as it was shown: with any caption or overlay drawn on it, not the photograph alone.
+         */
+        post: operations["save_shown_api_datasource_gallery_items_from_display_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasource/gallery/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Item
+         * @description Remove a picture, pinned or not.
+         */
+        delete: operations["remove_item_api_datasource_gallery_items__item_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasource/gallery/items/{item_id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Image
+         * @description A picture as a JPEG, the whole of it or a thumbnail. A picture never changes under its id, so the answer may be kept for ever.
+         */
+        get: operations["get_image_api_datasource_gallery_items__item_id__image_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasource/gallery/items/{item_id}/pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Pin Item
+         * @description Pin a picture (the limits never remove it) or let it go back to being one that can be removed.
+         */
+        put: operations["pin_item_api_datasource_gallery_items__item_id__pin_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/datasource/google-api/lookups/image-models": {
         parameters: {
             query?: never;
@@ -1436,6 +1540,60 @@ export interface components {
             title: string;
         };
         /**
+         * Item
+         * @description One picture of the Gallery. `origin` is the data source that drew it (`upload`, or `display` for one the panel showed); `prompt` is only there for a picture that was drawn from one.
+         */
+        Item: {
+            /** Added */
+            added: string;
+            /** Height */
+            height?: number | null;
+            /** Id */
+            id: string;
+            /** Origin */
+            origin?: string | null;
+            /** Pinned */
+            pinned: boolean;
+            /** Prompt */
+            prompt?: string | null;
+            /** Size */
+            size: number;
+            /** Title */
+            title?: string | null;
+            /** Width */
+            width?: number | null;
+        };
+        /**
+         * Items
+         * @description The pictures, newest first, and how many and how many bytes the Gallery holds (against its limits).
+         */
+        Items: {
+            /** Bytes */
+            bytes: number;
+            /** Count */
+            count: number;
+            /** Items */
+            items: components["schemas"]["Item"][];
+            /** Maxbytes */
+            maxBytes: number;
+            /** Maxpictures */
+            maxPictures: number;
+        };
+        /**
+         * KeepAnswer
+         * @description What keeping a picture did: `kept` is false for one already there (`duplicate`); `id` names it either way.
+         */
+        KeepAnswer: {
+            /** Id */
+            id: string;
+            /** Kept */
+            kept: boolean;
+            /** Message */
+            message: string;
+            /** Success */
+            success: boolean;
+        };
+        /**
          * Load
          * @description Each reading only when the machine gives it.
          */
@@ -2472,6 +2630,212 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TestAnswer"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_items_api_datasource_gallery_items_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items"];
+                };
+            };
+        };
+    };
+    add_item_api_datasource_gallery_items_post: {
+        parameters: {
+            query?: {
+                title?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "image/gif": string;
+                "image/jpeg": string;
+                "image/png": string;
+                "image/webp": string;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeepAnswer"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_shown_api_datasource_gallery_items_from_display_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Digest */
+                    digest: string;
+                    /**
+                     * Title
+                     * @default
+                     */
+                    title?: string;
+                } & {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeepAnswer"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_item_api_datasource_gallery_items__item_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Done"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_image_api_datasource_gallery_items__item_id__image_get: {
+        parameters: {
+            query?: {
+                size?: string;
+            };
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "image/jpeg": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pin_item_api_datasource_gallery_items__item_id__pin_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Pinned */
+                    pinned: boolean;
+                } & {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Done"];
                 };
             };
             /** @description Validation Error */
