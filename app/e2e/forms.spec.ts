@@ -281,3 +281,19 @@ test("each row of a list has the choices for its own values", async ({ page }) =
 	await expect(stop(1)).toContainText("Red South")
 	watch.expectNone()
 })
+
+test("the short units are one width, so the numbers above one another line up, and they are tinted, not boxes to type in (#770)", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "Providers" }).click()
+	await page.locator(".p-tabpanel:visible .p-select").first().click()
+	await page.getByRole("option").filter({ hasText: "OpenWeatherMap" }).first().click()
+	const units = page.locator(".field-units:visible")
+	await expect(units).toHaveText(["hours", "hours", "days"])
+	const widths = await units.evaluateAll(els => els.map(e => Math.round(e.getBoundingClientRect().width)))
+	expect(new Set(widths).size).toBe(1)
+	const [background, input] = await page.evaluate(() => [getComputedStyle(document.querySelector(".field-units:not([hidden])")!).backgroundColor,
+		getComputedStyle(document.querySelector(".p-inputnumber-input")!).backgroundColor])
+	expect(background).not.toBe(input)
+	watch.expectNone()
+})

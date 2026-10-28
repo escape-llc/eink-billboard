@@ -110,3 +110,15 @@ body {
 		max-width: none;
 	}
 }
+/* what a number counts (`units`, #750), after the number: one width for the short ones (hours, minutes, seconds, MB...), so fields one above another line up,
+	and a longer one (day of the month) grows. The theme's highlight tint, smaller, so it reads as a label of the number, not a box to type in (#770);
+	one more class outweighs the group's own addon rules, which are injected after this file */
+.p-inputgroup .p-inputgroupaddon.field-units {
+	flex: 0 0 auto;
+	min-width: 5.5rem;
+	justify-content: center;
+	white-space: nowrap;
+	font-size: .85rem;
+	background: var(--p-highlight-background);
+	color: var(--p-highlight-color);
+}
