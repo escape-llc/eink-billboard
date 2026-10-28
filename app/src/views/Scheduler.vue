@@ -70,12 +70,12 @@
 			</div>
 		</template>
 		<template #event="{ day, event }">
-			<div class="event" role="button" tabindex="0" :aria-label="`Edit ${event.event.title}`"
+			<div class="event" role="button" tabindex="0" :aria-label="`Edit ${eventName(event)}`" :title="eventName(event)"
 				:style="{'grid-row': `${event.row} / span ${event.span}`, 'background-color': derefColor(event), 'border-left': `5px solid color-mix(in srgb, ${sidebarColor(event)} 80%, #333 20%)`}"
 				@click="handleEventClick($event, day, event)"
 				@keydown.enter.prevent="handleEventClick($event, day, event)"
 				@keydown.space.prevent="handleEventClick($event, day, event)">
-				<div class="event-title">{{ event.continued ? "↳ " : "" }}{{ event.event.title }}</div>
+				<div class="event-title">{{ event.continued ? "↳ " : "" }}<i v-if="eventGlyph(event)" :class="eventGlyph(event)" class="event-layer" aria-hidden="true"></i>{{ event.event.title }}</div>
 			</div>
 		</template>
 	</AlCalendar>
@@ -231,6 +231,13 @@ function derefColor(event:any):string {
 		color_map.set(id, newColor)
 		return newColor
 	}
+}
+/** The event's title with its layer (shown as a glyph), for the tooltip and the accessible name. */
+function eventName(event:any):string {
+	return event.event.data?.layer ? `${event.event.title} (${event.event.data.layer})` : event.event.title
+}
+function eventGlyph(event:any):string|undefined {
+	return event.event.data?.glyph
 }
 function sidebarColor(event:any):string {
 	return event.event.data.enabled ? "rgb(0,255,0)" : "rgb(180,180,180)"
@@ -494,6 +501,12 @@ const handleSubmit = () => {
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+/* the task's layer (#776), before its title: the glyph of the System page's layers, a little smaller than the text */
+.event-layer {
+	--mi-size: .9em;
+	margin-right: .25rem;
+	vertical-align: -.1em;
 }
 .event-title {
 	text-overflow: ellipsis;

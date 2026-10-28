@@ -3,6 +3,7 @@
  * The week is the seven days from the day shown, so it starts on today's weekday (not a calendar week), and nothing before today is shown.
  */
 import { addDays } from "./CalendarTime"
+import { LAYERS, type LayerKey } from "./TelemetryLink"
 
 export type SchedulerMode = "day" | "week" | "list"
 export const MODES: { value: SchedulerMode, label: string, icon: string }[] = [
@@ -10,6 +11,23 @@ export const MODES: { value: SchedulerMode, label: string, icon: string }[] = [
 	{ value: "week", label: "Week", icon: "mi mi-calendar-view-week" },
 	{ value: "list", label: "List", icon: "mi mi-view-list" },
 ]
+
+/** The layer a timer task's plugin draws on, from its descriptor's `layer-*` features (a timer plugin has one of these two). */
+export function timerLayer(features: readonly string[] | undefined): LayerKey | undefined {
+	if(features?.includes("layer-priority")) return "priority"
+	if(features?.includes("layer-overlay")) return "overlay"
+	return undefined
+}
+
+/**
+ * How a timeline event shows its task (#776): the title, with the layer as a glyph before it (the glyphs of `LAYERS`, as the System page shows them) and its name for
+ * the tooltip and the accessible name. A task whose plugin is not installed has no layer and keeps the plugin's id in the text, because that is a problem worth reading.
+ */
+export function eventLabel(title: string, pluginId: string, features: readonly string[] | undefined): { title: string, glyph?: string, layer?: string } {
+	const layer = timerLayer(features)
+	if(layer === undefined) return { title: `${title} (${pluginId})` }
+	return { title, glyph: LAYERS[layer].glyph, layer: LAYERS[layer].name }
+}
 
 /** The days a mode shows at once, and how far back and forward move. */
 export function daysOf(mode: SchedulerMode): number {
