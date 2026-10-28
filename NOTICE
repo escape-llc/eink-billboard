@@ -13,4 +13,7 @@ This product includes parts by others, under their own terms:
   Fira Sans (The Mozilla Foundation and Telefonica S.A.), Barlow Semi Condensed (The Barlow Project Authors),
   League Spartan (The League Spartan Project Authors), Bitter (The Bitter Project Authors) and DSEG7 Classic (keshikan). Each is shipped unmodified, under its own name.
 
+The project was first inspired by InkyPi (https://github.com/fatihak/InkyPi, GPL-3.0), an e-ink display project for the Raspberry Pi. That is an
+acknowledgement of the idea, not a licence of code: none of InkyPi's code is part of this product (#694; scripts/provenance_scan.py checks).
+
 The Credits section of the web app's Help drawer lists these, the other software by others, and the services whose data the device shows.
