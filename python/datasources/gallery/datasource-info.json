@@ -1,0 +1,72 @@
+{
+	"id": "gallery",
+	"name": "Gallery",
+	"version": "0.0.1",
+	"class": "GalleryAsync",
+	"file": "gallery.py",
+	"module": "python.datasources.gallery.gallery",
+	"description": "The pictures worth keeping, shown again: a picture a paid service drew (a Generated Image, a Weather Visualizer) is kept here as it is drawn, so it can be shown many times for what it cost once. The oldest unpinned pictures go when the limits below are reached. Not part of a backup.",
+	"describe": "Gallery",
+	"keepsList": true,
+	"disabled": false,
+	"features": ["filesystem", "layer-background", "media-list"],
+	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:gallery:1",
+		"schema": {
+			"properties": [
+				{
+					"name": "maxPictures",
+					"type": "integer",
+					"required": true,
+					"default": 200,
+					"minimum": 1,
+					"maximum": 5000,
+					"step": 50,
+					"title": "Most Pictures",
+					"description": "The most pictures the Gallery keeps. When there are more, the oldest one that is not pinned goes first."
+				},
+				{
+					"name": "maxMB",
+					"type": "number",
+					"required": true,
+					"default": 512,
+					"minimum": 1,
+					"maximum": 16384,
+					"step": 64,
+					"minFractionDigits": 0,
+					"maxFractionDigits": 0,
+					"title": "Pool Size",
+					"units": "MB",
+					"description": "The most disk the Gallery's pictures may use. When it is full, the oldest one that is not pinned goes first."
+				}
+			]
+		},
+		"default": {
+			"maxPictures": 200,
+			"maxMB": 512
+		}
+	},
+	"instanceSettings": {
+		"schema": {
+			"properties": [
+				{
+					"name": "order",
+					"type": "string",
+					"required": true,
+					"default": "Random",
+					"enum": ["Random", "Newest first"],
+					"title": "Order",
+					"description": "The order of the pictures in the list. A Slide Show shows the list through before it asks again."
+				},
+				{
+					"name": "pinnedOnly",
+					"type": "boolean",
+					"required": true,
+					"default": false,
+					"title": "Pinned Only",
+					"description": "Show only the pictures you pinned."
+				}
+			]
+		}
+	}
+}

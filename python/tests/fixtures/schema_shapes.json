@@ -96,6 +96,17 @@
 		"version": 1,
 		"properties": {}
 	},
+	"urn:inky:storage:schema:datasource:gallery": {
+		"version": 1,
+		"properties": {
+			"maxPictures": {
+				"type": "integer"
+			},
+			"maxMB": {
+				"type": "number"
+			}
+		}
+	},
 	"urn:inky:storage:schema:datasource:google-api": {
 		"version": 1,
 		"properties": {

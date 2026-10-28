@@ -65,8 +65,10 @@ BACKUP_NEVER = ("settings/access-settings.json",)
 BACKUP_CACHE_PREFIX = "cache-"
 # the description of a kept picture or feed (`datasources/content_cache.py`); its bytes are a `.bin` file, which a backup (JSON files only) never holds
 BACKUP_BLOB_PREFIX = "blob-"
+# the pictures the Gallery keeps (`datasources/gallery`) and its index: binary files, which a backup (JSON files only) cannot hold, and an index a restore would have no pictures for
+BACKUP_GALLERY_PREFIX = "gallery-"
 # what a plugin or data source keeps for a while (a download, an origin's answer, a list): the System page counts it apart
-KEPT_PREFIXES = ("blob-", "cache-", "list-")
+KEPT_PREFIXES = ("blob-", "cache-", "list-", "gallery-")
 # a file of a backup is a small JSON document (a storage is a few hundred kilobytes in all)
 BACKUP_MAX_FILE_BYTES = 5 * 1024 * 1024
 
@@ -95,7 +97,7 @@ def backup_file(name: Any) -> BackupFile|None:
 	if area not in BACKUP_AREAS or len(parts) != (2 if area in ("settings", "schedules") else 3):
 		return None
 	file_name = parts[-1]
-	if not file_name.endswith(".json") or file_name.startswith((BACKUP_CACHE_PREFIX, BACKUP_BLOB_PREFIX)):
+	if not file_name.endswith(".json") or file_name.startswith((BACKUP_CACHE_PREFIX, BACKUP_BLOB_PREFIX, BACKUP_GALLERY_PREFIX)):
 		return None
 	try:
 		stem = leaf_name(file_name[:-len(".json")])
@@ -286,6 +288,9 @@ class DatasourceConfigurationManager:
 	def write_blob(self, name: str, data: bytes) -> None:
 		"""Atomically keep `data` as a binary file of this data source."""
 		save_bytes(self._blob_path(name), data)
+	def remove_blob(self, name: str) -> None:
+		"""Remove just a binary file of this data source (one no JSON file of its own describes: the Gallery's pictures, listed in its index)."""
+		remove_file(self._blob_path(name))
 	def delete_blob(self, name: str) -> None:
 		"""Remove a binary file of this data source and the JSON file that describes it."""
 		remove_file(self._blob_path(name))

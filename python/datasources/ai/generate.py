@@ -9,6 +9,7 @@ from ...plugins.plugin_base import PermanentError
 from ...utils.image_utils import blurred_margin
 from ..data_source import DataSourceExecutionContext, MediaRenderResult, target_dimensions, enhanced
 from ..contracts.ai import AiImageApi, AiTextApi
+from ..gallery.offer import offer_to_gallery
 from .prompt import master_prompts, rewrite_request
 
 def chosen(params: Mapping[str, Any], name: str, what: str) -> str:
@@ -24,8 +25,11 @@ def check_parts(dsec: DataSourceExecutionContext, params: Mapping[str, Any]) -> 
 	if params.get("randomizePrompt") is True:
 		dsec.use(chosen(params, "textSource", "text source"), AiTextApi)
 
-async def generate(dsec: DataSourceExecutionContext, params: Mapping[str, Any], prompt: str, label: str) -> MediaRenderResult:
-	"""The picture for `prompt`: rewritten first when the task says `randomizePrompt`, then drawn, then fitted to the panel with a blurred margin."""
+async def generate(dsec: DataSourceExecutionContext, params: Mapping[str, Any], prompt: str, label: str, origin: str) -> MediaRenderResult:
+	"""
+	The picture for `prompt`: rewritten first when the task says `randomizePrompt`, then drawn, then fitted to the panel with a blurred margin.
+	The picture as drawn is offered to the Gallery (#238) first, under the data source that asked for it (`origin`): it cost money, and the Gallery can show it again.
+	"""
 	if params.get("randomizePrompt") is True:
 		text, text_dsec = dsec.use(chosen(params, "textSource", "text source"), AiTextApi)
 		instructions, given = rewrite_request(master_prompts(dsec.provider.required(ConfigurationManager)), prompt)
@@ -34,4 +38,6 @@ async def generate(dsec: DataSourceExecutionContext, params: Mapping[str, Any], 
 	width, height = target_dimensions(dsec)
 	picture = await image.open_async(image_dsec, { **params, "prompt": prompt, "width": width, "height": height })
 	# a picture in the panel's shape (a model that takes any size) fills it; another gets the picture's own blur around it
-	return MediaRenderResult(image=enhanced(dsec, blurred_margin(picture, (width, height))), title=f"{label}: {prompt or 'Untitled'}")
+	title = f"{label}: {prompt or 'Untitled'}"
+	offer_to_gallery(dsec, origin, picture, title, prompt or None)
+	return MediaRenderResult(image=enhanced(dsec, blurred_margin(picture, (width, height))), title=title)
