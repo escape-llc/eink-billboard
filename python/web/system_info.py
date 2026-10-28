@@ -11,6 +11,8 @@ from typing import Any
 
 import psutil
 
+from ..model.clock_sync import ClockSync
+
 logger = logging.getLogger(__name__)
 
 # the Pi's own files (the kernel's: `/proc` and `/sys` are not the storage)
@@ -136,6 +138,10 @@ def host_info() -> dict[str, Any]:
 		info["app_uptime_seconds"] = max(0, int(time.time() - psutil.Process().create_time()))
 	except Exception:
 		pass
+	# whether the network has set the clock (#785): left out when there is no timesyncd to ask
+	clock = ClockSync().state()
+	if clock != "unknown":
+		info["clock"] = clock
 	return info
 
 def load_info() -> dict[str, Any]:

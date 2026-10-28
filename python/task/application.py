@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Callable, Mapping
 
-from .messages import ConfigurationChanged, ConfigurationWatcherEvent, InputEvent, PushedImage, RestoreBegin, RestoreEnd, RestoreSettled, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, RunTask, RunTrigger, Telemetry, TransportCommand
+from .messages import ClockCheck, ConfigurationChanged, ConfigurationWatcherEvent, InputEvent, PushedImage, RestoreBegin, RestoreEnd, RestoreSettled, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, RunTask, RunTrigger, Telemetry, TransportCommand
 from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
 from .coalescer import Coalescer
 from .protocols import MessageSink, IProvideTimer
@@ -23,6 +23,7 @@ from ..display.mock_display import MockDisplay
 from .basic_task import DispatcherTask, handles
 from .message_router import MessageRouter, Route
 from ..model.changed_paths import EVERYTHING, changed_paths
+from ..model.clock_sync import ClockSync, ClockState
 from ..model.configuration_manager import ConfigurationManager
 from ..model.service_container import IServiceProvider, ServiceContainer
 from ..model.time_of_day import TimeOfDay
@@ -53,6 +54,10 @@ RESTORE_QUIET_SECONDS = 3.0
 RESTORE_CAP_SECONDS = 15.0
 # how long a route waits for the Application to say it may begin
 RESTORE_BEGIN_WAIT_SECONDS = 5.0
+
+# the layers wait for the clock to be set (#785): how often the Application looks, and how long it waits before it starts them anyway (a Pi with no network never syncs)
+CLOCK_POLL_SECONDS = 5.0
+CLOCK_WAIT_SECONDS = 120.0
 
 class PushRefused(Exception):
 	"""A pushed message that cannot be taken, with the HTTP status the route answers with and our own words for the sender."""
@@ -93,6 +98,12 @@ class Application(DispatcherTask):
 		self.setup_claim_url: Callable[[], str|None]|None = None
 		# an unclaimed device does not play: the layers' configuration waits here until the device is claimed (None: nothing is held)
 		self._held: tuple[ConfigureEvent, ConfigureEvent]|None = None
+		# a claimed device whose clock is not set yet: the layers' configuration waits here for it, at most `clock_wait_seconds` (None: nothing is held)
+		self._clock_held: tuple[ConfigureEvent, ConfigureEvent]|None = None
+		self._clock_deadline = 0.0
+		self._clock_timer: Coalescer|None = None
+		self.clock_poll_seconds = CLOCK_POLL_SECONDS
+		self.clock_wait_seconds = CLOCK_WAIT_SECONDS
 		# the parts that said they are configured (COMPONENTS): all of them is "running"
 		self._up: set[str] = set()
 		self._panel: tuple[int, int]|None = None
@@ -184,7 +195,7 @@ class Application(DispatcherTask):
 			self._startup(msg.timestamp, "waiting-for-setup", "The device is not set up yet: the playlist and the timer tasks start once it is claimed.")
 			self._show_setup_notice(msg.width, msg.height, msg.timestamp)
 			return
-		self._start_layers(configs, configt)
+		self._start_when_clock_set(msg.timestamp, configs, configt)
 	def _start_devices(self, timestamp: datetime, display_type: str, width: int, height: int):
 		"""Configure the DeviceIO task, which opens what the `devices` settings name; it is given the panel's kind and size, so it keeps off the panel's lines. (Plain parameters: a helper whose only parameter is a message type becomes that message's handler.)"""
 		if self.cm is None or self.device_io is None:
@@ -231,6 +242,62 @@ class Application(DispatcherTask):
 		assert self.playlist_layer is not None and self.timer_layer is not None
 		self.playlist_layer.accept(configs)
 		self.timer_layer.accept(configt)
+	def _layers_held(self) -> bool:
+		"""The layers are not started yet: they wait for the device to be claimed, or for the clock."""
+		return self._held is not None or self._clock_held is not None
+	def _clock_state(self) -> ClockState:
+		clock = self.root_container.get_service(ClockSync) if self.root_container is not None else None
+		if clock is None:
+			return "unknown"
+		try:
+			return clock.state()
+		except Exception as e:
+			self.report_failure("Could not tell whether the clock is set", e)
+			return "unknown"
+	def _start_when_clock_set(self, timestamp: datetime, configs: ConfigureEvent, configt: ConfigureEvent):
+		"""
+		Start the layers once the clock is set (#785): a page drawn on a boot's stale time is wrong, and the timers would count from it.
+		A clock nothing says is wrong (`unknown`: no timesyncd) starts them at once; one not set yet holds them, looked at every `clock_poll_seconds`, at most `clock_wait_seconds`.
+		"""
+		state = self._clock_state()
+		if state != "unsynced":
+			if state == "synced":
+				self._startup(timestamp, "clock-ready", "The clock is set.")
+			self._start_layers(configs, configt)
+			return
+		self._clock_held = (configs, configt)
+		self._clock_deadline = time.monotonic() + self.clock_wait_seconds
+		self.logger.info(f"'{self.name}' the clock is not set yet: the layers wait for it, at most {self.clock_wait_seconds:g}s.")
+		self._startup(timestamp, "waiting-for-clock", "The clock is not set yet: the playlist and the timer tasks start once it is.")
+		self._clock_timer = Coalescer(self.clock_poll_seconds, self._clock_fire)
+		self._clock_timer.trigger()
+	def _clock_fire(self) -> None:
+		try:
+			self.accept(ClockCheck(self._now()))
+		except ValueError:
+			self.logger.debug(f"'{self.name}' stopped while it waited for the clock.")
+	@handles(ClockCheck)
+	def _clock_check(self, msg: ClockCheck):
+		if self._clock_held is None:
+			return
+		state = self._clock_state()
+		if state == "unsynced" and time.monotonic() < self._clock_deadline:
+			if self._clock_timer is not None:
+				self._clock_timer.trigger()
+			return
+		held, self._clock_held = self._clock_held, None
+		self._end_clock_wait()
+		if state == "unsynced":
+			self.logger.warning(f"'{self.name}' the clock was not set in {self.clock_wait_seconds:g}s: the layers start anyway.")
+			self._startup(msg.timestamp, "clock-unsure", f"The clock was not set in {self.clock_wait_seconds / 60:g} minutes: the playlist and the timer tasks start anyway, and what shows the time may be wrong until it is.")
+		else:
+			self.logger.info(f"'{self.name}' the clock is set: the layers start.")
+			self._startup(msg.timestamp, "clock-ready", "The clock is set: the playlist and the timer tasks start.")
+		self._start_layers(*held)
+	def _end_clock_wait(self):
+		if self._clock_timer is not None:
+			self._clock_timer.cancel()
+			self._clock_timer = None
 	def _show_setup_notice(self, width: int, height: int, timestamp: datetime):
 		"""A device nobody has claimed shows how to claim it on its own panel for a while: whoever can see it is the owner."""
 		try:
@@ -270,7 +337,7 @@ class Application(DispatcherTask):
 		if held is not None:
 			self.logger.info(f"'{self.name}' the device was claimed: the layers start.")
 			self._startup(msg.timestamp, "set-up", "The device was set up: the playlist and the timer tasks start.")
-			self._start_layers(*held)
+			self._start_when_clock_set(msg.timestamp, *held)
 	def transport(self, command: str) -> bool:
 		"""A viewer's play, stop or next (called from the web app's thread, later from a button): the application's own thread forwards it. False: it is not a command, or the application has stopped."""
 		if command not in TRANSPORT_COMMANDS:
@@ -284,7 +351,7 @@ class Application(DispatcherTask):
 	def _run_trigger_row(self, timestamp: datetime, row: Mapping[str, Any]) -> bool:
 		"""Send a button's task to the timer layer: not while the device waits to be claimed, and not for a row with no task set up."""
 		content = row.get("content")
-		if self.router is None or self._held is not None or not isinstance(content, dict):
+		if self.router is None or self._layers_held() or not isinstance(content, dict):
 			return False
 		self.router.send("timer-layer", RunTrigger(timestamp, f"Button on pin {row.get('pin')}", "priority-update", content))
 		return True
@@ -293,8 +360,8 @@ class Application(DispatcherTask):
 		The web app's Run now for the button on `pin` (called from the web app's thread): the task its saved row carries runs as if the button was pressed.
 		`ok` or the reason it did not, in our words.
 		"""
-		if self.router is None or self.cm is None or self._unclaimed():
-			return "The device is not ready: it is still starting or has not been claimed yet."
+		if self.router is None or self.cm is None or self._unclaimed() or self._layers_held():
+			return "The device is not ready: it is still starting, waiting for its clock to be set, or has not been claimed yet."
 		_, devices = self.cm.settings_manager().open("devices").get()
 		row = row_with_pin(devices if isinstance(devices, dict) else None, pin)
 		if row is None or row.get("action") != "task":
@@ -304,8 +371,8 @@ class Application(DispatcherTask):
 		except ValueError:
 			return "The device is stopping."
 	def run_task(self, task_id: str) -> bool:
-		"""Run a timer task now (the web app's Run now, later a button): the timer layer finds it by id and runs it, whatever its trigger. False: the device is not claimed, or has stopped."""
-		if self.router is None or self._unclaimed():
+		"""Run a timer task now (the web app's Run now, later a button): the timer layer finds it by id and runs it, whatever its trigger. False: the device is not claimed, its layers wait for the clock, or it has stopped."""
+		if self.router is None or self._unclaimed() or self._layers_held():
 			return False
 		try:
 			self.router.send("timer-layer", RunTask(self._now(), task_id))
@@ -380,8 +447,8 @@ class Application(DispatcherTask):
 		"""The first hop of a transport command: it goes to the playlist layer only (the timer layer keeps running), and not at all while the device waits to be claimed."""
 		if self.router is None:
 			return
-		if self._held is not None:
-			self.logger.info(f"'{self.name}' the device is not claimed: transport command '{msg.command}' ignored.")
+		if self._layers_held():
+			self.logger.info(f"'{self.name}' the layers have not started (not claimed, or the clock is not set): transport command '{msg.command}' ignored.")
 			return
 		forwarded = { "play": ResumePlayback, "stop": StopPlayback, "next": NextTrack }.get(msg.command)
 		if forwarded is None:
@@ -617,6 +684,8 @@ class Application(DispatcherTask):
 			self.logger.error(f"Failed to join {name}: {e}", exc_info=True)
 	def _handleStop(self, timestamp: datetime):
 		self._end_restore_state()
+		self._end_clock_wait()
+		self._clock_held = None
 		# the devices first: nothing is listened to while the rest is taken down
 		if self.device_io is not None:
 			if self.device_io.is_alive():

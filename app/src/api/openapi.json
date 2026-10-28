@@ -282,6 +282,21 @@
 						],
 						"title": "App Uptime Seconds"
 					},
+					"clock": {
+						"anyOf": [
+							{
+								"enum": [
+									"synced",
+									"unsynced"
+								],
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Clock"
+					},
 					"commit": {
 						"title": "Commit",
 						"type": "string"

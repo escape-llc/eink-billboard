@@ -91,6 +91,14 @@ class TestPi(unittest.TestCase):
 		self.assertEqual(throttle_flags(1 << 3), ["Temperature limit now"])
 		self.assertEqual(throttle_flags(1 << 17), ["Frequency capped since start"])
 
+class TestClockReading(unittest.TestCase):
+	def test_the_clock_is_said_when_timesyncd_can_be_asked_and_left_out_when_not(self):
+		from unittest.mock import patch
+		from ..web import system_info
+		for state, expected in (("synced", "synced"), ("unsynced", "unsynced"), ("unknown", None)):
+			with self.subTest(state=state), patch.object(system_info.ClockSync, "state", return_value=state):
+				self.assertEqual(system_info.host_info().get("clock"), expected)
+
 class TestSystemRoute(WebApiTestBase):
 	def test_the_machine_and_the_storage_are_reported(self):
 		body = self.client.get("/api/system").json()

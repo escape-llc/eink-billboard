@@ -1523,6 +1523,8 @@ export interface components {
         Host: {
             /** App Uptime Seconds */
             app_uptime_seconds?: number | null;
+            /** Clock */
+            clock?: ("synced" | "unsynced") | null;
             /** Commit */
             commit: string;
             /** Cpus */
