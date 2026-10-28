@@ -61,12 +61,13 @@ test("a monthly quota can be set, shows its reset day, and is saved without touc
 	// the reset day only matters once there is a quota
 	await expect(page.getByRole("spinbutton", { name: "Quota Resets On" })).toHaveCount(0)
 	const quota = page.getByRole("spinbutton", { name: "Monthly Quota" })
-	// what the quota counts is an addon of its group, after the number (#727), not part of the title
-	await expect(page.locator(".p-inputgroupaddon", { hasText: /^calls$/ })).toBeVisible()
 	await quota.fill("1000")
 	await quota.blur()
 	const day = page.getByRole("spinbutton", { name: "Quota Resets On" })
 	await expect(day).toBeVisible()
+	// what a number counts in is an addon of its group, after the number (#727), not part of the title; a bare count has none
+	await expect(page.locator(".p-inputgroupaddon", { hasText: /^day of the month$/ })).toBeVisible()
+	await expect(page.locator(".p-inputgroupaddon", { hasText: /^calls$/ })).toHaveCount(0)
 	await day.fill("15")
 	await day.blur()
 	await saveButton(page).click()

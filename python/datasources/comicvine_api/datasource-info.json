@@ -76,7 +76,6 @@
 					"default": null,
 					"minimum": 1,
 					"title": "Monthly Quota",
-					"units": "calls",
 					"description": "The calls your Comic Vine plan allows in a month. Only you know it, and the service is not asked. The System page's API usage card shows this period's calls against it, with a warning from 80%. Once it is used, the source stops calling and uses what it kept until the period resets. Empty: no limit."
 				},
 				{
