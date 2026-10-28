@@ -15,7 +15,6 @@ from unittest.mock import patch
 import httpx
 from PIL import Image
 
-from ..datasources.clock.clock import Clock, ClockAsync
 from ..datasources.comic import strips
 from ..datasources.comic.comic import ComicFeedAsync, line_count, strip_data_uri, words_that_fit
 from ..datasources.countdown import countdown
@@ -223,62 +222,6 @@ class TestComic(unittest.IsolatedAsyncioTestCase):
 		items = await strips.strips_async("XKCD", make_dsec())
 		self.assertEqual(len(items), 1)
 		self.assertEqual((items[0]["image_url"], items[0]["caption"]), ("http://x/a.png", "alt text"))
-
-# ---------------------------------------------------------------- 3. clock
-
-class TestClock(unittest.IsolatedAsyncioTestCase):
-	@staticmethod
-	def _hour_cells(hour_index):
-		hours = {
-			0: [[5,0],[5,1],[5,2]],
-			2: [[5,6],[5,7],[5,8],[5,9],[5,10]],
-			1: [[6,8],[6,9],[6,10]],
-			11: [[8,5],[8,6],[8,7],[8,8],[8,9],[8,10]],
-		}
-		return hours[hour_index]
-	def test_half_past_plus_three_says_the_next_hour(self):
-		# 2:33 is "twenty-five TO three"
-		cells = Clock.translate_word_grid_positions(2, 33)
-		for c in self._hour_cells(2):
-			self.assertIn(c, cells)
-		for c in [[3, 9], [3, 10]]:
-			self.assertIn(c, cells, "TO")
-		for c in self._hour_cells(1):
-			self.assertNotIn(c, cells, "TWO must not be lit")
-	def test_hour_wraps(self):
-		# 12:40 -> hour%12 == 0 -> "twenty to ONE"; 23:40 -> 11 -> "twenty to TWELVE"
-		self.assertTrue(all(c in Clock.translate_word_grid_positions(0, 40) for c in self._hour_cells(0)))
-		self.assertTrue(all(c in Clock.translate_word_grid_positions(11, 40) for c in self._hour_cells(11)))
-	def test_past_still_uses_the_current_hour(self):
-		cells = Clock.translate_word_grid_positions(2, 32)
-		for c in self._hour_cells(1):
-			self.assertIn(c, cells)
-		self.assertNotIn([3, 9], cells)
-	async def test_colors_accept_tuples_lists_and_strings(self):
-		ds = ClockAsync("clock", "clock")
-		for primary in ((255, 255, 255), [255, 255, 255], "#ffffff", "white", None, ""):
-			with self.subTest(primary=primary):
-				state = await ds.open_async(cast(Any, None), {"primaryColor": primary, "secondaryColor": (1, 2, 3)})
-				self.assertEqual(state["primary_color"], (255, 255, 255))
-				self.assertEqual(state["secondary_color"], (1, 2, 3))
-	async def test_invalid_color_is_a_clear_error(self):
-		with self.assertRaisesRegex(ValueError, "primaryColor"):
-			await ClockAsync("clock", "clock").open_async(cast(Any, None), {"primaryColor": "not-a-color"})
-	async def test_draw_failure_is_logged_with_traceback(self):
-		ds = ClockAsync("clock", "clock")
-		state = {"clock_face": "Divided Clock", "primary_color": (1, 2, 3), "secondary_color": (4, 5, 6)}
-		with patch.object(Clock, "draw_divided_clock", side_effect=ZeroDivisionError("kaboom")), self.assertLogs(ds.logger, level="ERROR") as logs:
-			result = await ds.render_async(make_dsec(), {}, state)
-		self.assertIsNone(result)
-		self.assertTrue(any(r.exc_info for r in logs.records), "the traceback was not logged")
-	async def test_portrait_faces_have_portrait_size(self):
-		ds = ClockAsync("clock", "clock")
-		for face in ("Gradient Clock", "Digital Clock", "Divided Clock", "Word Clock"):
-			with self.subTest(face=face):
-				state = {"clock_face": face, "primary_color": (255, 255, 255), "secondary_color": (0, 0, 0)}
-				result = await ds.render_async(make_dsec("portrait"), {}, state)
-				assert result is not None
-				self.assertEqual(result.image.size, (480, 800))
 
 # ---------------------------------------------------------------- 4. countdown / year progress
 

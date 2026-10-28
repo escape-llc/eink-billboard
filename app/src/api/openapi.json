@@ -2764,6 +2764,29 @@
 				"summary": "Test Calendar"
 			}
 		},
+		"/api/datasource/clock/faces": {
+			"get": {
+				"description": "The clock faces, in the catalogue's order (the first is the default).",
+				"operationId": "face_list_api_datasource_clock_faces_get",
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Choice"
+									},
+									"title": "Response Face List Api Datasource Clock Faces Get",
+									"type": "array"
+								}
+							}
+						},
+						"description": "Successful Response"
+					}
+				},
+				"summary": "Face List"
+			}
+		},
 		"/api/datasource/comicvine-api/test": {
 			"post": {
 				"operationId": "test_series_api_datasource_comicvine_api_test_post",

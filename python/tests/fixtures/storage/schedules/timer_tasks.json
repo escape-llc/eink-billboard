@@ -9,7 +9,7 @@
 			"title": "Quarter-hour clock",
 			"task": {
 				"plugin_name": "priority-update",
-				"content": { "dataSource": "clock", "clockFace": "Gradient Clock", "primaryColor": "#db3246", "secondaryColor": "#000000", "slideMinutes": 1 }
+				"content": { "dataSource": "clock", "face": "brass", "slideMinutes": 1 }
 			},
 			"trigger": {
 				"on_startup": false,

@@ -12,9 +12,7 @@
 				"content": {
 					"slideMinutes": 1,
 					"dataSource": "clock",
-					"clockFace": "Gradient Clock",
-					"primaryColor": "#db3246",
-					"secondaryColor": "#000000"
+					"face": "brass"
 				}
 			},
 			"trigger": {

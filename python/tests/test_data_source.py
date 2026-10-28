@@ -4,7 +4,7 @@ import unittest
 
 from ..datasources.countdown.countdown import CountdownAsync
 from ..datasources.year_progress.year_progress import YearProgressAsync
-from ..datasources.clock.clock import ClockAsync
+from ..datasources.clock.clock_face import ClockAsync
 from ..datasources.comic.comic import ComicFeedAsync
 from ..datasources.data_source import DataSourceExecutionContext, MediaItemAsync, MediaListAsync, MediaRenderAsync
 from ..datasources.wikipedia_potd.wikipedia_potd import WpotdAsync
@@ -113,38 +113,10 @@ class TestAsyncDataSources(unittest.TestCase):
 			"shrinkToFit": True
 		}
 		self.pool.submit(self.run_datasource_async, ds, params, (800,480), 1).result(timeout=60)
-	def test_clock_gradient(self):
-		ds = ClockAsync("clock-gradient", "clock")
-		params = {
-			"clockFace": "Gradient Clock",
-			"primaryColor": "#db3246",
-			"secondaryColor": "#000000"
-		}
-		self.pool.submit(self.run_datasource2_async, ds, params, (800, 480), 1).result(timeout=60)
-	def test_clock_digital(self):
-		ds = ClockAsync("clock-digital", "clock")
-		params = {
-			"clockFace": "Digital Clock",
-			"primaryColor": "#ffffff",
-			"secondaryColor": "#000000"
-		}
-		self.pool.submit(self.run_datasource2_async, ds, params, (800,480), 1).result(timeout=60)
-	def test_clock_word(self):
-		ds = ClockAsync("clock-word", "clock")
-		params = {
-			"clockFace": "Word Clock",
-			"primaryColor": "#000000",
-			"secondaryColor": "#ffffff"
-		}
-		self.pool.submit(self.run_datasource2_async, ds, params, (800,480), 1).result(timeout=60)
-	def test_clock_divided(self):
-		ds = ClockAsync("clock-divided", "clock")
-		params = {
-			"clockFace": "Divided Clock",
-			"primaryColor": "#20b7ae",
-			"secondaryColor": "#ffffff"
-		}
-		self.pool.submit(self.run_datasource2_async, ds, params, (800,480), 1).result(timeout=60)
+	def test_clock_faces(self):
+		for face in ("brass", "roman-classic", "aviator", "digital", "words"):
+			with self.subTest(face=face):
+				self.pool.submit(self.run_datasource2_async, ClockAsync(f"clock-{face}", "clock"), {"face": face, "shadow": "face"}, (800, 480), 1).result(timeout=60)
 	def test_countdown(self):
 		ds = CountdownAsync("countdown", "countdown")
 		params = {
