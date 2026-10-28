@@ -35,6 +35,25 @@
 			margin-bottom: 4dvh;
 			overflow-wrap: anywhere;
 		}
+		/* the setup page: the text on the left, the code that opens the web app with the setup code in it on the right, as big as the panel allows */
+		.error-with-qr .error-wrapper {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 4vw;
+			text-align: left;
+		}
+		.error-with-qr .error-text {
+			flex: 1 1 0;
+			min-width: 0;
+		}
+		.error-with-qr .error-logo {
+			margin-left: 0;
+		}
+		.error-qr {
+			flex: 0 0 auto;
+			image-rendering: pixelated;
+		}
 		.error-line {
 			font-size: max(var(--min-text), min(6dvh, 5vw));
 			line-height: 1.3;
@@ -77,8 +96,9 @@
 {% endblock %}
 
 {% block content %}
-<div class="error-container{% if compact %} error-compact{% endif %}">
+<div class="error-container{% if compact %} error-compact{% endif %}{% if qr %} error-with-qr{% endif %}">
 	<div class="error-wrapper">
+		<div class="error-text">
 		{% if logo and not compact %}<img class="error-logo" src="{{ logo }}" alt="">{% endif %}
 		<div class="error-heading text-secondary-1">{{ heading }}</div>
 		<div class="error-title text-primary">{{ title }}</div>
@@ -86,6 +106,8 @@
 		<div class="error-line text-secondary-2">{{ line }}</div>
 		{% endfor %}
 		{% if hint %}<div class="error-hint text-primary">{{ hint }}</div>{% endif %}
+		</div>
+		{% if qr %}<img class="error-qr" src="{{ qr }}" alt="">{% endif %}
 	</div>
 </div>
 {% endblock %}

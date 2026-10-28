@@ -75,6 +75,11 @@ def setup_notice(access: AccessState, port: int, public_url: str|None = None, sc
 	code = access.setup_code()
 	return [f"Open {setup_address(port, public_url, scheme)}", f"Setup code {code}"] if code else None
 
+def setup_claim_url(access: AccessState, port: int, public_url: str|None = None, scheme: str = "http") -> str|None:
+	"""The address the setup page's QR code opens (#491): the web app's claim route with the setup code, in the fragment (which the browser never sends), or None."""
+	code = access.setup_code()
+	return f"{setup_address(port, public_url, scheme)}/#/claim/{''.join(code.split())}" if code else None
+
 LOG_LEVEL_ENV = "EINK_LOG_LEVEL"
 
 def log_level(dev: bool, text: str|None) -> int:
@@ -184,6 +189,7 @@ def run_application(args: argparse.Namespace) -> None:
 		"message": f"'{source}' has used its quota of {quota.limit} calls; it uses what it kept until the period resets." }))
 	xapp: Application = Application(APPNAME, sink)
 	xapp.setup_notice = lambda: setup_notice(app.state.access, port, public_url, scheme)
+	xapp.setup_claim_url = lambda: setup_claim_url(app.state.access, port, public_url, scheme)
 	app.state.access.on_claimed = xapp.setup_done
 	app.state.access.on_code_changed = xapp.setup_code_changed
 	watcher_sink.add(xapp)

@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 from ..model.configuration_manager import StaticConfigurationManager
 from ..model.theme import ThemeInputs
 from ..plugins.plugin_base import PermanentError, RenderSession
+from .qr_image import qr_data_uri
 
 logger = logging.getLogger(__name__)
 
@@ -75,19 +76,20 @@ def _clean(text: str) -> str:
 	return text if len(text) <= MAX_REASON else text[:MAX_REASON - 1] + "…"
 
 def render_error_image(stm: StaticConfigurationManager|None, dimensions: tuple[int, int], title: str, lines: list[str], theme: ThemeInputs|None = None, compact: bool = False,
-	address: str|None = None, heading: str = ERROR_HEADING, hint: bool = True) -> Image.Image:
+	address: str|None = None, heading: str = ERROR_HEADING, hint: bool = True, qr: str|None = None) -> Image.Image:
 	"""
 	The page for a slot that failed: what failed (`title`) and why (`lines`), in the theme of the other pages (blocking: Chromium).
 	`compact` is the layout for a small box (an overlay zone): the heading and the title, then the reason if it fits; nothing wraps, the rest is clipped.
 	When the themed page cannot be made (no `stm`, or the browser is what failed) a plain page is drawn instead, so the user still sees the error.
 	It holds nothing that changes (no clock): the same failure gives the same pixels, and the display can tell nothing needs redrawing.
-	The page carries the logo (not in the compact layout) and, with `address`, says where the web app is; `heading` and `hint` change it for a page that is not an error (the setup page).
+	The page carries the logo (not in the compact layout) and, with `address`, says where the web app is; `heading` and `hint` change it for a page that is not an error (the setup page), which also carries `qr`: an address drawn as a QR code beside the text (#491).
 	"""
 	if stm is not None:
 		try:
 			render_dir = os.path.join(stm.ROOT_PATH, "render")
 			hint_text = (f"Check the settings in the web app at {address}" if address else "Check the settings in the web app") if hint else None
-			page = { "settings": {}, "title": title, "lines": lines, "compact": compact, "heading": heading, "hint": hint_text, "logo": stm.image_data_url("logo.svg") }
+			page = { "settings": {}, "title": title, "lines": lines, "compact": compact, "heading": heading, "hint": hint_text, "logo": stm.image_data_url("logo.svg"),
+				"qr": qr_data_uri(qr, min(dimensions) * 6 // 10) if qr and not compact else None }
 			image = RenderSession(stm, render_dir, "error.html", theme).render(dimensions, page)
 			if image is not None:
 				return image

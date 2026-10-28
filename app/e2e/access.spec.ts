@@ -37,6 +37,19 @@ test("a new device answers 401 with setup, and says nothing else", async ({ requ
 	expect(JSON.stringify(await (await request.get("/api/access")).json())).not.toContain(CLAIM.code.replace(" ", ""))
 })
 
+test("the claim address from the panel's QR code opens the setup dialog with the code in its boxes, and leaves it out of the address (#491)", async ({ page }) => {
+	const watch = watchProblems(page, [401, 403], [/Failed|403|401/])
+	await page.goto("/#/claim/24681357")
+	await expect(page.getByRole("dialog", { name: "Set up this device" })).toBeVisible()
+	for (const [n, value] of [..."24681357"].entries()) await expect(digit(page, n + 1)).toHaveValue(value)
+	expect(new URL(page.url()).hash).not.toContain("2468")
+	// nothing is claimed by arriving: the person still chooses the password
+	await expect(dialog(page).getByLabel("New password", { exact: true })).toBeVisible()
+	expect((await page.request.get("/api/access")).ok()).toBe(true)
+	expect(await (await page.request.get("/api/access")).json()).toMatchObject({ setupRequired: true })
+	watch.expectNone()
+})
+
 test("the setup dialog needs the code and two equal passwords, then signs in", async ({ page, context }) => {
 	const watch = watchProblems(page, [401, 403], [/Failed|403|401/])
 	await page.goto("/#/settings")

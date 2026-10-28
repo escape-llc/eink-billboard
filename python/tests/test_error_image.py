@@ -145,3 +145,22 @@ class TestWhatThePageSays(unittest.TestCase):
 	def test_the_setup_page_is_not_an_error(self):
 		page = self.context_of(heading="EINK BILLBOARD", hint=False)
 		self.assertEqual((page["heading"], page["hint"]), ("EINK BILLBOARD", None))
+
+	def test_the_setup_page_carries_the_claim_code_and_an_error_page_does_not(self):
+		url = "http://pi.local/#/claim/12345678"
+		page = self.context_of(heading="EINK BILLBOARD", hint=False, qr=url)
+		self.assertTrue(page["qr"].startswith("data:image/png;base64,"))
+		self.assertIsNone(self.context_of()["qr"])
+		# a small box (an overlay zone) has no room for one
+		self.assertIsNone(self.context_of(qr=url, compact=True)["qr"])
+
+@unittest.skipUnless(HAVE_CHROME, "needs the headless browser (EINK_CHROME, or chromium-headless-shell on PATH)")
+class TestTheSetupPageDrawsItsCode(unittest.TestCase):
+	def test_the_code_is_black_and_white_squares_at_the_right_of_the_page(self):
+		stm = StaticConfigurationManager(os.path.abspath(STATIC))
+		without = render_error_image(stm, (800, 480), "Set up this device", ["Open http://pi.local"], heading="EINK BILLBOARD", hint=False).convert("L")
+		page = render_error_image(stm, (800, 480), "Set up this device", ["Open http://pi.local"], heading="EINK BILLBOARD", hint=False, qr="http://pi.local/#/claim/12345678").convert("L")
+		right = (700, 0, 800, 480)
+		self.assertEqual(without.crop(right).getextrema(), (255, 255))
+		colors = { value for _, value in page.crop(right).getcolors() }
+		self.assertEqual(colors, { 0, 255 })

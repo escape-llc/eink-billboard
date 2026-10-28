@@ -89,6 +89,8 @@ class Application(DispatcherTask):
 		self.root_container: IServiceProvider|None = None
 		# lines for a page on the panel while the device is not set up yet (None: nothing to say); see eink-billboard.py
 		self.setup_notice: Callable[[], list[str]|None]|None = None
+		# the address the setup page's QR code opens (the web app's claim route with the setup code), set with `setup_notice`
+		self.setup_claim_url: Callable[[], str|None]|None = None
 		# an unclaimed device does not play: the layers' configuration waits here until the device is claimed (None: nothing is held)
 		self._held: tuple[ConfigureEvent, ConfigureEvent]|None = None
 		# the parts that said they are configured (COMPONENTS): all of them is "running"
@@ -236,7 +238,8 @@ class Application(DispatcherTask):
 			if not lines or self.cm is None:
 				return
 			# the lines say where to open the web app and the code: not an error, so no "cannot show this" and no hint about the settings
-			image = render_error_image(self.cm.static_manager(), (width, height), SETUP_TITLE, lines, current_inputs(self.cm.settings_manager()), heading="EINK BILLBOARD", hint=False)
+			image = render_error_image(self.cm.static_manager(), (width, height), SETUP_TITLE, lines, current_inputs(self.cm.settings_manager()), heading="EINK BILLBOARD", hint=False,
+				qr=self.setup_claim_url() if self.setup_claim_url is not None else None)
 			self.router.send("display", PriorityImage(timestamp, SETUP_TITLE, image, SETUP_HOLD))  # type: ignore[union-attr]
 			shown_on = self.display.display if self.display is not None else None
 			if isinstance(shown_on, MockDisplay):
