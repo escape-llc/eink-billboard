@@ -1,4 +1,5 @@
 /** The words the System page uses for sizes and times. */
+import type { MaterialIconName } from "./MaterialIcons"
 
 const UNITS = ["bytes", "KB", "MB", "GB", "TB"]
 
@@ -109,16 +110,19 @@ export function deviceMoment(moment: string | null | undefined): string {
 	return found ? `${found[1]} ${found[2]}` : ""
 }
 
-/** One pill of the usage card: its label on the tone of what it means (`neutral` is no judgment), its value beside it. */
+/**
+ * One pill of a System card (#796): its label on the tone of what it means (`neutral` is no judgment), its value beside it. `icon` is a glyph shown in place of the label
+ * where its meaning is plain (the label is still the pill's name for a screen reader, and the title says it in words); `testid` names a pill a test reads.
+ */
 export type PillKind = AnswerKind | "neutral"
-export type Pill = { label: string, value: string, kind: PillKind, title: string }
+export type Pill = { label: string, value: string, kind: PillKind, title: string, icon?: MaterialIconName, testid?: string }
 
 /** An API data source's month as pills for the closed API usage card: `calls 70`, `failed 2` (only when some failed), `cache 75%`, and `quota 62%` when a plan is set. */
 export function usagePills(month: { calls: number, status?: Record<string, number> | null, hitRate?: number | null }, quota?: { percent: number, limit: number, used: number } | null): Pill[] {
-	const pills: Pill[] = [{ label: "calls", value: String(month.calls), kind: "neutral", title: "Calls this month" }]
+	const pills: Pill[] = [{ label: "calls", value: String(month.calls), kind: "neutral", title: "Calls this month", icon: "swap_vert" }]
 	const failed = failedCalls(month.status)
-	if (failed) pills.push({ label: "failed", value: String(failed), kind: "danger", title: `${failed} of this month's calls failed` })
-	if (typeof month.hitRate === "number" && Number.isFinite(month.hitRate)) pills.push({ label: "cache", value: formatShare(month.hitRate), kind: "neutral", title: "Lookups answered without a download this month" })
+	if (failed) pills.push({ label: "failed", value: String(failed), kind: "danger", title: `${failed} of this month's calls failed`, icon: "error" })
+	if (typeof month.hitRate === "number" && Number.isFinite(month.hitRate)) pills.push({ label: "cache", value: formatShare(month.hitRate), kind: "neutral", title: "Lookups answered without a download this month", icon: "cached" })
 	if (quota) pills.push({ label: "quota", value: `${Math.round(quota.percent)}%`, kind: quotaSeverity(quota.percent), title: `${quota.used} of ${quota.limit} calls of the plan this period` })
 	return pills
 }
@@ -149,13 +153,13 @@ export function storagePills(areas: { files: number, bytes: number }[], volume?:
 	const files = areas.reduce((sum, a) => sum + a.files, 0)
 	const bytes = areas.reduce((sum, a) => sum + a.bytes, 0)
 	const pills: Pill[] = [
-		{ label: "size", value: formatBytes(bytes), kind: "neutral", title: "What the device keeps, in all" },
-		{ label: "files", value: String(files), kind: "neutral", title: `${files} ${files === 1 ? "file" : "files"} in all` },
+		{ label: "size", value: formatBytes(bytes), kind: "neutral", title: "What the device keeps, in all", icon: "database" },
+		{ label: "files", value: String(files), kind: "neutral", title: `${files} ${files === 1 ? "file" : "files"} in all`, icon: "description" },
 	]
 	if (!volume?.total) return pills
 	const share = bytes / volume.total * 100
 	pills.push({ label: "disk", value: share > 0 && share < 0.1 ? "<0.1%" : `${share.toFixed(1).replace(/\.0$/, "")}%`, kind: "neutral", title: "The device's share of the disk" })
-	pills.push({ label: "free", value: formatBytes(volume.free), kind: gaugeSeverity(volume.percent), title: `${formatBytes(volume.free)} of ${formatBytes(volume.total)} free; the disk is ${Math.round(volume.percent)}% full` })
+	pills.push({ label: "free", value: formatBytes(volume.free), kind: gaugeSeverity(volume.percent), title: `${formatBytes(volume.free)} of ${formatBytes(volume.total)} free; the disk is ${Math.round(volume.percent)}% full`, icon: "hard_drive" })
 	return pills
 }
 
@@ -166,4 +170,79 @@ export function storageLine(areas: { files: number, bytes: number }[], volume?: 
 	if (!volume?.total) return text
 	const share = bytes / volume.total * 100
 	return `${text}, ${share > 0 && share < 0.1 ? "less than 0.1" : share.toFixed(1).replace(/\.0$/, "")}% of the disk`
+}
+
+/** What each part of the start is, as a glyph (the Device card): the display, the playlist and the timer tasks. */
+const PART_ICONS: Record<string, MaterialIconName> = { "display": "tv", "playlist-layer": "playlist_play", "timer-layer": "schedule" }
+
+/** The parts of the start as pills (the Device card): each one's glyph, and running, failed or starting on its tone; the title is what the part said. */
+export function devicePills(components: Record<string, { state: string, message: string }>, titles: Record<string, string>): Pill[] {
+	return Object.entries(components).map(([name, c]) => {
+		const label = titles[name] ?? name
+		const [value, kind]: [string, PillKind] = c.state === "ok" ? ["running", "success"] : c.state === "failed" ? ["failed", "danger"] : ["starting", "info"]
+		return { label, value, kind, title: `${label}: ${c.message}`, icon: PART_ICONS[name], testid: `part-${name}` }
+	})
+}
+
+type Host = { os: string, os_release: string, machine: string, python: string, cpus: number, commit: string, uptime_seconds?: number | null, app_uptime_seconds?: number | null, clock?: "synced" | "unsynced" | null }
+type Load = { cpu_percent?: number | null, load?: number[] | null, memory?: { total: number, used: number, percent: number } | null, app_memory?: number | null }
+type Volume = { total: number, free: number, percent: number }
+
+/** The machine as pills (the Machine card, #796): what it runs, the builds, how long it and the app have been up, the clock, the processor, the memory and the disk. A reading it cannot give is left out. */
+export function machinePills(host: Host, load: Load, volume: Volume | null | undefined, webCommit: string, mismatch: boolean): Pill[] {
+	const pills: Pill[] = [
+		{ label: "system", value: `${host.os} ${host.os_release}`.trim(), kind: "neutral", title: `${host.os} ${host.os_release} (${host.machine})`, icon: "computer" },
+		{ label: "build", value: host.commit === webCommit ? host.commit : `${host.commit} / ${webCommit}`, kind: mismatch ? "warn" : "neutral", testid: "builds",
+			title: mismatch ? `Different builds: the server is ${host.commit}, this page ${webCommit}. Reload the page.` : `Server ${host.commit}, web app ${webCommit}` },
+		{ label: "python", value: host.python, kind: "neutral", title: `Python ${host.python}` },
+	]
+	if (typeof host.uptime_seconds === "number") pills.push({ label: "up", value: formatUptime(host.uptime_seconds), kind: "neutral", title: `The machine has been up for ${formatUptime(host.uptime_seconds)}`, icon: "power_settings_new" })
+	if (typeof host.app_uptime_seconds === "number") pills.push({ label: "app", value: formatUptime(host.app_uptime_seconds), kind: "neutral", title: `The app has been running for ${formatUptime(host.app_uptime_seconds)}`, icon: "timer", testid: "app-uptime" })
+	if (host.clock === "synced") pills.push({ label: "clock", value: "set", kind: "success", title: "The clock was set by the network", icon: "sync", testid: "clock" })
+	else if (host.clock === "unsynced") pills.push({ label: "clock", value: "not set", kind: "warn", title: "The clock is not set yet: what shows the time may be wrong", icon: "sync_problem", testid: "clock" })
+	const busy = typeof load.cpu_percent === "number" ? ` · ${load.cpu_percent}%` : ""
+	pills.push({ label: "processor", value: `${host.cpus} ${host.cpus === 1 ? "core" : "cores"}${busy}`, kind: "neutral", icon: "memory",
+		title: `${host.cpus} ${host.cpus === 1 ? "core" : "cores"}${busy ? `, ${load.cpu_percent}% busy` : ""}${load.load ? ` (load ${load.load.join(" ")})` : ""}` })
+	if (load.memory) pills.push({ label: "memory", value: `${formatBytes(load.memory.used)} / ${formatBytes(load.memory.total)}`, kind: gaugeSeverity(load.memory.percent), icon: "memory_alt", testid: "memory",
+		title: `Memory: ${formatBytes(load.memory.used)} of ${formatBytes(load.memory.total)} in use (${Math.round(load.memory.percent)}%)` })
+	if (typeof load.app_memory === "number") pills.push({ label: "this app", value: formatBytes(load.app_memory), kind: "neutral", title: "The memory this app uses" })
+	if (volume?.total) pills.push({ label: "disk", value: `${formatBytes(volume.free)} free`, kind: gaugeSeverity(volume.percent), icon: "hard_drive", testid: "disk",
+		title: `Disk: ${formatBytes(volume.free)} free of ${formatBytes(volume.total)} (${Math.round(volume.percent)}% in use)` })
+	return pills
+}
+
+type Pi = { model: string, temperature_c?: number | null, cpu_mhz?: number | null, cpu_max_mhz?: number | null, fan_rpm?: number | null, fan_percent?: number | null, throttled?: string[] | null }
+
+/** A Raspberry Pi's own readings as pills: the model, the temperature on its tone, the clock speed, the fan, and the power warnings (none is one green pill). */
+export function piPills(pi: Pi): Pill[] {
+	const pills: Pill[] = [{ label: "model", value: pi.model, kind: "neutral", title: pi.model, icon: "developer_board" }]
+	if (typeof pi.temperature_c === "number") pills.push({ label: "temperature", value: `${pi.temperature_c} °C`, kind: temperatureSeverity(pi.temperature_c), title: `Temperature ${pi.temperature_c} °C`, icon: "thermostat" })
+	if (typeof pi.cpu_mhz === "number") pills.push({ label: "speed", value: `${pi.cpu_mhz} MHz`, kind: "neutral", title: `The processor runs at ${pi.cpu_mhz} MHz${pi.cpu_max_mhz ? `, up to ${pi.cpu_max_mhz}` : ""}`, icon: "speed" })
+	const fan = fanText(pi.fan_rpm, pi.fan_percent)
+	if (fan) pills.push({ label: "fan", value: fan, kind: "neutral", title: `Fan: ${fan}`, icon: "mode_fan", testid: "fan" })
+	if (pi.throttled) {
+		if (pi.throttled.length === 0) pills.push({ label: "power", value: "ok", kind: "success", title: "No power warnings", icon: "bolt" })
+		for (const w of pi.throttled) pills.push({ label: "power", value: w, kind: w.endsWith("now") ? "danger" : "warn", title: `Power: ${w}`, icon: "bolt" })
+	}
+	return pills
+}
+
+/** The storage's areas, or one group's plugins or data sources, as pills (the open Storage card): the name and its size; the files and what is kept are in the title. */
+export function sizePills(items: { name: string, files: number, bytes: number, kept?: number | null }[]): Pill[] {
+	return items.map(i => ({ label: i.name, value: formatBytes(i.bytes), kind: "neutral" as const,
+		title: `${i.name}: ${formatBytes(i.bytes)} in ${i.files} ${i.files === 1 ? "file" : "files"}${i.kept ? `, ${formatBytes(i.kept)} of it kept (can be fetched again)` : ""}` }))
+}
+
+type Period = { calls: number, status?: Record<string, number> | null, sent: number, received: number, hitRate?: number | null, bytesSaved?: number | null }
+
+/** One period of an API data source as pills (the open API usage card): the calls, the failed ones, the bytes sent and received, and the cache's share. */
+export function periodPills(label: string, period: Period): Pill[] {
+	const pills: Pill[] = [{ label: "calls", value: String(period.calls), kind: "neutral", title: `${label}: ${period.calls} calls`, icon: "swap_vert" }]
+	const failed = failedCalls(period.status)
+	if (failed) pills.push({ label: "failed", value: String(failed), kind: "danger", title: `${label}: ${failed} failed`, icon: "error" })
+	pills.push({ label: "sent", value: formatBytes(period.sent), kind: "neutral", title: `${label}: ${formatBytes(period.sent)} sent`, icon: "upload" })
+	pills.push({ label: "received", value: formatBytes(period.received), kind: "neutral", title: `${label}: ${formatBytes(period.received)} received`, icon: "download" })
+	if (typeof period.hitRate === "number" && Number.isFinite(period.hitRate)) pills.push({ label: "cache", value: formatShare(period.hitRate), kind: "neutral", icon: "cached",
+		title: `${label}: ${formatShare(period.hitRate)} of the lookups answered without a download${period.bytesSaved ? `, ${formatBytes(period.bytesSaved)} saved` : ""}` })
+	return pills
 }
