@@ -95,12 +95,12 @@ def configure_logging(dev: bool = True) -> None:
 		logging.config.dictConfig(yaml.safe_load(f.read()))
 	# production logs what a person reads (the setup code is not lost in file events and timer ticks); --dev, or EINK_LOG_LEVEL, for the rest
 	logging.getLogger().setLevel(log_level(dev, os.environ.get(LOG_LEVEL_ENV)))
-	# suppress warning from inky library https://github.com/pimoroni/inky/issues/205
-	warnings.filterwarnings("ignore", message=".*Busy Wait: Held high.*")
+	# the Inky driver warns on every refresh that it waited for the panel's busy line (https://github.com/pimoroni/inky/issues/205): expected, not news
+	warnings.filterwarnings("ignore", message=r"Busy Wait: Held high")
 
 def parse_args(argv: list[str]|None = None) -> argparse.Namespace:
 	parser = argparse.ArgumentParser(description=f"{APPNAME} Server")
-	parser.add_argument('--dev', action='store_true', help='Run in development mode')
+	parser.add_argument('--dev', action='store_true', help='Development: DEBUG logging, and port 8080 unless --port says otherwise')
 	parser.add_argument('--host', default="0.0.0.0", help='Change listening interface')
 	parser.add_argument('--port', type=int, help='Listening port; default 8080 in development mode, 80 otherwise')
 	parser.add_argument('--app', default=DEFAULT_APP_PATH, help='Path to web app bundle; a relative path is relative to the current working directory (default: app/dist of this repository)')

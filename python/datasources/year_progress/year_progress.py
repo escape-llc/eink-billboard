@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import date, datetime, time
 import logging
 from typing import Any, Mapping
 
@@ -8,6 +8,16 @@ from ...model.theme import ThemeInputs, current_inputs
 from ...model.configuration_manager import ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ...datasources.data_source import DataSource, DataSourceExecutionContext, MediaItemAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 
+def day_grid(today: date) -> dict[str, int]:
+	"""
+	What the page's grid of days needs: one cell per day of the year in columns of a week (Monday at the top), so `lead` empty cells come before
+	the 1st of January; `today` is the day of the year counted from 0 (the days before it are past).
+	"""
+	first = date(today.year, 1, 1)
+	days = date(today.year + 1, 1, 1).toordinal() - first.toordinal()
+	lead = first.weekday()
+	return { "days": days, "today": today.toordinal() - first.toordinal(), "lead": lead, "weeks": -(-(lead + days) // 7) }
+
 def generate_image(schedule_ts:datetime, stm: StaticConfigurationManager, render_dir: str, dimensions, settings, theme: ThemeInputs|None = None):
 	"""Blocking (runs Chromium). `dimensions` is the target size (see target_dimensions)."""
 	# the year is the one where the display is: the schedule timestamp already carries the system zone (naive means local)
@@ -15,19 +25,18 @@ def generate_image(schedule_ts:datetime, stm: StaticConfigurationManager, render
 	# wall-clock arithmetic: a DST change must not make a day 23 or 25 hours long
 	now = current_time.replace(tzinfo=None)
 
-	start_of_year = datetime(now.year, 1, 1)
-	start_of_next_year = datetime(now.year + 1, 1, 1)
-
-	total_days = (start_of_next_year - start_of_year).days
-	elapsed_days = (now - start_of_year).total_seconds() / (24 * 3600)
-	# floor, never round: 99.6% is not "100% done" and the last day still has a day left
-	year_percent = int((elapsed_days / total_days) * 100)
-	days_left = (start_of_next_year.date() - now.date()).days
+	grid = day_grid(now.date())
+	# the share of the year gone by: the whole days before today and the part of today; floored, so 99.6% is not "100% done"
+	part_of_today = (now - datetime.combine(now.date(), time())).total_seconds() / 86400
+	year_percent = int((grid["today"] + part_of_today) * 100 / grid["days"])
+	# today counts as left until it is over
+	days_left = grid["days"] - grid["today"]
 
 	template_params = {
 		"year": current_time.year,
 		"year_percent": year_percent,
 		"days_left": days_left,
+		**grid,
 		"settings": settings
 	}
 	rs = RenderSession(stm, render_dir, "year_progress.html", theme)

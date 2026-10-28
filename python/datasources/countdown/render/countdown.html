@@ -2,7 +2,7 @@
 
 {% block style %}
 	<style>
-		.countdown-container {
+		.countdown {
 			flex-grow: 1;
 			display: flex;
 			align-items: center;
@@ -36,7 +36,7 @@
 	</style>
 {% endblock %}
 {% block content %}
-<div class="countdown-container">
+<div class="countdown">
 	<div class="countdown-wrapper">
 		<h1 class="title text-primary">{{settings.title}}</h1>
 		<p class="subtitle text-secondary-1">{{date}}</p>

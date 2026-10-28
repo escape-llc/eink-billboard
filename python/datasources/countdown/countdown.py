@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import date, datetime
 import logging
 from typing import Any, Mapping
 
@@ -8,36 +8,30 @@ from ...plugins.plugin_base import RenderSession
 from ...model.theme import ThemeInputs, current_inputs
 from ...datasources.data_source import DataSource, DataSourceExecutionContext, MediaItemAsync, MediaRenderAsync, MediaRenderResult, target_dimensions
 
+# how the count is said, by its sign: the page's label and the word after the number
+WORDING = { 1: ("Days Left", "left"), 0: ("Today", "today"), -1: ("Days Passed", "passed") }
+
+def days_between(today: date, target: date) -> int:
+	"""Whole days from `today` to `target`: positive before it, 0 on the day, negative after."""
+	return target.toordinal() - today.toordinal()
+
 def generate_image(schedule_ts:datetime, stm: StaticConfigurationManager, render_dir: str, dimensions, settings, theme: ThemeInputs|None = None) -> MediaRenderResult | None:
 	"""Blocking (runs Chromium). `dimensions` is the target size (see target_dimensions)."""
-	#title = settings.get('title')
-	countdown_date_str = settings.get('targetDate')
-
-	if not countdown_date_str:
+	target_text = settings.get('targetDate')
+	if not target_text:
 		raise RuntimeError("Date is required.")
-
+	target = date.fromisoformat(str(target_text))
 	# "today" is the date where the display is: the schedule timestamp already carries the system zone (naive means local)
-	current_time = schedule_ts if schedule_ts.tzinfo is not None else schedule_ts.astimezone()
-
-	countdown_date = datetime.strptime(countdown_date_str, "%Y-%m-%d")
-
-	day_count = (countdown_date.date() - current_time.date()).days
-	if day_count > 0:
-		label, left_or_passed = "Days Left", "left"
-	elif day_count == 0:
-		label, left_or_passed = "Today", "today"
-	else:
-		label, left_or_passed = "Days Passed", "passed"
-
+	today = (schedule_ts if schedule_ts.tzinfo is not None else schedule_ts.astimezone()).date()
+	days = days_between(today, target)
+	label, word = WORDING[(days > 0) - (days < 0)]
 	template_params = {
-		#"title": title,
-		"date": countdown_date.strftime("%B %d, %Y"),
-		"day_count": abs(day_count),
-		"left_or_passed": left_or_passed,
+		"date": target.strftime("%B %d, %Y"),
+		"day_count": abs(days),
+		"left_or_passed": word,
 		"label": label,
 		"settings": settings
 	}
-
 	rs = RenderSession(stm, render_dir, "countdown.html", theme)
 	image = rs.render(dimensions, template_params)
 	return None if image is None else MediaRenderResult(image=image, title="Countdown")
@@ -59,4 +53,3 @@ class CountdownAsync(DataSource, MediaItemAsync, MediaRenderAsync):
 			raise ValueError("Display settings is None")
 		# Chromium is slow and blocking: keep it off the event loop
 		return await asyncio.to_thread(generate_image, dsec.timestamp, stm, render_dir, target_dimensions(dsec, display_config), params, current_inputs(scm))
-	pass
