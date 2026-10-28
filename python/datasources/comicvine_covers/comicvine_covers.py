@@ -68,4 +68,4 @@ class ComicVineCoversAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		except Exception as e:
 			logger.error(f"'{self.name}' could not load the cover ({type(e).__name__}).")
 			raise RuntimeError(f"'{self.name}' could not load the cover ({type(e).__name__}).") from None
-		return MediaRenderResult(image=enhanced(dsec, blurred_margin(image, size)), title=str(state.get("title") or "Comic Vine"))
+		return MediaRenderResult(image=enhanced(dsec, blurred_margin(image, size)), title=str(state.get("title") or "Comic Vine"), original=image)

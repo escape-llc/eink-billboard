@@ -28,12 +28,15 @@ export function galleryImageUrl(id: string, size: "thumb" | "full" = "thumb"): s
 	return apiUrl("/api/datasource/gallery/items/{item_id}/image", { path: { item_id: id }, query: { size } })
 }
 
-/** Where a picture came from, in words. */
-export function originOf(item: GalleryItem): string {
+/** Where a picture came from, in words: `names` are the data sources' names by id (the catalog's), else the id is said. */
+export function originOf(item: GalleryItem, names: Record<string, string> = {}): string {
 	if (item.origin === "upload") return "Added by hand"
 	if (item.origin === "display") return "Saved from the panel"
-	return item.origin ? `Drawn by ${item.origin}` : ""
+	return item.origin ? `From ${names[item.origin] ?? item.origin}` : ""
 }
+
+/** Whether a page the panel showed was made from a picture of its own (a picture source's slide), which "Save to Gallery" keeps (#768). */
+export const hasOriginal = (e: TelemetryEvent): boolean => e.values?.original === true
 
 /** The calls that change the Gallery (a component's setup): each is told when it fails, and the list is asked for again whatever came of it. */
 function useChanges(notify: Notify) {
@@ -55,14 +58,18 @@ function useChanges(notify: Notify) {
 	}
 	function told(answer: KeepAnswer | undefined): boolean {
 		if (!answer) return false
-		notify(answer.kept ? "success" : "info", answer.kept ? "The picture was added to the Gallery." : "That picture is in the Gallery already.")
+		notify(answer.kept ? "success" : "info", !answer.kept ? "That picture is in the Gallery already."
+			: answer.original ? "The original picture was added to the Gallery." : "The picture was added to the Gallery.")
 		return answer.kept
 	}
-	/** Keep a picture the panel showed, as it was shown, under its title. */
-	async function saveShown(e: TelemetryEvent): Promise<boolean> {
+	/**
+	 * Keep a picture the panel showed, under its title: the picture the page was made from when it has one (a painting, a photograph of the day), else
+	 * as it was shown; `asShown` keeps the panel's picture all the same.
+	 */
+	async function saveShown(e: TelemetryEvent, asShown = false): Promise<boolean> {
 		const digest = String(e.values?.digest ?? "")
 		const title = shownTitle(e).slice(0, 200)
-		return told(await change(() => api.post("/api/datasource/gallery/items/from-display", {}, { digest, title }), "The picture could not be saved."))
+		return told(await change(() => api.post("/api/datasource/gallery/items/from-display", {}, { digest, title, asShown }), "The picture could not be saved."))
 	}
 	return { busy, change, told, saveShown }
 }

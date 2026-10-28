@@ -63,19 +63,21 @@ class Items(Answer):
 	maxBytes: int
 
 class KeepAnswer(Answer):
-	"""What keeping a picture did: `kept` is false for one already there (`duplicate`); `id` names it either way."""
+	"""What keeping a picture did: `kept` is false for one already there (`duplicate`); `id` names it either way. `original` says a shown page was kept as the picture it was made from."""
 	success: bool
 	kept: bool
 	id: str
 	message: str
+	original: bool = False
 
 class PinBody(BaseModel):
 	pinned: bool
 
 class SaveBody(BaseModel):
-	"""A picture the panel showed (its digest, from the telemetry), and the title to keep it under."""
+	"""A picture the panel showed (its digest, from the telemetry), and the title to keep it under. `asShown` keeps the panel's picture even when the page has an original."""
 	digest: str
 	title: str = ""
+	asShown: bool = False
 
 def _store(cm: CM) -> tuple[GalleryStore, DatasourceConfigurationManager]:
 	dscm = cm.datasource_manager(GALLERY_ID)
@@ -159,10 +161,14 @@ def remove_item(item_id: str, request: Request, cm: CM):
 
 def _kept(request: Request, cm: CM, image: Image.Image, title: str, origin: str) -> dict:
 	"""Keep a picture the person gave (or the panel showed) and say what came of it."""
+	return _kept_data(request, cm, encode(image), image.width, image.height, title, origin)
+
+def _kept_data(request: Request, cm: CM, data: bytes, width: int, height: int, title: str, origin: str) -> dict:
+	"""Keep a picture already encoded as the Gallery keeps them (`encode`) and say what came of it."""
 	store, dscm = _store(cm)
 	_, settings = dscm.open().get()
 	maximum, max_bytes = bounds(settings)
-	result: Kept = store.keep(encode(image), { "title": title[:MAX_TITLE] or None, "origin": origin, "width": image.width, "height": image.height },
+	result: Kept = store.keep(data, { "title": title[:MAX_TITLE] or None, "origin": origin, "width": width, "height": height },
 		get_time_of_day(request).current_time(), maximum, max_bytes)
 	if result.reason == "too-big":
 		raise ApiError(413, "The picture is larger than the whole Gallery's size limit.", "gallery")
@@ -172,7 +178,7 @@ def _kept(request: Request, cm: CM, image: Image.Image, title: str, origin: str)
 		_tell(request, "gallery-kept", f"A picture was added to the Gallery ({origin}); it holds {result.count}.", bytes=result.bytes, count=result.count)
 		if result.evicted:
 			_tell(request, "gallery-evicted", f"The Gallery let {result.evicted} older picture(s) go to stay within its limits.", count=result.count)
-	return { "success": True, "kept": result.kept, "id": result.id, "message": "Kept in the Gallery." if result.kept else "That picture is already in the Gallery." }
+	return { "success": True, "kept": result.kept, "id": result.id, "message": "Kept in the Gallery." if result.kept else "That picture is already in the Gallery.", "original": False }
 
 async def _upload_body(request: Request) -> bytes:
 	return await read_limited(request, "gallery")
@@ -189,13 +195,20 @@ def add_item(request: Request, cm: CM, picture: bytes = Depends(_upload_body), t
 
 @gallery_router.post("/items/from-display", **answers(KeepAnswer), openapi_extra=json_body(SaveBody))
 def save_shown(request: Request, cm: CM, body: dict[str, Any] = Body(...)):
-	"""Keep a picture the panel showed lately (its digest is in the telemetry), as it was shown: with any caption or overlay drawn on it, not the photograph alone."""
-	digest, title = body.get("digest"), body.get("title", "")
-	if not isinstance(digest, str) or not _DIGEST.match(digest) or not isinstance(title, str):
+	"""
+	Keep a picture the panel showed lately (its digest is in the telemetry). A page made from a picture (a picture source's slide: its event says `original`) is kept as
+	that picture, before it was fitted, under the data source's id (#768); any other page, or `asShown`, as the panel showed it, with any caption or overlay drawn on it.
+	"""
+	digest, title, as_shown = body.get("digest"), body.get("title", ""), body.get("asShown", False)
+	if not isinstance(digest, str) or not _DIGEST.match(digest) or not isinstance(title, str) or not isinstance(as_shown, bool):
 		raise ApiError(422, "Say which picture the panel showed.", "gallery")
 	isp = get_container(request)
 	hub = isp.get_service(TelemetryHub) if isp is not None else None
 	image = hub.snapshot(digest) if hub is not None else None
-	if image is None:
+	if hub is None or image is None:
 		raise ApiError(404, "The device no longer has that picture: it keeps only the last few it showed.", "gallery")
-	return _kept(request, cm, image, title.strip() or "Shown on the panel", "display")
+	title = title.strip() or "Shown on the panel"
+	original = None if as_shown else hub.original(digest)
+	if original is not None:
+		return { **_kept_data(request, cm, original.data, original.width, original.height, title, original.source), "original": True }
+	return _kept(request, cm, image, title, "display")

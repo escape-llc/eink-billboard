@@ -373,6 +373,8 @@ class FakeCompositor:
 		self.calls = 0
 	def layers(self):
 		return []
+	def original(self):
+		return None
 	def commit(self):
 		self.calls += 1
 		return FakePackage()
@@ -414,6 +416,8 @@ class DisplayLoopTests(unittest.TestCase):
 				self.i = 0
 			def layers(self):
 				return []
+			def original(self):
+				return None
 			def commit(self):
 				color = colors[self.i]
 				self.i += 1

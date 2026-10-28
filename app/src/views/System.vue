@@ -215,7 +215,7 @@
 						<div class="player-head">
 							<span class="title">{{ title(current) }}</span>
 							<span class="clock">{{ clockOf(current.ts) }}</span>
-							<Button size="small" text type="button" icon="mi mi-add-photo-alternate" aria-label="Save to Gallery" title="Save to the Gallery, as it was shown"
+							<Button size="small" text type="button" icon="mi mi-add-photo-alternate" aria-label="Save to Gallery" :title="hasOriginal(current) ? 'Save the picture this page was made from to the Gallery' : 'Save to the Gallery, as it was shown'"
 								class="save" data-testid="save-current" :disabled="saving" @click="saveShown(current)" />
 						</div>
 						<ul v-if="currentLayers.length" class="layers" aria-label="Layers" data-testid="layers">
@@ -268,7 +268,11 @@
 		<Dialog :visible="full !== null" modal :header="full ? title(full) : ''" @update:visible="v => { if (!v) full = null }" style="max-width:95vw">
 			<img v-if="full" class="full" :src="link.imageUrl(full.values?.digest, 'full')" :alt="title(full)" />
 			<template #footer>
-				<Button v-if="full" size="small" type="button" icon="mi mi-add-photo-alternate" label="Save to Gallery" :disabled="saving" data-testid="save-full" @click="saveShown(full)" />
+				<template v-if="full">
+					<Button v-if="hasOriginal(full)" size="small" severity="secondary" type="button" label="Save as shown" title="Save the panel's picture, with its overlays" :disabled="saving" data-testid="save-as-shown" @click="saveShown(full, true)" />
+					<Button size="small" type="button" icon="mi mi-add-photo-alternate" :label="hasOriginal(full) ? 'Save original' : 'Save to Gallery'"
+						:title="hasOriginal(full) ? 'Save the picture this page was made from' : 'Save the picture as it was shown'" :disabled="saving" data-testid="save-full" @click="saveShown(full)" />
+				</template>
 			</template>
 		</Dialog>
 	</div>
@@ -288,7 +292,7 @@ import UsagePill from "../components/UsagePill.vue"
 import PasswordForm from "../components/PasswordForm.vue"
 import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, answerPills, usagePills, storageLine, temperatureSeverity, quotaLine, quotaSeverity, quotaWarning } from "../components/SystemFormat"
 import { usePlaylistPanel } from "../composables/usePlaylistPanel"
-import { useSaveShown } from "../composables/useGallery"
+import { hasOriginal, useSaveShown } from "../composables/useGallery"
 import { SOURCES as sources, describeEvent as describe, eventIcon as iconOf, useSystem } from "../composables/useSystem"
 
 const periods = [{ key: "today", label: "Today" }, { key: "week", label: "7 days" }, { key: "month", label: "Month" }] as const

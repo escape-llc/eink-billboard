@@ -41,4 +41,4 @@ async def generate(dsec: DataSourceExecutionContext, params: Mapping[str, Any], 
 	title = f"{label}: {prompt or 'Untitled'}"
 	if params.get("keepInGallery") is not False:
 		offer_to_gallery(dsec, origin, picture, title, prompt or None)
-	return MediaRenderResult(image=enhanced(dsec, blurred_margin(picture, (width, height))), title=title)
+	return MediaRenderResult(image=enhanced(dsec, blurred_margin(picture, (width, height))), title=title, original=picture)

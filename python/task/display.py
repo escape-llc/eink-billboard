@@ -5,7 +5,7 @@ import logging
 import threading
 from typing import Any, Callable, Mapping, cast
 
-from .display_messages import BlendImage, ComputedImage, DisplayImage, DisplaySettings, OverlayImage, OverlayRevoke, PriorityImage, PriorityRevoke
+from .display_messages import BlendImage, ComputedImage, DisplayImage, DisplaySettings, KeptOriginal, OverlayImage, OverlayRevoke, PriorityImage, PriorityRevoke, SourcePicture
 from .overlay_zones import ZONE_NAMES, Zone, zones_for
 from ..display.refresh_gate import RefreshState
 from ..display.display_base import DisplayBase
@@ -23,7 +23,8 @@ from ..task.async_worker_pool import AsyncWorkerPool
 from .message_router import MessageRouter
 from ..utils.image_compositor import ImageCompositor, ImageOverlay
 from ..display.quantize import to_appearance, to_inks
-from ..utils.image_utils import change_orientation, resize_image
+from ..utils.image_utils import change_orientation, keep_as_jpeg, resize_image
+from ..utils.upload_image import MAX_UPLOAD_PIXELS
 
 class TimedLayerControl:
 	"""What a timed layer (priority, blend) shows now, so a revoke can end it early, and the titles revoked while still queued. Only touched on the pool loop."""
@@ -85,6 +86,16 @@ class Display(DispatcherTask):
 			donev.wait(timeout=2.0)
 		else:
 			self.logger.info("task completed.")
+	def _keep_original(self, picture: SourcePicture) -> KeptOriginal|None:
+		"""A page's original as the hub keeps it (a JPEG); None for one too large to keep (more pixels than an upload may have) or one that cannot be encoded."""
+		try:
+			width, height = picture.image.size
+			if width * height > MAX_UPLOAD_PIXELS:
+				return None
+			return KeptOriginal(keep_as_jpeg(picture.image), width, height, picture.source)
+		except Exception as e:
+			self.logger.warning(f"The original of '{picture.source}' could not be kept ({type(e).__name__}).")
+			return None
 	def _telemetry(self, kind: str, values: Mapping[str, Any]) -> None:
 		"""Tell the telemetry link (the `telemetry` route) what the panel did; a failure to tell must never stop the panel."""
 		try:
@@ -325,6 +336,7 @@ class Display(DispatcherTask):
 						continue
 					taking = package.version
 					shown_layers = compositor.layers()
+					source_picture = compositor.original()
 					the_image, the_title = package.render()
 					if rotate: the_image = the_image.rotate(180)
 					# the frame on the panel's inks: what is already a drive colour (text, overlays, flat pages) is kept, a photograph is dithered (the picture's brightness and contrast were set before it was composited)
@@ -346,9 +358,11 @@ class Display(DispatcherTask):
 					shown = digest
 					# the end of the refresh and what the panel shows, for a restart
 					await asyncio.to_thread(self.refresh_state.save, display.gate.last_end_wall, digest.hex())
-					# what the panel shows now, for the telemetry link: the hub keeps the image by its digest, the event carries the digest
+					# the picture the page was made from, for "Save to Gallery" (#768): kept as the Gallery would keep it, after the panel was driven
+					original = await asyncio.to_thread(self._keep_original, source_picture) if source_picture is not None else None
+					# what the panel shows now, for the telemetry link: the hub keeps the image (and its original) by its digest, the event carries the digest
 					self._telemetry("shown", { "title": the_title, "version": package.version, "count": displayImageCount, "digest": digest.hex(),
-						"width": the_image.width, "height": the_image.height, "layers": shown_layers, "image": the_image })
+						"width": the_image.width, "height": the_image.height, "layers": shown_layers, "image": the_image, **({ "original": original } if original else {}) })
 					# on the panel: a timed image's time starts now, not while the panel was still drawing it
 					self._note_drawn(package.version)
 					self.logger.debug(f"Blanking period starts: {display.gate.rest_seconds:g} seconds")

@@ -12,6 +12,20 @@ from .messages import BasicMessage
 type DisplayLayer = Literal["background", "blend", "override"]
 DISPLAY_LAYERS: tuple[DisplayLayer, ...] = ("background", "blend", "override")
 
+@dataclass(frozen=True, slots=True, eq=False)
+class SourcePicture:
+	"""The picture a page was made from, before it was fitted to the panel (a download, a drawn picture), and the data source it came from: what "Save to Gallery" keeps (#768)."""
+	image: Image.Image
+	source: str
+
+@dataclass(frozen=True, slots=True, eq=False)
+class KeptOriginal:
+	"""A page's original as the telemetry hub keeps it beside the panel's picture: a JPEG (`gallery.encode`'s), its size, and the data source it came from."""
+	data: bytes
+	width: int
+	height: int
+	source: str
+
 @dataclass(frozen=True, slots=True)
 class DisplayImage(BasicMessage):
 	"""
@@ -23,6 +37,8 @@ class DisplayImage(BasicMessage):
 	layer: DisplayLayer = field(default="background", kw_only=True)
 	# who made the image (see source_router.py): `kind`, `title`, `plugin`, and the playlist's `name`; None when nobody says
 	origin: Mapping[str, str]|None = field(default=None, kw_only=True)
+	# the picture the page was made from (a picture source's slide), for "Save to Gallery"; None for a page that is drawn (text, a calendar)
+	original: SourcePicture|None = field(default=None, kw_only=True)
 
 @dataclass(frozen=True, slots=True)
 class PriorityImage(DisplayImage):

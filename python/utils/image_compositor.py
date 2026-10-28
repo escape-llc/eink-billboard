@@ -3,7 +3,7 @@ import logging
 from typing import Mapping, Protocol, runtime_checkable
 from PIL import Image
 
-from ..task.display_messages import DisplayImage
+from ..task.display_messages import DisplayImage, SourcePicture
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +164,19 @@ class ImageCompositor:
 			origins = [dict(o.origin) for o in stack.overlays if o.origin]
 			shown.append({ "layer": "overlays", "count": len(stack.overlays), **({ "origins": origins } if origins else {}) })
 		return shown
+	def original(self) -> SourcePicture|None:
+		"""
+		The picture the page on the panel was made from (#768), when one page is the whole of it: the background (overlays may be drawn on it), an override
+		page, or a priority image. None when a page washes over another (a blend): what is shown is neither picture.
+		"""
+		stack = self._current_stack
+		if stack.priority is not None:
+			return stack.priority.original
+		if stack.forground is not None:
+			return stack.forground.original if stack.forground.layer != "blend" else None
+		if stack.blend is not None or stack.background is None:
+			return None
+		return stack.background.original
 	def commit(self) -> RenderPackage|None:
 		if not self.is_dirty():
 			return None
