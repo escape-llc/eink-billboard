@@ -10,8 +10,13 @@
 		<form class="auth-form" data-testid="auth-dialog" @submit.prevent="submit">
 			<p class="auth-help">{{ help }}</p>
 			<div v-if="authPrompt.mode === 'setup'" class="auth-field">
-				<label for="auth-code">Setup code</label>
-				<InputText size="small" id="auth-code" v-model="code" fluid autocomplete="off" inputmode="numeric" placeholder="1234 5678" aria-label="Setup code" />
+				<label id="auth-code-label">Setup code</label>
+				<!-- the 8 digits, one box each (#731): typing moves on, a paste (even "1234 5678") fills them all -->
+				<InputOtp v-model="code" :length="8" integerOnly size="small" class="auth-code" role="group" aria-labelledby="auth-code-label" @paste.capture="pasteCode">
+					<template #default="{ attrs, events, index }">
+						<InputText v-bind="attrs" v-on="events" size="small" class="p-inputotp-input" inputmode="numeric" autocomplete="off" :aria-label="`Setup code digit ${index}`" />
+					</template>
+				</InputOtp>
 			</div>
 			<div class="auth-field">
 				<label for="auth-secret">{{ secretLabel }}</label>
@@ -32,7 +37,7 @@
 <script setup lang="ts">
 /** The sign-in and first-run setup dialog (AuthPrompt.ts has the state; ApiClient.ts opens it on a 401). */
 import { computed, ref, watch } from "vue"
-import { Button, Dialog, InputText, Message } from "primevue"
+import { Button, Dialog, InputOtp, InputText, Message } from "primevue"
 import { authPrompt, cancelAuth, submitAuth } from "./AuthPrompt"
 
 const secret = ref("")
@@ -51,6 +56,13 @@ const help = computed(() => ({
 	token: "This device requires an API token.",
 })[authPrompt.mode])
 
+/** The code is shown as "1234 5678": a paste of it (spaces and all) is the digits, which the component alone would refuse for the space. */
+function pasteCode(event: ClipboardEvent) {
+	const digits = (event.clipboardData?.getData("text") ?? "").replace(/\D/g, "")
+	event.preventDefault()
+	event.stopPropagation()
+	if (digits) code.value = digits.slice(0, 8)
+}
 function submit() {
 	void submitAuth({ secret: secret.value, code: code.value, again: again.value })
 }
@@ -62,5 +74,6 @@ function onVisible(visible: boolean) {
 .auth-form { display: flex; flex-direction: column; gap: .75rem; }
 .auth-help { margin: 0; }
 .auth-field { display: flex; flex-direction: column; gap: .25rem; }
+.auth-code { justify-content: space-between; }
 .auth-buttons { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .25rem; }
 </style>

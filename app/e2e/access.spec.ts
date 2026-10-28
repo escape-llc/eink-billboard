@@ -13,6 +13,19 @@ test.beforeEach(async ({ page }) => stubMapTiles(page))
 const PASSWORD = "first password 1"
 const CHANGED = "second password 2"
 const dialog = (page: Page) => page.getByTestId("auth-dialog")
+// the setup code is eight boxes (InputOtp, #731): typed digit by digit (each moves on to the next), or pasted whole as the panel shows it ("1234 5678")
+const digit = (page: Page, n: number) => dialog(page).getByLabel(`Setup code digit ${n}`)
+async function typeCode(page: Page, code: string) {
+	await digit(page, 1).click()
+	await page.keyboard.type(code.replace(/\s/g, ""))
+}
+async function pasteCode(page: Page, code: string) {
+	await digit(page, 1).evaluate((box, text) => {
+		const data = new DataTransfer()
+		data.setData("text", text)
+		box.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }))
+	}, code)
+}
 const showingSettings = (page: Page) => page.locator(".p-select").filter({ hasText: "English" }).first()
 
 test("a new device answers 401 with setup, and says nothing else", async ({ request }) => {
@@ -33,19 +46,21 @@ test("the setup dialog needs the code and two equal passwords, then signs in", a
 	// nothing is sent for an empty or mismatched form
 	await dialog(page).getByRole("button", { name: "Set password" }).click()
 	await expect(dialog(page).getByRole("alert")).toHaveText(/setup code/)
-	await dialog(page).getByLabel("Setup code").fill(CLAIM.code)
+	await expect(dialog(page).getByRole("group", { name: "Setup code" })).toBeVisible()
+	await typeCode(page, CLAIM.code)
 	await dialog(page).getByLabel("New password", { exact: true }).fill(PASSWORD)
 	await dialog(page).getByLabel("Repeat the password").fill("something else 3")
 	await dialog(page).getByRole("button", { name: "Set password" }).click()
 	await expect(dialog(page).getByRole("alert")).toHaveText(/not the same/)
 
 	// a wrong code is refused by the server, in its words
-	await dialog(page).getByLabel("Setup code").fill("0000 0000")
+	await pasteCode(page, "0000 0000")
 	await dialog(page).getByLabel("Repeat the password").fill(PASSWORD)
+	await expect(digit(page, 8)).toHaveValue("0")
 	await dialog(page).getByRole("button", { name: "Set password" }).click()
 	await expect(dialog(page).getByRole("alert")).toHaveText(/not the setup code/)
 
-	await dialog(page).getByLabel("Setup code").fill(CLAIM.code)
+	await pasteCode(page, CLAIM.code)
 	await dialog(page).getByRole("button", { name: "Set password" }).click()
 	await expect(showingSettings(page)).toBeVisible()
 	await expect(dialog(page)).toBeHidden()
