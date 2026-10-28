@@ -111,6 +111,8 @@ class GalleryAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		size = target_dimensions(dsec)
 		def fit() -> Image.Image:
 			with Image.open(io.BytesIO(data)) as opened:
+				# read now: a picture already the panel's size comes back as `opened` itself, which cannot be read once the file is closed (#789)
+				opened.load()
 				return blurred_margin(to_rgb(opened), size)
 		picture = await asyncio.to_thread(fit)
 		return MediaRenderResult(image=enhanced(dsec, picture), title=str(state.get("title") or "Gallery"), layer="background")
