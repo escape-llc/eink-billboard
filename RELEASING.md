@@ -11,7 +11,7 @@ Every merge to `master` is already a **snapshot** (`20261022143005`, made by `.g
    - `uv run python -m unittest discover .`, `uv run ruff check`, `uv run mypy`, and `podman compose run --rm test` (Linux, with Chromium: what CI runs);
    - `cd app && npm run build && npm test && npm run e2e`;
    - `deploy/test/pull-path.sh` in a Bookworm container (the command is at its top): the Pi's side of getting a version.
-3. **Run the audits:** the `owasp-review` and `actions-injection-review` skills (`.claude/skills/`; a tool that cannot load a skill reads its `SKILL.md`). Fix what they find, or file an issue for it, before the tag.
+3. **Run the audits:** the `owasp-review` and `actions-injection-review` skills (`.claude/skills/`; a tool that cannot load a skill reads its `SKILL.md`), and the provenance scan, `uv run python -m scripts.provenance_scan` (InkyPi at the commit #694 was checked against; it exits 1 when one of our files shares lines with it beyond the reviewed, accepted ones, which it lists apart). Fix what they find, or file an issue for it, before the tag.
 4. **Merge the bump** through the usual `WORKFLOW.md` sequence, then **wait for its snapshot** (WORKFLOW.md step 10): `git ls-remote --tags origin` lists the new 14-digit tag on the merge commit.
 5. **Try it on a real device:** the maintainer's insider Pi runs `deploy/eink-container.sh update --insider`, which goes to that snapshot, and `check` is all fine (`ok` lines, no `FIX`). Fix any real failure before tagging, not after.
 6. **Tag only with the maintainer's go-ahead on that version.** This is the one step that cannot be taken back: every stable Pi moves to it on its next `update`.
