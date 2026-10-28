@@ -215,6 +215,8 @@
 						<div class="player-head">
 							<span class="title">{{ title(current) }}</span>
 							<span class="clock">{{ clockOf(current.ts) }}</span>
+							<Button size="small" text type="button" icon="mi mi-add-photo-alternate" aria-label="Save to Gallery" title="Save to the Gallery, as it was shown"
+								class="save" data-testid="save-current" :disabled="saving" @click="saveShown(current)" />
 						</div>
 						<ul v-if="currentLayers.length" class="layers" aria-label="Layers" data-testid="layers">
 							<li v-for="(line, i) in currentLayers" :key="i" :data-layer="line.layer">
@@ -265,6 +267,9 @@
 
 		<Dialog :visible="full !== null" modal :header="full ? title(full) : ''" @update:visible="v => { if (!v) full = null }" style="max-width:95vw">
 			<img v-if="full" class="full" :src="link.imageUrl(full.values?.digest, 'full')" :alt="title(full)" />
+			<template #footer>
+				<Button v-if="full" size="small" type="button" icon="mi mi-add-photo-alternate" label="Save to Gallery" :disabled="saving" data-testid="save-full" @click="saveShown(full)" />
+			</template>
 		</Dialog>
 	</div>
 	</div>
@@ -283,6 +288,7 @@ import UsagePill from "../components/UsagePill.vue"
 import PasswordForm from "../components/PasswordForm.vue"
 import { deviceMoment, failedCalls, fanText, formatBytes, formatShare, formatUptime, gaugeSeverity, answerPills, usagePills, storageLine, temperatureSeverity, quotaLine, quotaSeverity, quotaWarning } from "../components/SystemFormat"
 import { usePlaylistPanel } from "../composables/usePlaylistPanel"
+import { useSaveShown } from "../composables/useGallery"
 import { SOURCES as sources, describeEvent as describe, eventIcon as iconOf, useSystem } from "../composables/useSystem"
 
 const periods = [{ key: "today", label: "Today" }, { key: "week", label: "7 days" }, { key: "month", label: "Month" }] as const
@@ -298,6 +304,8 @@ const {
 // the build this page's code is from (the Machine card says it beside the server's)
 const webCommit = __APP_COMMIT__
 const full = ref<TelemetryEvent | null>(null)
+// "Save to Gallery" on what the panel shows and showed (#517)
+const { busy: saving, saveShown } = useSaveShown((severity, detail) => toast.add({ severity, summary: "Gallery", detail, life: severity === "error" ? 6000 : 3000 }))
 // the dialog the toolbar opened (backup, restore, password)
 const dialog = ref<"backup" | "restore" | "password" | null>(null)
 // the playlist panel follows the playlists while the page is shown
@@ -524,6 +532,10 @@ const title = (e: TelemetryEvent): string => String(e.values?.title ?? "")
 	display: flex;
 	align-items: baseline;
 	gap: .5rem;
+}
+.player-head .save {
+	align-self: center;
+	margin: -.25rem -.25rem -.25rem 0;
 }
 .title {
 	font-weight: bold;

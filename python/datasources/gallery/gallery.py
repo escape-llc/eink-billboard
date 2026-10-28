@@ -25,7 +25,7 @@ from ...task.message_router import MessageRouter
 from ...task.messages import Telemetry
 from ...utils.image_utils import blurred_margin, to_rgb
 from ..data_source import DataSource, DataSourceExecutionContext, DataSourceMessage, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions, enhanced
-from .offer import GalleryOffer
+from .offer import CHANGED, GalleryOffer
 from .store import GalleryStore, Kept, bounds
 
 logger = logging.getLogger(__name__)
@@ -84,10 +84,10 @@ class GalleryAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			return
 		try:
 			router.send("telemetry", Telemetry(now, "data-source", { "kind": "gallery-kept", "datasource": origin, "bytes": result.bytes, "count": result.count,
-				"message": KEPT_WORDS.format(origin=origin, size=_kb(result.bytes), count=result.count) }))
+				"message": KEPT_WORDS.format(origin=origin, size=_kb(result.bytes), count=result.count), "changed": CHANGED }))
 			if result.evicted:
 				router.send("telemetry", Telemetry(now, "data-source", { "kind": "gallery-evicted", "datasource": self.id, "count": result.count,
-					"message": EVICTED_WORDS.format(evicted=result.evicted) }))
+					"message": EVICTED_WORDS.format(evicted=result.evicted), "changed": CHANGED }))
 		except Exception as e:
 			logger.warning(f"A Gallery event could not be sent ({type(e).__name__}).")
 

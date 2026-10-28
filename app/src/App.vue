@@ -52,6 +52,12 @@ const items = ref([
 			to: "/playlist",
 		},
 		{
+			label:"Gallery",
+			icon: "mi mi-photo-library",
+			class: "p-0 m-0",
+			to: "/gallery",
+		},
+		{
 			label:"System",
 			icon: "mi mi-desktop-windows",
 			class: "p-0 m-0",

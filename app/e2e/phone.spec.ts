@@ -20,7 +20,7 @@ async function expectNoSidewaysScroll(page: Page, where: string) {
 
 test.beforeEach(async ({ page }) => stubMapTiles(page))
 
-for (const view of ["playlist", "schedule", "system"]) {
+for (const view of ["playlist", "schedule", "system", "gallery"]) {
 	test(`the ${view} page does not scroll sideways`, async ({ page }) => {
 		const watch = watchProblems(page)
 		await page.goto(`/#/${view}`)

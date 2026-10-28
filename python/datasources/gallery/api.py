@@ -26,7 +26,7 @@ from ...web.errors import ApiError
 from ...web.openapi import Answer, Done, answers, json_body
 from ...web.uploads import read_limited
 from .gallery import MAX_TITLE, encode
-from .offer import GALLERY_ID
+from .offer import CHANGED, GALLERY_ID
 from .store import GalleryStore, Kept, bounds
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,7 @@ def _tell(request: Request, kind: str, message: str, **values: Any) -> None:
 	if hub is None:
 		return
 	try:
-		hub.accept(Telemetry(get_time_of_day(request).current_time(), "data-source", { "kind": kind, "datasource": GALLERY_ID, "message": message, **values }))
+		hub.accept(Telemetry(get_time_of_day(request).current_time(), "data-source", { "kind": kind, "datasource": GALLERY_ID, "message": message, "changed": CHANGED, **values }))
 	except Exception as e:
 		logger.warning(f"A Gallery event could not be sent ({type(e).__name__}).")
 

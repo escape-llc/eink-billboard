@@ -14,6 +14,8 @@ from ..data_source import DataSourceExecutionContext, DataSourceManager
 logger = logging.getLogger(__name__)
 
 GALLERY_ID = "gallery"
+# what every Gallery event says changed: the web app's cache asks for these routes again (api/resources.ts), so an open Gallery page follows
+CHANGED = [f"/api/datasource/{GALLERY_ID}"]
 
 @dataclass(frozen=True, slots=True)
 class GalleryOffer:
