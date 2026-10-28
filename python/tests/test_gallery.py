@@ -251,6 +251,18 @@ class TestShowing(GalleryTest):
 		assert result is not None
 		self.assertEqual((result.image.size, result.title, result.layer), ((800, 480), "a red one", "background"))
 
+	def test_a_picture_already_the_panels_size_is_shown(self):
+		# one saved from the panel: nothing to fit, so nothing reads it before its file is closed (#789)
+		offer_to_gallery(self.producer, "display", Image.new("RGB", (800, 480), "red"), "shown", None)
+		self.gallery.flush()
+		[item] = self.run_async(self.gallery.open_async(self.context(), {}))
+		dsec = make_dsec()
+		dsec.provider.add_service(DatasourceConfigurationManager, self.cm.datasource_manager(GALLERY_ID))  # type: ignore[attr-defined]
+		result = self.run_async(self.gallery.render_async(dsec, {}, item))
+		assert result is not None
+		self.assertEqual(result.image.size, (800, 480))
+		self.assertGreater(result.image.getpixel((400, 240))[0], 240)
+
 	def test_a_picture_removed_after_the_list_was_made_is_nothing_to_show(self):
 		self.offer("red")
 		[item] = self.run_async(self.gallery.open_async(self.context(), {}))
