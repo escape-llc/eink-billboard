@@ -8,7 +8,7 @@ Standing default: every real change goes through this sequence, not a direct com
 - **GitHub access that can read and write issues and PRs.** Either the GitHub CLI (`gh auth status`; `gh auth login` if it fails) or, in an agent session, the GitHub tools it was given.
   Everything below says "open a PR", "check CI", and so on; use whichever you have. If a push or API call returns 403, stop and tell the maintainer (see `AGENTS.md`).
 - `git`, `uv` (Python 3.13), and for web changes `node`/`npm`. CI uses `python:3.13.7-slim`; match that locally.
-- Test environment prerequisites (`chromium-headless-shell`) are in `AGENTS.md`.
+- Test environment prerequisites (`chromium-headless-shell`) are in `AGENTS.md` and `docs/testing.md`.
 
 ## The sequence
 

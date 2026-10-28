@@ -125,3 +125,11 @@ The following JSON may be used to set up the launch configuration for Python deb
 ## Note to Cloners
 
 The tests need no secret and no private data: they build their own storage from the factory defaults and the synthetic schedules in `python/tests/fixtures/storage/`, so the `unittest.yaml` workflow works in a clone, and on a fork's pull request, as it is.
+
+## Rules for the web API
+
+Moved out of `AGENTS.md` unchanged; `AGENTS.md` keeps the one-line rule.
+
+- **The web API.** Endpoints are plain `def` (they run in uvicorn's thread pool; the configuration code is blocking and lock-based), not `async def`.
+  Errors are `ApiError(status, message, id)`, and every non-2xx body is `{ success: false, message, id }` (+ `rev` on 409, `errors` on 422). Never put exception text in a response.
+- **Plugins and datasources can add API routes:** export an `APIRouter` and name it in the `"router"` entry of the `*-info.json`.
