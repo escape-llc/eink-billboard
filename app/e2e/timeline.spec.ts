@@ -66,7 +66,7 @@ test("an event can be opened from the keyboard", async ({ page }) => {
 		render: [{ schedule: "s", id: "a", scheduled_time: "2026-01-05T09:00:00+00:00" }], not_render: [], invalid: []
 	})
 	await page.goto("/#/schedule")
-	const event = page.getByRole("button", { name: "Edit Keyboard task (priority-update)" })
+	const event = page.getByRole("button", { name: "Edit Keyboard task (Priority)" })
 	await expect(event).toBeVisible()
 	await event.focus()
 	await page.keyboard.press("Enter")

@@ -9,7 +9,7 @@
 import { computed, ref, shallowRef, toRaw } from "vue"
 import { ApiError } from "../components/ApiClient"
 import { api } from "../api/client"
-import { rangeLabel, step, switchMode, taskRows, windowOf, type SchedulerMode, type TaskRow } from "../components/SchedulerView"
+import { eventLabel, rangeLabel, step, switchMode, taskRows, windowOf, type SchedulerMode, type TaskRow } from "../components/SchedulerView"
 import type { EventInfo } from "../components/AlCalendar.vue"
 import { browserZoneDifference, zonedParts } from "../components/CalendarTime"
 import type { Descriptor } from "../components/FormDefs"
@@ -74,7 +74,8 @@ export function useSchedule(notify: Notify, options: { link?: TelemetryLink } = 
 	const timeZone = ref<string | undefined>(undefined)
 	// the stored tasks as the server sent them: not deeply reactive, so a row hands the editor plain data (structuredClone cannot copy a proxy)
 	const schedules = shallowRef<Record<string, TimerTasks>>({})
-	const eventList = ref<EventInfo[]>([])
+	// the runs of the window shown, and the events made of them: the label follows the plugin catalog, which may arrive after the window (#776)
+	const runs = ref<EventInfo[]>([])
 	// what is installed, from the cache every view shares
 	const catalog = useCatalog()
 	const pluginList = computed<PluginDef[]>(() => catalog.plugins.data.value ?? [])
@@ -129,6 +130,13 @@ export function useSchedule(notify: Notify, options: { link?: TelemetryLink } = 
 		return difference ? `Times are in the device's time zone (${timeZone.value}). Your browser is ${difference} of it.` : null
 	})
 	const rangeText = computed(() => rangeLabel(firstDay.value, dayCount.value))
+	const eventList = computed<EventInfo[]>(() => runs.value.map(ei => {
+		// the raw run: a copy of the proxy would hold proxies, which the dialog cannot clone
+		const data = toRaw(ei.data) as { title: string, task: { plugin_name: string } } | undefined
+		if(!data) return ei
+		const label = eventLabel(data.title, data.task.plugin_name, pluginList.value.find(p => p.id === data.task.plugin_name)?.features)
+		return { ...ei, title: label.title, data: { ...data, glyph: label.glyph, layer: label.layer } }
+	}))
 	const rows = computed<TaskRow[]>(() => taskRows(eventList.value, schedules.value, id => pluginList.value.find(p => p.id === id)?.name ?? id))
 	const selectedPlugin = computed(() => pluginList.value.find(p => p.id === editModel.value.plugin_name) || null)
 	const timerPlugins = computed(() => pluginList.value.filter(p => (p.features ?? []).some(f => TIMER_LAYERS.includes(f))))
@@ -167,11 +175,11 @@ export function useSchedule(notify: Notify, options: { link?: TelemetryLink } = 
 		// a trigger is read as the form's (one a file holds that cannot be evaluated is in `invalid`, and has no runs)
 		schedules.value = json.schedules as Record<string, TimerTasks>
 		loadedDay = zonedParts(new Date(), timeZone.value).key
-		eventList.value = json.render.map(rx => {
+		runs.value = json.render.map(rx => {
 			const sref = schedules.value[rx.schedule]?.items.find(sx => sx.id === rx.id) ?? null
 			const ei: EventInfo = { start: new Date(rx.scheduled_time), title: "my event", duration: 15, data: undefined }
 			if(sref) {
-				ei.title = `${sref.title} (${sref.task.plugin_name})`
+				ei.title = sref.title
 				// the plugin's content: a number only when the plugin has one
 				const minutes = sref.task.content.slideMinutes
 				if(typeof minutes === "number" && minutes > 0) ei.duration = minutes

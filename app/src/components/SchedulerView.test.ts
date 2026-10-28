@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { daysOf, rangeLabel, step, switchMode, taskRows, triggerText, windowOf } from "./SchedulerView"
+import { daysOf, eventLabel, rangeLabel, step, switchMode, taskRows, timerLayer, triggerText, windowOf } from "./SchedulerView"
 
 describe("the scheduler's window", () => {
 	it("is a day or a week from the offset, starting on today's weekday", () => {
@@ -64,5 +64,21 @@ describe("the list of tasks", () => {
 	})
 	it("is empty without documents", () => {
 		expect(taskRows([], {}, id => id)).toEqual([])
+	})
+})
+
+describe("an event's label", () => {
+	it("is the layer of the plugin's features", () => {
+		expect(timerLayer(["layer-priority", "media-image"])).toBe("priority")
+		expect(timerLayer(["layer-overlay"])).toBe("overlay")
+		expect(timerLayer(["layer-background"])).toBeUndefined()
+		expect(timerLayer(undefined)).toBeUndefined()
+	})
+	it("shows the layer as a glyph, not the plugin's id", () => {
+		expect(eventLabel("Clock Hourly", "priority-update", ["layer-priority"])).toEqual({ title: "Clock Hourly", glyph: "mi mi-priority-high", layer: "Priority" })
+		expect(eventLabel("Today", "overlay", ["layer-overlay"])).toEqual({ title: "Today", glyph: "mi mi-picture-in-picture", layer: "Overlay" })
+	})
+	it("keeps the id of a plugin that is not installed in the text", () => {
+		expect(eventLabel("Gone", "uninstalled", undefined)).toEqual({ title: "Gone (uninstalled)" })
 	})
 })

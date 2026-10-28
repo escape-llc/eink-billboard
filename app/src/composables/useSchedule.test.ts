@@ -53,7 +53,9 @@ describe("the window", () => {
 		const { sc, notices } = await started()
 		expect(sc.loading.value).toBe(false)
 		expect([sc.firstDay.value, sc.today.value, sc.dayCount.value, sc.timeZone.value]).toEqual(["2026-10-23", "2026-10-23", 7, "America/New_York"])
-		expect(sc.eventList.value.map(e => [e.title, e.duration])).toEqual([["Clock (priority-update)", 5], ["Clock (priority-update)", 5], ["Gone (uninstalled)", 15]])
+		expect(sc.eventList.value.map(e => [e.title, e.duration])).toEqual([["Clock", 5], ["Clock", 5], ["Gone (uninstalled)", 15]])
+		// the layer is a glyph beside the title; a plugin that is not installed has none and keeps its id in the text
+		expect(sc.eventList.value.map(e => (e.data as { layer?: string }).layer)).toEqual(["Priority", "Priority", undefined])
 		expect(sc.eventList.value[0]?.data).toMatchObject({ id: "t1", schedule: "tasks-a" })
 		// only the plugins of the timer's layers are offered for a new task
 		expect(sc.pluginOptions.value).toEqual([{ id: "priority-update", name: "Priority Update" }])
@@ -280,7 +282,7 @@ describe("the timeline follows the schedule", () => {
 		fake.send(changedEvent("/api/schedule"))
 		await settle()
 		await settle()
-		expect(sc.eventList.value[0]?.title).toBe("Renamed (priority-update)")
+		expect(sc.eventList.value[0]?.title).toBe("Renamed")
 		// the window shown and the documents; last week's window is not shown, so it waits until it is
 		expect(mocked.get.mock.calls.slice(asked).map(c => [c[0], (c[1] as { query?: object } | undefined)?.query])).toEqual(
 			[["/api/schedule/timer/list", undefined], ["/api/schedule/tasks/render", { days: 7, start: undefined }]])
