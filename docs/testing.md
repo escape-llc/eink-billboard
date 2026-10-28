@@ -1,0 +1,30 @@
+# Testing, and where the work runs
+
+Read before writing or running a test, or when a test passes on one machine and not another. These sections were moved out of `AGENTS.md` unchanged; `AGENTS.md` keeps the five rules most changes need.
+
+## Test environment
+
+- **No test needs a secret or a private storage.** `storage_path()` (`python/tests/utils.py`) builds one per test run in a temporary folder: the factory defaults (`hard_reset`) plus the synthetic schedules in `python/tests/fixtures/storage/` (nothing real, no keys). It is **read-only**: a test that writes copies it first (`WebApiTestBase` does), or builds its own with `temp_configuration_manager`. So the suite runs on a fork's pull request, in a cloud session and in the container with nothing to restore. The old `TEST_STORAGE_B64` secret and `prepare-test-data.ps1` are gone (#27).
+  A fixture must stay valid for the data sources it names and use only ones the fake internet serves (a playlist track that fails strikes out and the layer tests then see an error). **Tests must not assume `datasources/` or `plugins/` content exists**: the factory storage makes a folder only for what has settings.
+- The headless render tests need the headless browser: `chromium-headless-shell` on `PATH` (Linux), `chrome-headless-shell` on `PATH` (Windows), or whatever `EINK_CHROME` names (a path or a name on `PATH`, set in the environment or in a `.env` file at the repository root, see `.env.example`; no machine's path is in the code; `chrome_command()` in `image_utils.py`, read on every render). In the cloud sandbox:
+  `ln -s /opt/pw-browsers/chromium_headless_shell-*/chrome-linux/headless_shell /usr/local/bin/chromium-headless-shell`.
+- **No test needs the internet.** `python/tests/__init__.py` makes every `AsyncHttpWorkerPool` talk to `python/tests/fake_internet.py`, which answers the comic feeds, the Wikipedia API and the newspaper covers from text fixtures in `python/tests/fixtures/http/` and generated images (real ones are copyrighted); any other URL is a `ConnectError` naming it. A new download in the code under test needs a route there (and a fixture), not a real request.
+  The text fixtures are hand-written in the sites' shapes; `uv run python -m scripts.record_http_fixtures` (needs the internet) replaces them with real answers, and `EINK_TEST_LIVE=1` runs the tests against the real network (the opt-in live check).
+- `tkinter` is mocked in `python/tests/__init__.py`. In production it is imported only for the `tk` display, so a missing Tk fails that display and nothing else.
+- **Never print, log, or commit the contents of storage files**: they can hold API keys. Inspect them with a command that cannot echo values (key names only), not `cat`.
+
+## Where the work runs: cloud, local, container
+
+The same repo is worked on from three places. The rules above are the same everywhere; only the setup differs.
+
+| | Cloud sandbox (Claude Code on the web) | Local (Windows, Claude Code in the IDE) | Local container (Podman or Docker) |
+|---|---|---|---|
+| OS | Linux | Windows | Linux, Debian image as CI |
+| Headless Chromium | preinstalled; symlink it (see Test environment) | point `EINK_CHROME` in `.env` at a `chrome-headless-shell.exe` (Playwright's, under `%LOCALAPPDATA%\ms-playwright`, will do): then **5 skip**, all POSIX-only or a machine setting (tzset, a drive path, symbolic links); without it the render tests skip too | installed in the image: nothing skips but 3 |
+| `gh` / GitHub | needs a valid `GH_TOKEN` with write access to issues, PRs and Discussions; without one, draft session summaries for the maintainer (`SESSION_SUMMARIES.md`) | the maintainer's signed-in `gh`; reads and writes issues, PRs, Discussions | not needed |
+| Browser tests | `npx playwright install chromium` (its preinstalled browser may not match) | `npx playwright install chromium` once per Playwright version | not covered; run on the host |
+| Shell | bash | PowerShell, or Git Bash for POSIX syntax | bash |
+
+- **A test of process handling fakes the browser portably** (`TestChromeRender._browser` in `test_image_utils.py`, #441): a Python script, made runnable by a shebang on POSIX and a `.cmd` shim on Windows, patched in through `chrome_command` (an `EINK_CHROME` would otherwise win), so the Windows branch (`CREATE_NEW_PROCESS_GROUP`, `taskkill /T`) is tested as well as `killpg`; a render test checks for the browser with `chrome_command()`, never the platform's bare name. A skip on Windows is for what only POSIX has, not for a test written in shell.
+- **A Windows run is not the CI run.** The render tests are skipped without a browser, and the POSIX-only tests always. `mypy` is clean on both: **code for one platform branches on `sys.platform`** (`if sys.platform == "win32":`), which the type checker reads and so checks each branch only on its own platform; `platform.system()`, `hasattr` and a skip decorator it cannot read, so they left `os.killpg`, `signal.SIGKILL` and `time.tzset` as errors on Windows (#474). Never reach an attribute through `getattr(obj, "name")` to quiet the checker: narrow the type (`isinstance`, a platform branch) so it knows the attribute is there.
+  Before a PR, run `podman compose run --rm test` (the containers, the Pi kit and Podman on Windows are in `docs/containers-and-deploy.md`): it does what `.github/workflows/unittest.yaml` does (`ruff`, `mypy`, `coverage run -m unittest discover .`) on Linux with Chromium.

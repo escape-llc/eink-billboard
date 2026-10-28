@@ -36,7 +36,7 @@ def _problems(path: str) -> list[str]:
 
 class TestStorageAccess(unittest.TestCase):
 	def test_only_the_configuration_manager_touches_the_storage_files(self):
-		"""Every file access goes through the configuration manager subsystem (AGENTS.md: the chain of trust on paths)."""
+		"""Every file access goes through the configuration manager subsystem (docs/tasks-and-storage.md: the chain of trust on paths)."""
 		offenders = {}
 		for folder, dirs, files in os.walk(PYTHON):
 			dirs[:] = [d for d in dirs if d not in ("tests", "__pycache__", ".storage", "static", "storage", "waveshare_epd")]
