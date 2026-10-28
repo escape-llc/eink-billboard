@@ -458,7 +458,7 @@ class StaticConfigurationManager:
 			raise ValueError(f"root_path {root_path} does not exist.")
 		self.ROOT_PATH = root_path
 #		logger.debug(f"ROOT_PATH: {self.ROOT_PATH}")
-	def enum_fonts(self):
+	def enum_fonts(self) -> list[dict[str, str]]:
 		fonts_list = []
 		for font_family, variants in FONT_FAMILIES.items():
 			for variant in variants:
