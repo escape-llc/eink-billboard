@@ -1,12 +1,4 @@
 import socket
-import subprocess
-
-def get_wifi_name() -> str|None:
-	try:
-		output = subprocess.check_output(['iwgetid', '-r']).decode('utf-8').strip()
-		return output
-	except subprocess.CalledProcessError:
-		return None
 
 def local_address() -> str|None:
 	"""The address of this machine on the network it uses to reach others (nothing is sent), or None when it has none."""

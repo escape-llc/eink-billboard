@@ -418,7 +418,7 @@ class TestWpotd(unittest.IsolatedAsyncioTestCase):
 		self.assertEqual(state[0]["url"], "http://thumb/A.jpg")
 		info = [p for p in seen if p.get("prop") == "imageinfo"][0]
 		self.assertEqual(info["iiurlwidth"], "1600")
-		self.assertIn("url", info["iiprop"])
+		self.assertEqual(info["iiprop"].split("|"), ["url", "extmetadata"])
 	async def test_falls_back_to_original_without_thumbnail(self):
 		def handler(req: httpx.Request):
 			if req.url.params.get("prop") == "images":
@@ -427,6 +427,33 @@ class TestWpotd(unittest.IsolatedAsyncioTestCase):
 		client_var.set(mock_client(handler))
 		state = await WpotdAsync("w", "w").open_async(make_dsec(), {"customDate": "2026-01-02"})
 		self.assertEqual(state[0]["url"], "http://orig/A.jpg")
+	def test_the_credit_is_the_author_and_the_licence(self):
+		meta = lambda **fields: { name: { "value": value } for name, value in fields.items() }
+		# the author is HTML (a link, often), read with a parser: the text only, its character references read
+		self.assertEqual(wpotd.credit_of(meta(Artist='<a href="//commons.wikimedia.org/wiki/User:A">Ana &amp; Bo</a>', LicenseShortName="CC BY-SA 4.0")), "Ana & Bo, CC BY-SA 4.0")
+		self.assertEqual(wpotd.credit_of(meta(LicenseShortName="Public domain")), "Public domain")
+		self.assertEqual(wpotd.credit_of(meta(Artist="<span><bdi>Someone</bdi></span>")), "Someone")
+		for missing in (None, {}, "text", { "Artist": "not an entry" }, meta(Artist="<br>")):
+			with self.subTest(metadata=missing):
+				self.assertEqual(wpotd.credit_of(missing), "")
+	async def test_the_page_title_carries_the_credit(self):
+		def handler(req: httpx.Request):
+			if req.url.params.get("prop") == "images":
+				return httpx.Response(200, json={"query": {"pages": [{"images": [{"title": "File:A.jpg"}]}]}})
+			if req.url.params.get("prop") == "imageinfo":
+				return httpx.Response(200, json={"query": {"pages": {"1": {"imageinfo": [{"url": "http://orig/A.png", "extmetadata": {
+					"Artist": {"value": "<a href='x'>Ana</a>"}, "LicenseShortName": {"value": "CC BY 4.0"}}}]}}}})
+			return httpx.Response(200, content=png_bytes((400, 300)), headers={"Content-Type": "image/png"})
+		client_var.set(mock_client(handler))
+		ds = WpotdAsync("w", "w")
+		state = await ds.open_async(make_dsec(), {"customDate": "2026-01-02"})
+		result = await ds.render_async(make_dsec(), {}, state[0])
+		assert result is not None
+		self.assertEqual(result.title, "Wikipedia Picture of the Day: 2026-01-02 (Ana, CC BY 4.0)")
+		# with no credit, the title is as it was
+		result = await ds.render_async(make_dsec(), {}, { **state[0], "credit": "" })
+		assert result is not None
+		self.assertEqual(result.title, "Wikipedia Picture of the Day: 2026-01-02")
 	async def test_svg_error_names_the_datasource(self):
 		ds = WpotdAsync("w", "My Wiki Source")
 		with self.assertLogs(wpotd.__name__, level="WARNING") as logs, self.assertRaises(RuntimeError) as cm:
