@@ -24,7 +24,6 @@ STORAGES = [os.path.join(ROOT, "tests", "fixtures", "storage"), os.path.join(REP
 
 # required, and the user supplies the value: a track or task of this source is not valid until they do
 USER_SUPPLIED = {
-	("source", "clock", "clockFace"), ("source", "clock", "primaryColor"), ("source", "clock", "secondaryColor"),
 	("source", "countdown", "title"), ("source", "countdown", "targetDate"),
 	("source", "image-folder", "folder"), ("source", "ai-image", "prompt"), ("source", "rss", "feed"),
 	("source", "today", "customFormat"), ("source", "comicvine-covers", "series"), ("source", "image-url", "picture"),

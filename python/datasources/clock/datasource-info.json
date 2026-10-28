@@ -3,12 +3,18 @@
 	"name": "Clock",
 	"version": "0.0.1",
 	"class": "ClockAsync",
-	"file": "clock.py",
-	"module": "python.datasources.clock.clock",
-	"description": "The time, drawn on a clock face you choose (gradient, digital, divided or in words) in two colors of your own. Also a Priority Update, such as a clock on the hour.",
-	"describe": "Clock {clockFace}",
+	"file": "clock_face.py",
+	"module": "python.datasources.clock.clock_face",
+	"description": "The time, on a clock face you choose: painted dials with turning hands, a digital clock or the time in words, drawn in the theme's inks. Also a Priority Update, such as a clock on the hour.",
+	"describe": "Clock {face}",
 	"disabled": false,
 	"features": ["layer-foreground", "layer-priority", "media-image"],
+	"router": {
+		"id": "clock-router",
+		"class": "clock_router",
+		"file": "api.py",
+		"module": "python.datasources.clock.api"
+	},
 	"settings": {
 		"_schema": "urn:inky:storage:schema:datasource:clock:1",
 		"schema": {
@@ -20,39 +26,34 @@
 	"instanceSettings": {
 		"schema": {
 			"lookups": {
+				"face": { "url": "/api/datasource/clock/faces" },
+				"shadow": {
+					"items": [
+						{ "name": "As the face draws it", "value": "face" },
+						{ "name": "Soft", "value": "soft" },
+						{ "name": "Solid", "value": "solid" },
+						{ "name": "None", "value": "none" }
+					]
+				}
 			},
 			"properties": [
 				{
-					"name": "clockFace",
+					"name": "face",
 					"type": "string",
+					"lookup": "face",
 					"required": true,
-					"default": null,
-					"title": "Clock Face",
-					"description": "The clock face.",
-					"enum": [
-						"Gradient Clock",
-						"Digital Clock",
-						"Divided Clock",
-						"Word Clock"
-					]
+					"default": "brass",
+					"title": "Face",
+					"description": "The clock face."
 				},
 				{
-					"name": "primaryColor",
+					"name": "shadow",
 					"type": "string",
-					"format": "color",
-					"required": true,
-					"default": null,
-					"title": "Primary Color",
-					"description": "The primary color."
-				},
-				{
-					"name": "secondaryColor",
-					"type": "string",
-					"format": "color",
-					"required": true,
-					"default": null,
-					"title": "Secondary Color",
-					"description": "The secondary color."
+					"lookup": "shadow",
+					"required": false,
+					"default": "face",
+					"title": "Hand Shadows",
+					"description": "How the hands' shadows are drawn, on a painted face that has them: soft as painted, solid black, or not at all."
 				}
 			]
 		}

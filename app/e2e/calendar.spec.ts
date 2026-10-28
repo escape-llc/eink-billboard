@@ -71,6 +71,23 @@ test("a calendar row shows the sign-in fields its choice needs, and its password
 	watch.expectNone()
 })
 
+test("a color field is picked or typed, and a value that is not a color is refused on the field", async ({ page }) => {
+	const watch = watchProblems(page)
+	await openCalendarSettings(page)
+	const rows = calendars(page)
+	const color = rows.getByRole("textbox", { name: "Color 1", exact: true })
+	await expect(color).toHaveValue("#3366cc")
+	await expect(rows.getByLabel("Color 1 picker")).toBeVisible()
+	await color.fill("blue")
+	await expect(rows.getByText("Enter a color like #3366cc")).toBeVisible()
+	await color.fill("#123abc")
+	await expect(rows.getByText("Enter a color like #3366cc")).toBeHidden()
+	await saveButton(page).click()
+	await expect(page.getByText("Settings saved successfully")).toBeVisible()
+	await expect.poll(() => JSON.parse(fs.readFileSync(FILE, "utf8")).calendars[0].color).toBe("#123abc")
+	watch.expectNone()
+})
+
 test("a holiday row chooses its country from the list the server sends", async ({ page }) => {
 	const watch = watchProblems(page)
 	await openCalendarSettings(page)

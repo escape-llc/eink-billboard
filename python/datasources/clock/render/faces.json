@@ -1,0 +1,21 @@
+{
+	"faces": [
+		{"id": "brass", "name": "Brass", "size": 512, "hours": 12, "dial": "clock_face_512", "hour": {"image": "clock_hour_512"}, "minute": {"image": "clock_minute_512"}, "shadow": {"style": "none"}, "credit": "eScape"},
+		{"id": "copper", "name": "Copper", "size": 512, "hours": 12, "dial": "clock_2_face_512", "hour": {"image": "clock_2_hour_512"}, "minute": {"image": "clock_2_minute_512"}, "shadow": {"style": "none"}, "credit": "eScape"},
+		{"id": "roman-red", "name": "Roman Red", "size": 512, "hours": 12, "dial": "clock_3_face_512", "hour": {"image": "clock_4_hour_512"}, "minute": {"image": "clock_4_minute_512"}, "shadow": {"style": "none"}, "credit": "eScape"},
+		{"id": "roman-blue", "name": "Roman Blue", "size": 512, "hours": 12, "dial": "clock_4_face_512", "hour": {"image": "clock_4_hour_512"}, "minute": {"image": "clock_4_minute_512"}, "shadow": {"style": "none"}, "credit": "eScape"},
+		{"id": "cream", "name": "Cream", "size": 512, "hours": 12, "dial": "clock_5_face_512", "hour": {"image": "clock_5_hour_512"}, "minute": {"image": "clock_5_minute_512"}, "shadow": {"style": "none"}, "credit": "eScape"},
+		{"id": "parchment", "name": "Parchment", "size": 512, "hours": 12, "dial": "clock_6_face_512", "hour": {"image": "clock_5_hour_512"}, "minute": {"image": "clock_5_minute_512"}, "shadow": {"style": "none"}, "credit": "eScape"},
+		{"id": "crackle", "name": "Crackle", "size": 512, "hours": 12, "dial": "clock_7_face_512", "hour": {"image": "clock_5_hour_512"}, "minute": {"image": "clock_5_minute_512"}, "shadow": {"style": "none"}, "credit": "eScape"},
+		{"id": "framed", "name": "Framed", "size": 512, "hours": 12, "dial": "clock_8_face_512", "hour": {"image": "clock_8_hour_512"}, "minute": {"image": "clock_8_minute_512"}, "shadow": {"style": "none"}, "credit": "eScape"},
+		{"id": "roman-classic", "name": "Roman Classic", "size": 512, "hours": 12, "dial": "clock_9_face_512", "hour": {"image": "clock_9_hour_512", "shadow": "clock_9_hour_shadow_512"}, "minute": {"image": "clock_9_minute_512", "shadow": "clock_9_minute_shadow_512"}, "shadow": {"style": "soft", "offset": [0.012, 0.018]}, "credit": "eScape"},
+		{"id": "roman-spade", "name": "Roman Spade", "size": 512, "hours": 12, "dial": "clock_9_face_512", "hour": {"image": "clock_9_hour2_512", "shadow": "clock_9_hour2_shadow_512"}, "minute": {"image": "clock_9_minute2_512", "shadow": "clock_9_minute2_shadow_512"}, "shadow": {"style": "soft", "offset": [0.012, 0.018]}, "credit": "eScape"},
+		{"id": "aviator", "name": "Aviator 24", "size": 512, "hours": 24, "dial": "clock_10_face_512", "hour": {"image": "clock_10_hour_512", "shadow": "clock_10_hour_shadow_512"}, "minute": {"image": "clock_10_minute_512", "shadow": "clock_10_minute_shadow_512"}, "shadow": {"style": "soft", "offset": [0.012, 0.018]}, "credit": "eScape"},
+		{"id": "pilot-green", "name": "Pilot Green", "size": 512, "hours": 12, "dial": "clock_11_face_512", "hour": {"image": "clock_12_hour_512", "shadow": "clock_12_hour_shadow_512"}, "minute": {"image": "clock_12_minute_512", "shadow": "clock_12_minute_shadow_512"}, "shadow": {"style": "soft", "offset": [0.012, 0.018]}, "credit": "eScape"},
+		{"id": "pilot-silver", "name": "Pilot Silver", "size": 512, "hours": 12, "dial": "clock_11_face_512", "hour": {"image": "clock_13_hour_512", "shadow": "clock_13_hour_shadow_512"}, "minute": {"image": "clock_13_minute_512", "shadow": "clock_13_minute_shadow_512"}, "shadow": {"style": "soft", "offset": [0.012, 0.018]}, "credit": "eScape"},
+		{"id": "digital", "name": "Digital", "kind": "digital", "unlit": "outline"},
+		{"id": "digital-plain", "name": "Digital Plain", "kind": "digital", "unlit": "none"},
+		{"id": "words", "name": "Words", "kind": "words", "unlit": "secondary"},
+		{"id": "words-lit", "name": "Words, Lit Only", "kind": "words", "unlit": "none"}
+	]
+}

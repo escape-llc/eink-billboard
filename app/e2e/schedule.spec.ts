@@ -79,7 +79,7 @@ test("editing a task saves just that task, and the timeline shows the change", a
 	await expect.poll(() => storedTask("task1").title).toBe("Renamed quarter-hour clock")
 	// nothing else changed
 	expect(storedTask("task2").title).toBe("Paused year progress")
-	expect(storedTask("task1").task.content.clockFace).toBe("Gradient Clock")
+	expect(storedTask("task1").task.content.face).toBe("brass")
 	await expect(page.locator(".event").filter({ hasText: "Renamed quarter-hour clock" }).first()).toBeVisible()
 	watch.expectNone()
 })
@@ -274,19 +274,17 @@ test("a server problem with a field shows on the form", async ({ page }) => {
 	watch.expectNone()
 })
 
-test("a color field is picked or typed, and a value that is not a color is refused on the field", async ({ page }) => {
+test("the clock's faces are the server's catalogue, and the chosen one is saved", async ({ page }) => {
 	const watch = watchProblems(page)
 	await openFirstQuarterHourTask(page)
-	const color = dialog(page).getByRole("textbox", { name: "Primary Color", exact: true })
-	await expect(color).toHaveValue("#db3246")
-	await expect(dialog(page).getByLabel("Primary Color picker")).toBeVisible()
-	await color.fill("blue")
-	await expect(dialog(page).getByText("Enter a color like #3366cc")).toBeVisible()
-	await color.fill("#123abc")
-	await expect(dialog(page).getByText("Enter a color like #3366cc")).toBeHidden()
+	// by its id: a select's accessible name is its value, and "As the face draws it" (the shadows) would match "Face"
+	const face = dialog(page).locator("#face")
+	await expect(face).toContainText("Brass")
+	await face.click()
+	await page.getByRole("option", { name: "Digital", exact: true }).click()
 	await dialog(page).getByRole("button", { name: "Save", exact: true }).last().click()
 	await expect(page.getByText("Task saved")).toBeVisible()
-	await expect.poll(() => storedTask("task1").task.content.primaryColor).toBe("#123abc")
+	await expect.poll(() => storedTask("task1").task.content.face).toBe("digital")
 	watch.expectNone()
 })
 

@@ -302,6 +302,27 @@ class DatasourceConfigurationManager:
 			return []
 		return sorted(f[:-4] for f in os.listdir(self.ROOT_PATH) if f.startswith(prefix) and f.endswith(".bin") and _LEAF.match(f[:-4]))
 
+class DatasourceAssetsManager:
+	"""
+	What a data source ships in its `render` folder (the clock's faces: artwork and the catalogue that names it), read-only and by name.
+	Rooted by the ConfigurationManager (`datasource_assets`); a name is a leaf and the manager adds the extension, so nothing outside the folder is reached.
+	"""
+	def __init__(self, root_path: str):
+		self.ROOT_PATH = root_path
+	# two managers of one folder are the same manager, so what is cached for one (a decoded picture) serves the other
+	def __eq__(self, other: object) -> bool:
+		return isinstance(other, DatasourceAssetsManager) and other.ROOT_PATH == self.ROOT_PATH
+	def __hash__(self) -> int:
+		return hash(self.ROOT_PATH)
+	def read_json(self, name: str) -> dict|None:
+		"""`<name>.json`, or None when it is not there or is not JSON."""
+		return _internal_load(os.path.join(self.ROOT_PATH, f"{leaf_name(name)}.json"))
+	def read_png(self, name: str) -> bytes|None:
+		"""The bytes of `<name>.png`, or None when it is not there."""
+		return load_bytes(os.path.join(self.ROOT_PATH, f"{leaf_name(name)}.png"))
+	def has_png(self, name: str) -> bool:
+		return os.path.isfile(os.path.join(self.ROOT_PATH, f"{leaf_name(name)}.png"))
+
 class PluginConfigurationManager:
 	"""
 	Manage settings, state, etc. for a plugin.
@@ -438,7 +459,7 @@ FONT_FAMILIES: dict[str, list[FontVariant]] = {
 		{ "font-weight": "normal", "file": os.path.join("Bitter", "Bitter-Variable.ttf"), "wght": 400 },
 		{ "font-weight": "bold", "file": os.path.join("Bitter", "Bitter-Variable.ttf"), "wght": 700 },
 	],
-	# the clock's digits (clock.py): as a body, heading or overlay font it turns words into segments, so it is shipped and not offered
+	# the clock's digits (clock/digital.py): as a body, heading or overlay font it turns words into segments, so it is shipped and not offered
 	"DSEG7": [
 		{ "font-weight": "normal", "file": os.path.join("DSEG7", "DSEG7Classic-Regular.ttf") },
 		{ "font-weight": "bold", "file": os.path.join("DSEG7", "DSEG7Classic-Bold.ttf") },
@@ -1168,6 +1189,9 @@ class ConfigurationManager(ConfigurationObjectFactory):
 	def datasource_render_dir(self, folder: str) -> str:
 		"""The `render` folder of a data source (its page templates), by the name of its folder under `datasources`: from the source root, not from where the module happens to be."""
 		return os.path.join(self.ROOT_PATH, "datasources", leaf_name(folder), "render")
+	def datasource_assets(self, folder: str) -> DatasourceAssetsManager:
+		"""The files a data source ships in its `render` folder, read by name (`DatasourceAssetsManager`)."""
+		return DatasourceAssetsManager(self.datasource_render_dir(folder))
 	def enum_datasources(self) -> list[CollectInfoDict]:
 		"""Reads the datasource-info.json config JSON from each datasource folder. Excludes the base datasource."""
 		# Iterate over all plugin folders

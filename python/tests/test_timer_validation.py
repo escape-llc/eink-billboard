@@ -14,7 +14,7 @@ from .utils import ConstantTimeOfDay, MessageCollectSink, temp_configuration_man
 
 NOW = datetime(2024, 1, 1, 8, 0, tzinfo=ZoneInfo("America/New_York"))
 GOOD_TRIGGER: Any = { "on_startup": False, "day": { "type": "dayofweek", "days": [0] }, "time": { "type": "specific", "hour": 9, "minute": 0 } }
-GOOD: Any = { "dataSource": "clock", "clockFace": "Gradient Clock", "primaryColor": "#db3246", "secondaryColor": "#000000", "slideMinutes": 1 }
+GOOD: Any = { "dataSource": "clock", "face": "brass", "slideMinutes": 1 }
 
 def entry(*items: TimerTaskItem) -> Any:
 	return { "info": TimerTasks("d", "D", list(items)), "name": "d.json", "path": "d.json", "type": "x" }
