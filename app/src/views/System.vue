@@ -45,6 +45,13 @@
 					<dt>Python</dt><dd>{{ info.host.python }}</dd>
 					<dt>Machine up for</dt><dd>{{ formatUptime(info.host.uptime_seconds) }}</dd>
 					<dt>App running for</dt><dd data-testid="app-uptime">{{ formatUptime(info.host.app_uptime_seconds) }}</dd>
+					<template v-if="info.host.clock">
+						<dt>Clock</dt>
+						<dd data-testid="clock">
+							<Tag v-if="info.host.clock === 'synced'" severity="success" value="Set by the network" />
+							<Tag v-else severity="warn" value="Not set yet: what shows the time may be wrong" />
+						</dd>
+					</template>
 					<dt>Processor</dt>
 					<dd>
 						{{ info.host.cpus }} {{ info.host.cpus === 1 ? "core" : "cores" }}<template v-if="info.load.cpu_percent !== undefined">, {{ info.load.cpu_percent }}% busy</template>

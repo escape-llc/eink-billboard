@@ -20,6 +20,7 @@ from .model.configuration_manager_eviction_sink import ConfigurationManagerEvict
 from .model.service_container import ServiceContainer
 from .task.fanout_sink import FanoutSink
 from .model.time_of_day import ConfiguredTimeOfDay, TimeOfDay
+from .model.clock_sync import ClockSync
 from .model.configuration_manager import ConfigurationManager
 from .datasources.metering import METER
 
@@ -207,6 +208,8 @@ def run_application(args: argparse.Namespace) -> None:
 		root = ServiceContainer()
 		root.add_service(ConfigurationManager, cm)
 		root.add_service(TimeOfDay, time_base)
+		# whether the system clock is set yet: the layers wait for it (#785)
+		root.add_service(ClockSync, ClockSync())
 		root.add_service(TelemetryHub, sink)
 		root.add_service(Application, xapp)
 		# where people open the web app, for the panel's error pages ("Check the settings in the web app at ...")

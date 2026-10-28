@@ -69,6 +69,8 @@ GROUPS_NEEDED=(spi i2c gpio)
 # the app inside the image
 PY=/opt/venv/bin/python
 READY_SECONDS=90
+# where systemd-timesyncd says it has set the clock (python/model/clock_sync.py), mounted read-only at the same path
+TIMESYNC_DIR=/run/systemd/timesync
 
 say() { printf '%s\n' "$*"; }
 warn() { printf 'WARNING: %s\n' "$*" >&2; }
@@ -697,11 +699,14 @@ cmd_start() {
 			tls_args+=(--ssl-certfile "/run/secrets/$SECRET_CERT" --ssl-keyfile "/run/secrets/$SECRET_KEY")
 		fi
 	fi
+	# timesyncd says in this folder when it has set the clock (it creates `synchronized`): the app holds its pages until then (#785). No such folder (another time service): the app does not wait
+	local clock=()
+	[ -d "$TIMESYNC_DIR" ] && clock=(-v "$TIMESYNC_DIR:$TIMESYNC_DIR:ro")
 
 	if ! podman run -d --name "$NAME" --restart unless-stopped \
 		-p "$PORT:8080" -v "$VOLUME:/data" \
 		-e EINK_PUBLIC_URL="$url" -e EINK_ALLOW_HOSTS="$hosts" "${token[@]}" \
-		"${devices[@]}" "${tls_mounts[@]}" \
+		"${devices[@]}" "${tls_mounts[@]}" "${clock[@]}" \
 		"$IMAGE" uv run --no-sync python -m python.eink-billboard --host 0.0.0.0 --port 8080 --storage /data --app /work/app/dist "${tls_args[@]}" >/dev/null; then
 		fail "the app did not start: the lines above say why. '$SCRIPT check' looks at everything."
 	fi

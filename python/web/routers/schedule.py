@@ -367,7 +367,7 @@ def timer_item_run(doc_id: str, item_id: str, request: Request, cm: CM):
 	if check_item_shape(stored) or _item_validator(cm)(stored):
 		raise ApiError(409, "The task is not valid; fix it first.", item_id)
 	if not application_of(request).run_task(item_id):
-		raise ApiError(503, "The device is not ready to run it: it is still starting or has not been claimed yet.", item_id)
+		raise ApiError(503, "The device is not ready to run it: it is still starting, waiting for its clock to be set, or has not been claimed yet.", item_id)
 	return { "success": True }
 
 @router.post('/timer/{doc_id}/items', status_code=201, **described(TaskSaved, 201))

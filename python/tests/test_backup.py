@@ -61,7 +61,8 @@ class TestSealedArchive(unittest.TestCase):
 
 	def test_nothing_in_the_file_can_be_read_without_the_passphrase(self):
 		blob = seal(self.files, PASSPHRASE)
-		for hidden in (b"system-settings", b"slide-show", b"timeFormat", b"PK"):
+		# the ZIP's records by their 4-byte signatures (a file's header, the directory's end): `PK` alone turns up in random ciphertext about once in 130 runs
+		for hidden in (b"system-settings", b"slide-show", b"timeFormat", b"PK\x03\x04", b"PK\x05\x06"):
 			self.assertNotIn(hidden, blob)
 		self.assertTrue(blob.startswith(MAGIC))
 

@@ -1,6 +1,7 @@
 """What the device and its storage look like, for the System page (#390): the machine (`system_info.py`), the storage by area and by plugin and data source, and the Pi's own readings when it is one."""
 import asyncio
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, Depends
 
@@ -22,6 +23,8 @@ class Host(Answer):
 	cpus: int
 	uptime_seconds: int | None = None
 	app_uptime_seconds: int | None = None
+	# `synced` once the network has set the clock, `unsynced` until then (#785); left out when the machine has no timesyncd to ask
+	clock: Literal["synced", "unsynced"] | None = None
 
 class Memory(Answer):
 	total: int
