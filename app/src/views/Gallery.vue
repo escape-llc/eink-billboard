@@ -33,7 +33,7 @@
 						</button>
 						<div class="caption">
 							<span class="title" :title="nameOf(item)">{{ nameOf(item) }}</span>
-							<span class="muted small">{{ originOf(item) }} · {{ deviceMoment(item.added) }}</span>
+							<span class="muted small">{{ originOf(item, sourceNames) }} · {{ deviceMoment(item.added) }}</span>
 						</div>
 						<div class="card-actions">
 							<Button size="small" text type="button" :icon="item.pinned ? 'mi mi-keep-off' : 'mi mi-keep'" :disabled="busy"
@@ -58,7 +58,7 @@
 						</div>
 						<div class="card-actions">
 							<Button size="small" text type="button" icon="mi mi-add-photo-alternate" :disabled="busy" :aria-label="`Save ${shownTitle(e)} to the Gallery`"
-								title="Save to the Gallery, as it was shown" data-testid="save-shown" @click="saveShown(e)" />
+								:title="hasOriginal(e) ? 'Save the picture this page was made from to the Gallery' : 'Save to the Gallery, as it was shown'" data-testid="save-shown" @click="saveShown(e)" />
 						</div>
 					</li>
 				</ul>
@@ -87,7 +87,11 @@
 	<Dialog :visible="full !== null" modal :header="full ? shownTitle(full) : ''" @update:visible="v => { if (!v) full = null }" style="max-width:95vw">
 		<img v-if="full" class="full" :src="link.imageUrl(full.values?.digest, 'full')" :alt="shownTitle(full)" />
 		<template #footer>
-			<Button v-if="full" size="small" type="button" icon="mi mi-add-photo-alternate" label="Save to Gallery" :disabled="busy" data-testid="save-full" @click="saveShown(full)" />
+			<template v-if="full">
+				<Button v-if="hasOriginal(full)" size="small" severity="secondary" type="button" label="Save as shown" title="Save the panel's picture, with its overlays" :disabled="busy" data-testid="save-as-shown" @click="saveShown(full, true)" />
+				<Button size="small" type="button" icon="mi mi-add-photo-alternate" :label="hasOriginal(full) ? 'Save original' : 'Save to Gallery'"
+					:title="hasOriginal(full) ? 'Save the picture this page was made from' : 'Save the picture as it was shown'" :disabled="busy" data-testid="save-full" @click="saveShown(full)" />
+			</template>
 		</template>
 	</Dialog>
 	</div>
@@ -97,12 +101,13 @@
  * The Gallery page (#517): the pictures the Gallery keeps (#238), to look at full screen, pin (never let go to make room) or remove, and to add
  * from this computer; and what the panel showed lately (as on the System page), to save to the Gallery as it was shown.
  */
-import { ref } from "vue"
+import { computed, ref } from "vue"
 import { Button, Dialog, Galleria, Tab, TabList, TabPanel, TabPanels, Tabs, ToggleSwitch, Toolbar, useToast } from "primevue"
 import { useConfirm } from "primevue/useconfirm"
 import { clockOf, useTelemetry, type TelemetryEvent } from "../components/TelemetryLink"
 import { deviceMoment, formatBytes } from "../components/SystemFormat"
-import { ACCEPT, galleryImageUrl, originOf, useGallery, type GalleryItem } from "../composables/useGallery"
+import { ACCEPT, galleryImageUrl, hasOriginal, originOf, useGallery, type GalleryItem } from "../composables/useGallery"
+import { useCatalog } from "../api/resources"
 import { shownTitle, useRecentlyShown } from "../composables/useRecentlyShown"
 
 const toast = useToast()
@@ -112,6 +117,9 @@ const { shown, totals, loading, failed, pinnedOnly, busy, pin, remove, upload, s
 // the app's one link (App.vue opens it): the pictures the panel showed
 const link = useTelemetry()
 const { recent } = useRecentlyShown(link)
+// the data sources by id, to say where a picture came from in their own names
+const { dataSources } = useCatalog()
+const sourceNames = computed(() => Object.fromEntries((dataSources.data.value ?? []).map(d => [d.id, d.name])))
 
 const tab = ref("pictures")
 const picker = ref<HTMLInputElement | null>(null)

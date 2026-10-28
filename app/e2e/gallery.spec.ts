@@ -84,6 +84,11 @@ test("what the panel showed is saved to the Gallery from the Recently shown tab,
 	await expect(recent).toBeVisible({ timeout: 20000 })
 	await recent.getByTestId("save-shown").click()
 	await expect(page.getByText(/The picture was added to the Gallery\.|That picture is in the Gallery already\./).first()).toBeVisible()
+	// the test playlist's slides are the Image Folder's (the person's own files): no original, so the full-size view saves the picture as shown (#768)
+	await recent.getByRole("button", { name: /full size/ }).click()
+	await expect(page.getByTestId("save-full")).toHaveText("Save to Gallery")
+	await expect(page.getByTestId("save-as-shown")).toHaveCount(0)
+	await page.keyboard.press("Escape")
 	await page.getByRole("tab", { name: "Pictures" }).click()
 	await expect(page.getByTestId("gallery-grid").getByText("Saved from the panel").first()).toBeVisible()
 

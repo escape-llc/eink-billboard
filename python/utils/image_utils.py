@@ -97,6 +97,13 @@ def to_rgb(img: Image.Image) -> Image.Image:
 		return Image.alpha_composite(background, rgba).convert("RGB")
 	return img.convert("RGB")
 
+def keep_as_jpeg(img: Image.Image) -> bytes:
+	"""A picture as the Gallery keeps it: a JPEG at high quality (a drawn picture or a photograph; a PNG of it would be several times as large).
+	One encoder for every way in (a producer, an upload, a page's original the display kept), so the same picture is the same bytes and is kept once."""
+	out = io.BytesIO()
+	to_rgb(img).save(out, "JPEG", quality=92)
+	return out.getvalue()
+
 def blurred_margin(img: Image.Image, size: tuple[int, int], enlarge: bool = True) -> Image.Image:
 	"""
 	`img` fitted inside `size` (the whole picture, never cropped, the aspect ratio kept) and centred on a blurred, enlarged copy of itself, so the margin

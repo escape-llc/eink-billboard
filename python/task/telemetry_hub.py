@@ -26,6 +26,7 @@ from typing import Any, Mapping
 from PIL import Image
 
 from .configure_event import ConfigureNotify
+from .display_messages import KeptOriginal
 from .messages import BasicMessage, Telemetry
 from .protocols import MessageSink
 
@@ -121,6 +122,8 @@ class Snapshot:
 	digest: str
 	image: Image.Image
 	png: dict[str, bytes] = field(default_factory=dict)
+	# the picture the page was made from (#768), when it had one: what "Save to Gallery" keeps
+	original: KeptOriginal|None = None
 
 class TelemetryHub(MessageSink):
 	"""The `telemetry` route's sink: a ring of recent events, live subscribers, and the images the panel showed last."""
@@ -169,6 +172,7 @@ class TelemetryHub(MessageSink):
 			return None
 		values = dict(msg.values or {})
 		image = values.pop("image", None)
+		original = values.pop("original", None)
 		message = values.pop("message", None)
 		detail = values.pop("detail", None)
 		kind = values.pop("kind", None) or _KINDS.get((msg.name, str(values.get("state"))), str(values.get("state") or "event"))
@@ -182,15 +186,22 @@ class TelemetryHub(MessageSink):
 		if isinstance(detail, str) and detail:
 			event["detail"] = detail[:MAX_DETAIL]
 		if kind == "shown" and isinstance(image, Image.Image) and isinstance(values.get("digest"), str):
-			self._keep_image(values["digest"], image)
+			kept = original if isinstance(original, KeptOriginal) else None
+			self._keep_image(values["digest"], image, kept)
+			# the page says it has an original (the web app offers to save it); the picture itself stays here
+			if kept is not None:
+				event["values"]["original"] = True
 		return event
 
-	def _keep_image(self, digest: str, image: Image.Image) -> None:
+	def _keep_image(self, digest: str, image: Image.Image, original: KeptOriginal|None = None) -> None:
 		with self._lock:
 			if digest in self._images:
 				self._images.move_to_end(digest)
+				# the same panel picture from another page: the newest original is the one it was made from
+				if original is not None:
+					self._images[digest].original = original
 				return
-			self._images[digest] = Snapshot(digest, image.copy())
+			self._images[digest] = Snapshot(digest, image.copy(), original=original)
 			while len(self._images) > self._max_images:
 				self._images.popitem(last=False)
 
@@ -234,6 +245,12 @@ class TelemetryHub(MessageSink):
 		with self._lock:
 			snap = self._images.get(digest)
 		return snap.image.copy() if snap is not None else None
+
+	def original(self, digest: str) -> KeptOriginal|None:
+		"""The picture a kept image was made from (#768), as a JPEG with its source; None when it had none or the digest is not one of ours."""
+		with self._lock:
+			snap = self._images.get(digest)
+		return snap.original if snap is not None else None
 
 	def image(self, digest: str, size: str = "thumb") -> bytes|None:
 		"""A kept image as PNG, full size or a thumbnail (made once). None when the digest is not one of ours."""

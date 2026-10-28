@@ -64,11 +64,12 @@ class WpotdAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		if image is None:
 			self.logger.error(f"'{self.name}' Failed to download image.")
 			raise RuntimeError(f"'{self.name}' Failed to download image.")
+		original = image
 		if params.get("shrinkToFit"):
 			max_width, max_height = target_dimensions(dsec)
 			image = self._shrink_to_fit(image, max_width, max_height)
 			self.logger.info(f"'{self.name}' Image resized: {max_width},{max_height}")
-		return MediaRenderResult(image=enhanced(dsec, image), title=f"Wikipedia Picture of the Day: {state.get('date', 'Unknown Date')}")
+		return MediaRenderResult(image=enhanced(dsec, image), title=f"Wikipedia Picture of the Day: {state.get('date', 'Unknown Date')}", original=original)
 		pass
 	def _shrink_to_fit(self, image: Image.Image, max_width: int, max_height: int) -> Image.Image:
 		"""

@@ -23,7 +23,7 @@ from ...model.time_of_day import TimeOfDay
 from ...plugins.plugin_base import PermanentError
 from ...task.message_router import MessageRouter
 from ...task.messages import Telemetry
-from ...utils.image_utils import blurred_margin, to_rgb
+from ...utils.image_utils import blurred_margin, keep_as_jpeg, to_rgb
 from ..data_source import DataSource, DataSourceExecutionContext, DataSourceMessage, MediaListAsync, MediaRenderAsync, MediaRenderResult, target_dimensions, enhanced
 from .offer import CHANGED, GalleryOffer
 from .store import GalleryStore, Kept, bounds
@@ -42,10 +42,8 @@ def _kb(size: int) -> str:
 	return f"{size / 1024:.0f} KB" if size >= 1024 else f"{size} bytes"
 
 def encode(image: Image.Image) -> bytes:
-	"""A picture as the Gallery keeps it: a JPEG at high quality (a drawn picture or a photograph; a PNG of it would be several times as large)."""
-	out = io.BytesIO()
-	to_rgb(image).save(out, "JPEG", quality=92)
-	return out.getvalue()
+	"""A picture as the Gallery keeps it (`keep_as_jpeg`: the display keeps a page's original the same way)."""
+	return keep_as_jpeg(image)
 
 class GalleryAsync(DataSource, MediaListAsync, MediaRenderAsync):
 	def accept(self, msg: DataSourceMessage) -> None:

@@ -11,7 +11,7 @@ from ...model.configuration_manager import ConfigurationManager, DatasourceConfi
 from ...model.schedule import PlaylistSchedule
 from ...task.messages import BasicMessage
 from ...task.display import DisplayImage
-from ...task.display_messages import DISPLAY_LAYERS, DisplayLayer
+from ...task.display_messages import DISPLAY_LAYERS, DisplayLayer, SourcePicture
 from ...task.message_router import MessageRouter
 from ...task.timer import IProvideTimer
 
@@ -142,7 +142,10 @@ class SlideShowAsync(PluginAsync):
 						continue
 					count += 1
 					if mrr is not None:
-						router.send("display", DisplayImage(context.timestamp, mrr.title if mrr.title is not None else track.title, mrr.image, layer=result_layer(layer, settings.get("showAs"), mrr)))
+						# the picture it was made from goes along, for "Save to Gallery" (#768)
+						original = SourcePicture(mrr.original, dataSourceName) if mrr.original is not None else None
+						router.send("display", DisplayImage(context.timestamp, mrr.title if mrr.title is not None else track.title, mrr.image,
+							layer=result_layer(layer, settings.get("showAs"), mrr), original=original))
 					# shown: off the list now, so a restart or a cancel during the wait does not show it twice
 					kept.drop()
 					if mrr is not None:

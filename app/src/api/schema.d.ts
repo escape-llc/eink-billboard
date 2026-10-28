@@ -268,7 +268,8 @@ export interface paths {
         put?: never;
         /**
          * Save Shown
-         * @description Keep a picture the panel showed lately (its digest is in the telemetry), as it was shown: with any caption or overlay drawn on it, not the photograph alone.
+         * @description Keep a picture the panel showed lately (its digest is in the telemetry). A page made from a picture (a picture source's slide: its event says `original`) is kept as
+         *     that picture, before it was fitted, under the data source's id (#768); any other page, or `asShown`, as the panel showed it, with any caption or overlay drawn on it.
          */
         post: operations["save_shown_api_datasource_gallery_items_from_display_post"];
         delete?: never;
@@ -1581,7 +1582,7 @@ export interface components {
         };
         /**
          * KeepAnswer
-         * @description What keeping a picture did: `kept` is false for one already there (`duplicate`); `id` names it either way.
+         * @description What keeping a picture did: `kept` is false for one already there (`duplicate`); `id` names it either way. `original` says a shown page was kept as the picture it was made from.
          */
         KeepAnswer: {
             /** Id */
@@ -1590,6 +1591,11 @@ export interface components {
             kept: boolean;
             /** Message */
             message: string;
+            /**
+             * Original
+             * @default false
+             */
+            original: boolean;
             /** Success */
             success: boolean;
         };
@@ -2711,6 +2717,11 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /**
+                     * Asshown
+                     * @default false
+                     */
+                    asShown?: boolean;
                     /** Digest */
                     digest: string;
                     /**

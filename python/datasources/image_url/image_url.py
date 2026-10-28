@@ -63,11 +63,11 @@ class ImageUrlAsync(DataSource, MediaListAsync, MediaRenderAsync):
 		if state is None:
 			return None
 		url = address_of(state.get("url") if isinstance(state, Mapping) else None)
-		image = await self._download(url)
+		original = image = await self._download(url)
 		if params.get("shrinkToFit", True) is not False:
 			image = blurred_margin(image, target_dimensions(dsec), enlarge=False)
 		# the host only: the rest of the address can hold a secret
-		return MediaRenderResult(image=enhanced(dsec, image), title=f"Picture from {urlsplit(url).hostname or 'a web address'}")
+		return MediaRenderResult(image=enhanced(dsec, image), title=f"Picture from {urlsplit(url).hostname or 'a web address'}", original=original)
 
 	async def _download(self, url: str) -> Image.Image:
 		"""The picture at `url`. Failures are in our words and never hold the address (it can carry a key); the log has the detail."""

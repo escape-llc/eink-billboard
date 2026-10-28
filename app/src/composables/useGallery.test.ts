@@ -7,7 +7,7 @@ import { fakeLink, settle } from "../api/fakeLink"
 import { syncWithLink } from "../api/resources"
 import { ApiError, apiUpload } from "../components/ApiClient"
 import type { TelemetryEvent, TelemetryLink } from "../components/TelemetryLink"
-import { galleryImageUrl, originOf, useGallery, useSaveShown, type GalleryItem } from "./useGallery"
+import { galleryImageUrl, hasOriginal, originOf, useGallery, useSaveShown, type GalleryItem } from "./useGallery"
 import { RECENT_COUNT, useRecentlyShown } from "./useRecentlyShown"
 
 // the Gallery page's data without the page: the API is a stand-in (the address builder is the real one), and what the page would show as a toast is collected
@@ -50,7 +50,9 @@ describe("the pictures", () => {
 	it("each has its own address, whole or small, and a word for where it came from", () => {
 		expect(galleryImageUrl("0123abcd")).toMatch(/\/api\/datasource\/gallery\/items\/0123abcd\/image\?size=thumb$/)
 		expect(galleryImageUrl("0123abcd", "full")).toMatch(/size=full$/)
-		expect([originOf(item("x", { origin: "upload" })), originOf(item("x", { origin: "display" })), originOf(item("x"))]).toEqual(["Added by hand", "Saved from the panel", "Drawn by ai-image"])
+		expect([originOf(item("x", { origin: "upload" })), originOf(item("x", { origin: "display" })), originOf(item("x"))]).toEqual(["Added by hand", "Saved from the panel", "From ai-image"])
+		// a data source by its own name, when the catalog has it
+		expect(originOf(item("x", { origin: "museum-art" }), { "museum-art": "Museum Art" })).toBe("From Museum Art")
 	})
 	it("are asked for again when the Gallery says it changed (a producer kept one, another tab removed one)", async () => {
 		serve()
@@ -98,12 +100,27 @@ describe("the changes", () => {
 		const s = inApp(() => useSaveShown((severity, detail) => notices.push(`${severity}: ${detail}`)))
 		mocked.post.mockResolvedValue({ success: true, kept: true, id: "d", message: "" })
 		expect(await s.saveShown(shownEvent(1, "f".repeat(64), "Weather"))).toBe(true)
-		expect(mocked.post).toHaveBeenCalledWith("/api/datasource/gallery/items/from-display", {}, { digest: "f".repeat(64), title: "Weather" })
+		expect(mocked.post).toHaveBeenCalledWith("/api/datasource/gallery/items/from-display", {}, { digest: "f".repeat(64), title: "Weather", asShown: false })
 		expect(mocked.get).not.toHaveBeenCalled()
 		expect(notices).toEqual(["success: The picture was added to the Gallery."])
 		mocked.post.mockRejectedValue(new ApiError(404, "The device no longer has that picture.", "gallery"))
 		expect(await s.saveShown(shownEvent(2, "e".repeat(64)))).toBe(false)
 		expect(notices[1]).toBe("error: The device no longer has that picture.")
+		await settle()
+	})
+})
+
+describe("the original of a page (#768)", () => {
+	it("is said by the event, saved by default, and the panel's picture is saved when asked for", async () => {
+		const notices: string[] = []
+		const s = inApp(() => useSaveShown((severity, detail) => notices.push(`${severity}: ${detail}`)))
+		const painting = { ...shownEvent(1, "a".repeat(64), "A painting"), values: { digest: "a".repeat(64), title: "A painting", original: true } }
+		expect([hasOriginal(painting), hasOriginal(shownEvent(2, "b"))]).toEqual([true, false])
+		mocked.post.mockResolvedValueOnce({ success: true, kept: true, id: "p", message: "", original: true }).mockResolvedValueOnce({ success: true, kept: true, id: "q", message: "", original: false })
+		await s.saveShown(painting)
+		await s.saveShown(painting, true)
+		expect(mocked.post.mock.calls.map(c => c[2].asShown)).toEqual([false, true])
+		expect(notices).toEqual(["success: The original picture was added to the Gallery.", "success: The picture was added to the Gallery."])
 		await settle()
 	})
 })

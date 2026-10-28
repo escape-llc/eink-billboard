@@ -493,7 +493,7 @@
 			},
 			"KeepAnswer": {
 				"additionalProperties": false,
-				"description": "What keeping a picture did: `kept` is false for one already there (`duplicate`); `id` names it either way.",
+				"description": "What keeping a picture did: `kept` is false for one already there (`duplicate`); `id` names it either way. `original` says a shown page was kept as the picture it was made from.",
 				"properties": {
 					"id": {
 						"title": "Id",
@@ -506,6 +506,11 @@
 					"message": {
 						"title": "Message",
 						"type": "string"
+					},
+					"original": {
+						"default": false,
+						"title": "Original",
+						"type": "boolean"
 					},
 					"success": {
 						"title": "Success",
@@ -2942,15 +2947,20 @@
 		},
 		"/api/datasource/gallery/items/from-display": {
 			"post": {
-				"description": "Keep a picture the panel showed lately (its digest is in the telemetry), as it was shown: with any caption or overlay drawn on it, not the photograph alone.",
+				"description": "Keep a picture the panel showed lately (its digest is in the telemetry). A page made from a picture (a picture source's slide: its event says `original`) is kept as\nthat picture, before it was fitted, under the data source's id (#768); any other page, or `asShown`, as the panel showed it, with any caption or overlay drawn on it.",
 				"operationId": "save_shown_api_datasource_gallery_items_from_display_post",
 				"requestBody": {
 					"content": {
 						"application/json": {
 							"schema": {
 								"additionalProperties": true,
-								"description": "A picture the panel showed (its digest, from the telemetry), and the title to keep it under.",
+								"description": "A picture the panel showed (its digest, from the telemetry), and the title to keep it under. `asShown` keeps the panel's picture even when the page has an original.",
 								"properties": {
+									"asShown": {
+										"default": false,
+										"title": "Asshown",
+										"type": "boolean"
+									},
 									"digest": {
 										"title": "Digest",
 										"type": "string"

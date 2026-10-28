@@ -133,4 +133,4 @@ class ApodAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			self.logger.error(f"'{self.name}' could not load the picture ({type(e).__name__}: {e}).")
 			raise RuntimeError(f"'{self.name}' could not load the picture ({type(e).__name__}).") from None
 		title = state.get("title") or "Picture of the Day"
-		return MediaRenderResult(image=enhanced(dsec, blurred_margin(image, size)), title=f"NASA Picture of the Day: {title} ({state.get('date')})")
+		return MediaRenderResult(image=enhanced(dsec, blurred_margin(image, size)), title=f"NASA Picture of the Day: {title} ({state.get('date')})", original=image)

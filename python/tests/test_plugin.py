@@ -94,6 +94,8 @@ class TestAsyncPlugins(unittest.TestCase):
 		save_datasource_settings(cm, "image-folder", { "folders": [{ "name": "test images", "path": "python/tests/images" }] })
 		display = self.run_slide_show(track, datasources, cm=cm)
 		self.assertEqual(len(display.msgs), 3, "one slide per picture in the folder")
+		# the person's own pictures: nothing to save that they do not have (#768)
+		self.assertEqual([m.original for m in display.msgs], [None] * 3)
 	def test_slide_show_with_comic(self):
 		content = {
 			"dataSource": "comic-feed",
@@ -147,6 +149,10 @@ class TestAsyncPlugins(unittest.TestCase):
 		datasources = DataSourceManager(dsmap)
 		display = self.run_slide_show(track, datasources, 10)
 		self.assertEqual(len(display.msgs), 1, "display.msgs failed")
+		# the downloaded picture goes along, with the source it came from, for "Save to Gallery" (#768)
+		original = display.msgs[0].original
+		self.assertEqual(original.source, "wikipedia-potd")
+		self.assertEqual(original.image.size, (1280, 853), "the picture as it was downloaded")
 	def test_slide_show_with_newspaper(self):
 		content = {
 			"dataSource": "newspaper",

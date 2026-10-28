@@ -114,6 +114,9 @@ class MediaRenderResult:
 	# the layer this page asks for when the task leaves it to the source (Show As `auto`): `foreground` (text that overlays must not cover) or
 	# `background`; None: the descriptor's features decide. A source whose pages differ (a picture with or without a caption) declares both layers
 	layer: str|None = None
+	# the picture the page was made from, before it was fitted, enhanced or captioned (a download, a drawn picture): what "Save to Gallery" keeps (#768).
+	# None for a page that is drawn; a source of the person's own files (the Image Folder) or of the Gallery itself has nothing to add
+	original: Image.Image|None = None
 
 @runtime_checkable
 class DataSourceMessage(Protocol):
