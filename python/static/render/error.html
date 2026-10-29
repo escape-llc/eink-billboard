@@ -64,6 +64,12 @@
 			margin-top: 6dvh;
 			line-height: 1;
 		}
+		/* the setup page's last line: whose project this is, small and quiet */
+		.error-credit {
+			font-size: max(var(--min-text), min(3.5dvh, 3vw));
+			margin-top: 6dvh;
+			line-height: 1;
+		}
 		/* an overlay zone: a short box, so bigger type relative to it, one line each, nothing wraps, the hint is left out */
 		.error-compact .error-wrapper {
 			width: 94%;
@@ -106,6 +112,7 @@
 		<div class="error-line text-secondary-2">{{ line }}</div>
 		{% endfor %}
 		{% if hint %}<div class="error-hint text-primary">{{ hint }}</div>{% endif %}
+		{% if credit %}<div class="error-credit text-primary">{{ credit }}</div>{% endif %}
 		</div>
 		{% if qr %}<img class="error-qr" src="{{ qr }}" alt="">{% endif %}
 	</div>

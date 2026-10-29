@@ -270,6 +270,8 @@ class TestSetupPageOnThePanel(unittest.TestCase):
 			with mock.patch("python.task.application.PriorityImage"):
 				app._show_setup_notice(800, 480, now)
 		self.assertEqual(render.call_args.kwargs["qr"], "http://pi.local/#/claim/12345678")
+		# and says whose project it is (#824)
+		self.assertIn("escape-technology-llc.com", render.call_args.kwargs["credit"])
 		app.setup_claim_url = None
 		with mock.patch("python.task.application.render_error_image", return_value=None) as render:
 			with mock.patch("python.task.application.PriorityImage"):
