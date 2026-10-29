@@ -39,6 +39,7 @@ SAME_NAME_DIFFERENT = {
 	"imageModel": "each provider's own image models (OpenAI, Google), chosen from its own list",
 	"textModel": "each provider's own text models (OpenAI, Google), chosen from its own list",
 	"randomizePrompt": "the Generated Image rewrites its prompt unless told not to; the Weather Visualizer's prompt is already made from the weather, so it asks first",
+	"severity": "the default differs: Service Alerts shows any alert, the Alert Takeover takes the panel only for a severe one",
 }
 TYPES: dict[str, Any] = { "string": str, "integer": int, "number": (int, float), "boolean": bool, "array": list }
 
