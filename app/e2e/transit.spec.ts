@@ -79,3 +79,10 @@ test("a stored stop the nearby list lacks is asked for by its key, so it shows i
 	expect(asked).toEqual(["", "s-c23p3-harborferry"])
 	watch.expectNone()
 })
+
+test("a row whose stops cannot be listed says why, not just an empty list (#816)", async ({ page }) => {
+	// no routing: the test servers have no Transitland key, so the real lookup refuses, in our words
+	await openMyStops(page)
+	await page.getByRole("button", { name: "Add" }).first().click()
+	await expect(page.getByText(/The choices could not be loaded: (Enter the Transitland API key|Set the device's location first)/)).toBeVisible()
+})
