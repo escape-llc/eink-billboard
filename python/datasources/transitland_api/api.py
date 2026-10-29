@@ -1,6 +1,6 @@
 """
 The Transitland provider's routes (mounted under /api, #429): the Test of the API key, the Test of a stop's key (My Stops), and the stop lookup (the stops near the
-device). Each reads the **saved** key on the server when it needs one (the browser never sees it), and answers in our words: never the key, an address or
+device, or the stop finder's search). Each reads the **saved** key on the server when it needs one (the browser never sees it), and answers in our words: never the key, an address or
 Transitland's text. The Tests always answer 200 `{ ok, message }`; the lookup is a list of choices, or an error the form shows under the field.
 """
 import asyncio
@@ -16,7 +16,7 @@ from ...web.documents import SECRET_MASK
 from ...web.errors import ApiError
 from ...web.openapi import Choice, answers, test_route
 from ..metering import QuotaUsedUp
-from .transitland_api import DATASOURCE_ID, check_key, check_stop, has_key, nearby
+from .transitland_api import DATASOURCE_ID, check_key, check_stop, has_key, nearby, search
 
 logger = logging.getLogger(__name__)
 
@@ -58,25 +58,34 @@ def test_stop(cm: CM, body: dict[str, Any] = Body(...)):
 		logger.warning(f"Testing a Transitland stop failed ({type(e).__name__}).")
 		return { "ok": False, "message": "The stop could not be tested." }
 
-def _location(cm: CM) -> tuple[float, float]:
+def _location(cm: CM) -> tuple[float, float]|None:
 	_, system = cm.settings_manager().open("system").get()
 	where = (system or {}).get("location")
 	if not isinstance(where, dict) or not all(isinstance(where.get(k), (int, float)) and not isinstance(where.get(k), bool) for k in ("latitude", "longitude")):
-		raise ApiError(409, "Set the device's location first (System settings): the stops listed are the ones near it.", "transitland-stops")
+		return None
 	return float(where["latitude"]), float(where["longitude"])
 
 @transitland_router.get('/lookups/stops', **answers(list[Choice]))
-def stop_choices(cm: CM):
-	"""The stops near the device's location, within the radius of the settings, nearest first: kept a day, so opening the form spends no quota."""
-	latitude, longitude = _location(cm)
+def stop_choices(cm: CM, q: str | None = None):
+	"""
+	The stops near the device's location, within the radius of the settings, nearest first: kept a day, so opening the form spends no quota. With `q` (the stop
+	finder: what was typed in the row's search box), the stops whose name holds it within 10 km of the device (anywhere with no location), or the stop of a key;
+	an empty `q` is the stops near the device. Kept a day by what was asked.
+	"""
+	where = _location(cm)
+	asked = (q or "").strip()
+	if where is None and not asked:
+		raise ApiError(409, "Set the device's location first (System settings): the stops listed are the ones near it. Or search for a stop by its name.", "transitland-stops")
 	dscm, settings = _settings(cm)
 	if not has_key(settings):
 		raise ApiError(409, "Enter the Transitland API key and save the settings first.", "transitland-stops")
 	try:
-		return asyncio.run(nearby(dscm, settings, latitude, longitude, datetime.now().astimezone()))
+		now = datetime.now().astimezone()
+		# with no location there is a search (refused above otherwise)
+		return asyncio.run(search(dscm, settings, asked, where, now) if asked or where is None else nearby(dscm, settings, where[0], where[1], now))
 	except (PermanentError, QuotaUsedUp, RuntimeError) as problem:
 		# the provider's failures are in our words already (`refusal`, the budget guard)
 		raise ApiError(502, str(problem), "transitland-stops") from None
 	except Exception as e:
-		logger.warning(f"Listing the stops near the device failed ({type(e).__name__}).")
-		raise ApiError(502, "The stops near the device could not be listed.", "transitland-stops") from None
+		logger.warning(f"Listing the stops failed ({type(e).__name__}).")
+		raise ApiError(502, "The stops could not be listed.", "transitland-stops") from None

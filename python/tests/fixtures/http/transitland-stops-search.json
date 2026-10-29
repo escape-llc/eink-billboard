@@ -1,0 +1,42 @@
+{
+	"stops": [
+		{
+			"onestop_id": "s-c23p3-harborferry",
+			"stop_id": "HF",
+			"stop_name": "Harbor Ferry Terminal",
+			"stop_desc": "Pier 2",
+			"geometry": {
+				"type": "Point",
+				"coordinates": [
+					-122.3905,
+					47.5905
+				]
+			}
+		},
+		{
+			"onestop_id": "s-c23nc-central",
+			"stop_id": "CEN",
+			"stop_name": "Central Station",
+			"platform_code": null,
+			"geometry": {
+				"type": "Point",
+				"coordinates": [
+					-122.33,
+					47.6
+				]
+			}
+		},
+		{
+			"onestop_id": "s-c23pd-centralave~5th",
+			"stop_id": "2005",
+			"stop_name": "Central Ave & 5th",
+			"geometry": {
+				"type": "Point",
+				"coordinates": [
+					-122.29,
+					47.625
+				]
+			}
+		}
+	]
+}

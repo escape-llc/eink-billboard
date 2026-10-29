@@ -52,6 +52,9 @@ describe("a broken descriptor is caught", () => {
 		section.schema.lookups.choice = { url: "/x", with: ["folders"], search: true }
 		rowLookup(section, { url: "/y", with: ["name"] })
 		expect(sectionProblems(section, "copy")).toEqual([])
+		// a row has a search box of its own (the stop finder, #429)
+		rowLookup(section, { url: "/y", search: true })
+		expect(sectionProblems(section, "copy")).toEqual([])
 	})
 	const breaks: [string, (s: any) => void, RegExp][] = [
 		["a misspelled keyword", s => { s.schema.properties.at(-1).minLenght = 3 }, /properties\/\d+: Unrecognized key: "minLenght"/],
@@ -63,12 +66,11 @@ describe("a broken descriptor is caught", () => {
 		["a row field naming a lookup that is not defined", s => { s.schema.properties.find((p: any) => p.type === "array").items.properties[0].lookup = "nowhere" }, /items\/properties\/0\/lookup: "nowhere"/],
 		["a list inside a row", s => { s.schema.properties.find((p: any) => p.type === "array").items.properties[0].type = "array" }, /items\/properties\/0\/type/],
 		["an unknown key in the section", s => { s.defaults = {} }, /^copy: Unrecognized key: "defaults"/],
-		// a lookup with parameters (#510 A8): `with` names other fields where it is used, a row has no search box
+		// a lookup with parameters (#510 A8): `with` names other fields where it is used
 		["a lookup sent with no field", s => { s.schema.lookups.choice = { url: "/x", with: [] } }, /lookups\/choice/],
 		["a lookup sent with a field that is not there", s => { s.schema.lookups.choice = { url: "/x", with: ["nowhere"] } }, /"choice" is sent with "nowhere", which is not another field of the schema/],
 		["a lookup sent with its own field", s => { s.schema.lookups.choice = { url: "/x", with: ["picked"] } }, /"choice" is sent with "picked"/],
 		["a row lookup sent with a field outside the row", s => { rowLookup(s, { url: "/x", with: ["picked"] }) }, /items\/properties\/1\/lookup: "rowChoice" is sent with "picked", which is not another field of the row/],
-		["a search in a row", s => { rowLookup(s, { url: "/x", search: true }) }, /items\/properties\/1\/lookup: "rowChoice" is a search, which a list row cannot have/],
 	]
 	it.each(breaks)("%s", (_, breakIt, expected) => {
 		const section = aSection()

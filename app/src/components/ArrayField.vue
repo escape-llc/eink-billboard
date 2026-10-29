@@ -25,8 +25,8 @@
 							<label :for="idOf(index, f.name)">{{ f.title }}</label>
 						</IftaLabel>
 						<IftaLabel v-else-if="f.lookup">
-							<Select size="small" fluid :inputId="idOf(index, f.name)" :options="choices(f, row)" optionLabel="name" optionValue="value" :modelValue="row[f.name]"
-								:placeholder="placeholder(f, row)" :aria-label="`${f.title} ${index + 1}`" :showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
+							<Select size="small" fluid :inputId="idOf(index, f.name)" :options="choices(f, row, index)" optionLabel="name" optionValue="value" :modelValue="row[f.name]"
+								:placeholder="placeholder(f, row, index)" :aria-label="`${f.title} ${index + 1}`" :showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
 								@update:modelValue="(v: unknown) => change(index, f.name, v ?? null)" />
 							<label :for="idOf(index, f.name)">{{ f.title }}</label>
 						</IftaLabel>
@@ -49,10 +49,18 @@
 								@update:modelValue="(v: string|undefined) => change(index, f.name, v === '' || v === undefined ? null : v)" />
 							<label :for="idOf(index, f.name)">{{ f.title }}</label>
 						</IftaLabel>
+						<!-- a search lookup: what is typed is sent on Enter or Search, never per keystroke; the answer is this row's choices -->
+						<template v-if="f.lookup && f.lookupSearch">
+							<InputText size="small" class="array-search" v-model="searchText[searchKey(index, f)]" :aria-label="`Search ${f.title} ${index + 1}`" placeholder="Search"
+								@keydown.enter.prevent="search(index, f)" />
+							<Button type="button" size="small" icon="mi mi-search" :aria-label="`Search for ${f.title} ${index + 1}`" :loading="rowLookup(f, row, index)?.loading === true"
+								@click="search(index, f)" />
+						</template>
 						<TestUrlButton v-if="f.test?.url && baseUrl !== undefined" bare :route="f.test.url" :baseUrl="baseUrl" :value="row[f.name]" :label="`${f.title} ${index + 1}`"
 							:disabled="!!cellError(index, f.name)" @result="(r: TestResult | null) => tested[`${index}:${f.name}`] = r" />
 					</InputGroup>
-					<Message v-if="f.lookup && rowLookup(f, row)?.error" severity="warn" size="small" variant="simple">{{ rowLookup(f, row)?.error }}</Message>
+					<Message v-if="f.lookup && rowLookup(f, row, index)?.error" severity="warn" size="small" variant="simple">{{ rowLookup(f, row, index)?.error }}</Message>
+					<Message v-else-if="f.lookup && nothingFound(f, row, index)" severity="secondary" size="small" variant="simple">Nothing found for "{{ searched[searchKey(index, f)] }}".</Message>
 					<Message v-if="cellError(index, f.name)" severity="error" size="small" variant="simple">{{ cellError(index, f.name) }}</Message>
 					<Message v-if="tested[`${index}:${f.name}`]" :severity="tested[`${index}:${f.name}`]!.ok ? 'success' : 'error'" size="small" variant="simple">{{ tested[`${index}:${f.name}`]!.message }}</Message>
 				</template>
@@ -123,8 +131,8 @@ const uid = useId()
 const idOf = (index: number, name: string) => `${props.field.name}-${name}-${index}-${uid}`
 const rows = computed<Row[]>(() => Array.isArray(props.modelValue) ? props.modelValue : [])
 // more fields than fit across: each row is a block of fields that wrap, instead of one line
-// (a map needs room: a row with a location is a block too)
-const stacked = computed(() => itemFields.value.length > 4 || itemFields.value.some(f => f.type === "location"))
+// (a map needs room, and so does a search box beside a choice: a row with either is a block too)
+const stacked = computed(() => itemFields.value.length > 4 || itemFields.value.some(f => f.type === "location" || f.lookupSearch))
 
 // the settings a row carries for a plugin (`items.plugin`), set in a dialog of the plugin's own form
 const rowPlugin = computed(() => rowItems.value?.plugin)
@@ -157,34 +165,69 @@ async function runRow(index: number, row: Row) {
 
 const text = (row: Row, name: string): string => typeof row[name] === "string" ? row[name] : ""
 const numeric = (row: Row, name: string): number|null => typeof row[name] === "number" ? row[name] : null
-// a row field's lookup sent with the row's own fields (`with`, #510 A8): a list per row, kept by its address, so rows that send the same values share it
-const rowLists = reactive(new Map<string, { list: Choice[], error?: string }>())
-/** Where a row's lookup is asked (or which of the row's fields it waits for); null: a lookup without `with`, whose one list is the field's. */
-function rowAddress(f: ResolvedFieldDef, row: Row) {
-	return f.lookupWith?.length && f.lookupUrl ? lookupAddress(f.lookupUrl, f.lookupWith, name => row[name]) : null
+// a row field's lookup sent with the row's own fields (`with`, #510 A8), or searched in the row (`search`): a list per row, kept by its address, so rows
+// that ask the same question share it
+const rowLists = reactive(new Map<string, { list: Choice[], error?: string, loading?: boolean }>())
+// a row's search: the text in its box, and the text it last searched for (none: no search yet, and the row offers the lookup's own list, asked without `q`)
+const searchText = reactive<Record<string, string>>({})
+const searched = reactive<Record<string, string>>({})
+const searchKey = (index: number, f: ResolvedFieldDef) => `${index}:${f.name}`
+// the name of each entry an answer has had: a choice a later search does not find keeps its name
+const names = reactive(new Map<unknown, string>())
+/** Where a row's lookup is asked (or which of the row's fields it waits for); null: a lookup without `with` and no search made, whose one list is the field's. */
+function rowAddress(f: ResolvedFieldDef, row: Row, index: number) {
+	if (!f.lookupUrl) return null
+	const q = f.lookupSearch ? searched[searchKey(index, f)] : undefined
+	return f.lookupWith?.length || q !== undefined ? lookupAddress(f.lookupUrl, f.lookupWith, name => row[name], q) : null
 }
-function rowLookup(f: ResolvedFieldDef, row: Row) {
-	const wanted = rowAddress(f, row)
+function rowLookup(f: ResolvedFieldDef, row: Row, index: number) {
+	const wanted = rowAddress(f, row, index)
 	return wanted?.address !== undefined ? rowLists.get(wanted.address) : undefined
 }
+function baseList(f: ResolvedFieldDef, row: Row, index: number): Choice[] {
+	return rowAddress(f, row, index) ? (rowLookup(f, row, index)?.list ?? []) : Array.isArray(f.list) ? f.list : []
+}
+/**
+ * A search row's stored value its list does not offer (a stop a search found before) is asked for by itself, as `q`: a search route finds an entry by its
+ * own value too, so the choice shows its name. Only before the row searches, and only when no answer has named it.
+ */
+function namingAddress(f: ResolvedFieldDef, row: Row, index: number): string|undefined {
+	const stored = row[f.name]
+	if (!f.lookupSearch || !f.lookupUrl || searched[searchKey(index, f)] !== undefined || typeof stored !== "string" || !stored) return undefined
+	// the list is answered first: a stored value it offers costs no call
+	const answer = rowLookup(f, row, index)
+	const ready = rowAddress(f, row, index) ? answer !== undefined && !answer.loading : f.lookupReady === true
+	if (!ready || baseList(f, row, index).some(c => c.value === stored) || names.has(stored)) return undefined
+	return lookupAddress(f.lookupUrl, f.lookupWith, name => row[name], stored).address
+}
 /** A lookup's choices, with the row's value kept when the list does not offer it (renamed, deleted, or not loaded): it must not look unset. */
-function choices(f: ResolvedFieldDef, row: Row): Choice[] {
-	const wanted = rowAddress(f, row)
-	const list: Choice[] = wanted ? (rowLookup(f, row)?.list ?? []) : Array.isArray(f.list) ? f.list : []
-	return withStored(list, row[f.name])
+function choices(f: ResolvedFieldDef, row: Row, index: number): Choice[] {
+	return withStored(baseList(f, row, index), row[f.name], v => names.get(v))
 }
 /** A row's lookup that waits for a field of the row says which; any other shows its title. */
-function placeholder(f: ResolvedFieldDef, row: Row): string {
-	const missing = rowAddress(f, row)?.missing
+function placeholder(f: ResolvedFieldDef, row: Row, index: number): string {
+	const missing = rowAddress(f, row, index)?.missing
 	return missing ? `Choose ${itemFields.value.find(x => x.name === missing)?.title ?? missing} first` : f.title
+}
+/** Search a row: what is typed goes as `q`, now (Enter or the button); an empty search asks the lookup with an empty `q`. */
+function search(index: number, f: ResolvedFieldDef) {
+	searched[searchKey(index, f)] = (searchText[searchKey(index, f)] ?? "").trim()
+}
+function nothingFound(f: ResolvedFieldDef, row: Row, index: number): boolean {
+	const answer = searched[searchKey(index, f)] ? rowLookup(f, row, index) : undefined
+	return answer !== undefined && !answer.loading && !answer.error && answer.list.length === 0
 }
 // the addresses the rows need now: each is asked once, after the rows have been still a moment (a typed value changes per keystroke)
 const wantedAddresses = computed(() => {
 	const all = new Set<string>()
-	for (const row of rows.value) for (const f of itemFields.value) {
-		const address = rowAddress(f, row)?.address
-		if (address !== undefined) all.add(address)
-	}
+	rows.value.forEach((row, index) => {
+		for (const f of itemFields.value) {
+			const address = rowAddress(f, row, index)?.address
+			if (address !== undefined) all.add(address)
+			const naming = namingAddress(f, row, index)
+			if (naming !== undefined) all.add(naming)
+		}
+	})
 	return [...all].sort()
 })
 let rowTimer: ReturnType<typeof setTimeout> | undefined
@@ -195,9 +238,12 @@ watch(wantedAddresses, (addresses, before) => {
 	rowTimer = setTimeout(() => {
 		for (const address of addresses) {
 			if (rowLists.has(address)) continue
-			rowLists.set(address, { list: [] })
+			rowLists.set(address, { list: [], loading: true })
 			readResource<Choice[]>(queryCache, address)
-				.then(list => rowLists.set(address, { list }))
+				.then(list => {
+					for (const entry of list) names.set(entry.value, entry.name)
+					rowLists.set(address, { list })
+				})
 				.catch(ex => {
 					console.error("lookup", ex)
 					// the message is shown under the cell; it is never a choice that could be saved
@@ -219,8 +265,17 @@ function emit(next: Row[]) {
 }
 const change = (index: number, name: string, value: unknown) => emit(rows.value.map((r, i) => i === index ? { ...r, [name]: value } : r))
 const add = () => emit([...rows.value, emptyRow()])
-const remove = (index: number) => emit(rows.value.filter((_, i) => i !== index))
+// a row's search is kept by its place: a row removed or moved starts the rows' searches again
+function forgetSearches() {
+	for (const key of Object.keys(searched)) delete searched[key]
+	for (const key of Object.keys(searchText)) delete searchText[key]
+}
+function remove(index: number) {
+	forgetSearches()
+	emit(rows.value.filter((_, i) => i !== index))
+}
 function move(index: number, by: number) {
+	forgetSearches()
 	const next = [...rows.value]
 	const target = index + by
 	if (target < 0 || target >= next.length) return
@@ -280,6 +335,16 @@ function cellError(index: number, name: string): string|undefined {
 .array-group :deep(.p-select),
 .array-group :deep(.p-inputnumber) {
 	width: 100%;
+}
+/* the search box of a search lookup: beside the choice, narrower than it (not as wide as the cell, as the other controls are) */
+.array-group > .array-search {
+	flex: 0 1 8rem;
+	width: 8rem;
+	min-width: 5rem;
+}
+/* a cell with a search box needs the room for the choice beside it */
+.stacked .array-cell:has(.array-search) {
+	flex: 2 1 24rem;
 }
 .array-toggle-label {
 	flex: 1 1 auto;

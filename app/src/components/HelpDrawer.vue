@@ -81,7 +81,7 @@
 						<dt>Comic Vine, Thunderforest</dt>
 						<dd>The comic covers and the maps, each for its own data source, with a free key.</dd>
 						<dt>Transitland</dt>
-						<dd>Transit departures and service alerts, for the Departure Board, with your own free key (non-commercial use; 5,000 calls a month). <b>My Stops</b> are the stops the boards can show, each under a name: choose a stop from those near the device's <b>Location</b> (<b>Test</b> says its name), how many minutes you walk to it, and optionally <b>Only Routes</b> (names separated by commas). Departures are kept at least 15 minutes, so the free plan lasts: a stop shown around the clock is about 3,000 calls a month. The boards' refreshes stop at the <b>Routine Share</b> of the quota (80%), so choosing and testing stops still work. Its credit is on every board and under Credits, below.</dd>
+						<dd>Transit departures and service alerts, for the Departure Board, with your own free key (non-commercial use; 5,000 calls a month). <b>My Stops</b> are the stops the boards can show, each under a name: choose a stop from those near the device's <b>Location</b>, or find one farther away (up to 10 km) by typing part of its name, or its key, in the row's search box and pressing Enter or Search (<b>Test</b> says its name), how many minutes you walk to it, and optionally <b>Only Routes</b> (names separated by commas). Departures are kept at least 15 minutes, so the free plan lasts: a stop shown around the clock is about 3,000 calls a month. The boards' refreshes stop at the <b>Routine Share</b> of the quota (80%), so choosing and testing stops still work. Its credit is on every board and under Credits, below.</dd>
 					</dl>
 				</AccordionContent>
 			</AccordionPanel>

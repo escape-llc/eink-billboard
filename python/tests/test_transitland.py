@@ -16,7 +16,7 @@ from ..datasources.contracts import CONTRACTS
 from ..datasources.contracts.transit import CANCELLED, INTERVALS_ONLY, SCHEDULED, TransitApi, TransitReport
 from ..datasources.data_source import DataSourceExecutionContext, DataSourceManager
 from ..datasources.metering import METER, QuotaUsedUp
-from ..datasources.transitland_api.transitland_api import CREDIT, DATASOURCE_ID, TransitlandApi, nearby_choices, parse_departures, stop_path, translated
+from ..datasources.transitland_api.transitland_api import CREDIT, DATASOURCE_ID, TransitlandApi, distance_text, looks_like_key, nearby_choices, parse_departures, stop_path, translated
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager
 from ..model.service_container import ServiceContainer
 from ..plugins.plugin_base import PermanentError
@@ -116,6 +116,16 @@ class TestTheStopsNearby(unittest.TestCase):
 		self.assertEqual(choices[0]["name"], "Main St & 3rd Ave, Northbound (0 m)")
 		self.assertRegex(choices[1]["name"], r"^Main St & 3rd Ave, Southbound \(\d+ m\)$")
 		self.assertNotIn("No Position", " ".join(c["name"] for c in choices))
+
+	def test_a_distance_reads_as_a_walk_and_without_a_point_there_is_none(self):
+		self.assertEqual([distance_text(m) for m in (0, 999.4, 1000, 5240, 12600)], ["0 m", "999 m", "1.0 km", "5.2 km", "13 km"])
+		choices = nearby_choices(json.loads(fixture_text("transitland-stops-near.json")), None, None)
+		# no point: no distance, in the order of the names, and a stop with no position is still one to choose
+		self.assertEqual([c["name"] for c in choices][:2], ["Central Station", "Main St & 3rd Ave, Northbound"])
+		self.assertIn("No Position", " ".join(c["name"] for c in choices))
+
+	def test_a_key_is_told_from_a_name(self):
+		self.assertEqual([looks_like_key(t) for t in ("s-c23nb-mainst~3rd", "f-c23-metro:77", "Main St", "Central", "s-c23 x")], [True, True, False, False, False])
 
 	def test_a_stop_key_cannot_reach_another_path(self):
 		self.assertEqual(stop_path("s-c23nb-mainst~3rd"), "/stops/s-c23nb-mainst~3rd")
@@ -293,6 +303,45 @@ class TestTheRoutes(WebApiTestBase):
 		self.assertEqual(sum(1 for r in self.fake.requests if r.url.path.endswith("/stops")), 1, "opening the form again spends no call")
 		radius = next(r for r in self.fake.requests if r.url.path.endswith("/stops")).url.params["radius"]
 		self.assertEqual(radius, "800")
+
+	def stops_asked(self) -> list[Any]:
+		return [r.url.params for r in self.fake.requests if r.url.path.endswith("/stops")]
+
+	def test_the_stop_finder_searches_by_name_within_ten_kilometres_and_keeps_the_answer(self):
+		self.location(SEATTLE)
+		self.settings()
+		found = self.client.get(f"/api/datasource/{DATASOURCE_ID}/lookups/stops", params={ "q": "harbor" })
+		self.assertEqual(found.status_code, 200)
+		[harbor] = found.json()
+		self.assertEqual(harbor["value"], "s-c23p3-harborferry")
+		self.assertRegex(harbor["name"], r"^Harbor Ferry Terminal, Pier 2 \(\d\.\d km\)$")
+		[asked] = self.stops_asked()
+		self.assertEqual((asked["search"], asked["radius"]), ("harbor", "10000"))
+		# the same search again, in another case, spends no call
+		self.assertEqual(self.client.get(f"/api/datasource/{DATASOURCE_ID}/lookups/stops", params={ "q": " Harbor " }).json(), [harbor])
+		self.assertEqual(len(self.stops_asked()), 1)
+		# a name that is several stops: each, nearest first
+		self.assertEqual([c["value"] for c in self.client.get(f"/api/datasource/{DATASOURCE_ID}/lookups/stops", params={ "q": "central" }).json()],
+			["s-c23nc-central", "s-c23pd-centralave~5th"])
+		# an empty search is the stops near the device
+		self.assertEqual(self.client.get(f"/api/datasource/{DATASOURCE_ID}/lookups/stops", params={ "q": "" }).json()[0]["value"], "s-c23nb-mainst~3rd")
+
+	def test_a_key_asked_for_is_that_stop_named_so_a_stored_choice_shows_its_name(self):
+		self.location(SEATTLE)
+		self.settings()
+		answer = self.client.get(f"/api/datasource/{DATASOURCE_ID}/lookups/stops", params={ "q": "s-c23p3-harborferry" }).json()
+		self.assertEqual([c["value"] for c in answer], ["s-c23p3-harborferry"])
+		self.assertEqual(self.stops_asked()[0]["stop_key"], "s-c23p3-harborferry")
+		self.assertEqual(self.client.get(f"/api/datasource/{DATASOURCE_ID}/lookups/stops", params={ "q": "f-c23-metro:77" }).json()[0]["value"], "f-c23-metro:77")
+		self.assertEqual(self.client.get(f"/api/datasource/{DATASOURCE_ID}/lookups/stops", params={ "q": "s-nowhere" }).json(), [])
+
+	def test_with_no_location_a_search_still_finds_stops_with_no_distance(self):
+		self.location(None)
+		self.settings()
+		answer = self.client.get(f"/api/datasource/{DATASOURCE_ID}/lookups/stops", params={ "q": "harbor" })
+		self.assertEqual(answer.json(), [{ "name": "Harbor Ferry Terminal, Pier 2", "value": "s-c23p3-harborferry" }])
+		self.assertNotIn("radius", self.stops_asked()[0])
+		self.assertIn("Or search for a stop by its name", self.client.get(f"/api/datasource/{DATASOURCE_ID}/lookups/stops").text)
 
 	def test_a_refusal_of_the_lookup_is_our_words(self):
 		self.location(SEATTLE)

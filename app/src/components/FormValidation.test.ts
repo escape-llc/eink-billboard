@@ -34,6 +34,8 @@ describe("string", () => {
 	})
 	it("a lookup list limits the values once it is loaded, and is ignored while empty", () => {
 		expect(check(field({ type: "string", list: [{ value: "x" }] }), "y")).toBe("Not one of the allowed values")
+		// a search's list is only what it found last: a value found by another search is good
+		expect(check(field({ type: "string", list: [{ value: "x" }], lookupSearch: true }), "y")).toBeNull()
 		expect(check(field({ type: "string", list: [{ value: "x" }] }), "x")).toBeNull()
 		expect(check(field({ type: "string", list: [] }), "anything")).toBeNull()
 	})
