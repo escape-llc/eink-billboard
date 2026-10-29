@@ -1,9 +1,9 @@
 /** The words the System page uses for sizes and times. */
 import type { MaterialIconName } from "./MaterialIcons"
 
-const UNITS = ["b", "KB", "MB", "GB", "TB"]
+const UNITS = ["B", "KB", "MB", "GB", "TB"]
 
-/** A size in bytes as people read it, short for a pill: `0 b`, `1.5 KB`, `38 MB`. */
+/** A size in bytes as people read it, short for a pill: `0 B`, `1.5 KB`, `38 MB`. */
 export function formatBytes(value: number | null | undefined): string {
 	if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "?"
 	let size = value
