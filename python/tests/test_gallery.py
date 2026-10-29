@@ -51,6 +51,17 @@ class TestStore(unittest.TestCase):
 		self.assertEqual(self.store.read(picture_id(first)), first)
 		self.assertEqual(files_of(self.dscm), { PREFIX + picture_id(first), PREFIX + picture_id(second) })
 
+	def test_a_file_is_named_from_the_indexs_own_id_and_an_id_the_index_does_not_list_reaches_no_file(self):
+		# the id of a request is only matched against the index (#830): what is not listed finds nothing, whatever it is made of
+		data = jpeg("red")
+		self.assertTrue(self.keep(data).kept)
+		for stray in ("../settings", "..\settings", "a/b", "0" * 32, "", picture_id(data).upper()):
+			self.assertIsNone(self.store.read(stray), repr(stray))
+			self.assertFalse(self.store.remove(stray), repr(stray))
+		self.assertEqual(self.store.read(picture_id(data)), data)
+		self.assertTrue(self.store.remove(picture_id(data)))
+		self.assertEqual(files_of(self.dscm), set())
+
 	def test_the_same_picture_twice_is_one(self):
 		data = jpeg("red")
 		self.assertTrue(self.keep(data).kept)

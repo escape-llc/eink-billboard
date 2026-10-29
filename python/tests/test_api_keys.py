@@ -5,6 +5,7 @@ the key typed or the saved one, and answer in our words.
 """
 import unittest
 
+from ..plugins.plugin_base import PermanentError
 from ..web.documents import SECRET_MASK
 from .test_web_api import WebApiTestBase
 
@@ -104,6 +105,19 @@ class TestComicVineKey(WebApiTestBase):
 	def test_the_key_is_not_in_the_answer(self):
 		for key in ("cv-good", "wrong", "cv-busy"):
 			self.assertNotIn(key, str(self.ask(key)))
+
+	def test_a_failure_says_fixed_words_never_the_errors_own(self):
+		# whatever the error says (an address with the key in it, say), the answer is the words for its kind (#830)
+		from unittest import mock
+		with mock.patch("python.datasources.comicvine_api.api.fetch", side_effect=RuntimeError("could not reach https://x.test/?api_key=SECRET-KEY")):
+			answer = self.ask("cv-good")
+		self.assertEqual(answer["ok"], False)
+		self.assertNotIn("SECRET-KEY", str(answer))
+		self.assertIn("did not give an answer", answer["message"])
+		with mock.patch("python.datasources.comicvine_api.api.fetch", side_effect=PermanentError("SECRET-KEY is not valid")):
+			answer = self.ask("cv-good")
+		self.assertNotIn("SECRET-KEY", str(answer))
+		self.assertIn("refused the API key", answer["message"])
 
 if __name__ == "__main__":
 	unittest.main()
