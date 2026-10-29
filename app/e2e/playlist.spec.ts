@@ -390,7 +390,7 @@ test("a stored track shows what is new and what is no longer used, and a field t
 test("the landing page opens the playlist page on a device with no playlist, and stays on a device that has one", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/")
-	await expect(page.getByText("Welcome to eInk Billboard!")).toBeVisible()
+	await expect(page.getByTestId("latest-activity")).toBeVisible()
 	expect(page.url()).not.toContain("/playlist")
 
 	// every playlist document is gone (a new device): the first thing to do is make one

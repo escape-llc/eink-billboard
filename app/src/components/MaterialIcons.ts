@@ -48,6 +48,7 @@ import desktop_windows from "@material-symbols/svg-400/outlined/desktop_windows.
 import download from "@material-symbols/svg-400/outlined/download.svg?raw"
 import edit from "@material-symbols/svg-400/outlined/edit.svg?raw"
 import help from "@material-symbols/svg-400/outlined/help.svg?raw"
+import home from "@material-symbols/svg-400/outlined/home.svg?raw"
 import history from "@material-symbols/svg-400/outlined/history.svg?raw"
 import key from "@material-symbols/svg-400/outlined/key.svg?raw"
 import link from "@material-symbols/svg-400/outlined/link.svg?raw"
@@ -92,7 +93,7 @@ import swap_vert from "@material-symbols/svg-400/outlined/swap_vert.svg?raw"
 import computer from "@material-symbols/svg-400/outlined/computer.svg?raw"
 
 export const MATERIAL_ICONS = { playlist_play, schedule, layers, warning, error, play_arrow, skip_next, stop, image, cloud_off, wb_sunny, screenshot_monitor, wallpaper, flip_to_front, opacity, priority_high, picture_in_picture, calendar_view_day, calendar_view_week, view_list,
-	add, arrow_downward, arrow_upward, bolt, cancel, check, check_circle, chevron_left, chevron_right, circle, close, database, delete: deleteGlyph, desktop_windows, download, edit, help, history, key, link, menu, my_location, open_in_new, palette, play_circle, playlist_add, public: publicGlyph, refresh, save, search, settings, settings_backup_restore, stop_circle, upload, videocam, wifi,
+	add, arrow_downward, arrow_upward, bolt, cancel, check, check_circle, chevron_left, chevron_right, circle, close, database, delete: deleteGlyph, desktop_windows, download, edit, help, history, home, key, link, menu, my_location, open_in_new, palette, play_circle, playlist_add, public: publicGlyph, refresh, save, search, settings, settings_backup_restore, stop_circle, upload, videocam, wifi,
 	photo_library, add_photo_alternate, keep, keep_off,
 	tv, power_settings_new, timer, sync, sync_problem, memory, memory_alt, hard_drive, thermostat, mode_fan, speed, developer_board, description, cached, swap_vert, computer } as const
 export type MaterialIconName = keyof typeof MATERIAL_ICONS
