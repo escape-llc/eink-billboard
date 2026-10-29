@@ -3,8 +3,8 @@ import { devicePills, machinePills, periodPills, piPills, sizePills, deviceMomen
 
 describe("sizes", () => {
 	it("are in the largest unit that keeps them readable", () => {
-		expect(formatBytes(0)).toBe("0 bytes")
-		expect(formatBytes(1000)).toBe("1000 bytes")
+		expect(formatBytes(0)).toBe("0 b")
+		expect(formatBytes(1000)).toBe("1000 b")
 		expect(formatBytes(1536)).toBe("1.5 KB")
 		expect(formatBytes(2 * 1024)).toBe("2 KB")
 		expect(formatBytes(38 * 1024 * 1024)).toBe("38 MB")
@@ -110,7 +110,7 @@ describe("the closed cards' lines", () => {
 		const areas = [{ files: 100, bytes: 1024 * 1024 * 10 }, { files: 40, bytes: 1024 * 1024 * 2 }]
 		expect(storageLine(areas, { total: 1024 * 1024 * 1200 })).toBe("12 MB in 140 files, 1% of the disk")
 		expect(storageLine(areas, { total: 1024 ** 4 })).toBe("12 MB in 140 files, less than 0.1% of the disk")
-		expect(storageLine([{ files: 1, bytes: 10 }], null)).toBe("10 bytes in 1 file")
+		expect(storageLine([{ files: 1, bytes: 10 }], null)).toBe("10 b in 1 file")
 	})
 	it("are pills for the closed card, the free space toned by how full the disk is", () => {
 		const areas = [{ files: 100, bytes: 1024 * 1024 * 8 }, { files: 40, bytes: 1024 * 1024 * 4 }]
@@ -162,6 +162,6 @@ describe("the cards' pills (#796)", () => {
 	it("show a period of calls, the failed ones only when some failed", () => {
 		const period = { calls: 20, status: { "200": 19, "429": 1 }, sent: 2400, received: 40960, hitRate: 0.75, bytesSaved: 6000 }
 		expect(pairs(periodPills("7 days", period))).toEqual(["calls 20 neutral", "failed 1 danger", "sent 2.3 KB neutral", "received 40 KB neutral", "cache 75% neutral"])
-		expect(pairs(periodPills("Today", { calls: 4, status: { "200": 4 }, sent: 0, received: 0 }))).toEqual(["calls 4 neutral", "sent 0 bytes neutral", "received 0 bytes neutral"])
+		expect(pairs(periodPills("Today", { calls: 4, status: { "200": 4 }, sent: 0, received: 0 }))).toEqual(["calls 4 neutral", "sent 0 b neutral", "received 0 b neutral"])
 	})
 })

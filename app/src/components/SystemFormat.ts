@@ -1,9 +1,9 @@
 /** The words the System page uses for sizes and times. */
 import type { MaterialIconName } from "./MaterialIcons"
 
-const UNITS = ["bytes", "KB", "MB", "GB", "TB"]
+const UNITS = ["b", "KB", "MB", "GB", "TB"]
 
-/** A size in bytes as people read it: `0 bytes`, `1.5 KB`, `38 MB`. */
+/** A size in bytes as people read it, short for a pill: `0 b`, `1.5 KB`, `38 MB`. */
 export function formatBytes(value: number | null | undefined): string {
 	if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "?"
 	let size = value
@@ -12,7 +12,7 @@ export function formatBytes(value: number | null | undefined): string {
 		size /= 1024
 		unit++
 	}
-	// whole numbers from 10 up, one decimal below, and no decimal for bytes
+	// whole numbers from 10 up, one decimal below, and no decimal for single bytes
 	const text = unit === 0 || size >= 10 ? String(Math.round(size)) : size.toFixed(1).replace(/\.0$/, "")
 	return `${text} ${UNITS[unit]}`
 }
