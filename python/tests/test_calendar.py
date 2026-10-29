@@ -1,6 +1,7 @@
 import atexit
 import json
 import shutil
+import sys
 import tempfile
 import unittest
 from datetime import date, datetime, timedelta, timezone
@@ -18,6 +19,7 @@ from ..datasources.contracts.calendar import CalendarApi, Event
 from ..datasources.calendar_sources.sources import NotACalendar, auth_headers, caldav_calendars, events_between, holiday_events, last_day, parse_calendar, safe_color, web_url
 from ..datasources.data_source import DataSourceExecutionContext
 from ..model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
+from ..model.inks import DRIVE, ink_for
 from ..model.service_container import ServiceContainer
 from ..plugins.plugin_base import PermanentError
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool
@@ -232,7 +234,9 @@ class TestGrid(unittest.TestCase):
 		self.assertTrue(columbus["entries"][0]["holiday"])
 		self.assertNotIn("Soccer practice", [i["title"] for i in columbus["entries"]], "the exception date")
 		dentist = self.cell(params, date(2026, 10, 8))["entries"][0]
-		self.assertEqual((dentist["title"], dentist["time"], dentist["bar"], dentist["color"]), ("Dentist", "9:30", False, "#3366cc"))
+		self.assertEqual((dentist["title"], dentist["time"], dentist["bar"], dentist["color"]), ("Dentist", "9:30", False, "#0000ff"))
+		# the calendar's #3366cc is drawn in its nearest ink (#801); one nearest the page's own is drawn in the text colour
+		self.assertEqual([ink_for(c, "spectra6", "white") for c in ("#3366cc", "#c33", "#228833", "#fafafa", None, "red")], ["#0000ff", "#ff0000", "#00ff00", None, None, None])
 		camping = self.cell(params, date(2026, 10, 24))["entries"][0]
 		self.assertTrue(camping["bar"])
 		self.assertFalse(self.cell(params, date(2026, 11, 1))["in_month"])
@@ -472,7 +476,12 @@ class TestRealPage(unittest.IsolatedAsyncioTestCase):
 						assert result is not None
 						self.assertEqual(result.image.size, size)
 						result.image.save(folder.joinpath(f"{orientation}-{name}-{page.view}.png"))
-						self.assertGreater(len(result.image.convert("L").getcolors(maxcolors=256) or []), 1, "the page is not blank")
+						colours = result.image.convert("RGB").getcolors(maxcolors=4096) or []
+						self.assertGreater(len(colours), 1, "the page is not blank")
+						if sys.platform == "linux":
+							# fontconfig draws the text without antialiasing on Linux only (docs/panel-and-rendering.md): there, every pixel is one of the inks (#801)
+							off = { c for _, c in colours } - set(DRIVE.values())
+							self.assertEqual(off, set(), f"a page is made of inks only: {len(off)} other colours")
 						self.assertIsInstance(result.image, Image.Image)
 
 TEST_URL = "/api/datasource/calendar-sources/test"
