@@ -1,5 +1,5 @@
 """
-The System Status data source (#651): the Machine card's readings as a page, with a word on a reading that is too high.
+The System Status data source (#651): the Device card's Machine readings as a page, with a word on a reading that is too high.
 """
 import shutil
 import unittest

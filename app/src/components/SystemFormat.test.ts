@@ -128,13 +128,21 @@ describe("the cards' pills (#796)", () => {
 		expect(pairs(pills)).toEqual(["Display running success", "Timer tasks failed danger", "playlist-layer starting info"])
 		expect(pills.map(p => p.icon)).toEqual(["tv", "schedule", "playlist_play"])
 		expect(pills[1].title).toBe("Timer tasks: Broken.")
+		// the memory the application uses is the Application row's, when the machine can say
+		const withMemory = devicePills({ "display": { state: "ok", message: "Running." } }, { "display": "Display" }, 120 * 1024 ** 2)
+		expect(pairs(withMemory)).toEqual(["Display running success", "memory 120 MB neutral"])
+		expect([withMemory[1].title, withMemory[1].icon]).toEqual(["The memory the application uses", "memory_alt"])
+		// and what it keeps on disk in all: the Storage card's size pill
+		const withStorage = devicePills({}, {}, null, [{ files: 100, bytes: 1024 * 1024 * 8 }, { files: 40, bytes: 1024 * 1024 * 4 }])
+		expect(pairs(withStorage)).toEqual(["size 12 MB neutral"])
+		expect([withStorage[0].icon, withStorage[0].title]).toEqual(["database", "What the device keeps, in all: 12 MB in 140 files"])
 	})
 	it("show the machine, leaving out what it cannot read, with memory and disk toned by how full they are", () => {
 		const host = { os: "Linux", os_release: "6.12", machine: "aarch64", python: "3.13.7", cpus: 4, commit: "abc1234", uptime_seconds: 3 * 86400, app_uptime_seconds: 30, clock: "unsynced" as const }
 		const load = { cpu_percent: 12, load: [0.5, 0.4, 0.3], memory: { total: 8 * 1024 ** 3, used: 7.4 * 1024 ** 3, percent: 92 }, app_memory: 120 * 1024 ** 2 }
 		const pills = machinePills(host, load, { total: 100 * 1024 ** 3, free: 40 * 1024 ** 3, percent: 60 }, "abc1234", false)
 		expect(pairs(pills)).toEqual(["system Linux 6.12 neutral", "build abc1234 neutral", "python 3.13.7 neutral", "up 3 days 0 h neutral", "app 30 s neutral", "clock not set warn",
-			"processor 4 cores · 12% neutral", "memory 7.4 GB / 8 GB danger", "this app 120 MB neutral", "disk 40 GB free success"])
+			"processor 4 cores · 12% neutral", "memory 7.4 GB / 8 GB danger", "disk 40 GB free success"])
 		expect(pills.find(p => p.label === "processor")?.title).toBe("4 cores, 12% busy (load 0.5 0.4 0.3)")
 		const bare = machinePills({ ...host, uptime_seconds: null, app_uptime_seconds: null, clock: null }, {}, null, "def5678", true)
 		expect(pairs(bare)).toEqual(["system Linux 6.12 neutral", "build abc1234 / def5678 warn", "python 3.13.7 neutral", "processor 4 cores neutral"])

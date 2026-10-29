@@ -15,15 +15,32 @@
 	</Toolbar>
 	<div class="system">
 		<div class="system-main">
+			<!-- the device in one card (#807): the application's own parts, the machine it runs on, and on a Raspberry Pi the board, each a row of pills under its name -->
 			<SystemCard title="Device">
+				<div class="group-label" id="device-application">Application</div>
 				<template v-if="status">
-					<div class="pills" role="list" aria-label="The parts of the device" data-testid="parts">
-						<UsagePill v-for="p in devicePills(status.components, TITLES)" :key="p.label" v-bind="p" />
+					<div class="pills" role="list" aria-labelledby="device-application" data-testid="parts">
+						<UsagePill v-for="p in devicePills(status.components, TITLES, info?.load.app_memory, info?.storage.areas)" :key="p.label" v-bind="p" />
 					</div>
 					<!-- what is not running says why in words, under the pills -->
 					<p v-for="(c, name) in failedParts" :key="name" class="row problem note">{{ TITLES[name] ?? name }}: {{ c.message }}</p>
 				</template>
-				<p v-else class="muted">Waiting for the device.</p>
+				<p v-else class="muted">Waiting for the application.</p>
+				<div class="group-label" id="device-machine">Machine</div>
+				<template v-if="info">
+					<div class="pills" role="list" aria-labelledby="device-machine" data-testid="machine">
+						<UsagePill v-for="p in machinePills(info.host, info.load, info.storage.volume, webCommit, mismatch)" :key="p.label" v-bind="p" />
+					</div>
+					<p v-if="mismatch" class="row problem note">Different builds: reload the page.</p>
+				</template>
+				<p v-else class="muted">{{ failed ? "The readings could not be loaded." : "Loading." }}</p>
+				<!-- only on a Raspberry Pi: what the board says about itself -->
+				<template v-if="info?.pi">
+					<div class="group-label" id="device-pi">Raspberry Pi</div>
+					<div class="pills" role="list" aria-labelledby="device-pi" data-testid="pi">
+						<UsagePill v-for="p in piPills(info.pi)" :key="`${p.label}-${p.value}`" v-bind="p" />
+					</div>
+				</template>
 			</SystemCard>
 
 			<SystemCard v-if="problems.length" title="Problems">
@@ -33,23 +50,6 @@
 						<span class="text">{{ describe(e) }}<code v-if="e.detail" class="detail">{{ e.detail }}</code></span>
 					</li>
 				</ul>
-			</SystemCard>
-
-			<SystemCard title="Machine">
-				<template v-if="info">
-					<div class="pills" role="list" aria-label="The machine" data-testid="machine">
-						<UsagePill v-for="p in machinePills(info.host, info.load, info.storage.volume, webCommit, mismatch)" :key="p.label" v-bind="p" />
-					</div>
-					<p v-if="mismatch" class="row problem note">Different builds: reload the page.</p>
-				</template>
-				<p v-if="!info" class="muted">{{ failed ? "The readings could not be loaded." : "Loading." }}</p>
-			</SystemCard>
-
-			<!-- only on a Raspberry Pi: what the board says about itself -->
-			<SystemCard v-if="info?.pi" title="Raspberry Pi">
-				<div class="pills" role="list" aria-label="The Raspberry Pi" data-testid="pi">
-					<UsagePill v-for="p in piPills(info.pi)" :key="`${p.label}-${p.value}`" v-bind="p" />
-				</div>
 			</SystemCard>
 
 			<SystemCard title="Storage" collapsed>
@@ -245,7 +245,7 @@ const {
 	current, currentLayers, recent, shownEvents, problems, statusText, statusSeverity,
 	start, stop, press,
 } = useSystem(detail => toast.add({ severity: "error", summary: "Playback", detail, life: 5000 }))
-// the build this page's code is from (the Machine card says it beside the server's)
+// the build this page's code is from (the Device card's Machine row says it beside the server's)
 const webCommit = __APP_COMMIT__
 const full = ref<TelemetryEvent | null>(null)
 // "Save to Gallery" on what the panel shows and showed (#517)
@@ -332,6 +332,9 @@ const failedParts = computed(() => Object.fromEntries(Object.entries(status.valu
 }
 .group-label:first-child, .source-name:first-child {
 	margin-top: 0;
+}
+.pills + .group-label, .note + .group-label, .muted + .group-label {
+	margin-top: .6rem;
 }
 .pills {
 	display: inline-flex;

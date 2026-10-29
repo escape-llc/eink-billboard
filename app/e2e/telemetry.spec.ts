@@ -101,7 +101,7 @@ test("the playlist, the activity, what is showing and what was shown are the lar
 	await expect(events.getByRole("listitem").first()).toBeVisible({ timeout: 20000 })
 	const now = live.getByRole("region", { name: "Now showing" })
 	const recent = live.getByRole("region", { name: "Recently shown" })
-	const machine = page.getByRole("region", { name: "Machine" })
+	const machine = page.getByRole("region", { name: "Device" })
 	const playlist = live.getByRole("region", { name: "Playlist" })
 	const [l, e, n, r, m, p] = await Promise.all([live.boundingBox(), events.boundingBox(), now.boundingBox(), recent.boundingBox(), machine.boundingBox(), playlist.boundingBox()])
 	// the panels take more than the facts beside them; four of them, one under the other: the playlist, what is showing, what was shown before it, the activity

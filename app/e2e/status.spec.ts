@@ -18,8 +18,10 @@ test("the System page shows the device is running, and what each part reports", 
 test("the System page reports the machine and the storage by data source, with no host name or path", async ({ page, request }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/system")
-	const machine = page.getByRole("region", { name: "Machine" })
-	await expect(machine.getByTestId("machine")).toBeVisible({ timeout: 20000 })
+	// the device is one card: the application's parts, the machine, and the Pi when it is one
+	const machine = page.getByRole("region", { name: "Device" })
+	await expect(machine.getByRole("list", { name: "Machine" })).toBeVisible({ timeout: 20000 })
+	await expect(machine.getByRole("list", { name: "Application" })).toBeVisible()
 	// the header says which build the page is from, and the Machine card compares it with the server's (the test servers are not in a container: the server does not know its commit)
 	await expect(page.getByTestId("app-version")).toHaveText(/^v\S+ \(\S+\)$/)
 	await expect(machine.getByTestId("builds")).toHaveAttribute("title", /web app dev$/)
@@ -36,8 +38,9 @@ test("the System page reports the machine and the storage by data source, with n
 	await expect(storage.getByRole("button", { name: "Storage" })).toHaveAttribute("aria-expanded", "true")
 	await expect(storage.getByRole("list", { name: "Data sources" })).toBeVisible()
 	await expect(storage.getByRole("list", { name: "Areas" }).getByRole("listitem").filter({ hasText: "settings" })).toHaveAttribute("title", /^settings: .* in \d+ files?$/)
-	// the Pi's own card appears only on a Pi: the test machine is not one
-	await expect(page.getByRole("region", { name: "Raspberry Pi" })).toHaveCount(0)
+	// the Pi's own row appears only on a Pi: the test machine is not one
+	await expect(page.getByTestId("pi")).toHaveCount(0)
+	await expect(page.getByText("Raspberry Pi", { exact: true })).toHaveCount(0)
 	// the left menu has the page, and the app's toolbar has no activity button (the one "Activity" button is the card's title, which opens and closes it)
 	await expect(page.getByRole("button", { name: "Activity" })).toHaveCount(1)
 	await expect(page.getByRole("region", { name: "Activity" }).getByRole("button", { name: "Activity" })).toHaveCount(1)
@@ -110,12 +113,12 @@ test("every page's header says how the device is, and opens the System page", as
 test("a card of the System page opens and closes from its title", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/system")
-	const machine = page.getByRole("region", { name: "Machine" })
+	const machine = page.getByRole("region", { name: "Device" })
 	await expect(machine.getByTestId("machine")).toBeVisible({ timeout: 20000 })
-	await machine.getByRole("button", { name: "Machine" }).click()
-	await expect(machine.getByRole("button", { name: "Machine" })).toHaveAttribute("aria-expanded", "false")
+	await machine.getByRole("button", { name: "Device" }).click()
+	await expect(machine.getByRole("button", { name: "Device" })).toHaveAttribute("aria-expanded", "false")
 	await expect(machine.getByTestId("machine")).toHaveCount(0)
-	await machine.getByRole("button", { name: "Machine" }).click()
+	await machine.getByRole("button", { name: "Device" }).click()
 	await expect(machine.getByTestId("machine")).toBeVisible()
 	watch.expectNone()
 })
