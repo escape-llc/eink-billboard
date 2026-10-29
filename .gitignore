@@ -8,3 +8,5 @@ tests/.storage/
 .e2e-storage/
 .ignore/
 .env
+# answers recorded with your own API key (scripts/record_http_fixtures.py --transitland): yours to test with, not to publish
+python/tests/fixtures/http/recorded/
