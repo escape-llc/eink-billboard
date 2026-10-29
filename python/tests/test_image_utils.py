@@ -106,6 +106,42 @@ Image.new('RGB', (8, 6), 'red').save(shot, 'PNG')
 		self.assertEqual(len(profiles), 2)
 		self.assertNotEqual(profiles[0], profiles[1])
 		self.assertEqual(os.listdir(self.tmp), [])
+	@unittest.skipUnless(sys.platform == "linux", "the out-of-memory score is Linux's /proc")
+	def test_browser_is_first_for_the_out_of_memory_killer(self):
+		# the browser and every helper it starts carry the raised score, the app keeps its own (#568)
+		seen = os.path.join(self.work.name, "scores")
+		self._browser("scorer", f"""
+import subprocess, sys
+child = subprocess.run([sys.executable, "-c", "print(open('/proc/self/oom_score_adj').read().strip())"], capture_output=True, text=True).stdout.strip()
+with open({seen!r}, "w") as f:
+	f.write(open('/proc/self/oom_score_adj').read().strip() + " " + child)
+sys.exit(1)
+""")
+		with open("/proc/self/oom_score_adj") as f:
+			ours = f.read().strip()
+		render_html_arglist("<html></html>", [])
+		with open(seen) as f:
+			self.assertEqual(f.read().split(), [str(image_utils.CHROME_OOM_SCORE_ADJ)] * 2)
+		with open("/proc/self/oom_score_adj") as f:
+			self.assertEqual(f.read().strip(), ours)
+	@unittest.skipIf(sys.platform == "win32", "SIGKILL is POSIX")
+	def test_a_killed_browser_is_reported_as_out_of_memory(self):
+		self._browser("killed", "import os, signal\nos.kill(os.getpid(), signal.SIGKILL)")
+		with self.assertLogs(image_utils.logger, level="ERROR") as cm:
+			self.assertIsNone(render_html_arglist("<html></html>", []))
+		self.assertIn("out of memory", "\n".join(cm.output))
+		self.assertEqual(os.listdir(self.tmp), [])
+	def test_a_helper_killed_for_memory_is_reported(self):
+		# the kernel killed a helper, the browser lived on and failed: only the cgroup's counter tells
+		self._browser("failing", "import sys\nsys.exit(1)")
+		with patch.object(image_utils, "_oom_kills", side_effect=[3, 4]), self.assertLogs(image_utils.logger, level="ERROR") as cm:
+			self.assertIsNone(render_html_arglist("<html></html>", []))
+		self.assertIn("out of memory", "\n".join(cm.output))
+	def test_an_ordinary_failure_is_not_called_out_of_memory(self):
+		self._browser("failing", "import sys\nsys.exit(1)")
+		with patch.object(image_utils, "_oom_kills", return_value=3), self.assertLogs(image_utils.logger, level="ERROR") as cm:
+			self.assertIsNone(render_html_arglist("<html></html>", []))
+		self.assertNotIn("out of memory", "\n".join(cm.output))
 	def test_does_not_log_the_html(self):
 		self._browser("failing", "import sys\nsys.exit(1)")
 		with self.assertLogs(image_utils.logger, level="DEBUG") as cm:
