@@ -284,7 +284,6 @@
 						<img class="about-logo" :src="logo" alt="" />
 						<p><b>eInk Billboard</b> by eScape Technology LLC, {{ version }} ({{ commit }})</p>
 						<ul class="links">
-							<li><a href="https://escape-technology-llc.visualstudio.com/Media%20Lab/_wiki/wikis/Media-Lab.wiki/1/Home" target="_blank" rel="noopener noreferrer">Online Help</a></li>
 							<li><a href="https://escape-technology-llc.com/mobile/index.php/category/medialab/" target="_blank" rel="noopener noreferrer">Blog</a></li>
 						</ul>
 						<a href="https://www.paypal.com/donate/?hosted_button_id=G8P9TW4QT6C3U" target="_blank" rel="noopener noreferrer" data-testid="donate">
