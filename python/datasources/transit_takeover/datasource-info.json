@@ -1,0 +1,93 @@
+{
+	"id": "transit-takeover",
+	"name": "Alert Takeover",
+	"version": "0.0.1",
+	"class": "TransitTakeoverAsync",
+	"file": "transit_takeover.py",
+	"module": "python.datasources.transit_takeover.transit_takeover",
+	"description": "A Priority Update task (every 15 to 30 minutes) that takes the panel with the Service Alerts page when an alert you care about comes into force for your stops, and does nothing otherwise. Each alert is shown once while it is in force, however often the task runs. The stops are the transit provider's (Transitland's settings, My Stops), and it shares their kept answers.",
+	"describe": "Alert takeover {stops}",
+	"disabled": false,
+	"requires": ["data-transit"],
+	"features": ["api-client", "layer-priority", "media-image"],
+	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:transit-takeover:1",
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+				"stop": {
+					"settings": "stops",
+					"from": "data-transit",
+					"value": "name"
+				}
+			},
+			"properties": [
+				{
+					"name": "stops",
+					"type": "array",
+					"required": false,
+					"default": [],
+					"title": "Stops",
+					"lookup": "stop",
+					"description": "Which of My Stops (Transitland settings) to watch. None chosen: all of them. An alert of two stops is shown once.",
+					"items": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "severity",
+					"type": "string",
+					"required": false,
+					"default": "severe",
+					"title": "Severity",
+					"description": "The least severe alert that takes the panel. any: every alert, notices included. warning: warnings and severe ones. severe (the default): only those the agency marks severe.",
+					"enum": ["any", "warning", "severe"]
+				},
+				{
+					"name": "effects",
+					"type": "array",
+					"required": false,
+					"default": [],
+					"title": "Effects",
+					"description": "Only alerts with one of these effects take the panel (and they must meet the severity too). None chosen: any effect.",
+					"items": {
+						"type": "string",
+						"enum": ["no_service", "reduced_service", "significant_delays", "detour", "additional_service", "modified_service", "stop_moved", "accessibility_issue", "other_effect", "unknown_effect"]
+					}
+				},
+				{
+					"name": "routeAlerts",
+					"type": "boolean",
+					"required": false,
+					"default": false,
+					"title": "Route Alerts",
+					"description": "Also watch the alerts of every route that serves the stops, not only those that come with the departures. One more call per stop, kept for Keep Route Alerts (Transitland settings), so leave it off unless you need it."
+				},
+				{
+					"name": "title",
+					"type": "string",
+					"required": false,
+					"default": null,
+					"title": "Title",
+					"description": "The heading of the page. Empty: Service Alert.",
+					"maxLength": 80
+				},
+				{
+					"name": "fontSize",
+					"type": "string",
+					"required": false,
+					"default": "normal",
+					"title": "Text Size",
+					"description": "The size of the text on the page.",
+					"enum": ["x-small", "small", "normal", "large", "x-large"]
+				}
+			]
+		}
+	}
+}

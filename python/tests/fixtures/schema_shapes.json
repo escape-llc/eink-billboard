@@ -331,6 +331,10 @@
 		"version": 1,
 		"properties": {}
 	},
+	"urn:inky:storage:schema:datasource:transit-takeover": {
+		"version": 1,
+		"properties": {}
+	},
 	"urn:inky:storage:schema:datasource:transitland-api": {
 		"version": 1,
 		"properties": {
