@@ -36,6 +36,12 @@ const version = ref(__APP_VERSION__)
 const commit = __APP_COMMIT__
 // the Help drawer slides out from the right
 const helpOpen = ref(false)
+// the section it opens at (the version label opens About), or none: where the reader left it
+const helpSection = ref<string|null>(null)
+function openHelp(section: string|null) {
+	helpSection.value = section
+	helpOpen.value = true
+}
 const items = ref([
 		{
 			label:"Schedule",
@@ -142,9 +148,10 @@ const items = ref([
 			<h2
 			class="m-0"
 			style="font-size:100%;align-self:baseline;flex:none">eInk Billboard</h2>
-			<span
-			class="ml-0"
-			style="align-self:baseline;flex:none" :title="`Web app build ${commit}`" data-testid="app-version">v{{version}} ({{commit}})</span>
+			<!-- the build, which opens About in the Help drawer (#824) -->
+			<button type="button"
+			class="ml-0 app-version"
+			style="align-self:baseline;flex:none" :title="`Web app build ${commit}: about eInk Billboard`" data-testid="app-version" @click="openHelp('about')">v{{version}} ({{commit}})</button>
 		</div>
 		</div>
 	</template>
@@ -164,7 +171,7 @@ const items = ref([
 				aria-label="Help"
 				title="Help"
 				data-testid="help-button"
-				@click="helpOpen = true"
+				@click="openHelp(null)"
 				/>
 			</InputGroup>
 	</template>
@@ -174,7 +181,7 @@ const items = ref([
 	</div>
 	<ConfirmDialog></ConfirmDialog>
 	<AuthDialog />
-	<HelpDrawer v-model:visible="helpOpen" />
+	<HelpDrawer v-model:visible="helpOpen" :section="helpSection" />
 	<Toast position="bottom-left"/>
 </template>
 <style scoped>
@@ -192,6 +199,18 @@ const items = ref([
 	overflow: auto;
 	border-radius: var(--p-toolbar-border-radius);
 	border: solid 1px var(--p-toolbar-border-color)
+}
+/* the build reads as text, and is a button: it opens About */
+.app-version {
+	font: inherit;
+	color: inherit;
+	background: none;
+	border: none;
+	padding: 0;
+	cursor: pointer;
+}
+.app-version:hover {
+	text-decoration: underline;
 }
 @media (max-width: 768px) {
 	.main-area {

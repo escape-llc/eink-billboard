@@ -36,6 +36,8 @@ from ..task.timer_layer import TimerLayer
 SETUP_TITLE = "Set up this device"
 # the setup page has no end of its own: it comes down when the device is claimed (`PriorityRevoke`), so it holds the panel until then
 SETUP_HOLD = timedelta(days=3650)
+# the setup page says whose project the device runs (#824): the one page every new owner sees
+SETUP_CREDIT = "eInk Billboard · escape-technology-llc.com"
 
 # what a viewer may ask of the playlist layer (TransportCommand.command), and the message each becomes
 TRANSPORT_COMMANDS = ("play", "stop", "next")
@@ -306,7 +308,7 @@ class Application(DispatcherTask):
 				return
 			# the lines say where to open the web app and the code: not an error, so no "cannot show this" and no hint about the settings
 			image = render_error_image(self.cm.static_manager(), (width, height), SETUP_TITLE, lines, current_inputs(self.cm.settings_manager()), heading="EINK BILLBOARD", hint=False,
-				qr=self.setup_claim_url() if self.setup_claim_url is not None else None)
+				qr=self.setup_claim_url() if self.setup_claim_url is not None else None, credit=SETUP_CREDIT)
 			self.router.send("display", PriorityImage(timestamp, SETUP_TITLE, image, SETUP_HOLD))  # type: ignore[union-attr]
 			shown_on = self.display.display if self.display is not None else None
 			if isinstance(shown_on, MockDisplay):

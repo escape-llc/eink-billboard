@@ -258,7 +258,7 @@
 						<li>The <b>System</b> page says which part did not start, lists the latest problems, and its <b>Activity</b> panel says what each task is doing, in plain words.</li>
 						<li>A track that fails shows an error page on the panel with the reason. After <b>Failures Before a Track Stops Running</b> (Settings, System; 3 by default) it is struck out: its slot shows the error page and it is tried again after <b>First Retry of a Struck-Out Track</b> (60 seconds), the wait doubling up to <b>Longest Wait Between Retries</b>. A missing key or a wrong setting strikes it out at once; changing the playlist tries it again. <b>Test</b> buttons on addresses and keys say what is wrong before you save.</li>
 						<li>The panel is blank or old? Check the System page's Device card and the Activity panel, then the device's log.</li>
-						<li>On a Raspberry Pi, the helper script has <code>update</code> (get the newest version, downloaded: nothing is built on the Pi, and an image GitHub did not sign for that version is not used; on a board with less than 1 GB of memory the app is stopped meanwhile, and the panel keeps its picture), <code>logs</code> and <code>check</code>. An update that is much slower and fills much more of the disk than it should may be Podman keeping images the slow way: <code>check</code> says so, and <code>storage</code> changes it (it asks first, and keeps your data). A Pi follows the <b>stable</b> releases; <code>update --insider</code> follows every change instead, a few minutes after it is made, and <code>update --stable</code> goes back to the releases (it asks first when that is an older version). The header shows this page's version and build, <b>{{ version }} ({{ commit }})</b>; the System page says if the device runs a different build (reload the page after an update).</li>
+						<li>On a Raspberry Pi, the helper script has <code>update</code> (get the newest version, downloaded: nothing is built on the Pi, and an image GitHub did not sign for that version is not used; on a board with less than 1 GB of memory the app is stopped meanwhile, and the panel keeps its picture), <code>logs</code> and <code>check</code>. An update that is much slower and fills much more of the disk than it should may be Podman keeping images the slow way: <code>check</code> says so, and <code>storage</code> changes it (it asks first, and keeps your data). A Pi follows the <b>stable</b> releases; <code>update --insider</code> follows every change instead, a few minutes after it is made, and <code>update --stable</code> goes back to the releases (it asks first when that is an older version). The header shows this page's version and build, <b>{{ version }} ({{ commit }})</b> (click it for About); the System page says if the device runs a different build (reload the page after an update).</li>
 					</ul>
 				</AccordionContent>
 			</AccordionPanel>
@@ -275,6 +275,23 @@
 				</AccordionContent>
 			</AccordionPanel>
 
+			<AccordionPanel value="about" data-testid="help-about">
+				<AccordionHeader>About</AccordionHeader>
+				<AccordionContent>
+					<div class="about">
+						<img class="about-logo" :src="logo" alt="" />
+						<p><b>eInk Billboard</b> by eScape Technology LLC, {{ version }} ({{ commit }})</p>
+						<ul class="links">
+							<li><a href="https://escape-technology-llc.visualstudio.com/Media%20Lab/_wiki/wikis/Media-Lab.wiki/1/Home" target="_blank" rel="noopener noreferrer">Online Help</a></li>
+							<li><a href="https://escape-technology-llc.com/mobile/index.php/category/medialab/" target="_blank" rel="noopener noreferrer">Blog</a></li>
+						</ul>
+						<a href="https://www.paypal.com/donate/?hosted_button_id=G8P9TW4QT6C3U" target="_blank" rel="noopener noreferrer" data-testid="donate">
+							<img class="about-donate" :src="donate" alt="Donate with PayPal" />
+						</a>
+					</div>
+				</AccordionContent>
+			</AccordionPanel>
+
 			<AccordionPanel value="credits">
 				<AccordionHeader>Credits</AccordionHeader>
 				<AccordionContent>
@@ -286,16 +303,26 @@
 </template>
 <script setup lang="ts">
 /** The Help drawer: a short guide, opened from the toolbar's help button. It slides out over the page, so the page under it keeps its place. */
-import { ref } from "vue"
+import { nextTick, ref, watch } from "vue"
 import { Accordion, AccordionContent, AccordionHeader, AccordionPanel, Drawer } from "primevue"
 import CreditsList from "./CreditsList.vue"
+import logo from "../assets/logo.svg"
+import donate from "../assets/btn_donateCC_LG.gif"
 
-defineProps<{ visible: boolean }>()
+/** `section`: the section to open and show when the drawer opens (the header's version label opens About); none leaves the sections as they were */
+const props = defineProps<{ visible: boolean, section?: string | null }>()
 const emit = defineEmits<{ (e: "update:visible", value: boolean): void }>()
 /** the open sections: the credits are asked for when theirs is first opened */
 const open = ref<string[]>(["start"])
 const version = `v${__APP_VERSION__}`
 const commit = __APP_COMMIT__
+watch(() => [props.visible, props.section] as const, async ([visible, section]) => {
+	if (!visible || !section) return
+	if (!open.value.includes(section)) open.value = [...open.value, section]
+	// the section may be far down the drawer: bring its header into view once the drawer is there
+	await nextTick()
+	document.querySelector(`[data-testid="help-${section}"]`)?.scrollIntoView({ block: "start" })
+}, { immediate: true })
 </script>
 <style scoped>
 .intro {
@@ -332,5 +359,19 @@ code {
 }
 .links a {
 	color: var(--p-primary-color);
+}
+.about {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: .5rem;
+	text-align: center;
+}
+.about-logo {
+	max-height: 8rem;
+	max-width: 100%;
+}
+.about-donate {
+	max-width: 100%;
 }
 </style>

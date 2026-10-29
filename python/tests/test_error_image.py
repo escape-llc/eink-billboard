@@ -154,6 +154,11 @@ class TestWhatThePageSays(unittest.TestCase):
 		# a small box (an overlay zone) has no room for one
 		self.assertIsNone(self.context_of(qr=url, compact=True)["qr"])
 
+	def test_the_setup_page_says_whose_project_it_is_and_an_error_page_does_not(self):
+		self.assertEqual(self.context_of(heading="EINK BILLBOARD", hint=False, credit="eInk Billboard · example.com")["credit"], "eInk Billboard · example.com")
+		self.assertIsNone(self.context_of()["credit"])
+		self.assertIsNone(self.context_of(credit="eInk Billboard · example.com", compact=True)["credit"])
+
 @unittest.skipUnless(HAVE_CHROME, "needs the headless browser (EINK_CHROME, or chromium-headless-shell on PATH)")
 class TestTheSetupPageDrawsItsCode(unittest.TestCase):
 	def test_the_code_is_black_and_white_squares_at_the_right_of_the_page(self):

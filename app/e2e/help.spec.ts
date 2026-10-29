@@ -34,3 +34,19 @@ test("the Help button opens a drawer over the page, with the guide in it, and it
 	await expect(help).toBeHidden()
 	watch.expectNone()
 })
+
+test("the header's build opens About: the project, its help and blog, and the donate link (#824)", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/system")
+	await page.getByTestId("app-version").click()
+	const about = page.getByTestId("help-about")
+	await expect(about.getByText("by eScape Technology LLC")).toBeVisible()
+	await expect(about.getByRole("link", { name: "Online Help" })).toHaveAttribute("href", /visualstudio\.com/)
+	await expect(about.getByRole("link", { name: "Blog" })).toHaveAttribute("target", "_blank")
+	await expect(about.getByRole("link", { name: "Donate with PayPal" })).toHaveAttribute("href", /paypal\.com\/donate/)
+	// the Help button opens the drawer as it was left, not at About
+	await page.keyboard.press("Escape")
+	await page.getByRole("button", { name: "Help" }).click()
+	await expect(page.getByTestId("help").getByText("Settings, System:")).toBeVisible()
+	watch.expectNone()
+})
