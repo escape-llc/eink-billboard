@@ -22,6 +22,8 @@
 				<AccordionHeader>The pages</AccordionHeader>
 				<AccordionContent>
 					<dl>
+						<dt><i class="mi mi-home" aria-hidden="true"></i> Home</dt>
+						<dd>The panel at a glance: the latest thing the device did, with how long ago (a problem from the last hour comes first, in red; click it to see it in the System page's Activity), then the <b>Playlist</b> panel with play, stop and next, <b>Now showing</b> and <b>Recently shown</b>, as on the System page. A device with no playlist yet opens on the Playlist page instead. The menu's Home, or the name in the header, comes back here.</dd>
 						<dt><i class="mi mi-schedule" aria-hidden="true"></i> Schedule</dt>
 						<dd>Timer tasks: things that happen at a time of day, such as a priority message for ten minutes at 8:00, or an overlay (the date, the weather) drawn over the picture. Shown as a day, a week or a list; click a task to change it. <b>Run now</b> in the list starts a task that is on, to see what it does. Closing it with changes not saved asks first (Cancel closes without saving).</dd>
 						<dt><i class="mi mi-play-arrow" aria-hidden="true"></i> Playlist</dt>
@@ -52,7 +54,7 @@
 			<AccordionPanel value="play">
 				<AccordionHeader>Play, stop and next</AccordionHeader>
 				<AccordionContent>
-					<p>On the System page's <b>Playlist</b> panel, which shows the playlist that is playing and marks the track on the panel, <b>Stop</b> holds the panel as it is (timer tasks keep running) and <b>Play</b> carries on. <b>Next</b> skips to the following track. A button wired to the device can do the same.</p>
+					<p>On the <b>Playlist</b> panel (on Home and on the System page), which shows the playlist that is playing and marks the track on the panel, <b>Stop</b> holds the panel as it is (timer tasks keep running) and <b>Play</b> carries on. <b>Next</b> skips to the following track. A button wired to the device can do the same.</p>
 				</AccordionContent>
 			</AccordionPanel>
 

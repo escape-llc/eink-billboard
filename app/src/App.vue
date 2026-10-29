@@ -44,6 +44,12 @@ function openHelp(section: string|null) {
 }
 const items = ref([
 		{
+			label:"Home",
+			icon: "mi mi-home",
+			class: "p-0 m-0",
+			to: "/",
+		},
+		{
 			label:"Schedule",
 			icon: "mi mi-schedule",
 			class: "p-0 m-0",
@@ -145,9 +151,10 @@ const items = ref([
 		</InputGroup>
 		<!-- one line, whatever the width: the name and the build do not wrap or stack -->
 		<div class="flex flex-row p-0 m-0 pl-2" style="flex-grow:1;flex-wrap:nowrap;gap:.5rem;white-space:nowrap">
-			<h2
+			<!-- the name is the way back to Home (#824) -->
+			<RouterLink to="/" class="home-link" style="align-self:baseline;flex:none" title="Home" data-testid="home-link"><h2
 			class="m-0"
-			style="font-size:100%;align-self:baseline;flex:none">eInk Billboard</h2>
+			style="font-size:100%">eInk Billboard</h2></RouterLink>
 			<!-- the build, which opens About in the Help drawer (#824) -->
 			<button type="button"
 			class="ml-0 app-version"
@@ -199,6 +206,14 @@ const items = ref([
 	overflow: auto;
 	border-radius: var(--p-toolbar-border-radius);
 	border: solid 1px var(--p-toolbar-border-color)
+}
+/* the name reads as a heading, and is a link: Home */
+.home-link {
+	color: inherit;
+	text-decoration: none;
+}
+.home-link:hover {
+	text-decoration: underline;
 }
 /* the build reads as text, and is a button: it opens About */
 .app-version {

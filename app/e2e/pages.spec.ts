@@ -5,24 +5,40 @@ import { stubMapTiles, watchProblems } from "./support"
 test.describe("every page renders from the seeded storage, without errors", () => {
 	test.beforeEach(async ({ page }) => stubMapTiles(page))
 
-	test("welcome", async ({ page }) => {
+	test("home: the panel at a glance, without the System page's Activity (#824)", async ({ page }) => {
 		const watch = watchProblems(page)
 		await page.goto("/")
-		await expect(page.getByText("Welcome to eInk Billboard!")).toBeVisible()
+		await expect(page.getByTestId("latest-activity")).toBeVisible()
+		await expect(page.getByRole("region", { name: "Now showing" })).toBeVisible()
+		await expect(page.getByRole("region", { name: "Playlist" })).toBeVisible()
+		await expect(page.getByTestId("activity")).toHaveCount(0)
 		await expect(page).toHaveTitle("eInk Billboard")
 		// the favicon comes from the bundle's public folder
 		expect((await page.request.get("/logo.svg")).status()).toBe(200)
 		watch.expectNone()
 	})
 
-	test("an address that is no page is the welcome page, and so is a claim address on a claimed device (#491)", async ({ page }) => {
+	test("an address that is no page is Home, and so is a claim address on a claimed device (#491)", async ({ page }) => {
 		const watch = watchProblems(page)
 		for (const address of ["/#/no/such/page", "/#/claim/12345678", "/#/claim", "/#/claim/not-a-code"]) {
 			await page.goto(address)
-			await expect(page.getByText("Welcome to eInk Billboard!"), address).toBeVisible()
+			await expect(page.getByTestId("latest-activity"), address).toBeVisible()
 			// the claim code is not left in the address
 			expect(new URL(page.url()).hash, address).toBe("#/")
 		}
+		watch.expectNone()
+	})
+
+	test("the header's name and the menu's Home lead back to Home (#824)", async ({ page }) => {
+		const watch = watchProblems(page)
+		await page.goto("/#/system")
+		await page.getByTestId("home-link").click()
+		await expect(page.getByTestId("latest-activity")).toBeVisible()
+		expect(new URL(page.url()).hash).toBe("#/")
+		await page.goto("/#/settings")
+		await page.locator("button[aria-controls=overlay_tmenu]").first().click()
+		await page.getByRole("menuitem", { name: "Home" }).click()
+		await expect(page.getByTestId("latest-activity")).toBeVisible()
 		watch.expectNone()
 	})
 

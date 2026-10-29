@@ -116,3 +116,22 @@ test("the playlist, the activity, what is showing and what was shown are the lar
 	expect(stackedNow!.y).toBeGreaterThan(stackedMachine!.y)
 	watch.expectNone()
 })
+
+test("Home's line is the latest activity, with how long ago, and opens it in the System page's Activity (#824)", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/")
+	await expect(page.locator(".panel-now")).toHaveAttribute("data-link", "live")
+	const line = page.getByTestId("latest-activity")
+	await expect(line).toHaveAttribute("href", /activity=(all|problems)/, { timeout: 20000 })
+	await expect(line).toContainText(/· (just now|\d+ (min|h|d) ago)$/)
+	// a problem opens Activity narrowed to problems; anything else opens all of it
+	const problem = (await line.getAttribute("data-problem")) === "true"
+	await line.click()
+	await expect.poll(() => new URL(page.url()).hash).toBe(`#/system?activity=${problem ? "problems" : "all"}`)
+	const activity = page.getByTestId("activity")
+	await expect(activity).toBeVisible()
+	const only = activity.getByRole("switch", { name: "Problems only" }).or(activity.getByLabel("Problems only"))
+	if (problem) await expect(only.first()).toBeChecked()
+	else await expect(only.first()).not.toBeChecked()
+	watch.expectNone()
+})
