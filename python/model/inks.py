@@ -52,6 +52,21 @@ def nearest_ink(rgb: tuple[int, int, int], ink_set: str) -> str:
 	"""The ink of `ink_set` that a colour someone else chose (a bus route's) is drawn in, by what the inks look like (`APPEARANCE`), so a page stays inks only (#429)."""
 	return min(INK_SETS.get(ink_set, INK_SETS[DEFAULT_INK_SET]), key=lambda ink: sum((a - b) ** 2 for a, b in zip(APPEARANCE[ink], rgb, strict=True)))
 
+def ink_for(color: str|None, ink_set: str, page_ink: str) -> str|None:
+	"""
+	A colour someone else chose (a calendar's, an event's: `#rgb` or `#rrggbb`) as the `#rrggbb` of its nearest ink, so a page that draws it stays inks only (#801).
+	None, for the page's own text colour, when there is no colour or its nearest ink is the page's own: drawn in it, it would not show.
+	"""
+	if not isinstance(color, str) or len(color) not in (4, 7) or not color.startswith("#"):
+		return None
+	digits = color[1:] if len(color) == 7 else "".join(c * 2 for c in color[1:])
+	try:
+		rgb = (int(digits[0:2], 16), int(digits[2:4], 16), int(digits[4:6], 16))
+	except ValueError:
+		return None
+	ink = nearest_ink(rgb, ink_set)
+	return None if ink == page_ink else "#%02x%02x%02x" % DRIVE[ink]
+
 def ink_set_rgb(name: str, which: Literal["drive", "appearance"] = "drive") -> list[tuple[int, int, int]]:
 	"""The colours of an ink set's inks, in palette order (`drive`: what is drawn and handed to the driver; `appearance`: what the panel shows)."""
 	table = DRIVE if which == "drive" else APPEARANCE

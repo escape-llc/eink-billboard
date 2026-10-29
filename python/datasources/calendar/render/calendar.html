@@ -78,8 +78,8 @@
 			font-size: max(var(--min-label), .62rem);
 			font-weight: bold;
 			line-height: 1;
+			/* square: a rounded corner is smoothed between pixels in colours the panel does not have (#801) */
 			border: 1px solid currentColor;
-			border-radius: .217rem;
 		}
 		/* the weekly view: every other month is tinted, and a month's first day is named */
 		.cal-day.alt {
@@ -109,7 +109,6 @@
 			font-size: max(var(--min-text), var(--fs));
 			font-weight: bold;
 			padding: 0 calc(.25 * var(--fs));
-			border-radius: calc(.6 * var(--fs));
 		}
 		.cal-item {
 			font-size: max(var(--min-text), .72rem);
@@ -140,7 +139,6 @@
 			display: inline-block;
 			width: .432rem;
 			height: .432rem;
-			border-radius: 50%;
 			margin-right: .144rem;
 			background: var(--event, currentColor);
 		}
@@ -200,9 +198,19 @@
 			margin-top: 1.2rem;
 			font-size: max(var(--min-text), 1.2rem);
 		}
-		/* over before the slot began: still there, but struck through */
-		.past {
-			text-decoration: line-through;
+		/* over before the slot began: still there, but struck through. The strike is a box's border, which is drawn on whole pixels: a text decoration is drawn
+		   where the font puts it, between pixels, and smoothed in colours the panel does not have (#801) */
+		.cal-item.past, .ag-item.past .ag-time, .ag-item.past .ag-title {
+			position: relative;
+		}
+		/* in the agenda the time and the title are struck, not the row to the page's edge */
+		.cal-item.past::after, .ag-item.past .ag-time::after, .ag-item.past .ag-title::after {
+			content: "";
+			position: absolute;
+			left: 0;
+			right: 0;
+			top: 50%;
+			border-top: 2px solid currentColor;
 		}
 		.cal-more {
 			font-size: max(var(--min-label), .72rem);

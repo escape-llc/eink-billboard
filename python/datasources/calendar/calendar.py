@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta, tzinfo
 from typing import Any, Mapping
 
 from ...model.configuration_manager import ConfigurationManager, DatasourceConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
+from ...model.inks import ink_for
 from ...model.theme import ThemeInputs, current_inputs
 from ...plugins.plugin_base import RenderSession
 from ..contracts.calendar import CalendarApi, Event, device_now
@@ -122,9 +123,11 @@ class CalendarPagesAsync(DataSource, MediaListAsync, MediaRenderAsync):
 			raise ValueError("Display settings is None")
 		_, system = scm.open("system").get()
 		dimensions = target_dimensions(dsec, display_config)
-		layout = Layout(dimensions, FONT_SCALES.get(str(params.get("fontSize")), 1.0) * current_inputs(scm).font_scale, (system or {}).get("timeFormat") == "12h", len(state.slot.notes))
+		theme = current_inputs(scm)
+		layout = Layout(dimensions, FONT_SCALES.get(str(params.get("fontSize")), 1.0) * theme.font_scale, (system or {}).get("timeFormat") == "12h", len(state.slot.notes),
+			theme.ink_set, theme.palette.bg_page)
 		template_params = page_params(state, params, layout)
-		return await asyncio.to_thread(generate_image, stm, render_dir, dimensions, template_params, current_inputs(scm))
+		return await asyncio.to_thread(generate_image, stm, render_dir, dimensions, template_params, theme)
 
 # the least text a panel draws solid (plugin.css: --min-text, --min-label): the page floors its sizes with them, so the count does too
 MIN_TEXT_PX = 15
@@ -138,6 +141,9 @@ class Layout:
 	twelve_hour: bool
 	# the footer's notes take their lines from the grid or the agenda
 	notes: int = 0
+	# the panel's inks and the page's own: an event's colour is drawn in its nearest ink (#801)
+	ink_set: str = "spectra6"
+	page_ink: str = "white"
 
 	@property
 	def font_px(self) -> int:
@@ -183,7 +189,7 @@ def _item(event: Event, day: date, layout: Layout, short: bool, now: datetime|No
 			time = layout.clock(event.start, short)
 		elif not short:
 			time = "continues"
-	return { "title": event.title, "time": time, "color": event.color, "bar": spans, "holiday": event.holiday, "location": event.location, "calendar": event.calendar,
+	return { "title": event.title, "time": time, "color": ink_for(event.color, layout.ink_set, layout.page_ink), "bar": spans, "holiday": event.holiday, "location": event.location, "calendar": event.calendar,
 		"past": now is not None and event.end <= now }
 
 def _when_short(day: date) -> str:
