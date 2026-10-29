@@ -268,6 +268,29 @@ CHROME_FLAGS = (
 	"--no-sandbox",
 )
 
+# The kernel's out-of-memory killer takes the highest score first: a render is the one to lose, never the app (#568).
+# Written by a shell that then becomes Chromium (exec), so every helper Chromium forks inherits it; raising one's own score needs no privilege. Where /proc is not there it is skipped.
+CHROME_OOM_SCORE_ADJ = 1000
+_OOM_WRAPPER = f'echo {CHROME_OOM_SCORE_ADJ} 2>/dev/null >/proc/self/oom_score_adj; exec "$@"'
+
+def _oom_kills() -> int|None:
+	"""How many of this cgroup's processes the out-of-memory killer has killed (cgroup v2's `memory.events`; a container's own cgroup is its root), None where it cannot be read."""
+	if sys.platform != "linux":
+		return None
+	try:
+		with open("/proc/self/cgroup", encoding="utf-8") as f:
+			group = next((line.strip()[3:] for line in f if line.startswith("0::")), None)
+		if group is None:
+			return None
+		with open(os.path.join("/sys/fs/cgroup", group.lstrip("/"), "memory.events"), encoding="utf-8") as f:
+			for line in f:
+				key, _, value = line.partition(" ")
+				if key == "oom_kill":
+					return int(value)
+	except (OSError, ValueError):
+		pass
+	return None
+
 def render_chrome_headless_arglist(source_html_path: str, arglist: list[str], timeout: float|None = None):
 	"""Render the page with headless Chromium, when one of the render slots is free (see `render_slot_count`). None when it failed, timed out, or no slot came free."""
 	slots = _render_slots()
@@ -298,6 +321,8 @@ def _render_chrome_headless(source_html_path: str, arglist: list[str], timeout: 
 		else:
 			# own session/process group, so the whole tree can be killed; Chromium's text rendering is fontconfig's, so it gets ours (Windows has no fontconfig: the panel never runs there)
 			popen_kwargs = {"start_new_session": True, "env": { **os.environ, "FONTCONFIG_FILE": FONTS_CONF }}
+			command = ["/bin/sh", "-c", _OOM_WRAPPER, "sh", *command]
+		oom_before = _oom_kills()
 		proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **popen_kwargs)
 		try:
 			_, stderr = proc.communicate(timeout=timeout)
@@ -312,7 +337,14 @@ def _render_chrome_headless(source_html_path: str, arglist: list[str], timeout: 
 
 		# Check if the process failed or the output file is missing/empty
 		if proc.returncode != 0 or not os.path.exists(img_file_path) or os.path.getsize(img_file_path) == 0:
-			logger.error(f"Failed to render (exit code {proc.returncode}):")
+			# our timeout has already returned: a SIGKILL now is the kernel's, and the counter also sees a helper killed while the browser lived on
+			oom_after = _oom_kills()
+			if oom_before is not None and oom_after is not None and oom_after > oom_before:
+				logger.error(f"Failed to render: out of memory, the kernel killed Chromium (exit code {proc.returncode}).")
+			elif sys.platform != "win32" and proc.returncode == -signal.SIGKILL:
+				logger.error("Failed to render: Chromium was killed (SIGKILL), most likely out of memory.")
+			else:
+				logger.error(f"Failed to render (exit code {proc.returncode}):")
 			logger.error(stderr.decode('utf-8', errors='replace'))
 			return None
 
