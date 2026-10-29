@@ -26,7 +26,7 @@ STORAGES = [os.path.join(ROOT, "tests", "fixtures", "storage"), os.path.join(REP
 USER_SUPPLIED = {
 	("source", "countdown", "title"), ("source", "countdown", "targetDate"),
 	("source", "image-folder", "folder"), ("source", "ai-image", "prompt"), ("source", "rss", "feed"),
-	("source", "today", "customFormat"), ("source", "comicvine-covers", "series"), ("source", "image-url", "picture"), ("source", "transit", "stop"),
+	("source", "today", "customFormat"), ("source", "comicvine-covers", "series"), ("source", "image-url", "picture"), ("source", "transit", "stop"), ("source", "transit-overlay", "stop"),
 }
 # one name, different shapes (each is one form at a time, and a change of plugin or data source resets the form's values):
 SAME_NAME_DIFFERENT = {
