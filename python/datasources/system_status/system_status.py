@@ -1,5 +1,5 @@
 """
-How the device is, as a page (#651): the same readings as the System page's Machine card (python/web/system_info.py), laid out for the panel. A reading that is too high is marked with a word
+How the device is, as a page (#651): the same readings as the System page's Device card (its Machine row) (python/web/system_info.py), laid out for the panel. A reading that is too high is marked with a word
 ("High", "Low space"), so it reads on a panel with two inks. Read on the device: no network, no key. Like the System page, every value is a number or one of our own words:
 no host name, address, user or path is drawn.
 """

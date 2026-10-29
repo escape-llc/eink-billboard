@@ -1,9 +1,9 @@
 /** The words the System page uses for sizes and times. */
 import type { MaterialIconName } from "./MaterialIcons"
 
-const UNITS = ["bytes", "KB", "MB", "GB", "TB"]
+const UNITS = ["B", "KB", "MB", "GB", "TB"]
 
-/** A size in bytes as people read it: `0 bytes`, `1.5 KB`, `38 MB`. */
+/** A size in bytes as people read it, short for a pill: `0 B`, `1.5 KB`, `38 MB`. */
 export function formatBytes(value: number | null | undefined): string {
 	if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "?"
 	let size = value
@@ -12,7 +12,7 @@ export function formatBytes(value: number | null | undefined): string {
 		size /= 1024
 		unit++
 	}
-	// whole numbers from 10 up, one decimal below, and no decimal for bytes
+	// whole numbers from 10 up, one decimal below, and no decimal for single bytes
 	const text = unit === 0 || size >= 10 ? String(Math.round(size)) : size.toFixed(1).replace(/\.0$/, "")
 	return `${text} ${UNITS[unit]}`
 }
@@ -175,20 +175,30 @@ export function storageLine(areas: { files: number, bytes: number }[], volume?: 
 /** What each part of the start is, as a glyph (the Device card): the display, the playlist and the timer tasks. */
 const PART_ICONS: Record<string, MaterialIconName> = { "display": "tv", "playlist-layer": "playlist_play", "timer-layer": "schedule" }
 
-/** The parts of the start as pills (the Device card): each one's glyph, and running, failed or starting on its tone; the title is what the part said. */
-export function devicePills(components: Record<string, { state: string, message: string }>, titles: Record<string, string>): Pill[] {
-	return Object.entries(components).map(([name, c]) => {
+/**
+ * The application as pills (the Device card's Application row): each part of the start with its glyph, running, failed or starting on its tone (the title is what
+ * the part said), the memory the application uses when the machine can say, and what it keeps on disk in all (the Storage card's size, the same pill).
+ */
+export function devicePills(components: Record<string, { state: string, message: string }>, titles: Record<string, string>, appMemory?: number | null,
+		storage?: { files: number, bytes: number }[] | null): Pill[] {
+	const pills: Pill[] = Object.entries(components).map(([name, c]) => {
 		const label = titles[name] ?? name
 		const [value, kind]: [string, PillKind] = c.state === "ok" ? ["running", "success"] : c.state === "failed" ? ["failed", "danger"] : ["starting", "info"]
 		return { label, value, kind, title: `${label}: ${c.message}`, icon: PART_ICONS[name], testid: `part-${name}` }
 	})
+	if (typeof appMemory === "number") pills.push({ label: "memory", value: formatBytes(appMemory), kind: "neutral", title: "The memory the application uses", icon: "memory_alt", testid: "app-memory" })
+	if (storage) {
+		const [size] = storagePills(storage)
+		pills.push({ ...size, title: `${size.title}: ${storageLine(storage)}`, testid: "app-storage" })
+	}
+	return pills
 }
 
 type Host = { os: string, os_release: string, machine: string, python: string, cpus: number, commit: string, uptime_seconds?: number | null, app_uptime_seconds?: number | null, clock?: "synced" | "unsynced" | null }
 type Load = { cpu_percent?: number | null, load?: number[] | null, memory?: { total: number, used: number, percent: number } | null, app_memory?: number | null }
 type Volume = { total: number, free: number, percent: number }
 
-/** The machine as pills (the Machine card, #796): what it runs, the builds, how long it and the app have been up, the clock, the processor, the memory and the disk. A reading it cannot give is left out. */
+/** The machine as pills (the Device card's Machine row, #796): what it runs, the builds, how long it and the app have been up, the clock, the processor, the memory and the disk. A reading it cannot give is left out. */
 export function machinePills(host: Host, load: Load, volume: Volume | null | undefined, webCommit: string, mismatch: boolean): Pill[] {
 	const pills: Pill[] = [
 		{ label: "system", value: `${host.os} ${host.os_release}`.trim(), kind: "neutral", title: `${host.os} ${host.os_release} (${host.machine})`, icon: "computer" },
@@ -205,7 +215,6 @@ export function machinePills(host: Host, load: Load, volume: Volume | null | und
 		title: `${host.cpus} ${host.cpus === 1 ? "core" : "cores"}${busy ? `, ${load.cpu_percent}% busy` : ""}${load.load ? ` (load ${load.load.join(" ")})` : ""}` })
 	if (load.memory) pills.push({ label: "memory", value: `${formatBytes(load.memory.used)} / ${formatBytes(load.memory.total)}`, kind: gaugeSeverity(load.memory.percent), icon: "memory_alt", testid: "memory",
 		title: `Memory: ${formatBytes(load.memory.used)} of ${formatBytes(load.memory.total)} in use (${Math.round(load.memory.percent)}%)` })
-	if (typeof load.app_memory === "number") pills.push({ label: "this app", value: formatBytes(load.app_memory), kind: "neutral", title: "The memory this app uses" })
 	if (volume?.total) pills.push({ label: "disk", value: `${formatBytes(volume.free)} free`, kind: gaugeSeverity(volume.percent), icon: "hard_drive", testid: "disk",
 		title: `Disk: ${formatBytes(volume.free)} free of ${formatBytes(volume.total)} (${Math.round(volume.percent)}% in use)` })
 	return pills

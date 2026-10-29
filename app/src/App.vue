@@ -154,8 +154,8 @@ const items = ref([
 		-->
 	</template>
 	<template #end>
-		<DeviceStatusTag class="mr-2" />
 		<InputGroup>
+			<DeviceStatusTag />
 			<ThemeSelector class="p-button-sm"/>
 			<Button size="small"
 				icon="mi mi-help"

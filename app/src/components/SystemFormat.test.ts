@@ -3,8 +3,8 @@ import { devicePills, machinePills, periodPills, piPills, sizePills, deviceMomen
 
 describe("sizes", () => {
 	it("are in the largest unit that keeps them readable", () => {
-		expect(formatBytes(0)).toBe("0 bytes")
-		expect(formatBytes(1000)).toBe("1000 bytes")
+		expect(formatBytes(0)).toBe("0 B")
+		expect(formatBytes(1000)).toBe("1000 B")
 		expect(formatBytes(1536)).toBe("1.5 KB")
 		expect(formatBytes(2 * 1024)).toBe("2 KB")
 		expect(formatBytes(38 * 1024 * 1024)).toBe("38 MB")
@@ -110,7 +110,7 @@ describe("the closed cards' lines", () => {
 		const areas = [{ files: 100, bytes: 1024 * 1024 * 10 }, { files: 40, bytes: 1024 * 1024 * 2 }]
 		expect(storageLine(areas, { total: 1024 * 1024 * 1200 })).toBe("12 MB in 140 files, 1% of the disk")
 		expect(storageLine(areas, { total: 1024 ** 4 })).toBe("12 MB in 140 files, less than 0.1% of the disk")
-		expect(storageLine([{ files: 1, bytes: 10 }], null)).toBe("10 bytes in 1 file")
+		expect(storageLine([{ files: 1, bytes: 10 }], null)).toBe("10 B in 1 file")
 	})
 	it("are pills for the closed card, the free space toned by how full the disk is", () => {
 		const areas = [{ files: 100, bytes: 1024 * 1024 * 8 }, { files: 40, bytes: 1024 * 1024 * 4 }]
@@ -128,13 +128,21 @@ describe("the cards' pills (#796)", () => {
 		expect(pairs(pills)).toEqual(["Display running success", "Timer tasks failed danger", "playlist-layer starting info"])
 		expect(pills.map(p => p.icon)).toEqual(["tv", "schedule", "playlist_play"])
 		expect(pills[1].title).toBe("Timer tasks: Broken.")
+		// the memory the application uses is the Application row's, when the machine can say
+		const withMemory = devicePills({ "display": { state: "ok", message: "Running." } }, { "display": "Display" }, 120 * 1024 ** 2)
+		expect(pairs(withMemory)).toEqual(["Display running success", "memory 120 MB neutral"])
+		expect([withMemory[1].title, withMemory[1].icon]).toEqual(["The memory the application uses", "memory_alt"])
+		// and what it keeps on disk in all: the Storage card's size pill
+		const withStorage = devicePills({}, {}, null, [{ files: 100, bytes: 1024 * 1024 * 8 }, { files: 40, bytes: 1024 * 1024 * 4 }])
+		expect(pairs(withStorage)).toEqual(["size 12 MB neutral"])
+		expect([withStorage[0].icon, withStorage[0].title]).toEqual(["database", "What the device keeps, in all: 12 MB in 140 files"])
 	})
 	it("show the machine, leaving out what it cannot read, with memory and disk toned by how full they are", () => {
 		const host = { os: "Linux", os_release: "6.12", machine: "aarch64", python: "3.13.7", cpus: 4, commit: "abc1234", uptime_seconds: 3 * 86400, app_uptime_seconds: 30, clock: "unsynced" as const }
 		const load = { cpu_percent: 12, load: [0.5, 0.4, 0.3], memory: { total: 8 * 1024 ** 3, used: 7.4 * 1024 ** 3, percent: 92 }, app_memory: 120 * 1024 ** 2 }
 		const pills = machinePills(host, load, { total: 100 * 1024 ** 3, free: 40 * 1024 ** 3, percent: 60 }, "abc1234", false)
 		expect(pairs(pills)).toEqual(["system Linux 6.12 neutral", "build abc1234 neutral", "python 3.13.7 neutral", "up 3 days 0 h neutral", "app 30 s neutral", "clock not set warn",
-			"processor 4 cores · 12% neutral", "memory 7.4 GB / 8 GB danger", "this app 120 MB neutral", "disk 40 GB free success"])
+			"processor 4 cores · 12% neutral", "memory 7.4 GB / 8 GB danger", "disk 40 GB free success"])
 		expect(pills.find(p => p.label === "processor")?.title).toBe("4 cores, 12% busy (load 0.5 0.4 0.3)")
 		const bare = machinePills({ ...host, uptime_seconds: null, app_uptime_seconds: null, clock: null }, {}, null, "def5678", true)
 		expect(pairs(bare)).toEqual(["system Linux 6.12 neutral", "build abc1234 / def5678 warn", "python 3.13.7 neutral", "processor 4 cores neutral"])
@@ -154,6 +162,6 @@ describe("the cards' pills (#796)", () => {
 	it("show a period of calls, the failed ones only when some failed", () => {
 		const period = { calls: 20, status: { "200": 19, "429": 1 }, sent: 2400, received: 40960, hitRate: 0.75, bytesSaved: 6000 }
 		expect(pairs(periodPills("7 days", period))).toEqual(["calls 20 neutral", "failed 1 danger", "sent 2.3 KB neutral", "received 40 KB neutral", "cache 75% neutral"])
-		expect(pairs(periodPills("Today", { calls: 4, status: { "200": 4 }, sent: 0, received: 0 }))).toEqual(["calls 4 neutral", "sent 0 bytes neutral", "received 0 bytes neutral"])
+		expect(pairs(periodPills("Today", { calls: 4, status: { "200": 4 }, sent: 0, received: 0 }))).toEqual(["calls 4 neutral", "sent 0 B neutral", "received 0 B neutral"])
 	})
 })
