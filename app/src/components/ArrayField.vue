@@ -59,7 +59,7 @@
 						<TestUrlButton v-if="f.test?.url && baseUrl !== undefined" bare :route="f.test.url" :baseUrl="baseUrl" :value="row[f.name]" :label="`${f.title} ${index + 1}`"
 							:disabled="!!cellError(index, f.name)" @result="(r: TestResult | null) => tested[`${index}:${f.name}`] = r" />
 					</InputGroup>
-					<Message v-if="f.lookup && rowLookup(f, row, index)?.error" severity="warn" size="small" variant="simple">{{ rowLookup(f, row, index)?.error }}</Message>
+					<Message v-if="f.lookup && lookupProblem(f, row, index)" severity="warn" size="small" variant="simple">{{ lookupProblem(f, row, index) }}</Message>
 					<Message v-else-if="f.lookup && nothingFound(f, row, index)" severity="secondary" size="small" variant="simple">Nothing found for "{{ searched[searchKey(index, f)] }}".</Message>
 					<Message v-if="cellError(index, f.name)" severity="error" size="small" variant="simple">{{ cellError(index, f.name) }}</Message>
 					<Message v-if="tested[`${index}:${f.name}`]" :severity="tested[`${index}:${f.name}`]!.ok ? 'success' : 'error'" size="small" variant="simple">{{ tested[`${index}:${f.name}`]!.message }}</Message>
@@ -212,6 +212,10 @@ function placeholder(f: ResolvedFieldDef, row: Row, index: number): string {
 /** Search a row: what is typed goes as `q`, now (Enter or the button); an empty search asks the lookup with an empty `q`. */
 function search(index: number, f: ResolvedFieldDef) {
 	searched[searchKey(index, f)] = (searchText[searchKey(index, f)] ?? "").trim()
+}
+/** Why a row's choices could not be loaded: its own list's problem, or the field's when the row uses the field's one list (#816: it was not shown, and the list was just empty). */
+function lookupProblem(f: ResolvedFieldDef, row: Row, index: number): string|undefined {
+	return rowAddress(f, row, index) ? rowLookup(f, row, index)?.error : f.lookupError
 }
 function nothingFound(f: ResolvedFieldDef, row: Row, index: number): boolean {
 	const answer = searched[searchKey(index, f)] ? rowLookup(f, row, index) : undefined
