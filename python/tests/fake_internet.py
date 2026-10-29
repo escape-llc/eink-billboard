@@ -474,7 +474,22 @@ def _transitland(request: httpx.Request) -> httpx.Response | None:
 		return httpx.Response(200, text=fixture_text("transitland-routes.json"), headers={ "Content-Type": "application/json" })
 	if path == "/api/v2/rest/stops":
 		params = request.url.params
-		if not params.get("lat") or not params.get("lon") or not params.get("radius"):
+		# Transitland's geographic queries take all three, and at most 10 km
+		if any(params.get(k) for k in ("lat", "lon", "radius")) and (not all(params.get(k) for k in ("lat", "lon", "radius")) or float(params["radius"]) > 10000):
+			return httpx.Response(400, json={ "error": "lat, lon and radius are needed together, radius at most 10000" })
+		every = json.loads(fixture_text("transitland-stops-near.json"))["stops"] + json.loads(fixture_text("transitland-stops-search.json"))["stops"]
+		if params.get("stop_key"):
+			# a key: the stop itself, by its Onestop ID or `<feed>:<stop_id>`
+			wanted = params["stop_key"]
+			def key_of(s: dict) -> str:
+				return s.get("onestop_id") or f"{((s.get('feed_version') or {}).get('feed') or {}).get('onestop_id')}:{s.get('stop_id')}"
+			return httpx.Response(200, json={ "stops": [s for s in every if key_of(s) == wanted][:1] })
+		if params.get("search"):
+			# a full-text search: the stops whose name holds every word asked for, each once
+			words = params["search"].casefold().split()
+			matching = { s["onestop_id"] or s["stop_id"]: s for s in every if all(w in str(s.get("stop_name", "")).casefold() for w in words) }
+			return httpx.Response(200, json={ "stops": list(matching.values()) })
+		if not params.get("lat"):
 			return httpx.Response(400, json={ "error": "lat, lon and radius are needed" })
 		return httpx.Response(200, text=fixture_text("transitland-stops-near.json"), headers={ "Content-Type": "application/json" })
 	found = TRANSITLAND_STOP.match(path)

@@ -663,7 +663,9 @@ export interface paths {
         };
         /**
          * Stop Choices
-         * @description The stops near the device's location, within the radius of the settings, nearest first: kept a day, so opening the form spends no quota.
+         * @description The stops near the device's location, within the radius of the settings, nearest first: kept a day, so opening the form spends no quota. With `q` (the stop
+         *     finder: what was typed in the row's search box), the stops whose name holds it within 10 km of the device (anywhere with no location), or the stop of a key;
+         *     an empty `q` is the stops near the device. Kept a day by what was asked.
          */
         get: operations["stop_choices_api_datasource_transitland_api_lookups_stops_get"];
         put?: never;
@@ -3398,7 +3400,9 @@ export interface operations {
     };
     stop_choices_api_datasource_transitland_api_lookups_stops_get: {
         parameters: {
-            query?: never;
+            query?: {
+                q?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3412,6 +3416,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Choice"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

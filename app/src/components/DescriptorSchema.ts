@@ -115,7 +115,7 @@ export function sectionProblems(section: unknown, where: string): string[] {
 	// a lookup a field names is one its schema defines (a row's fields included), or the form offers nothing
 	const lookups = parsed.data.schema.lookups ?? {}
 	const problems: string[] = []
-	// a lookup's `with` names fields where it is used: the schema's own fields, or in a row that row's; a row has no search box
+	// a lookup's `with` names fields where it is used: the schema's own fields, or in a row that row's
 	const formNames = parsed.data.schema.properties.map(px => px.name)
 	parsed.data.schema.properties.forEach((px, ix) => {
 		if (px.type === "header") return
@@ -135,7 +135,6 @@ export function sectionProblems(section: unknown, where: string): string[] {
 			for (const name of lookup.with ?? []) {
 				if (!names?.includes(name) || name === (fx as { name?: string }).name) problems.push(`${where}/schema/properties/${at}/lookup: "${fx.lookup}" is sent with "${name}", which is not another field ${at.includes("/items/") ? "of the row" : "of the schema"}`)
 			}
-			if (lookup.search && at.includes("/items/")) problems.push(`${where}/schema/properties/${at}/lookup: "${fx.lookup}" is a search, which a list row cannot have`)
 		}
 	})
 	return problems

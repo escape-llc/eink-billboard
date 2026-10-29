@@ -19,7 +19,7 @@
 		"_schema": "urn:inky:storage:schema:datasource:transitland-api:1",
 		"schema": {
 			"lookups": {
-				"stop": { "url": "/api/datasource/transitland-api/lookups/stops" }
+				"stop": { "url": "/api/datasource/transitland-api/lookups/stops", "search": true }
 			},
 			"properties": [
 				{
@@ -40,7 +40,7 @@
 					"required": false,
 					"default": [],
 					"title": "My Stops",
-					"description": "The stops the transit pages and overlays can show, each under a name a task chooses it by. A stop is chosen from those near the device's location (System settings), and Test asks Transitland for its name. The walk is how long it takes you to get there: a board leaves out what you could no longer catch.",
+					"description": "The stops the transit pages and overlays can show, each under a name a task chooses it by. A stop is chosen from those near the device's location (System settings), or found by searching for its name (within 10 km of the device) or typing its key in the row's search box; Test asks Transitland for its name. The walk is how long it takes you to get there: a board leaves out what you could no longer catch.",
 					"items": {
 						"type": "object",
 						"key": "name",

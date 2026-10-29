@@ -3749,8 +3749,26 @@
 		},
 		"/api/datasource/transitland-api/lookups/stops": {
 			"get": {
-				"description": "The stops near the device's location, within the radius of the settings, nearest first: kept a day, so opening the form spends no quota.",
+				"description": "The stops near the device's location, within the radius of the settings, nearest first: kept a day, so opening the form spends no quota. With `q` (the stop\nfinder: what was typed in the row's search box), the stops whose name holds it within 10 km of the device (anywhere with no location), or the stop of a key;\nan empty `q` is the stops near the device. Kept a day by what was asked.",
 				"operationId": "stop_choices_api_datasource_transitland_api_lookups_stops_get",
+				"parameters": [
+					{
+						"in": "query",
+						"name": "q",
+						"required": false,
+						"schema": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"title": "Q"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"content": {
@@ -3765,6 +3783,16 @@
 							}
 						},
 						"description": "Successful Response"
+					},
+					"422": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPValidationError"
+								}
+							}
+						},
+						"description": "Validation Error"
 					}
 				},
 				"summary": "Stop Choices"

@@ -33,8 +33,10 @@ MAX_BYTES = 4 * 1024 * 1024
 # a departures answer covers this far ahead (Transitland's `next`, in seconds): kept 15 minutes or more, it still reaches past the last departure a board shows
 WINDOW_SECONDS = 5400
 DEPARTURES_LIMIT = 60
-# the stop lookup: how many stops near the device it lists
+# the stop lookup: how many stops near the device it lists, and how many a search finds
 NEARBY_LIMIT = 50
+# a search by name (the stop finder) looks this far from the device: Transitland's most for a geographic query
+SEARCH_RADIUS = 10000
 
 # the settings' floors and defaults (the descriptor says the same: a hand-edited file below the floor is raised to it)
 MIN_CACHE_MINUTES = 15
@@ -260,10 +262,18 @@ def _metres(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 	a = math.sin((p2 - p1) / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(math.radians(lon2 - lon1) / 2) ** 2
 	return 6371000 * 2 * math.asin(math.sqrt(a))
 
-def nearby_choices(data: Mapping[str, Any], latitude: float, longitude: float) -> list[dict[str, str]]:
+def distance_text(metres: float) -> str:
+	"""A distance as a walk reads it: "120 m" below a kilometre, then "2.4 km" (whole kilometres from 10)."""
+	if metres < 1000:
+		return f"{round(metres)} m"
+	km = metres / 1000
+	return f"{km:.1f} km" if km < 10 else f"{round(km)} km"
+
+def nearby_choices(data: Mapping[str, Any], latitude: float|None, longitude: float|None) -> list[dict[str, str]]:
 	"""
-	The stops near a point as choices, nearest first, labelled so stops of the same name can be told apart: "Main St & 3rd, platform 2 (120 m)". A stop with no key
-	to ask it by again, or no position, is left out.
+	The stops of an answer as choices, nearest the point first, labelled so stops of the same name can be told apart: "Main St & 3rd, platform 2 (120 m)". A stop
+	with no key to ask it by again is left out, and so is one with no position when there is a point; with no point (a search from a device with no location)
+	they are in the order of their names, with no distance.
 	"""
 	found: list[tuple[float, dict[str, str]]] = []
 	for stop in data.get("stops") or []:
@@ -271,14 +281,20 @@ def nearby_choices(data: Mapping[str, Any], latitude: float, longitude: float) -
 			continue
 		key = stop_key_of(stop)
 		point = (stop.get("geometry") or {}).get("coordinates") if isinstance(stop.get("geometry"), dict) else None
-		if not key or not isinstance(point, list) or len(point) < 2 or _number(point[0]) is None or _number(point[1]) is None:
+		placed = isinstance(point, list) and len(point) >= 2 and _number(point[0]) is not None and _number(point[1]) is not None
+		if not key or (latitude is not None and longitude is not None and not placed):
 			continue
-		distance = _metres(latitude, longitude, float(point[1]), float(point[0]))
+		distance = _metres(latitude, longitude, float(point[1]), float(point[0])) if latitude is not None and longitude is not None and isinstance(point, list) else 0.0
 		name = str(stop.get("stop_name") or key).strip()
 		detail = str(stop.get("platform_code") or "").strip()
 		detail = f"platform {detail}" if detail else str(stop.get("stop_desc") or "").strip()
-		found.append((distance, { "name": f"{name}{', ' + detail if detail else ''} ({round(distance)} m)", "value": key }))
+		far = f" ({distance_text(distance)})" if latitude is not None and longitude is not None else ""
+		found.append((distance, { "name": f"{name}{', ' + detail if detail else ''}{far}", "value": key }))
 	return [choice for _, choice in sorted(found, key=lambda pair: (pair[0], pair[1]["name"]))]
+
+def looks_like_key(text: str) -> bool:
+	"""Whether what was typed is a stop's key rather than its name: a Onestop ID (`s-...`) or `<feed>:<stop_id>`, with no spaces."""
+	return not any(c.isspace() for c in text) and (text.startswith("s-") or ":" in text)
 
 def client() -> httpx.AsyncClient:
 	"""The provider's metered client (#440): every call is counted against its plan on the System page."""
@@ -319,6 +335,25 @@ async def nearby(dscm: DatasourceConfigurationManager, settings: Mapping[str, An
 		data = await cached(dscm, settings, name, now, lambda: fetch(http, "/stops", { "lat": f"{latitude:.5f}", "lon": f"{longitude:.5f}", "radius": radius, "limit": NEARBY_LIMIT }, key),
 			DEFAULT_LOOKUP_HOURS, "lookupCacheHours")
 	return nearby_choices(data, latitude, longitude)
+
+async def search(dscm: DatasourceConfigurationManager, settings: Mapping[str, Any], text: str, where: tuple[float, float]|None, now: datetime) -> list[dict[str, str]]:
+	"""
+	The stop finder: the stops whose name holds what was typed, within SEARCH_RADIUS of the device (anywhere when it has no location), or the stop of a key typed
+	(or stored: the form asks for a stored value's own entry, to name it). Kept `lookupCacheHours` by what was asked, so the same search spends no quota.
+	"""
+	key = str(settings.get("apiKey") or "").strip()
+	asked = text.strip()
+	params: dict[str, Any]
+	if looks_like_key(asked):
+		name, params = f"stop-key|{asked}", { "stop_key": asked }
+	else:
+		name, params = f"search|{asked.casefold()}", { "search": asked, "limit": NEARBY_LIMIT }
+		if where is not None:
+			name += f"|{where[0]:.3f}|{where[1]:.3f}"
+			params.update({ "lat": f"{where[0]:.5f}", "lon": f"{where[1]:.5f}", "radius": SEARCH_RADIUS })
+	async with client() as http:
+		data = await cached(dscm, settings, name, now, lambda: fetch(http, "/stops", params, key), DEFAULT_LOOKUP_HOURS, "lookupCacheHours")
+	return nearby_choices(data, where[0] if where is not None else None, where[1] if where is not None else None)
 
 def stop_entry(settings: Mapping[str, Any], name: Any) -> Mapping[str, Any]:
 	"""The entry of My Stops a task names; a name that is not one is a PermanentError that says where to look."""

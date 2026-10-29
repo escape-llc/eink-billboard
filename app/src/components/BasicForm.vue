@@ -161,10 +161,11 @@ function ensureInitializeForm(schema: SchemaType|undefined): void {
 	unfollow()
 	startLookups(schema, localProperties.value)
 }
-function startLookups(schema: SchemaType, values: ResolvedField[]): void {
+function startLookups(schema: SchemaType, values: ResolvedField[], inRow = false): void {
 	values.forEach(px => {
-		// a lookup with parameters is fetched by its field (or its row) for the values it needs, not once here
-		if(px.type !== "header" && px.lookup && px.listType === "url" && !px.lookupWith && !px.lookupSearch) {
+		// a lookup with parameters is fetched by its field (or its row) for the values it needs, not once here; a search in a row offers the lookup's
+		// own list until the row searches, so that list is fetched here
+		if(px.type !== "header" && px.lookup && px.listType === "url" && !px.lookupWith && (!px.lookupSearch || inRow)) {
 			lookupUrl(px)
 		}
 		if(px.children) {
@@ -172,7 +173,7 @@ function startLookups(schema: SchemaType, values: ResolvedField[]): void {
 		}
 		// the fields of a list's rows may choose from a lookup too
 		if(px.type === "array" && px.items && "properties" in px.items) {
-			startLookups(schema, px.items.properties)
+			startLookups(schema, px.items.properties, true)
 		}
 	})
 }
@@ -302,12 +303,14 @@ function lookupUrl(target: ResolvedField): void {
 			if(state.status === "success") {
 				target.list = withCurrentValue(state.data ?? [], target.name)
 				target.lookupError = undefined
+				target.lookupReady = true
 				return
 			}
 			console.error("lookupUrl", state.error)
 			// the message is shown under the field; it is never a choice that could be saved
 			target.list = withCurrentValue([], target.name)
 			target.lookupError = `The choices could not be loaded: ${state.error?.message}`
+			target.lookupReady = true
 		})
 	}))
 }

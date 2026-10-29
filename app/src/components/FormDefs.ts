@@ -150,6 +150,8 @@ type Resolved = {
 	lookupUrl?: string | null
 	/** why the list could not be loaded, shown under the field (never a choice) */
 	lookupError?: string
+	/** a `url` lookup's list has been answered (or failed): an empty list is then really empty */
+	lookupReady?: boolean
 	/** a `url` lookup's `with` and `search`: the field fetches its list itself, for the values it needs (LookupQuery.ts) */
 	lookupWith?: string[]
 	lookupSearch?: boolean

@@ -89,7 +89,8 @@ export function schemaFor(px: FormField): z.ZodTypeAny | undefined {
 				const allowed = px.enum
 				base = base.refine(oneOf(allowed), { error: messages.notAllowed })
 			}
-			else if (px.list && px.list.length > 0) {
+			// a search lookup's list is what was asked last (in a row, the stops near the device before a search), not every value it can hold
+			else if (px.list && px.list.length > 0 && !px.lookupSearch) {
 				const allowed = px.list.map(x => x.value)
 				base = base.refine(oneOf(allowed), { error: messages.notAllowed })
 			}
