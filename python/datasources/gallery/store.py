@@ -67,18 +67,22 @@ class GalleryStore:
 		found = doc.get("items") if isinstance(doc, dict) else None
 		return [i for i in found if isinstance(i, dict) and isinstance(i.get("id"), str)] if isinstance(found, list) else []
 
+	@staticmethod
+	def _own_id(items: list[dict], item_id: str) -> str|None:
+		"""The index's own id for `item_id`, or None when it lists none: a file is named from this value, never from what a request said."""
+		return next((i["id"] for i in items if i["id"] == item_id), None)
+
 	def items(self) -> list[dict]:
 		"""The pictures, newest first (copies: nobody changes the index through them)."""
 		_, doc = self._index().get()
 		return [dict(i) for i in self._items(doc)]
 
 	def read(self, item_id: str) -> bytes|None:
-		"""A picture's bytes; None when it is not there (it was removed after the list was made). `item_id` is only ever matched against our own index, never made into a path."""
+		"""A picture's bytes; None when it is not there (it was removed after the list was made). `item_id` is only ever matched against our own index: the file is named from the index's own id, never the caller's string."""
 		cob = self._index()
 		with cob:
-			if not any(i["id"] == item_id for i in self._items(cob.get()[1])):
-				return None
-			return self._dscm.read_blob(_name(item_id))
+			own = self._own_id(self._items(cob.get()[1]), item_id)
+			return self._dscm.read_blob(_name(own)) if own is not None else None
 
 	def keep(self, data: bytes, meta: Mapping[str, Any], now: datetime, max_pictures: int, max_bytes: int) -> Kept:
 		"""Keep `data` (a picture already encoded) with its description `meta` (`title`, `origin`, `prompt`, `width`, `height`), then trim the pool to its bounds."""
@@ -137,12 +141,12 @@ class GalleryStore:
 		with cob:
 			rev, doc = cob.get()
 			items = self._items(doc)
-			rest = [i for i in items if i["id"] != item_id]
-			if len(rest) == len(items):
+			own = self._own_id(items, item_id)
+			if own is None:
 				return False
-			if not cob.save(rev, { "items": rest })[0]:
+			if not cob.save(rev, { "items": [i for i in items if i["id"] != own] })[0]:
 				return False
-			self._dscm.remove_blob(_name(item_id))
+			self._dscm.remove_blob(_name(own))
 			return True
 
 	def _sweep_once(self) -> None:

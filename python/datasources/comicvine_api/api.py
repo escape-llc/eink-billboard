@@ -63,9 +63,14 @@ def test_key(cm: CM, body: dict[str, Any] = Body(...)):
 		return { "ok": True, "message": "Comic Vine accepts this key." }
 	try:
 		return asyncio.run(ask())
-	except (PermanentError, RuntimeError) as problem:
-		# the source's failures are in our words already (a refused key, the limit, no answer)
-		return { "ok": False, "message": str(problem) }
+	except PermanentError:
+		# a refused key is the only thing a key test is refused for
+		return { "ok": False, "message": "Comic Vine refused the API key. Check it in the Comic Vine settings." }
+	except RuntimeError as problem:
+		# the words below are fixed by the kind of failure: nothing is taken from the error
+		if "too many requests" in str(problem):
+			return { "ok": False, "message": "Comic Vine says too many requests were made (its limit is per hour): try again later." }
+		return { "ok": False, "message": "Comic Vine did not give an answer the app could use: try again in a little while." }
 	except Exception as problem:
 		logger.warning(f"Testing a Comic Vine key failed ({type(problem).__name__}).")
 		return { "ok": False, "message": "The key could not be tested." }
