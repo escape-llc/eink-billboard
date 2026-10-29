@@ -1,0 +1,82 @@
+{
+	"id": "transit-overlay",
+	"name": "Next Departure",
+	"version": "0.0.1",
+	"class": "TransitOverlayAsync",
+	"file": "transit_overlay.py",
+	"module": "python.datasources.transit_overlay.transit_overlay",
+	"description": "The next departures from one of your stops for an overlay zone, as outlined text: a line per route and destination, with its next times. It uses the device's transit provider (Transitland's settings, My Stops) and the answers it keeps, which a Departure Board of the same stop shares. What you could no longer catch, counting your walk, is left out, and with nothing left the overlay is taken off.",
+	"describe": "Next departure {stop}",
+	"disabled": false,
+	"requires": ["data-transit"],
+	"features": ["api-client", "layer-overlay", "media-image"],
+	"settings": {
+		"_schema": "urn:inky:storage:schema:datasource:transit-overlay:1",
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+				"stop": {
+					"settings": "stops",
+					"from": "data-transit",
+					"value": "name"
+				}
+			},
+			"properties": [
+				{
+					"name": "stop",
+					"type": "string",
+					"required": true,
+					"default": null,
+					"lookup": "stop",
+					"title": "Stop",
+					"description": "One of My Stops (Transitland settings). Its walk time decides which departures can still be caught, and the time to leave."
+				},
+				{
+					"name": "timeStyle",
+					"type": "string",
+					"required": false,
+					"default": "clock",
+					"title": "Times",
+					"description": "How the times read, clock times both (never a countdown, which is wrong a minute after the refresh). clock: when it leaves, 12:07. leave-by: when to leave for it, the walk taken off. ~ marks a timetable time, +3 a live one that is late.",
+					"enum": ["clock", "leave-by"]
+				},
+				{
+					"name": "perLine",
+					"type": "integer",
+					"required": false,
+					"default": 2,
+					"minimum": 1,
+					"maximum": 3,
+					"title": "Times per Line",
+					"description": "How many of a route's next departures each line shows. Two by default, so a refresh just after one leaves still shows one."
+				},
+				{
+					"name": "weight",
+					"type": "string",
+					"required": false,
+					"default": "bold",
+					"title": "Weight",
+					"description": "How heavy the letters are. bold: the font's bold face. heavy: bolder than the font has it.",
+					"enum": ["normal", "bold", "heavy"]
+				},
+				{
+					"name": "offset",
+					"type": "integer",
+					"required": false,
+					"default": 6,
+					"minimum": 0,
+					"maximum": 200,
+					"title": "Edge Offset",
+					"units": "px",
+					"description": "How far the text is from the screen's edge, in pixels: from the top edge in a top zone, from the bottom edge in a bottom zone."
+				}
+			]
+		}
+	}
+}

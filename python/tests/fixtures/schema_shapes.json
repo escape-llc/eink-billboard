@@ -327,6 +327,10 @@
 		"version": 1,
 		"properties": {}
 	},
+	"urn:inky:storage:schema:datasource:transit-overlay": {
+		"version": 1,
+		"properties": {}
+	},
 	"urn:inky:storage:schema:datasource:transitland-api": {
 		"version": 1,
 		"properties": {
