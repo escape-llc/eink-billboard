@@ -1,6 +1,6 @@
 """
 Push buttons on the header's GPIO pins: each wired between its pin and ground (the pin's internal pull-up holds it high; a press pulls it low), with a short debounce. There is a button for
-each row of the Devices settings' `triggers` (its pin; what it does is the row's `action`, decided by the Application, not here). A button is named for its pin (`gpio-5`).
+each row of the GPIO settings' `triggers` (its pin; what it does is the row's `action`, decided by the Application, not here). A button is named for its pin (`gpio-5`).
 gpiozero (the device dependency group, Linux) is imported only when a button is opened.
 """
 import logging
@@ -28,7 +28,7 @@ def load_button() -> Any:
 	try:
 		from gpiozero import Button
 	except ImportError as e:
-		raise PermanentError("The buttons need the device libraries (`uv sync --group device`, Raspberry Pi only). On another machine leave the button pins empty in the Devices settings.") from e
+		raise PermanentError("The buttons need the device libraries (`uv sync --group device`, Raspberry Pi only). On another machine leave the button pins empty in the GPIO settings.") from e
 	return Button
 
 def _callback(emit: Emit, name: str, gesture: str) -> Callable[[], None]:

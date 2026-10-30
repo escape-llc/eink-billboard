@@ -4056,7 +4056,7 @@
 		},
 		"/api/devices/triggers/{pin}/run": {
 			"post": {
-				"description": "Run the task the button on `pin` carries (its saved row), as if it was pressed: the Devices settings' Run now. The answer is that it was asked to.",
+				"description": "Run the task the button on `pin` carries (its saved row), as if it was pressed: the GPIO settings' Run now. The answer is that it was asked to.",
 				"operationId": "run_button_task_api_devices_triggers__pin__run_post",
 				"parameters": [
 					{

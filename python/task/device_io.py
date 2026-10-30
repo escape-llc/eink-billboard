@@ -69,9 +69,12 @@ class DeviceIO(DispatcherTask):
 			self.timebase = tod if tod is not None else SystemTimeOfDay()
 			self.panel = msg.content.isp.get_service(Panel)
 			opened = self._apply(self._read_settings())
+			# said where a person looks (Activity), as a reload says it: at the start too, so a button that works is seen to, and one that cannot be opened is not only in the log
+			if opened:
+				self._tell(f"GPIO is set up: {', '.join(opened)}.")
 			msg.notify(False, { "open": list(opened) })
 		except Exception as e:
-			self.logger.error(f"'{self.name}' could not open the devices: {e}", exc_info=True)
+			self.report_failure("The GPIO inputs could not be opened", e)
 			msg.notify(True, e)
 
 	@handles(ConfigurationChanged)
@@ -96,7 +99,7 @@ class DeviceIO(DispatcherTask):
 		try:
 			settings = self._read_settings()
 		except Exception as e:
-			self.report_failure("The device settings could not be read", e)
+			self.report_failure("The GPIO settings could not be read", e)
 			return
 		if settings == self._config:
 			return
@@ -104,20 +107,20 @@ class DeviceIO(DispatcherTask):
 			wanted = self._plan(settings)
 		except Exception as e:
 			# refused before anything was touched: what works keeps working
-			self.report_failure("The changed device settings could not be used", e)
+			self.report_failure("The changed GPIO settings could not be used", e)
 			return
 		try:
 			opened = self._open_wanted(wanted, settings)
 			self.logger.info(f"'{self.name}' devices open: {', '.join(opened) or 'none'}")
-			self._tell("The devices were set up again" + (f": {', '.join(opened)}." if opened else ": none is connected."))
+			self._tell("GPIO was set up again" + (f": {', '.join(opened)}." if opened else ": nothing is connected."))
 		except Exception as e:
 			# the old devices were closed to make room for the new ones: put them back, so a bad save does not leave the buttons dead
 			previous = self._config
-			self.report_failure("The changed device settings could not be used", e)
+			self.report_failure("The changed GPIO settings could not be used", e)
 			try:
 				self._apply(previous)
 			except Exception as again:
-				self.report_failure("The previous device settings could not be restored either", again)
+				self.report_failure("The previous GPIO settings could not be restored either", again)
 
 	@handles(InputEvent)
 	def _input_event(self, msg: InputEvent):

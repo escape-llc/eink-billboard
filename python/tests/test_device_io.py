@@ -288,6 +288,21 @@ class TestDeviceIO(unittest.TestCase):
 		self.assertTrue(note.error)
 		self.assertEqual(self.io.open_devices, ())
 
+	def test_the_start_is_told_where_a_person_looks_whether_it_worked_or_not(self):
+		# a failure at the start was only in the log; Activity (and Home's line) say it now, and say what is set up
+		def said() -> list[str]:
+			return [str(m.values.get("message", "")) for m in self.sent.on("telemetry") if isinstance(m, Telemetry) and m.values]
+		self.save(triggers=[{ "pin": 6, "action": "next" }])
+		self.configure()
+		self.assertEqual(said(), ["GPIO is set up: fake."])
+
+	def test_a_start_that_cannot_open_a_pin_is_a_problem_in_activity(self):
+		self.save(triggers=[{ "pin": 26, "action": "next" }])
+		self.assertTrue(self.configure().error)
+		[problem] = [m for m in self.sent.on("telemetry") if isinstance(m, Telemetry) and m.values and m.values.get("kind") == "error"]
+		assert isinstance(problem, Telemetry) and problem.values
+		self.assertTrue(str(problem.values["message"]).startswith("The GPIO inputs could not be opened"))
+
 	def test_a_change_of_the_settings_is_applied_without_a_restart(self):
 		self.save(triggers=[{ "pin": 6, "action": "next" }])
 		self.configure()

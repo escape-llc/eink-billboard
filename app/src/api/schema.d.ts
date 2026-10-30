@@ -779,7 +779,7 @@ export interface paths {
         put?: never;
         /**
          * Run Button Task
-         * @description Run the task the button on `pin` carries (its saved row), as if it was pressed: the Devices settings' Run now. The answer is that it was asked to.
+         * @description Run the task the button on `pin` carries (its saved row), as if it was pressed: the GPIO settings' Run now. The answer is that it was asked to.
          */
         post: operations["run_button_task_api_devices_triggers__pin__run_post"];
         delete?: never;

@@ -33,7 +33,7 @@
 						<dt><i class="mi mi-desktop-windows" aria-hidden="true"></i> System</dt>
 						<dd>How the device is (the header says it on every page: Running, Starting or Problem, or Offline when the page cannot reach the device; click it to come here): whether its parts started and the latest problems, the machine (load, memory, how long it and the app have been up), a Raspberry Pi's temperature, fan and power warnings, the storage by plugin and data source, and the <b>API usage</b> of each service (click a card's title to open or close it; Storage and API usage start closed, with a line that sums them up). On the right, live: <b>Now showing</b> (what the panel shows, with the layers it is made of; click for full size), <b>Recently shown</b> and <b>Activity</b> (filter it by source, or show only problems). The <b>Playlist</b> panel has play, stop and next, with the playlist's tracks and the one playing; the toolbar has Back up, Restore and the device password.</dd>
 						<dt><i class="mi mi-settings" aria-hidden="true"></i> Settings</dt>
-						<dd>The device (System, Display, Theme, Devices such as buttons), the plugins, the data sources (what makes a page or an overlay) and the providers (where their data comes from, with the keys), each with its own settings.</dd>
+						<dd>The device (System, Display, Theme, GPIO for push buttons), the plugins, the data sources (what makes a page or an overlay) and the providers (where their data comes from, with the keys), each with its own settings.</dd>
 					</dl>
 				</AccordionContent>
 			</AccordionPanel>
@@ -222,7 +222,7 @@
 			<AccordionPanel value="buttons">
 				<AccordionHeader>Buttons</AccordionHeader>
 				<AccordionContent>
-					<p><b>Settings, Devices</b>: <b>Triggers</b> has a row for each push button, wired between its GPIO (BCM) pin and ground: the pin, and what pressing it does. <b>Toggle</b> stops playback while it plays and starts it when it is stopped; <b>Play</b> only starts, <b>Stop</b> only stops, <b>Next</b> shows the next page. Each of those can be on one button only. A change applies within seconds, no restart. <b>Task</b> shows a Priority Update when the button is pressed: press <b>Set up the task</b> on its row to choose what it shows and for how long, and <b>Run now</b> (after Save) to try it. Without a row, a button does nothing.</p>
+					<p><b>Settings, GPIO</b>: <b>Triggers</b> has a row for each push button, wired between its GPIO (BCM) pin and ground: the pin, and what pressing it does. <b>Toggle</b> stops playback while it plays and starts it when it is stopped; <b>Play</b> only starts, <b>Stop</b> only stops, <b>Next</b> shows the next page. Each of those can be on one button only. A change applies within seconds, no restart. <b>Task</b> shows a Priority Update when the button is pressed: press <b>Set up the task</b> on its row to choose what it shows and for how long, and <b>Run now</b> (after Save) to try it. Without a row, a button does nothing.</p>
 					<p>The panel's own pins are refused (Waveshare 8, 10, 11, 17, 18, 24, 25; Inky 8, 10, 11, 17, 22, 27, and 16 and 26 on the 13.3 inch one), as are pins outside 2 to 27 and two rows on one pin. The Inky Impression's four buttons are usually on pins 5, 6, 16 and 24 (A to D); check your board's documentation.</p>
 				</AccordionContent>
 			</AccordionPanel>

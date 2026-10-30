@@ -58,7 +58,7 @@ describe("loading", () => {
 		expect(notices).toEqual([])
 	})
 
-	it("a storage older than the devices document starts the Devices tab from the schema's default", async () => {
+	it("a storage older than the devices document starts the GPIO tab from the schema's default", async () => {
 		const { st, notices } = await started({ "/api/settings/{name}:devices": new ApiError(404, "Not found") })
 		expect(st.settingsDevices.value).toEqual({ from: "devices schema" })
 		expect(notices).toEqual([])

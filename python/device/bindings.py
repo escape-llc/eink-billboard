@@ -1,6 +1,6 @@
 """
 What an input means. A device only says that something happened (`InputEvent`: its name, which input, which gesture); the Application decides what that does, here. A button is bound by the
-Devices settings' `triggers`: each row is a pin and an action the Application already has: `play`, `stop`, `next` (the transport commands), `toggle` (play when playback is stopped, else
+GPIO settings' `triggers`: each row is a pin and an action the Application already has: `play`, `stop`, `next` (the transport commands), `toggle` (play when playback is stopped, else
 stop) or `task` (run the task the row carries). Only a press is bound; a long press does nothing yet.
 """
 from typing import Any, Mapping
