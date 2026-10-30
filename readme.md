@@ -50,13 +50,12 @@ flowchart TD
     C -- no --> X["Nothing changed"]
     C -- yes --> D["sudo: install Podman and git,<br/>turn on SPI and I2C,<br/>add you to spi, i2c, gpio"]
     D --> E["Clone (or update) ~/eink-billboard,<br/>on the newest release (or snapshot)"]
-    E --> F["Which display? none / Inky / Waveshare + model"]
-    F --> G["Download the app GitHub made"]
+    E --> G["Download the app GitHub made"]
     G --> H{"SPI, I2C or groups<br/>just changed?"}
     H -- yes --> R["Restart the Pi,<br/>run the same command again"]
     R --> A
     H -- no --> I["Start the app on port 8080"]
-    I --> J["Set the display; ask an Inky to identify itself<br/>(a warning if it does not answer)"]
+    I --> J["An Inky identifies itself and is used;<br/>otherwise: which display? none / Inky / Waveshare + model"]
     J --> K["Start the app when the Pi starts"]
     K --> L["Print the address and the setup code"]
 ```
