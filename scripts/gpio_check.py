@@ -1,6 +1,6 @@
 """
 Try the buttons on a Raspberry Pi without the app: opens the same `Buttons` device the DeviceIO task does, on the pins given, and prints every press and long press until Ctrl+C.
-Stop the app first (or have no buttons in its Devices settings): two programs cannot hold one pin.
+Stop the app first (or have no buttons in its GPIO settings): two programs cannot hold one pin.
 
 	uv run python -m scripts.gpio_check --pin 5 6 13
 	uv run python -m scripts.gpio_check --pin 5 --panel inky          # also refuse the panel's pins

@@ -1,4 +1,4 @@
-"""The devices this build knows, by id. A device is added here when it is written; the Devices settings name what each is set up with."""
+"""The devices this build knows, by id. A device is added here when it is written; the GPIO settings name what each is set up with."""
 from typing import Callable
 
 from .base import InputDevice

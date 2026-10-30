@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test"
 import { OPEN } from "./servers"
 import { saveButton, stubMapTiles, untilServed, watchProblems } from "./support"
 
-// The Devices tab lists the push buttons wired to the Pi: a pin and what pressing it does. The test saves on the open server, so its file is put back afterwards for the other specs.
+// The GPIO tab lists the push buttons wired to the Pi: a pin and what pressing it does. The test saves on the open server, so its file is put back afterwards for the other specs.
 test.describe.configure({ mode: "serial" })
 const FILE = path.join(OPEN.storage, "settings", "devices-settings.json")
 let original = ""
@@ -22,7 +22,7 @@ test.beforeEach(async ({ page, request }) => {
 test("the devices tab lists the buttons: a pin and an action, none to start with", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/settings")
-	await page.getByRole("tab", { name: "Devices" }).click()
+	await page.getByRole("tab", { name: "GPIO" }).click()
 	await expect(page.getByRole("group", { name: "Triggers" })).toBeVisible()
 	await expect(page.getByRole("spinbutton", { name: "GPIO Pin 1" })).toHaveCount(0)
 	watch.expectNone()
@@ -31,7 +31,7 @@ test("the devices tab lists the buttons: a pin and an action, none to start with
 test("a pin keeps to the header, a pin has one button, and Play, Stop, Toggle and Next are each on one button", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/settings")
-	await page.getByRole("tab", { name: "Devices" }).click()
+	await page.getByRole("tab", { name: "GPIO" }).click()
 	await page.getByRole("button", { name: "Add to Triggers" }).click()
 	await page.getByRole("button", { name: "Add to Triggers" }).click()
 	const pin = (row: number) => page.getByRole("spinbutton", { name: `GPIO Pin ${row}` })
@@ -60,7 +60,7 @@ test("a pin keeps to the header, a pin has one button, and Play, Stop, Toggle an
 test("a button can run a task: its Priority Update is set up on the row, Run now starts the saved one, and another action drops it", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/settings")
-	await page.getByRole("tab", { name: "Devices" }).click()
+	await page.getByRole("tab", { name: "GPIO" }).click()
 	await page.getByRole("button", { name: "Add to Triggers" }).click()
 	await page.getByRole("spinbutton", { name: "GPIO Pin 1" }).fill("16")
 	await page.getByRole("spinbutton", { name: "GPIO Pin 1" }).blur()

@@ -39,7 +39,7 @@ def panel_lines(panel: Panel|None) -> Mapping[int, str]:
 def check_pins(pins: Mapping[str, int], panel: Panel|None, labels: Mapping[str, str]|None = None) -> list[str]:
 	"""
 	What is wrong with the pins a device was given (`pins`: the name of each input to its pin), in our words: a pin that is not on the header, one the panel uses, one used twice.
-	`labels` says what each input is called to a person (the Devices settings' own names). Empty: nothing wrong.
+	`labels` says what each input is called to a person (the GPIO settings' own names). Empty: nothing wrong.
 	"""
 	labels = labels or {}
 	def label(name: str) -> str:

@@ -1,4 +1,4 @@
-"""Running a task now (#653, #671): a stored timer task by Run now, and the task a button carries (the Devices settings' Trigger Task)."""
+"""Running a task now (#653, #671): a stored timer task by Run now, and the task a button carries (the GPIO settings' Trigger Task)."""
 import unittest
 from types import SimpleNamespace
 from typing import Any
@@ -68,7 +68,7 @@ class TestRunNowApi(ScheduleApiBase):
 		_error_shape(self, self.client.post(f"{BASE}/doc-a/items/a1/run"), 503)
 
 class TestButtonTasks(WebApiTestBase):
-	"""The Devices settings' rows that run a task: the task follows Priority Update's own rules, and only a task's row keeps them."""
+	"""The GPIO settings' rows that run a task: the task follows Priority Update's own rules, and only a task's row keeps them."""
 	def put(self, rows: list[dict[str, Any]]):
 		doc = self.client.get("/api/settings/devices").json()
 		return self.client.put("/api/settings/devices", json={ **doc, "triggers": rows })

@@ -5,7 +5,7 @@
 			<Tab value="1">Display</Tab>
 			<Tab value="2">Theme</Tab>
 			<Tab value="5">Master Prompts</Tab>
-			<Tab value="6">Devices</Tab>
+			<Tab value="6">GPIO</Tab>
 			<Tab value="3">Plugins</Tab>
 			<Tab value="4">Data Sources</Tab>
 			<Tab value="7">Providers</Tab>
@@ -113,7 +113,7 @@
 			</TabPanel>
 			<TabPanel value="6">
 				<SettingsForm
-					:title="`Devices`"
+					:title="`GPIO`"
 					:baseUrl="API_URL"
 					:target="{ kind: 'device', name: 'devices' }"
 					:settings="settingsDevices"

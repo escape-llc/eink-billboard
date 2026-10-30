@@ -173,7 +173,7 @@ class RunTask(BasicMessage):
 
 @dataclass(frozen=True, slots=True)
 class RunTrigger(BasicMessage):
-	"""A button's task (the Devices settings' Trigger Task) to run now: this plugin with this content, for the timer layer. `title` names the button, for the panel's origin line and the telemetry."""
+	"""A button's task (the GPIO settings' Trigger Task) to run now: this plugin with this content, for the timer layer. `title` names the button, for the panel's origin line and the telemetry."""
 	title: str
 	plugin_name: str
 	content: dict

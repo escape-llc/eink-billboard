@@ -214,7 +214,7 @@ class Application(DispatcherTask):
 		"""Something happened at a device (a button pressed): what it means is decided here, by the bindings."""
 		if self.router is None or self.cm is None:
 			return
-		# what a button does is what the Devices settings say now (read each time: a change applies at once)
+		# what a button does is what the GPIO settings say now (read each time: a change applies at once)
 		_, devices = self.cm.settings_manager().open("devices").get()
 		row = row_for(msg.source, msg.name, msg.gesture, devices if isinstance(devices, dict) else None)
 		if row is None:

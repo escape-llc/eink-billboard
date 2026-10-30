@@ -237,7 +237,7 @@ test("an edit that is put back is not unsaved: leaving does not ask", async ({ p
 test("a settings form that only opened is not unsaved, whatever it filled in itself, and has nothing to save", async ({ page }) => {
 	const watch = watchProblems(page)
 	// each tab's form, and an item's settings on the item tabs (the calendar's rows hold secrets and choices; a form fills defaults and masks as it opens)
-	const forms: [string, string | null][] = [["System", null], ["Display", null], ["Theme", null], ["Master Prompts", null], ["Devices", null],
+	const forms: [string, string | null][] = [["System", null], ["Display", null], ["Theme", null], ["Master Prompts", null], ["GPIO", null],
 		["Plugins", "slide-show"], ["Data Sources", "image-folder"], ["Providers", "calendar-sources"], ["Providers", "openai-api"]]
 	for (const [tab, item] of forms) {
 		await page.goto("/#/settings")
