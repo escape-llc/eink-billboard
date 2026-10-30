@@ -2,10 +2,17 @@
 from fastapi import APIRouter, Request
 
 from ..errors import ApiError
-from ..openapi import Done, answers
+from ..deps import CM
+from ..documents import playlist_ids
+from ..openapi import Choice, Done, answers
 from .transport import application_of
 
 router = APIRouter(prefix="/devices")
+
+@router.get("/playlists", **answers(list[Choice]))
+def get_playlists(cm: CM):
+	"""The playlists a button can play (the GPIO settings' Play playlist): each stores its id and shows its name."""
+	return [{ "name": name, "value": ident } for ident, name in playlist_ids(cm).items()]
 
 @router.post("/triggers/{pin}/run", status_code=202, **answers(Done))
 def run_button_task(pin: int, request: Request):

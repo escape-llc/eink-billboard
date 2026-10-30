@@ -2156,10 +2156,22 @@
 						"enum": [
 							"play",
 							"stop",
-							"next"
+							"next",
+							"seek"
 						],
 						"title": "Command",
 						"type": "string"
+					},
+					"playlist_id": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"title": "Playlist Id"
 					}
 				},
 				"required": [
@@ -4100,6 +4112,29 @@
 					}
 				},
 				"summary": "Put Datasource Settings"
+			}
+		},
+		"/api/devices/playlists": {
+			"get": {
+				"description": "The playlists a button can play (the GPIO settings' Play playlist): each stores its id and shows its name.",
+				"operationId": "get_playlists_api_devices_playlists_get",
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Choice"
+									},
+									"title": "Response Get Playlists Api Devices Playlists Get",
+									"type": "array"
+								}
+							}
+						},
+						"description": "Successful Response"
+					}
+				},
+				"summary": "Get Playlists"
 			}
 		},
 		"/api/devices/triggers/{pin}/run": {
@@ -6069,7 +6104,7 @@
 				"summary": "Get Transport"
 			},
 			"post": {
-				"description": "Forward a command: `play` (resume where it stopped), `stop`, or `next` (the next track; a stopped layer plays from there).\nIt is accepted, not done: the layer does it on its own thread, and its telemetry says what happened.",
+				"description": "Forward a command: `play` (resume where it stopped), `stop`, `next` (the next track; a stopped layer plays from there) or `seek` (the first track of the playlist `playlist_id`, then on as usual).\nIt is accepted, not done: the layer does it on its own thread, and its telemetry says what happened.",
 				"operationId": "send_transport_api_transport_post",
 				"requestBody": {
 					"content": {

@@ -93,7 +93,7 @@ class TestButtonTasks(WebApiTestBase):
 	def test_a_row_that_is_not_a_task_keeps_no_settings(self):
 		resp = self.put([{ "pin": 5, "action": "next", "content": GOOD }])
 		self.assertEqual(resp.status_code, 200, resp.text)
-		self.assertEqual(self.client.get("/api/settings/devices").json()["triggers"], [{ "pin": 5, "action": "next" }])
+		self.assertEqual(self.client.get("/api/settings/devices").json()["triggers"], [{ "pin": 5, "action": "next", "playlist": None }])
 
 	def test_a_task_can_be_on_more_than_one_button(self):
 		resp = self.put([{ "pin": 16, "action": "task", "content": GOOD }, { "pin": 24, "action": "task", "content": GOOD }])

@@ -12,7 +12,7 @@ from ...model.configuration_manager import HASH_KEY, create_hash
 from ...model.schedule import Playlist, TimerTasks, daily_sequence, day_start, normalize, render_task_schedule_at
 from ...model.schedule_store import PLAYLISTS, check_item_shape, TASKS, Ambiguous, Conflict, Invalid, Kind, NotFound, ScheduleStore, ScheduleStoreError
 from ..deps import CM, TOD
-from ..documents import plugin_content_errors
+from ..documents import load_schedules, plugin_content_errors
 from ..errors import ApiError
 from ..openapi import Answer, described, answers, Done
 from .transport import application_of
@@ -146,14 +146,6 @@ class TaskRemoved(Answer):
 	id: str
 	schedule_rev: str
 
-def _load_schedules(cm) -> dict:
-	try:
-		return cm.schedule_manager().load()
-	except (ValueError, OSError, json.JSONDecodeError) as e:
-		# the details name files and paths: keep them in the log
-		logger.error(f"schedule load failed: {e}", exc_info=True)
-		raise ApiError(500, "The stored schedules could not be loaded; see the server log.", "schedules") from e
-
 def _with_rev(info) -> dict:
 	dx = info.to_dict()
 	dx[HASH_KEY] = create_hash(dx)
@@ -164,12 +156,12 @@ def _with_rev(info) -> dict:
 
 @router.get('/playlist/list', **described(Playlists))
 def schedule_playlist_list(cm: CM):
-	playlists = [_with_rev(x["info"]) for x in _load_schedules(cm).get("playlists", []) if x.get("info") is not None]
+	playlists = [_with_rev(x["info"]) for x in load_schedules(cm).get("playlists", []) if x.get("info") is not None]
 	return { "success": True, "playlists": playlists }
 
 @router.get('/timer/list', **described(TimerDocuments))
 def schedule_timed_list(cm: CM):
-	tasks = [_with_rev(x["info"]) for x in _load_schedules(cm).get("tasks", []) if x.get("info") is not None]
+	tasks = [_with_rev(x["info"]) for x in load_schedules(cm).get("tasks", []) if x.get("info") is not None]
 	return { "success": True, "timed": tasks }
 
 def _zone_name(tz: tzinfo|None, at: datetime) -> str|None:
@@ -249,7 +241,7 @@ def render_tasks_schedule(
 	render_list: list = []
 	notrender_list: list = []
 	invalid_list: list = []
-	for schedule in _load_schedules(cm).get("tasks", []):
+	for schedule in load_schedules(cm).get("tasks", []):
 		timer_tasks = schedule.get("info", None)
 		if not isinstance(timer_tasks, TimerTasks):
 			continue

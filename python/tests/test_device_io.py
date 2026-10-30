@@ -27,7 +27,7 @@ from ..task.device_io import DeviceIO
 from ..task.display import Display
 from ..task.message_router import MessageRouter
 from ..task.messages import BasicMessage, ConfigurationChanged, InputEvent, QuitMessage, RunTrigger, Telemetry
-from ..task.playlist_layer import NextTrack, PlaylistLayer, ResumePlayback, StopPlayback
+from ..task.playlist_layer import NextTrack, PlaylistLayer, ResumePlayback, SeekPlaylist, StopPlayback
 from ..task.timer_layer import TimerLayer
 from .test_web_api import WebApiTestBase
 from .utils import temp_configuration_manager
@@ -469,6 +469,30 @@ class TestApplicationBindings(unittest.TestCase):
 		self.press(app, "gpio-6")
 		self.assertEqual([type(m) for m in sent.on("playlist-layer")], [NextTrack])
 
+	def save_triggers(self, app: Application, rows: list[dict[str, Any]]) -> None:
+		assert app.cm is not None
+		cob = app.cm.settings_manager().open("devices")
+		rev, content = cob.get()
+		cob.save(rev, { **(content or {}), "triggers": rows })
+
+	def test_a_playlist_button_seeks_to_its_playlist(self):
+		app, sent = self.application()
+		self.save_triggers(app, [{ "pin": 20, "action": "playlist", "playlist": "transit" }, { "pin": 21, "action": "playlist" }])
+		self.press(app, "gpio-20")
+		[seek] = sent.on("playlist-layer")
+		self.assertEqual((type(seek), getattr(seek, "playlist_id", None)), (SeekPlaylist, "transit"))
+		# a row with no playlist chosen does nothing and says why
+		self.press(app, "gpio-21")
+		self.assertEqual(len(sent.on("playlist-layer")), 1)
+		self.assertEqual(self.told(sent)[-1][0], "ignored")
+
+	def test_a_playlist_button_waits_for_a_device_that_is_not_set_up(self):
+		held, sent = self.application(claimed=False)
+		self.save_triggers(held, [{ "pin": 20, "action": "playlist", "playlist": "transit" }])
+		self.press(held, "gpio-20")
+		self.assertEqual(sent.on("playlist-layer"), [])
+		self.assertEqual(self.told(sent)[-1][0], "ignored")
+
 	def test_play_stop_toggles_with_the_state_of_playback(self):
 		playing, sent = self.application(halted=False)
 		self.press(playing, "gpio-5")
@@ -555,11 +579,12 @@ class TestDevicesSettings(WebApiTestBase):
 		[triggers] = [p for p in schema["schema"]["properties"] if p["type"] != "header"]
 		self.assertEqual(triggers["name"], "triggers")
 		self.assertTrue(triggers.get("title") and triggers.get("description"))
-		pin, action = triggers["items"]["properties"]
+		pin, action, playlist = triggers["items"]["properties"]
 		self.assertEqual((pin["type"], pin["minimum"], pin["maximum"]), ("integer", FIRST_PIN, LAST_PIN))
 		self.assertEqual(triggers["items"]["key"], "pin")
-		for p in (pin, action):
+		for p in (pin, action, playlist):
 			self.assertTrue(p.get("title") and p.get("description"), p["name"])
+		self.assertEqual((playlist["lookup"], playlist["visibleIf"]), ("playlists", { "field": "action", "const": "playlist" }))
 
 	def put(self, rows: list[dict[str, Any]]):
 		doc = self.client.get("/api/settings/devices").json()
@@ -594,10 +619,27 @@ class TestDevicesSettings(WebApiTestBase):
 		self.assertEqual(self.put([{ "pin": 24, "action": "next" }]).status_code, 200, "24 is the Waveshare's busy line and free on an Inky")
 		self.assertEqual(self.put([{ "pin": 17, "action": "next" }]).status_code, 422, "17 is the Inky's busy line")
 
+	def test_the_playlists_a_button_can_play_are_offered_by_id(self):
+		stored = self.client.get("/api/schedule/playlist/list").json()["playlists"]
+		offered = self.client.get("/api/devices/playlists")
+		self.assertEqual(offered.status_code, 200)
+		self.assertEqual(offered.json(), [{ "name": p["name"], "value": p["id"] } for p in stored])
+
+	def test_a_button_that_plays_a_playlist_names_one_that_exists(self):
+		[first, *_] = self.client.get("/api/devices/playlists").json()
+		self.assertEqual(self.put([{ "pin": 5, "action": "playlist", "playlist": first["value"] }]).status_code, 200)
+		refused = self.put([{ "pin": 5, "action": "playlist", "playlist": "gone" }, { "pin": 6, "action": "playlist" }])
+		self.assertEqual(refused.status_code, 422)
+		errors = refused.json()["errors"]
+		self.assertIn({ "path": ["triggers", "0", "playlist"], "message": "Not one of the allowed values" }, errors)
+		self.assertTrue(any(e["path"][:3] == ["triggers", "1", "playlist"] for e in errors), errors)
+		# two buttons may play playlists: only play, stop, toggle and next are one to a button
+		self.assertEqual(self.put([{ "pin": 5, "action": "playlist", "playlist": first["value"] }, { "pin": 6, "action": "playlist", "playlist": first["value"] }]).status_code, 200)
+
 	def test_buttons_are_saved_and_one_off_the_header_is_refused(self):
-		saved = self.put([{ "pin": 5, "action": "toggle" }, { "pin": 6, "action": "next" }])
+		saved = self.put([{ "pin": 5, "action": "toggle", "playlist": None }, { "pin": 6, "action": "next", "playlist": None }])
 		self.assertEqual(saved.status_code, 200, saved.text)
-		self.assertEqual(self.client.get("/api/settings/devices").json()["triggers"], [{ "pin": 5, "action": "toggle" }, { "pin": 6, "action": "next" }])
+		self.assertEqual(self.client.get("/api/settings/devices").json()["triggers"], [{ "pin": 5, "action": "toggle", "playlist": None }, { "pin": 6, "action": "next", "playlist": None }])
 		refused = self.put([{ "pin": 40, "action": "next" }])
 		self.assertEqual(refused.status_code, 422)
 		self.assertEqual(refused.json()["errors"][0]["path"], ["triggers", "0", "pin"])

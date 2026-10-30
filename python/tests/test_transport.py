@@ -14,7 +14,7 @@ from ..plugins.plugin_base import PluginExecutionContext
 from ..task.application import Application
 from ..task.message_router import MessageRouter, Route
 from ..task.messages import ReloadSchedules, Telemetry, TransportCommand
-from ..task.playlist_layer import NextTrack, PlaylistLayer, Position, ResumePlayback, Start, StartPlayback, StopPlayback
+from ..task.playlist_layer import NextTrack, PlaylistLayer, Position, ResumePlayback, SeekPlaylist, Start, StartPlayback, StopPlayback
 from .test_web_api import WebApiTestBase
 from .utils import ScaledTimeOfDay, ScaledTimerThreadService, create_configuration_manager
 
@@ -125,6 +125,38 @@ class TestPlay(LayerCase):
 		self.layer._stop_playback(StopPlayback(self.ts))
 		self.layer._resume_playback(ResumePlayback(self.ts))
 		self.assertEqual(self.started, [Start(0, 1, False)])
+
+class TestSeek(LayerCase):
+	def setUp(self):
+		super().setUp()
+		self.layer.playlists = loaded(("main", [track("m0"), track("m1")]), ("empty", []), ("transit", [track("x0"), track("x1")]))
+
+	def test_seek_cancels_and_begins_at_the_first_track_of_the_playlist(self):
+		self.layer._current = Position("main", "m1", 0, 1)
+		self.layer._seek_playlist(SeekPlaylist(self.ts, "transit"))
+		self.assertEqual((self.stopped_tasks, self.started), (1, [Start(2, 0, False)]))
+
+	def test_seek_to_the_playlist_it_is_in_goes_back_to_its_start(self):
+		self.layer._current = Position("transit", "x1", 2, 1)
+		self.layer._seek_playlist(SeekPlaylist(self.ts, "transit"))
+		self.assertEqual(self.started, [Start(2, 0, False)])
+
+	def test_seek_on_a_stopped_layer_plays_from_there_and_says_so(self):
+		self.layer._stop_playback(StopPlayback(self.ts))
+		self.layer._seek_playlist(SeekPlaylist(self.ts, "transit"))
+		self.assertFalse(self.layer.halted)
+		self.assertEqual(self.started, [Start(2, 0, False)])
+		self.assertEqual([msg.values["state"] for route, msg in self.sent if route == "telemetry"], ["halted", "playing"])
+
+	def test_a_playlist_that_is_not_there_or_has_no_tracks_changes_nothing(self):
+		for ident in ("gone", "empty"):
+			self.layer._seek_playlist(SeekPlaylist(self.ts, ident))
+		self.assertEqual((self.stopped_tasks, self.started, self.sent), (0, [], []))
+
+	def test_seek_is_ignored_when_faulted(self):
+		self.layer.state = "faulted"
+		self.layer._seek_playlist(SeekPlaylist(self.ts, "transit"))
+		self.assertEqual((self.stopped_tasks, self.started), (0, []))
 
 class TestNext(LayerCase):
 	def test_next_cancels_and_begins_at_the_following_track(self):
@@ -304,6 +336,18 @@ class TestApplication(unittest.TestCase):
 		self.assertTrue(self.app.transport("stop"))
 		self.assertEqual([(type(m), m.command) for m in accepted], [(TransportCommand, "stop")])
 
+	def test_a_seek_goes_to_the_layer_with_its_playlist(self):
+		self.app._transport_command(TransportCommand(self.ts, "seek", "transit"))
+		self.assertEqual([(type(m), m.playlist_id) for m in self.layer.got], [(SeekPlaylist, "transit")])
+
+	def test_a_seek_needs_its_playlist_and_no_other_command_takes_one(self):
+		self.app.accept = lambda msg: None  # type: ignore
+		self.assertFalse(self.app.transport("seek"))
+		self.assertFalse(self.app.transport("next", "transit"))
+		self.assertTrue(self.app.transport("seek", "transit"))
+		self.app._transport_command(TransportCommand(self.ts, "seek"))
+		self.assertEqual(self.layer.got, [])
+
 	def test_the_application_that_has_stopped_says_so(self):
 		def refuse(msg):
 			raise ValueError("stopped")
@@ -326,14 +370,26 @@ class TestTransportApi(WebApiTestBase):
 	def setUp(self):
 		super().setUp()
 		self.commands: list[str] = []
-		self.application = SimpleNamespace(playlist_layer=object(), playback_stopped=False, playback_position=None, transport=lambda command: self.commands.append(command) or True)
+		self.application = SimpleNamespace(playlist_layer=object(), playback_stopped=False, playback_position=None, transport=lambda command, playlist_id=None: self.commands.append((command, playlist_id)) or True)
 		self.app.state.root_container.add_service(Application, self.application)
 
 	def test_a_command_is_forwarded_to_the_application(self):
 		for command in ("play", "stop", "next"):
 			resp = self.client.post("/api/transport", json={ "command": command })
 			self.assertEqual((resp.status_code, resp.json()), (200, { "success": True }), resp.text)
-		self.assertEqual(self.commands, ["play", "stop", "next"])
+		self.assertEqual(self.commands, [("play", None), ("stop", None), ("next", None)])
+
+	def test_a_seek_names_a_playlist_that_is_stored(self):
+		[first, *_] = self.client.get("/api/schedule/playlist/list").json()["playlists"]
+		resp = self.client.post("/api/transport", json={ "command": "seek", "playlist_id": first["id"] })
+		self.assertEqual((resp.status_code, resp.json()), (200, { "success": True }), resp.text)
+		self.assertEqual(self.commands, [("seek", first["id"])])
+
+	def test_a_seek_to_a_playlist_that_is_not_there_or_without_one_is_refused(self):
+		self.assertEqual(self.client.post("/api/transport", json={ "command": "seek", "playlist_id": "nope" }).status_code, 404)
+		self.assertEqual(self.client.post("/api/transport", json={ "command": "seek" }).status_code, 422)
+		self.assertEqual(self.client.post("/api/transport", json={ "command": "next", "playlist_id": "x" }).status_code, 422)
+		self.assertEqual(self.commands, [])
 
 	def test_anything_else_is_a_422(self):
 		resp = self.client.post("/api/transport", json={ "command": "rewind" })
@@ -358,7 +414,7 @@ class TestTransportApi(WebApiTestBase):
 			self.assertEqual(set(resp.json()), { "success", "message", "id" })
 
 	def test_a_device_shutting_down_is_a_503(self):
-		self.application.transport = lambda command: False
+		self.application.transport = lambda command, playlist_id=None: False
 		self.assertEqual(self.client.post("/api/transport", json={ "command": "stop" }).status_code, 503)
 
 class TestSignIn(WebApiTestBase):
@@ -366,7 +422,7 @@ class TestSignIn(WebApiTestBase):
 	auth = "required"
 
 	def test_it_needs_a_sign_in_like_the_rest_of_the_api(self):
-		self.app.state.root_container.add_service(Application, SimpleNamespace(playlist_layer=object(), playback_stopped=False, playback_position=None, transport=lambda command: True))
+		self.app.state.root_container.add_service(Application, SimpleNamespace(playlist_layer=object(), playback_stopped=False, playback_position=None, transport=lambda command, playlist_id=None: True))
 		self.assertEqual(self.client.post("/api/transport", json={ "command": "stop" }).status_code, 401)
 		resp = self.client.post("/api/transport", json={ "command": "stop" }, headers={ "Authorization": "Bearer secret" })
 		self.assertEqual(resp.status_code, 200, resp.text)

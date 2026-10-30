@@ -30,7 +30,7 @@ from ..model.time_of_day import TimeOfDay
 from ..task.display_messages import DisplaySettings, PriorityImage, PriorityRevoke
 from ..model.theme import current_inputs
 from ..utils.error_image import WebAddress, render_error_image
-from ..task.playlist_layer import NextTrack, PlaylistLayer, ResumePlayback, StopPlayback
+from ..task.playlist_layer import NextTrack, PlaylistLayer, ResumePlayback, SeekPlaylist, StopPlayback
 from ..task.timer_layer import TimerLayer
 
 SETUP_TITLE = "Set up this device"
@@ -43,7 +43,7 @@ SETUP_CREDIT = "eInk Billboard · escape-technology-llc.com"
 RESTART_KEYS = { "display_type": "The display type", "model": "The Waveshare model", "orientation": "The orientation" }
 
 # what a viewer may ask of the playlist layer (TransportCommand.command), and the message each becomes
-TRANSPORT_COMMANDS = ("play", "stop", "next")
+TRANSPORT_COMMANDS = ("play", "stop", "next", "seek")
 
 # pushed messages (the API): how many may wait or show at once, and how long after its time a message still counts as one of them (it may have waited behind others)
 MAX_PUSHED_ACTIVE = 20
@@ -258,6 +258,17 @@ class Application(DispatcherTask):
 			say(f"The {label} was pressed: run its task.", "done", action)
 			self._run_trigger_row(msg.timestamp, row)
 			return
+		if action == "playlist":
+			target = row.get("playlist")
+			if not isinstance(target, str) or target == "":
+				say(f"The {label} was pressed: no playlist is chosen for it.", "ignored", action)
+				return
+			if self._layers_held():
+				say(f"The {label} was pressed: {action} ignored, the device is not set up yet (not claimed, or its clock is not set).", "ignored", action)
+				return
+			say(f"The {label} was pressed: play the playlist '{target}'.", "done", action)
+			self._transport_command(TransportCommand(msg.timestamp, "seek", target))
+			return
 		if action == "toggle":
 			action = "play" if self.playback_stopped else "stop"
 		if self._layers_held():
@@ -371,12 +382,12 @@ class Application(DispatcherTask):
 			self.logger.info(f"'{self.name}' the device was claimed: the layers start.")
 			self._startup(msg.timestamp, "set-up", "The device was set up: the playlist and the timer tasks start.")
 			self._start_when_clock_set(msg.timestamp, *held)
-	def transport(self, command: str) -> bool:
-		"""A viewer's play, stop or next (called from the web app's thread, later from a button): the application's own thread forwards it. False: it is not a command, or the application has stopped."""
-		if command not in TRANSPORT_COMMANDS:
+	def transport(self, command: str, playlist_id: str|None = None) -> bool:
+		"""A viewer's play, stop, next or seek (called from the web app's thread): the application's own thread forwards it. False: it is not a command (a seek needs its playlist), or the application has stopped."""
+		if command not in TRANSPORT_COMMANDS or (command == "seek") != (playlist_id is not None):
 			return False
 		try:
-			self.accept(TransportCommand(self._now(), command))
+			self.accept(TransportCommand(self._now(), command, playlist_id))
 			return True
 		except ValueError:
 			self.logger.debug(f"'{self.name}' stopped before the transport command '{command}'.")
@@ -482,6 +493,13 @@ class Application(DispatcherTask):
 			return
 		if self._layers_held():
 			self.logger.info(f"'{self.name}' the layers have not started (not claimed, or the clock is not set): transport command '{msg.command}' ignored.")
+			return
+		if msg.command == "seek":
+			if msg.playlist_id is None:
+				self.logger.warning(f"'{self.name}' a seek names no playlist.")
+				return
+			self.logger.info(f"'{self.name}' transport: seek to playlist '{msg.playlist_id}'")
+			self.router.send("playlist-layer", SeekPlaylist(msg.timestamp, msg.playlist_id))
 			return
 		forwarded = { "play": ResumePlayback, "stop": StopPlayback, "next": NextTrack }.get(msg.command)
 		if forwarded is None:
