@@ -2,14 +2,16 @@
 import logging
 from typing import Any, Callable, cast
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
 
+from ...device.pins import panel_pin_errors
 from ...model.configuration_manager import CollectInfoDict
 from ..deps import CM
 from ..documents import from_source, row_plugin_errors, get_document, instance_properties, load_schema_lookups, load_schema_properties, put_document, secret_fields, settings_choices, settings_lookup_items
 from ..errors import ApiError
 from ..openapi import Choice, Descriptor, Document, Saved, answers, described
+from ..panel import chosen_panel
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -77,7 +79,7 @@ def get_device_settings(name: str, cm: CM):
 	return get_document(f"{name}-settings", cob)
 
 @router.put('/settings/{name}', **answers(Saved))
-def put_device_settings(name: str, cm: CM, body: dict[str, Any] = Body(...)):
+def put_device_settings(name: str, request: Request, cm: CM, body: dict[str, Any] = Body(...)):
 	name = _device_name(name)
 	cob = cm.settings_manager().open(name)
 	schema = cm.read_schema(name)
@@ -94,7 +96,13 @@ def put_device_settings(name: str, cm: CM, body: dict[str, Any] = Body(...)):
 			return manager.open().get()[1]
 		_, system = cm.settings_manager().open("system").get()
 		return row_plugin_errors(document, properties, plugins, datasources, settings_of, system)
-	return put_document(f"{name}-settings", body, cob, properties, lookups=lookups, schema_id=(schema or {}).get("_schema"), extra_errors=rows)
+	def extra(document: dict) -> list[dict]:
+		errors = rows(document)
+		if name == "devices":
+			# a button on a pin the panel uses cannot work: said on its row, as the pin list says it (the panel is the one the display settings choose now)
+			errors += panel_pin_errors(document.get("triggers"), chosen_panel(request, cm))
+		return errors
+	return put_document(f"{name}-settings", body, cob, properties, lookups=lookups, schema_id=(schema or {}).get("_schema"), extra_errors=extra)
 
 @router.get('/settings/{name}/defaults')
 def get_device_defaults(name: str, cm: CM):

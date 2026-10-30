@@ -25,7 +25,7 @@
 							<label :for="idOf(index, f.name)">{{ f.title }}</label>
 						</IftaLabel>
 						<IftaLabel v-else-if="f.lookup">
-							<Select size="small" fluid :inputId="idOf(index, f.name)" :options="choices(f, row, index)" optionLabel="name" optionValue="value" :modelValue="row[f.name]"
+							<Select size="small" fluid :inputId="idOf(index, f.name)" :options="choices(f, row, index)" optionLabel="name" optionValue="value" optionDisabled="disabled" :modelValue="row[f.name]"
 								:placeholder="placeholder(f, row, index)" :aria-label="`${f.title} ${index + 1}`" :showClear="f.required !== true" :invalid="!!cellError(index, f.name)"
 								@update:modelValue="(v: unknown) => change(index, f.name, v ?? null)" />
 							<label :for="idOf(index, f.name)">{{ f.title }}</label>
@@ -108,7 +108,7 @@ import { isVisible } from "./FormVisibility"
 import type { FormValues, ResolvedFieldDef } from "./FormDefs"
 
 type Row = Record<string, unknown>
-type Choice = { name: string, value: unknown }
+type Choice = { name: string, value: unknown, disabled?: boolean }
 export interface PropsType {
 	/** the array property (`items.properties` are the fields of a row; a field with a `lookup` carries its resolved `list`) */
 	field: ResolvedFieldDef

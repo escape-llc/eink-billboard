@@ -971,6 +971,31 @@
 				"title": "Pi",
 				"type": "object"
 			},
+			"PinChoice": {
+				"additionalProperties": false,
+				"description": "One pin of the header, for the GPIO settings' drop-down: what it shows, the number it stores, and `disabled` when the panel uses it.",
+				"properties": {
+					"disabled": {
+						"title": "Disabled",
+						"type": "boolean"
+					},
+					"name": {
+						"title": "Name",
+						"type": "string"
+					},
+					"value": {
+						"title": "Value",
+						"type": "integer"
+					}
+				},
+				"required": [
+					"name",
+					"value",
+					"disabled"
+				],
+				"title": "PinChoice",
+				"type": "object"
+			},
 			"PlaylistDocument": {
 				"additionalProperties": false,
 				"properties": {
@@ -5842,6 +5867,29 @@
 					}
 				},
 				"summary": "Get System"
+			}
+		},
+		"/api/system/gpio-pins": {
+			"get": {
+				"description": "The header's GPIO pins (BCM numbers) a button may be wired to, for the GPIO settings' pin field: the lines the panel uses are `disabled` and say what for, so the choice follows the\ndisplay type the settings choose now. A pin on a bus is offered with a note. The same rule refuses them at a save.",
+				"operationId": "get_gpio_pins_api_system_gpio_pins_get",
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/PinChoice"
+									},
+									"title": "Response Get Gpio Pins Api System Gpio Pins Get",
+									"type": "array"
+								}
+							}
+						},
+						"description": "Successful Response"
+					}
+				},
+				"summary": "Get Gpio Pins"
 			}
 		},
 		"/api/system/locate": {

@@ -1,6 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
-import { expect, test } from "@playwright/test"
+import { expect, test, type Page } from "@playwright/test"
 import { OPEN } from "./servers"
 import { saveButton, stubMapTiles, untilServed, watchProblems } from "./support"
 
@@ -24,28 +24,32 @@ test("the devices tab lists the buttons: a pin and an action, none to start with
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "GPIO" }).click()
 	await expect(page.getByRole("group", { name: "Triggers" })).toBeVisible()
-	await expect(page.getByRole("spinbutton", { name: "GPIO Pin 1" })).toHaveCount(0)
+	await expect(page.getByRole("combobox", { name: "GPIO Pin 1" })).toHaveCount(0)
 	watch.expectNone()
 })
 
-test("a pin keeps to the header, a pin has one button, and Play, Stop, Toggle and Next are each on one button", async ({ page }) => {
+// a row's pin is chosen from the list the server gives (`GET /api/system/gpio-pins`: the header's pins, the panel's not available)
+async function choosePin(page: Page, row: number, pin: number) {
+	await page.getByRole("combobox", { name: `GPIO Pin ${row}` }).click()
+	// the list that was just opened is the last one in the page: the one a row chose from before may still be leaving
+	await page.getByRole("option", { name: `GPIO ${pin}`, exact: true }).last().click()
+}
+
+test("a pin is one of the header's, a pin has one button, and Play, Stop, Toggle and Next are each on one button", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "GPIO" }).click()
 	await page.getByRole("button", { name: "Add to Triggers" }).click()
 	await page.getByRole("button", { name: "Add to Triggers" }).click()
-	const pin = (row: number) => page.getByRole("spinbutton", { name: `GPIO Pin ${row}` })
-	await pin(1).fill("40")
-	await pin(1).blur()
-	// the number field keeps what is typed inside the header's pins
-	await expect(pin(1)).toHaveValue("27")
-	await pin(1).fill("5")
-	await pin(1).blur()
-	await pin(2).fill("5")
-	await pin(2).blur()
+	// the list is the header's pins, 2 to 27, and nothing else can be chosen
+	await page.getByRole("combobox", { name: "GPIO Pin 1" }).click()
+	await expect(page.getByRole("option", { name: /^GPIO \d+/ })).toHaveCount(26)
+	await expect(page.getByRole("option", { name: "GPIO 28", exact: true })).toHaveCount(0)
+	await page.keyboard.press("Escape")
+	await choosePin(page, 1, 5)
+	await choosePin(page, 2, 5)
 	await expect(page.getByText("Must be unique")).toBeVisible()
-	await pin(2).fill("6")
-	await pin(2).blur()
+	await choosePin(page, 2, 6)
 	// both buttons start as Toggle: only one may
 	await expect(page.getByText("Already used by another row")).toBeVisible()
 	await page.getByRole("combobox", { name: "Action 2" }).click()
@@ -62,8 +66,7 @@ test("a button can run a task: its Priority Update is set up on the row, Run now
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "GPIO" }).click()
 	await page.getByRole("button", { name: "Add to Triggers" }).click()
-	await page.getByRole("spinbutton", { name: "GPIO Pin 1" }).fill("16")
-	await page.getByRole("spinbutton", { name: "GPIO Pin 1" }).blur()
+	await choosePin(page, 1, 16)
 	await page.getByRole("combobox", { name: "Action 1" }).click()
 	await page.getByRole("option", { name: "task", exact: true }).click()
 	// a task needs its settings: nothing to run, and a save is refused until they are set
@@ -90,5 +93,21 @@ test("a button can run a task: its Priority Update is set up on the row, Run now
 	await expect(page.getByText("Settings saved successfully").last()).toBeVisible()
 	await expect.poll(() => row().content).toBeUndefined()
 	expect(row()).toEqual({ pin: 16, action: "next" })
+	watch.expectNone()
+})
+
+test("a pin the panel uses is listed and cannot be chosen, and the server says so if it is saved anyway", async ({ page }) => {
+	const watch = watchProblems(page)
+	// the open server's display is a mock with no lines of its own: the list a Waveshare gives is stood in for
+	const pins = Array.from({ length: 26 }, (_, i) => ({ value: i + 2, name: i + 2 === 17 ? "GPIO 17 · not available: the panel's reset" : `GPIO ${i + 2}`, disabled: i + 2 === 17 }))
+	await page.route("**/api/system/gpio-pins", route => route.fulfill({ json: pins }))
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "GPIO" }).click()
+	await page.getByRole("button", { name: "Add to Triggers" }).click()
+	await page.getByRole("combobox", { name: "GPIO Pin 1" }).click()
+	const taken = page.getByRole("option", { name: "GPIO 17 · not available: the panel's reset" })
+	await expect(taken).toBeVisible()
+	await expect(taken).toHaveAttribute("aria-disabled", "true")
+	await expect(page.getByRole("option", { name: "GPIO 5", exact: true })).not.toHaveAttribute("aria-disabled", "true")
 	watch.expectNone()
 })

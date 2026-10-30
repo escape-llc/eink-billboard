@@ -102,6 +102,8 @@ export type LookupSettings = {
 export type LookupValue = {
 	name: string;
 	value: unknown;
+	/** a choice that is listed and cannot be chosen (a pin the panel uses); its name says why */
+	disabled?: boolean;
 }
 export type LookupItems = {
 	items: LookupValue[]

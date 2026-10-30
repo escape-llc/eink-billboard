@@ -3,12 +3,14 @@ import asyncio
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from ...datasources.metering import METER, quotas_of
 from ...model.configuration_manager import ConfigurationManager
+from ...device.pins import pin_choices
 from ..deps import get_cm
 from ..locate import locate
+from ..panel import chosen_panel
 from ..openapi import Answer, answers
 from ..system_info import host_info, load_info, pi_info
 
@@ -128,6 +130,20 @@ def get_system(cm: ConfigurationManager = Depends(get_cm)):
 	The storage's folders are walked on every call (a few dozen small files); the page asks every ten seconds while it is open.
 	"""
 	return { "host": host_info(), "load": load_info(), "pi": pi_info(), "storage": cm.storage_usage(), "usage": usage_report(cm) }
+
+class PinChoice(Answer):
+	"""One pin of the header, for the GPIO settings' drop-down: what it shows, the number it stores, and `disabled` when the panel uses it."""
+	name: str
+	value: int
+	disabled: bool
+
+@router.get("/gpio-pins", **answers(list[PinChoice]))
+def get_gpio_pins(request: Request, cm: ConfigurationManager = Depends(get_cm)):
+	"""
+	The header's GPIO pins (BCM numbers) a button may be wired to, for the GPIO settings' pin field: the lines the panel uses are `disabled` and say what for, so the choice follows the
+	display type the settings choose now. A pin on a bus is offered with a note. The same rule refuses them at a save.
+	"""
+	return [{ "name": c.name, "value": c.pin, "disabled": not c.available } for c in pin_choices(chosen_panel(request, cm))]
 
 @router.post("/locate", **answers(Located))
 def locate_by_ip():
