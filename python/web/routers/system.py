@@ -1,17 +1,19 @@
 """What the device and its storage look like, for the System page (#390): the machine (`system_info.py`), the storage by area and by plugin and data source, and the Pi's own readings when it is one."""
 import asyncio
 import logging
+import os
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 
 from ...datasources.metering import METER, quotas_of
 from ...model.configuration_manager import ConfigurationManager
 from ...device.pins import pin_choices
-from ..deps import get_cm
+from ..deps import get_cm, get_container
+from ..errors import ApiError
 from ..locate import locate
 from ..panel import chosen_panel
-from ..openapi import Answer, answers
+from ..openapi import Answer, Done, answers
 from ..system_info import host_info, load_info, pi_info
 
 router = APIRouter(prefix="/system")
@@ -154,3 +156,39 @@ def locate_by_ip():
 	except Exception as e:
 		logging.getLogger(__name__).warning(f"The location lookup failed ({type(e).__name__}).")
 		return { "ok": False, "message": "The location could not be looked up." }
+
+RESTARTABLE_ENV = "EINK_RESTARTABLE"
+
+class RestartState(Answer):
+	"""Whether the app can be restarted from the web app, and what is waiting for one."""
+	available: bool
+	waiting: list[str]
+
+def _restartable(request: Request) -> bool:
+	"""Something starts the app again when it stops: the container's restart policy, which the kit says by `EINK_RESTARTABLE`. A bare run just ends, so it is not offered."""
+	return os.environ.get(RESTARTABLE_ENV) == "1" and callable(getattr(request.app.state, "stop", None))
+
+@router.get("/restart", **answers(RestartState))
+def get_restart(request: Request):
+	"""What is waiting for a restart (display settings saved since the display started: `Application.restart_waiting`), and whether the web app can do it."""
+	from ...task.application import Application
+	isp = get_container(request)
+	application = isp.get_service(Application) if isp is not None else None
+	return { "available": _restartable(request), "waiting": application.restart_waiting() if application is not None else [] }
+
+@router.post("/restart", status_code=202, **answers(Done))
+def restart(request: Request, tasks: BackgroundTasks):
+	"""
+	Stop the app cleanly, after this answer is sent; the container's restart policy starts it again. The owner's: an unclaimed device has none (the same rule as a backup).
+	Where nothing would start it again, it is refused, so a press cannot leave the device stopped.
+	"""
+	from ...task.application import Application
+	isp = get_container(request)
+	application = isp.get_service(Application) if isp is not None else None
+	if application is not None and not application.claimed():
+		raise ApiError(403, "This device has not been claimed yet: enter the setup code (on the panel and in the log) in the web app first.", "restart")
+	if not _restartable(request):
+		raise ApiError(409, "Nothing here starts the app again after it stops: restart it where it runs (the Pi kit's 'restart').", "restart")
+	logging.getLogger(__name__).warning("Restart asked for from the web app.")
+	tasks.add_task(request.app.state.stop)
+	return { "success": True }

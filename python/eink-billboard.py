@@ -9,6 +9,7 @@ import logging
 import logging.config
 import os
 import socket
+import threading
 import warnings
 from urllib.parse import urlsplit
 from typing import Any
@@ -35,6 +36,8 @@ from .web.https import CERTFILE_ENV, KEYFILE_ENV, SSL_ENV, device_names, https_f
 from .utils.utils import local_address
 
 APPNAME: str = "EInk Billboard"
+# how long the orderly shutdown of a restart (the web app's button) may take before the process is ended anyway: the tasks' own stop waits 5 s, a stuck one never ends
+RESTART_FORCE_SECONDS: float = 20.0
 TOKEN_ENV = "EINK_API_TOKEN"
 PUBLIC_URL_ENV = "EINK_PUBLIC_URL"
 # the default bundle is found relative to this file (not the working directory), so it works from any folder
@@ -231,8 +234,21 @@ def run_application(args: argparse.Namespace) -> None:
 		# endpoints are plain functions: they run in uvicorn's thread pool and may block on the (locked) configuration files
 		# log_config=None keeps the logging configuration from logging.yaml
 		# HTTPS is uvicorn's own (no proxy): the session cookie is then Secure, since the app sees https
-		uvicorn.run(app, host=args.host, port=port, log_config=None,
-			ssl_certfile=https.certfile if https else None, ssl_keyfile=https.keyfile if https else None)
+		server = uvicorn.Server(uvicorn.Config(app, host=args.host, port=port, log_config=None,
+			ssl_certfile=https.certfile if https else None, ssl_keyfile=https.keyfile if https else None))
+		# the web app's restart: the server ends as for Ctrl+C, the application shuts down below, and the container's restart policy starts the app again (`routers/system.py`)
+		def force_exit() -> None:
+			logger.error("The shutdown did not finish: ending the process.")
+			logging.shutdown()
+			os._exit(0)
+		def stop() -> None:
+			server.should_exit = True
+			# a task that is stuck must not keep the app from restarting (that is a reason to press the button): if the orderly shutdown has not ended in time, the process ends anyway
+			killer = threading.Timer(RESTART_FORCE_SECONDS, force_exit)
+			killer.daemon = True
+			killer.start()
+		app.state.stop = stop
+		server.run()
 	except Exception as e:
 		logger.error(f"Exception in main: {e}", exc_info=True)
 	finally:

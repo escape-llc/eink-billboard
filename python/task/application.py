@@ -39,6 +39,9 @@ SETUP_HOLD = timedelta(days=3650)
 # the setup page says whose project the device runs (#824): the one page every new owner sees
 SETUP_CREDIT = "eInk Billboard · escape-technology-llc.com"
 
+# the display settings read once, when the display is made (`Display._configure_event`, the driver's `initialize`): saving one of them waits for a restart, and says so
+RESTART_KEYS = { "display_type": "The display type", "model": "The Waveshare model", "orientation": "The orientation" }
+
 # what a viewer may ask of the playlist layer (TransportCommand.command), and the message each becomes
 TRANSPORT_COMMANDS = ("play", "stop", "next")
 
@@ -111,6 +114,8 @@ class Application(DispatcherTask):
 		self._panel: tuple[int, int]|None = None
 		# what the display is (its kind and size), once it has started: the GPIO settings offer the pins the panel leaves free (`GET /api/system/gpio-pins`)
 		self.panel: Panel|None = None
+		# the display settings the Display read when it started (`RESTART_KEYS` of them): what a restart would change, if they are saved differently now
+		self.display_loaded: dict[str, Any]|None = None
 		# a restore of a backup: `idle`, `restoring` (files are being written) or `draining` (written; waiting for the watcher's events to pass). Only this thread changes it.
 		self._restore_state = "idle"
 		self._restore_generation = 0
@@ -191,6 +196,7 @@ class Application(DispatcherTask):
 		configt = ConfigureEvent(msg.timestamp, ConfigureOptions(cm=self.cm, isp=tlcontainer), "timer-layer", self)
 		self._panel = (msg.width, msg.height)
 		self.panel = Panel(msg.name, msg.width, msg.height)
+		self.display_loaded = self._display_keys()
 		# the devices start now, claimed or not: a press while the device is unclaimed is dropped by `_transport_command`
 		self._start_devices(msg.timestamp, msg.name, msg.width, msg.height)
 		if self._unclaimed():
@@ -201,6 +207,16 @@ class Application(DispatcherTask):
 			self._show_setup_notice(msg.width, msg.height, msg.timestamp)
 			return
 		self._start_when_clock_set(msg.timestamp, configs, configt)
+	def _display_keys(self) -> dict[str, Any]:
+		"""The display settings that are read once, when the display is made."""
+		_, stored = self.cm.settings_manager().open("display").get() if self.cm is not None else (None, None)
+		return { key: (stored or {}).get(key) for key in RESTART_KEYS }
+	def restart_waiting(self) -> list[str]:
+		"""Our words for each display setting saved since the display started that only a restart applies (called from the web app's threads); none before the display has started."""
+		if self.display_loaded is None or self.cm is None:
+			return []
+		now = self._display_keys()
+		return [f"{RESTART_KEYS[key]} was changed: the display reads it when the app starts." for key in RESTART_KEYS if now[key] != self.display_loaded.get(key)]
 	def _start_devices(self, timestamp: datetime, display_type: str, width: int, height: int):
 		"""Configure the DeviceIO task, which opens what the `devices` settings name; it is given the panel's kind and size, so it keeps off the panel's lines. (Plain parameters: a helper whose only parameter is a message type becomes that message's handler.)"""
 		if self.cm is None or self.device_io is None:

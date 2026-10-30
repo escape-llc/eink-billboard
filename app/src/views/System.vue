@@ -10,6 +10,8 @@
 				<Button size="small" severity="secondary" type="button" icon="mi mi-download" aria-label="Back up" title="Back up" data-testid="open-backup" @click="dialog = 'backup'" />
 				<Button size="small" severity="secondary" type="button" icon="mi mi-history" aria-label="Restore" title="Restore from a backup" data-testid="open-restore" @click="dialog = 'restore'" />
 				<Button size="small" severity="secondary" type="button" icon="mi mi-key" aria-label="Device password" title="Change the device password" data-testid="open-password" @click="dialog = 'password'" />
+				<!-- the whole app starts again (useRestart): only where something starts it, and only after the owner confirms -->
+				<Button size="small" severity="danger" type="button" icon="mi mi-restart-alt" aria-label="Restart the app" :title="available ? 'Restart the app' : 'Only where the container starts the app again; restart it where it runs'" :disabled="!available" data-testid="restart-app" @click="askRestart" />
 			</InputGroup>
 		</template>
 	</Toolbar>
@@ -151,6 +153,8 @@ import PanelNow from "../components/PanelNow.vue"
 import { answerPills, deviceMoment, devicePills, machinePills, periodPills, piPills, quotaLine, quotaSeverity, quotaWarning, sizePills, storageLine, storagePills, usagePills } from "../components/SystemFormat"
 import { describeEvent as describe } from "../composables/usePanelNow"
 import { useSystem } from "../composables/useSystem"
+import { useRestart } from "../composables/useRestart"
+import { useAskRestart } from "../components/AskRestart"
 
 const periods = [{ key: "today", label: "Today" }, { key: "week", label: "7 days" }, { key: "month", label: "Month" }] as const
 const TITLES: Record<string, string> = { "display": "Display", "playlist-layer": "Playlist", "timer-layer": "Timer tasks" }
@@ -159,6 +163,8 @@ const { status, info, failed, mismatch, owners, problems, start, stop } = useSys
 // the build this page's code is from (the Device card's Machine row says it beside the server's)
 const webCommit = __APP_COMMIT__
 // the dialog the toolbar opened (backup, restore, password)
+const { available } = useRestart()
+const askRestart = useAskRestart()
 const dialog = ref<"backup" | "restore" | "password" | null>(null)
 onMounted(() => start())
 onBeforeUnmount(() => stop())
