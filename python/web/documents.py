@@ -5,6 +5,7 @@ A document is a dict stored as JSON. The API adds `_id` and `_rev` (a hash of th
 and requires the same `_rev` on the way back in; a stale `_rev` is a 409 conflict.
 """
 import copy
+import json
 import logging
 import math
 import re
@@ -579,3 +580,15 @@ def plugin_content_errors(plugins: dict, datasources: dict, plugin_name: Any, co
 	props, lookups = instance_properties(plugin)
 	check(props, resolved("plugin", plugin, lookups), 0, frozenset())
 	return [{ "path": [*path, "content", *e["path"]], "message": e["message"] } for e in errors]
+
+def load_schedules(cm) -> dict:
+	try:
+		return cm.schedule_manager().load()
+	except (ValueError, OSError, json.JSONDecodeError) as e:
+		# the details name files and paths: keep them in the log
+		logger.error(f"schedule load failed: {e}", exc_info=True)
+		raise ApiError(500, "The stored schedules could not be loaded; see the server log.", "schedules") from e
+
+def playlist_ids(cm) -> dict[str, str]:
+	"""The stored playlists, each id with its name (what a button or a seek names a playlist by)."""
+	return { x["info"].id: x["info"].name for x in load_schedules(cm).get("playlists", []) if x.get("info") is not None }

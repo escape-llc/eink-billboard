@@ -99,8 +99,9 @@ class ClockCheck(BasicMessage):
 
 @dataclass(frozen=True, slots=True)
 class TransportCommand(BasicMessage):
-	"""A viewer's play, stop or next (the web app, later a button on the device), for the Application to forward to the playlist layer."""
+	"""A viewer's play, stop, next or seek (the web app, a button on the device), for the Application to forward to the playlist layer. `playlist_id` is the playlist a `seek` goes to."""
 	command: str
+	playlist_id: str|None = None
 
 @dataclass(frozen=True, slots=True)
 class InputEvent(BasicMessage):

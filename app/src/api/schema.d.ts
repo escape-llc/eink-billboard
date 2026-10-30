@@ -768,6 +768,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/devices/playlists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Playlists
+         * @description The playlists a button can play (the GPIO settings' Play playlist): each stores its id and shows its name.
+         */
+        get: operations["get_playlists_api_devices_playlists_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/devices/triggers/{pin}/run": {
         parameters: {
             query?: never;
@@ -1502,7 +1522,7 @@ export interface paths {
         put?: never;
         /**
          * Send Transport
-         * @description Forward a command: `play` (resume where it stopped), `stop`, or `next` (the next track; a stopped layer plays from there).
+         * @description Forward a command: `play` (resume where it stopped), `stop`, `next` (the next track; a stopped layer plays from there) or `seek` (the first track of the playlist `playlist_id`, then on as usual).
          *     It is accepted, not done: the layer does it on its own thread, and its telemetry says what happened.
          */
         post: operations["send_transport_api_transport_post"];
@@ -2325,7 +2345,9 @@ export interface components {
              * Command
              * @enum {string}
              */
-            command: "play" | "stop" | "next";
+            command: "play" | "stop" | "next" | "seek";
+            /** Playlist Id */
+            playlist_id?: string | null;
         };
         /**
          * TransportState
@@ -3689,6 +3711,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_playlists_api_devices_playlists_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Choice"][];
                 };
             };
         };

@@ -81,6 +81,14 @@ def panel_pin_errors(rows: object, panel: Panel|None, list_name: str = "triggers
 			errors.append({ "path": [list_name, str(index), "pin"], "message": f"The panel uses this pin ({taken[pin]}): choose another." })
 	return errors
 
+def playlist_row_errors(rows: object, playlists: Mapping[str, str], list_name: str = "triggers") -> list[dict]:
+	"""A row that plays a playlist names one that exists (`playlists`: each id with its name), at `[list, "<row>", "playlist"]`; the choice is a lookup the form cannot check."""
+	errors: list[dict] = []
+	for index, row in enumerate(rows if isinstance(rows, list) else []):
+		if isinstance(row, dict) and row.get("action") == "playlist" and row.get("playlist") not in playlists:
+			errors.append({ "path": [list_name, str(index), "playlist"], "message": "Not one of the allowed values" })
+	return errors
+
 def check_pins(pins: Mapping[str, int], panel: Panel|None, labels: Mapping[str, str]|None = None) -> list[str]:
 	"""
 	What is wrong with the pins a device was given (`pins`: the name of each input to its pin), in our words: a pin that is not on the header, one the panel uses, one used twice.

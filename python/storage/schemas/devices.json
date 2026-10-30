@@ -4,6 +4,9 @@
 		"lookups": {
 			"pins": {
 				"url": "/api/system/gpio-pins"
+			},
+			"playlists": {
+				"url": "/api/devices/playlists"
 			}
 		},
 		"properties": [
@@ -17,7 +20,7 @@
 				"type": "array",
 				"title": "Triggers",
 				"required": false,
-				"description": "One row for each push button wired between a GPIO pin (BCM number) and ground, and what pressing it does: play, stop, toggle (stop while playing, else play), next (the next page of the playlist) or run a task (a Priority Update task, set up on the row, that shows for its minutes). Play, stop, toggle and next can each be on one button only. Not a pin the panel uses (the list says which). Changes apply within a few seconds.",
+				"description": "One row for each push button wired between a GPIO pin (BCM number) and ground, and what pressing it does: play, stop, toggle (stop while playing, else play), next (the next page of the playlist), run a task (a Priority Update task, set up on the row, that shows for its minutes) or play a playlist (the playlist layer goes to its first track and carries on from there). Play, stop, toggle and next can each be on one button only. Not a pin the panel uses (the list says which). Changes apply within a few seconds.",
 				"items": {
 					"type": "object",
 					"key": "pin",
@@ -52,10 +55,21 @@
 								"play",
 								"stop",
 								"next",
-								"task"
+								"task",
+								"playlist"
 							],
 							"default": "toggle",
-							"description": "What pressing the button does. A task shows a Priority Update (its settings are set on the row) for its minutes."
+							"description": "What pressing the button does. A task shows a Priority Update (its settings are set on the row) for its minutes. Play playlist starts the playlist you choose from its first track."
+						},
+						{
+							"name": "playlist",
+							"type": "string",
+							"title": "Playlist",
+							"required": true,
+							"default": null,
+							"description": "The playlist the button starts: it begins at its first track and carries on from there, through the playlists after it.",
+							"lookup": "playlists",
+							"visibleIf": { "field": "action", "const": "playlist" }
 						}
 					],
 					"plugin": {

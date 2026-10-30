@@ -1,13 +1,13 @@
 """
 What an input means. A device only says that something happened (`InputEvent`: its name, which input, which gesture); the Application decides what that does, here. A button is bound by the
 GPIO settings' `triggers`: each row is a pin and an action the Application already has: `play`, `stop`, `next` (the transport commands), `toggle` (play when playback is stopped, else
-stop) or `task` (run the task the row carries). Only a press is bound; a long press does nothing yet.
+stop), `task` (run the task the row carries) or `playlist` (seek to the playlist the row names, by id). Only a press is bound; a long press does nothing yet.
 """
 from typing import Any, Mapping
 
 from .buttons import input_name
 
-ACTIONS = ("play", "stop", "toggle", "next", "task")
+ACTIONS = ("play", "stop", "toggle", "next", "task", "playlist")
 
 def row_for(source: str, name: str, gesture: str, settings: Mapping[str, Any]|None) -> Mapping[str, Any]|None:
 	"""The row of the stored `devices` settings an input is bound by, or None when it is bound to nothing (a gesture nobody listens for is not an error)."""

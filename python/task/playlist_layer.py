@@ -61,6 +61,10 @@ class NextTrack(LayerControlMessage):
 	"""Stop what is showing and go to the next track (wraps, crosses playlists). A stopped layer plays from there."""
 	pass
 @dataclass(frozen=True, slots=True)
+class SeekPlaylist(LayerControlMessage):
+	"""Stop what is showing and begin at the first track of the playlist with this id; it carries on from there as a pass does. A stopped layer plays from there."""
+	playlist_id: str
+@dataclass(frozen=True, slots=True)
 class StopPlayback(LayerControlMessage):
 	"""Cancel the running track; the panel keeps what it shows. Nothing starts again until `ResumePlayback` or `NextTrack`."""
 	pass
@@ -386,6 +390,23 @@ class PlaylistLayer(DispatcherTask):
 		self.logger.info(f"'{self.name}' resuming.")
 		self._transport_telemetry(msg.timestamp, 'playing', "Playback is resumed.")
 		self._start_playback(StartPlayback(msg.timestamp, None if at is None else Start(at.playlist, at.track, at.resume)))
+	@handles(SeekPlaylist)
+	def _seek_playlist(self, msg: SeekPlaylist):
+		"""Cancel what is showing and begin at the first track of a playlist, found by id (an edit moves the indexes, not the ids). One that is not there, or has no tracks, changes nothing."""
+		if not self._can_transport("seek"):
+			return
+		index = next((i for i, p in enumerate(self.playlists) if getattr(p.get("info"), "id", None) == msg.playlist_id and len(cast(Playlist, p.get("info")).items) > 0), None)
+		if index is None:
+			self.logger.warning(f"'{self.name}' seek: no playlist '{msg.playlist_id}' with tracks, the current track plays on.")
+			return
+		self._cancel_restart()
+		self._task_stop()
+		was_stopped, self._halted = self._halted, False
+		self.state = 'loaded'
+		self.logger.info(f"'{self.name}' seek: playlist {index} ('{msg.playlist_id}'), track 0.")
+		if was_stopped:
+			self._transport_telemetry(msg.timestamp, 'playing', "Playback is resumed.")
+		self._start_playback(StartPlayback(msg.timestamp, Start(index, 0)))
 	@handles(NextTrack)
 	def _next_track(self, msg: NextTrack):
 		"""Cancel what is showing and begin at the next track (a stopped layer plays from there)."""
