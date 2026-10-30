@@ -1421,6 +1421,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/system/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Restart
+         * @description What is waiting for a restart (display settings saved since the display started: `Application.restart_waiting`), and whether the web app can do it.
+         */
+        get: operations["get_restart_api_system_restart_get"];
+        put?: never;
+        /**
+         * Restart
+         * @description Stop the app cleanly, after this answer is sent; the container's restart policy starts it again. The owner's: an unclaimed device has none (the same rule as a backup).
+         *     Where nothing would start it again, it is refused, so a press cannot leave the device stopped.
+         */
+        post: operations["restart_api_system_restart_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/telemetry": {
         parameters: {
             query?: never;
@@ -1982,6 +2007,16 @@ export interface components {
             success: boolean;
             /** Timezone */
             timezone: string | null;
+        };
+        /**
+         * RestartState
+         * @description Whether the app can be restarted from the web app, and what is waiting for one.
+         */
+        RestartState: {
+            /** Available */
+            available: boolean;
+            /** Waiting */
+            waiting: string[];
         };
         /** RestoreFile */
         RestoreFile: {
@@ -5035,6 +5070,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Located"];
+                };
+            };
+        };
+    };
+    get_restart_api_system_restart_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestartState"];
+                };
+            };
+        };
+    };
+    restart_api_system_restart_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Done"];
                 };
             };
         };

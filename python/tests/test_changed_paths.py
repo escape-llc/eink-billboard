@@ -34,7 +34,7 @@ class TestChangedPaths(unittest.TestCase):
 	def test_a_device_setting_is_its_route(self):
 		self.assertEqual(self.paths("settings", "theme-settings.json"), ["/api/settings/theme"])
 		# the display type chooses which of the header's pins are the panel's
-		self.assertEqual(self.paths("settings", "display-settings.json"), ["/api/settings/display", "/api/system/gpio-pins"])
+		self.assertEqual(self.paths("settings", "display-settings.json"), ["/api/settings/display", "/api/system/gpio-pins", "/api/system/restart"])
 
 	def test_the_system_settings_also_change_the_providers_lists_and_the_timeline(self):
 		paths = self.paths("settings", "system-settings.json")
