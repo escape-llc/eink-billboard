@@ -230,28 +230,40 @@ class Application(DispatcherTask):
 		self.device_io.accept(ConfigureEvent(timestamp, ConfigureOptions(cm=self.cm, isp=container), "device-io", self))
 	@handles(InputEvent)
 	def _input_event(self, msg: InputEvent):
-		"""Something happened at a device (a button pressed): what it means is decided here, by the bindings."""
+		"""
+		Something happened at a device (a button pressed): what it means is decided here, by the bindings. The pin's own level is said by the DeviceIO task (`gpio`); this says what the press
+		became (`input`), and why when it became nothing, so a person who pressed sees what the device did with it.
+		"""
 		if self.router is None or self.cm is None:
 			return
 		# what a button does is what the GPIO settings say now (read each time: a change applies at once)
 		_, devices = self.cm.settings_manager().open("devices").get()
 		row = row_for(msg.source, msg.name, msg.gesture, devices if isinstance(devices, dict) else None)
+		label = input_label(msg.name)
+		def say(message: str, result: str, action: str|None = None) -> None:
+			assert self.router is not None
+			self.logger.info(f"'{self.name}' input: {message}")
+			self.router.send("telemetry", Telemetry(msg.timestamp, "application", { "kind": "input", "source": msg.source, "input": msg.name, "gesture": msg.gesture, "action": action, "result": result, "message": message }))
 		if row is None:
+			# a release is the pin's own news; a press or a hold that nothing answers is said, so a button that does nothing says why
+			if msg.source != "buttons":
+				return
+			if msg.gesture == "press":
+				say(f"The {label} was pressed: no action is set up for it.", "ignored")
+			elif msg.gesture == "long-press":
+				say(f"The {label} was held: a long press does nothing yet.", "ignored")
 			return
 		action = row["action"]
 		if action == "task":
-			label = input_label(msg.name)
-			self.logger.info(f"'{self.name}' input: {label} {msg.gesture}: run its task")
-			self.router.send("telemetry", Telemetry(msg.timestamp, "application", { "kind": "input", "source": msg.source, "input": msg.name, "gesture": msg.gesture, "action": action,
-				"message": f"The {label} was pressed: run its task." }))
+			say(f"The {label} was pressed: run its task.", "done", action)
 			self._run_trigger_row(msg.timestamp, row)
 			return
 		if action == "toggle":
 			action = "play" if self.playback_stopped else "stop"
-		label = input_label(msg.name)
-		self.logger.info(f"'{self.name}' input: {label} {msg.gesture}: {action}")
-		self.router.send("telemetry", Telemetry(msg.timestamp, "application", { "kind": "input", "source": msg.source, "input": msg.name, "gesture": msg.gesture, "action": action,
-			"message": f"The {label} was pressed: {action}." }))
+		if self._layers_held():
+			say(f"The {label} was pressed: {action} ignored, the device is not set up yet (not claimed, or its clock is not set).", "ignored", action)
+			return
+		say(f"The {label} was pressed: {action}.", "done", action)
 		self._transport_command(TransportCommand(msg.timestamp, action))
 	def _unclaimed(self) -> bool:
 		try:

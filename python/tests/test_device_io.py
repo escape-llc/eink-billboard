@@ -166,6 +166,14 @@ class TestButtons(unittest.TestCase):
 		made[1].when_held()
 		self.assertEqual(said, [("gpio-5", "press"), ("gpio-6", "press"), ("gpio-6", "long-press")])
 
+	def test_a_release_is_reported_too_for_the_pin_level(self):
+		make, made = fake_factory()
+		said: list[tuple[str, str]] = []
+		Buttons(make).open(lambda name, gesture: said.append((name, gesture)), triggers((5, "toggle")))
+		assert made[0].when_released
+		made[0].when_released()
+		self.assertEqual(said, [("gpio-5", "release")])
+
 	def test_callbacks_take_no_arguments_as_gpiozero_looks_at_them(self):
 		make, made = fake_factory()
 		Buttons(make).open(lambda name, gesture: None, triggers((6, "next")))
@@ -320,6 +328,21 @@ class TestDeviceIO(unittest.TestCase):
 		assert isinstance(event, InputEvent)
 		self.assertEqual((event.source, event.name, event.gesture), ("fake", "gpio-6", "press"))
 
+	def test_every_pin_event_is_told_to_the_telemetry_as_it_happened_whatever_it_means(self):
+		self.save(triggers=[{ "pin": 6, "action": "next" }])
+		self.configure()
+		emit = self.made[0].emit
+		assert emit is not None
+		for gesture in ("press", "long-press", "release"):
+			emit("gpio-6", gesture)
+		emit("gpio-9", "press")
+		end = time.monotonic() + 3
+		told: list[Telemetry] = []
+		while len(told) < 4 and time.monotonic() < end:
+			told = [m for m in self.sent.on("telemetry") if isinstance(m, Telemetry) and m.values.get("kind") == "gpio"]
+			time.sleep(0.01)
+		self.assertEqual([(m.name, m.values["message"]) for m in told], [("device-io", "GPIO 6: pressed"), ("device-io", "GPIO 6: held"), ("device-io", "GPIO 6: released"), ("device-io", "GPIO 9: pressed")])
+
 	def test_a_pin_the_panel_uses_is_refused_and_nothing_is_opened(self):
 		self.save(triggers=[{ "pin": 17, "action": "next" }])
 		note = self.configure(Panel("waveshare", 800, 480))
@@ -467,12 +490,29 @@ class TestApplicationBindings(unittest.TestCase):
 		self.assertEqual(event.values["action"], "next")
 		self.assertIn("button on pin 6", event.values["message"])
 
-	def test_an_input_bound_to_nothing_is_ignored(self):
+	def told(self, sent: Sent) -> list[tuple[str, str]]:
+		return [(m.values["result"], m.values["message"]) for m in sent.on("telemetry") if isinstance(m, Telemetry)]
+
+	def test_an_input_bound_to_nothing_does_nothing_and_says_so_at_the_trigger_level(self):
 		app, sent = self.application()
 		self.press(app, "gpio-6", "long-press")
 		self.press(app, "gpio-9")
-		self.press(app, "nothing")
-		self.assertEqual(sent.messages, [])
+		self.press(app, "gpio-9", "release")
+		self.assertEqual(sent.on("playlist-layer"), [])
+		self.assertEqual(self.told(sent), [("ignored", "The button on pin 6 was held: a long press does nothing yet."), ("ignored", "The button on pin 9 was pressed: no action is set up for it.")])
+
+	def test_a_press_the_device_cannot_act_on_yet_says_why_instead_of_saying_it_acted(self):
+		app, sent = self.application(claimed=False)
+		self.press(app, "gpio-6")
+		self.assertEqual(sent.on("playlist-layer"), [])
+		[(result, message)] = self.told(sent)
+		self.assertEqual(result, "ignored")
+		self.assertIn("next ignored, the device is not set up yet", message)
+
+	def test_a_press_that_acts_says_done(self):
+		app, sent = self.application()
+		self.press(app, "gpio-6")
+		self.assertEqual(self.told(sent), [("done", "The button on pin 6 was pressed: next.")])
 
 	def test_a_press_on_a_task_button_runs_its_task_in_the_timer_layer(self):
 		app, sent = self.application()

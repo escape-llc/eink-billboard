@@ -121,6 +121,7 @@
 					class="form"
 					@submit="submitForm"
 					/>
+				<GpioLive />
 			</TabPanel>
 			<TabPanel value="3">
 				<SettingsForm
@@ -224,6 +225,7 @@ import Select from 'primevue/select';
 
 import type { ValidateEventData } from "../components/BasicForm.vue"
 import SettingsForm from "../components/SettingsForm.vue"
+import GpioLive from "../components/GpioLive.vue"
 import { computed, onMounted } from 'vue';
 import { useToast } from 'primevue';
 import { useSettings, useThemePreview } from "../composables/useSettings"

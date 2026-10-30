@@ -111,3 +111,23 @@ test("a pin the panel uses is listed and cannot be chosen, and the server says s
 	await expect(page.getByRole("option", { name: "GPIO 5", exact: true })).not.toHaveAttribute("aria-disabled", "true")
 	watch.expectNone()
 })
+
+test("the GPIO tab shows the buttons live: what each pin did, and what the device made of it", async ({ page }) => {
+	const watch = watchProblems(page)
+	// the link is the page's own stand-in: what the server would send for a press of a bound pin, and for one the device could not act on
+	await page.routeWebSocket(/\/api\/telemetry/, ws => {
+		ws.send(JSON.stringify({ kind: "hello", run: "r1", seq: 0 }))
+		const event = (seq: number, source: string, kind: string, message: string, values: object = {}) =>
+			ws.send(JSON.stringify({ seq, ts: `2026-10-30T10:00:0${seq}Z`, source, kind, message, values }))
+		event(1, "device-io", "gpio", "GPIO 5: pressed")
+		event(2, "application", "input", "The button on pin 5 was pressed: next.", { result: "done" })
+		event(3, "device-io", "gpio", "GPIO 6: pressed")
+		event(4, "application", "input", "The button on pin 6 was pressed: next ignored, the device is not set up yet (not claimed, or its clock is not set).", { result: "ignored" })
+	})
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "GPIO" }).click()
+	const live = page.getByTestId("gpio-live")
+	await expect(live.locator("[data-level=pin]")).toHaveText([/GPIO 6: pressed/, /GPIO 5: pressed/])
+	await expect(live.locator("[data-level=action]")).toHaveText([/next ignored, the device is not set up yet/, /pressed: next\./])
+	watch.expectNone()
+})

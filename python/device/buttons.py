@@ -23,6 +23,11 @@ def input_label(name: str) -> str:
 	"""What a button is called to a person: `gpio-5` is "button on pin 5"."""
 	return f"button on pin {name.removeprefix('gpio-')}" if name.startswith("gpio-") else name
 
+def physical_words(name: str, gesture: str) -> str:
+	"""What a pin did, in our words, before anything decides what it means (`pressed`, `released`, `held`): the live view of the wiring."""
+	what = { "press": "pressed", "release": "released", "long-press": "held" }.get(gesture, gesture)
+	return f"{name.replace('gpio-', 'GPIO ', 1) if name.startswith('gpio-') else name}: {what}"
+
 def load_button() -> Any:
 	"""gpiozero's `Button`, or a `PermanentError` that says, in our words, what to do."""
 	try:
@@ -63,6 +68,7 @@ class Buttons:
 				self._buttons.append(button)
 				button.when_pressed = _callback(emit, name, "press")
 				button.when_held = _callback(emit, name, "long-press")
+				button.when_released = _callback(emit, name, "release")
 				logger.info(f"The {input_label(name)} is open.")
 		except Exception as e:
 			self.close()

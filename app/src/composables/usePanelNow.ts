@@ -24,6 +24,7 @@ export const SOURCES = [
 	{ label: "Display", value: "display" },
 	{ label: "Data sources", value: "data-source" },
 	{ label: "Settings", value: "application" },
+	{ label: "GPIO", value: "device-io" },
 ]
 
 /** The glyph of an event in the Activity panel. */
@@ -34,6 +35,9 @@ export function eventIcon(e: TelemetryEvent): string {
 	if(e.kind === "track-started" || e.kind === "task-started") return "mi mi-play-circle"
 	if(e.kind === "track-ended" || e.kind === "task-ended") return "mi mi-stop-circle"
 	if(e.kind === "stopped") return "mi mi-stop"
+	// a button: the pin's own level, and what the press became
+	if(e.kind === "gpio") return "mi mi-developer-board"
+	if(e.kind === "input") return "mi mi-bolt"
 	if(e.kind === "transport") return e.values?.state === "halted" ? "mi mi-stop" : "mi mi-play-arrow"
 	// a page is shown on a layer: the layer's own glyph, as in Now showing
 	if(e.kind === "showing") return LAYERS[layerOf(e.values?.layer)].glyph
