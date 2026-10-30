@@ -12,7 +12,7 @@
 #   asks which display you have; downloads the app (GitHub makes the image: nothing is built on the Pi);
 #   starts it on port 8080; makes it start when the Pi starts; prints the address and the setup code.
 #
-# Options:     --yes      do not ask (the display is EINK_DISPLAY, or mock)       --dry-run   say what it would do, change nothing
+# Options:     --yes      do not ask (the display is EINK_DISPLAY, an Inky that answers, or mock)       --dry-run   say what it would do, change nothing
 #              --stable   the releases (the default)                              --insider   every change (--master is the same)
 # Settings:    EINK_CHANNEL  stable or insider, as the options (a Pi that has one keeps it)
 #              EINK_REF      a branch or tag to install instead of a channel's newest version
@@ -240,46 +240,58 @@ EOF
 	[ "$NEEDS_REBOOT" -eq 0 ] || reboot=1
 
 	# ---- the display ------------------------------------------------------------------------------------------------------------------------------
-	step "Your display"
 	mkdir -p "$STATE_DIR"
-	local chosen="${EINK_DISPLAY:-}"
+	local chosen="${EINK_DISPLAY:-}" kind="" model="" detected=0
 	[ -n "$chosen" ] || chosen=$(cat "$STATE_DIR/display" 2>/dev/null || true)
-	local kind model=""
-	if [ "$YES" -eq 1 ]; then
-		[ -n "$chosen" ] || chosen=mock
-	else
-		say "Which display is attached?"
-		say "  1) none yet (try the app without a panel)"
-		say "  2) Pimoroni Inky (it says what it is, nothing more to choose)"
-		say "  3) Waveshare e-Paper (choose its model next)"
-		local default=1
-		case "$chosen" in inky) default=2 ;; waveshare:*) default=3 ;; esac
-		while :; do
-			ask "Your choice [$default]:" "$default"
-			case "$REPLY" in
-				1) chosen=mock; break ;;
-				2) chosen=inky; break ;;
-				3)
-					local previous=""
-					case "$chosen" in waveshare:*) previous=${chosen#waveshare:} ;; esac
-					"$KIT" models
-					while :; do
-						ask "The model${previous:+ [$previous]}:" "$previous"
-						if [ -n "$REPLY" ] && "$KIT" models | tr -s ' \t' '\n\n' | grep -qx "$REPLY"; then break; fi
-						say "'$REPLY' is not one of the models above (the name is on the Waveshare wiki page of your panel, e.g. epd7in3e)."
-					done
-					chosen="waveshare:$REPLY"; break ;;
-				*) say "Type 1, 2 or 3." ;;
-			esac
-		done
+	# which display is attached: set in EINK_DISPLAY, or remembered from the last run (asked now, as before), or neither. With neither the Pi is asked after the app has started
+	# (#836): an Inky says what it is on the I2C bus, which only the app's image can ask, and only once I2C is on (after the restart the first run asks for)
+	pick_display() {
+		if [ "$detected" -eq 1 ]; then
+			# the panel answered: nothing to ask
+			:
+		elif [ "$YES" -eq 1 ]; then
+			[ -n "$chosen" ] || chosen=mock
+		else
+			say "Which display is attached?"
+			say "  1) none yet (try the app without a panel)"
+			say "  2) Pimoroni Inky (it says what it is, nothing more to choose)"
+			say "  3) Waveshare e-Paper (choose its model next)"
+			local default=1
+			case "$chosen" in inky) default=2 ;; waveshare:*) default=3 ;; esac
+			while :; do
+				ask "Your choice [$default]:" "$default"
+				case "$REPLY" in
+					1) chosen=mock; break ;;
+					2) chosen=inky; break ;;
+					3)
+						local previous=""
+						case "$chosen" in waveshare:*) previous=${chosen#waveshare:} ;; esac
+						"$KIT" models
+						while :; do
+							ask "The model${previous:+ [$previous]}:" "$previous"
+							if [ -n "$REPLY" ] && "$KIT" models | tr -s ' 	' '
+
+' | grep -qx "$REPLY"; then break; fi
+							say "'$REPLY' is not one of the models above (the name is on the Waveshare wiki page of your panel, e.g. epd7in3e)."
+						done
+						chosen="waveshare:$REPLY"; break ;;
+					*) say "Type 1, 2 or 3." ;;
+				esac
+			done
+		fi
+		case "$chosen" in
+			mock|inky) kind=$chosen ;;
+			waveshare:?*) kind=waveshare; model=${chosen#waveshare:} ;;
+			*) fail "EINK_DISPLAY must be mock, inky or waveshare:MODEL (it is '$chosen')." ;;
+		esac
+		printf '%s
+' "$chosen" > "$STATE_DIR/display"
+		say "Display: $kind${model:+ $model}"
+	}
+	if [ -n "$chosen" ]; then
+		step "Your display"
+		pick_display
 	fi
-	case "$chosen" in
-		mock|inky) kind=$chosen ;;
-		waveshare:?*) kind=waveshare; model=${chosen#waveshare:} ;;
-		*) fail "EINK_DISPLAY must be mock, inky or waveshare:MODEL (it is '$chosen')." ;;
-	esac
-	printf '%s\n' "$chosen" > "$STATE_DIR/display"
-	say "Display: $kind${model:+ $model}"
 
 	# ---- the app's image ---------------------------------------------------------------------------------------------------------------------------
 	step "Getting the app (a download)"
@@ -297,9 +309,15 @@ EOF
 	# ---- start ---------------------------------------------------------------------------------------------------------------------------------
 	step "Starting the app"
 	EINK_PORT=8080 "$KIT" start || exit 1
+	if [ -z "$kind" ]; then
+		# nothing said which display: an Inky panel answers for itself, and then there is nothing to choose (also with --yes). Not answering is no reason to stop: it is asked as before (mock with --yes)
+		step "Your display"
+		if [ "$DRY" -eq 0 ] && "$KIT" detect; then chosen=inky; detected=1; fi
+		pick_display
+	fi
 	step "Choosing the display"
 	"$KIT" display "$kind" ${model:+"$model"} || warn "the display could not be chosen; choose it in the web app (Settings, Display) and restart:  $KIT start"
-	if [ "$kind" = "inky" ]; then
+	if [ "$kind" = "inky" ] && [ "$detected" -eq 0 ]; then
 		# an Inky says what it is: a warning if it does not answer, never a reason to stop
 		"$KIT" detect || warn "no Inky panel answered. Check that it sits on all the pins of the header, then:  $KIT check"
 	fi
