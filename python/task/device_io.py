@@ -18,6 +18,7 @@ from .configure_event import ConfigureEvent
 from .message_router import MessageRouter
 from .messages import ConfigurationChanged, InputEvent, ReloadDevices, Telemetry
 from ..device.base import InputDevice
+from ..device.buttons import physical_words
 from ..device.pins import Panel, check_pins
 from ..device.registry import available_devices
 from ..model.configuration_manager import ConfigurationManager
@@ -124,7 +125,11 @@ class DeviceIO(DispatcherTask):
 
 	@handles(InputEvent)
 	def _input_event(self, msg: InputEvent):
-		"""An event a device reported: on to the Application, which gives it its meaning."""
+		"""An event a device reported: said as it happened (the pin level: the web app shows the wiring works), then on to the Application, which gives it its meaning."""
+		try:
+			self.router.send("telemetry", Telemetry(msg.timestamp, "device-io", { "kind": "gpio", "input": msg.name, "gesture": msg.gesture, "message": physical_words(msg.name, msg.gesture) }))
+		except Exception as e:
+			self.logger.warning(f"The input could not be reported ({type(e).__name__}).")
 		self.router.send("device-input", msg)
 
 	def quitMsg(self, msg):
