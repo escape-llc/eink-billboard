@@ -1,6 +1,6 @@
 <template>
 	<!-- what only a restart applies (useRestart): under the header on every page, with the way to do it -->
-	<Message v-if="waiting.length > 0" size="small" severity="warn" :closable="false" class="restart-banner" data-testid="restart-banner">
+	<Message size="small" v-if="waiting.length > 0" severity="warn" :closable="false" class="restart-banner" data-testid="restart-banner">
 		<div class="restart-row">
 			<div>
 				<p v-for="words in waiting" :key="words" class="m-0">{{ words }}</p>
