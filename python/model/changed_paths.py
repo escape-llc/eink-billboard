@@ -6,7 +6,7 @@ schedule route, `/api/datasources/rss` the RSS Feed's settings and lookups, and 
 The watcher is the source, not the routes: a file saved by the device's command line, edited by hand or written by a restore changes the answers as a
 save through the API does. So the paths are worked out from the file alone:
 - a device setting (`settings/system-settings.json`) is its route; the system settings also choose the providers that `from` lookups read and the zone
-  of the timeline;
+  of the timeline, and the display settings choose which of the header's pins are the panel's (`/api/system/gpio-pins`);
 - a schedule file is every schedule route (a file's name does not say which document it holds, and a deleted file cannot be read to find out);
 - a plugin's or data source's `settings.json` is its routes (a data source's own router's too); a provider's (a data source with `api` features) also changes the device's choices of each
   capability it supplies (`/api/lookups/providers/<data-*>`) and every lookup that reads its lists (`"from"` its id or one of its capabilities);
@@ -84,6 +84,9 @@ def changed_paths(cm: ConfigurationManager, path: str|bytes) -> list[str]:
 			# the device's provider of a capability is a system setting, and the timeline is in the device's zone
 			paths += _from_lookups(_items(cm), lambda source: source.startswith("data-"))
 			paths.append("/api/schedule/tasks")
+		if stem == "display":
+			# the header's pins a button may use depend on the display type the settings choose (the panel's lines are not available)
+			paths.append("/api/system/gpio-pins")
 		return _unique(paths)
 	if area == "schemas" and len(parts) == 2 and name.endswith(".json"):
 		stem = _leaf(name[:-len(".json")])

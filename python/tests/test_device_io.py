@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 from ..device.bindings import action_for
 from ..device.buttons import DEBOUNCE_SECONDS, LONG_PRESS_SECONDS, Buttons, load_button
-from ..device.pins import FIRST_PIN, LAST_PIN, Panel, check_pins, panel_lines
+from ..device.pins import FIRST_PIN, LAST_PIN, Panel, check_pins, panel_for, panel_lines, panel_pin_errors, pin_choices
 from ..device.registry import available_devices
 from ..model.service_container import ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
@@ -91,6 +91,53 @@ class TestPins(unittest.TestCase):
 def triggers(*rows: tuple[int, str]) -> dict[str, Any]:
 	"""The `devices` settings with these buttons: (pin, action) for each."""
 	return { "triggers": [{ "pin": pin, "action": action } for pin, action in rows] }
+
+class TestPinChoices(unittest.TestCase):
+	"""The header's pins as the GPIO settings offer them (#837): a list fixed by the display driver, the panel's lines not available."""
+	def by_pin(self, panel: Panel|None) -> dict[int, tuple[str, bool]]:
+		return { c.pin: (c.name, c.available) for c in pin_choices(panel) }
+
+	def test_every_pin_of_the_header_is_offered_in_order(self):
+		self.assertEqual([c.pin for c in pin_choices(None)], list(range(FIRST_PIN, LAST_PIN + 1)))
+
+	def test_with_no_panel_every_pin_can_be_chosen(self):
+		self.assertTrue(all(available for _, available in self.by_pin(None).values()))
+		self.assertEqual(self.by_pin(None)[5], ("GPIO 5", True))
+
+	def test_the_panels_lines_are_not_available_and_say_what_they_are_for(self):
+		waveshare = self.by_pin(Panel("waveshare", 800, 480))
+		self.assertEqual(waveshare[17], ("GPIO 17 · not available: the panel's reset", False))
+		self.assertEqual({ pin for pin, (_, ok) in waveshare.items() if not ok }, set(panel_lines(Panel("waveshare", 800, 480))))
+		self.assertTrue(waveshare[5][1])
+
+	def test_the_list_follows_the_driver_pins_are_not_the_same_for_each(self):
+		inky = self.by_pin(Panel("inky", 800, 480))
+		self.assertFalse(inky[27][1], "the Inky's reset")
+		self.assertTrue(inky[24][1], "the Waveshare's busy line is free on an Inky (its own buttons are there)")
+		self.assertFalse(self.by_pin(Panel("waveshare", 800, 480))[24][1])
+
+	def test_the_big_inky_loses_two_more_pins(self):
+		small, big = self.by_pin(Panel("inky", 800, 480)), self.by_pin(Panel("inky", 1600, 1200))
+		self.assertEqual({ pin for pin in big if not big[pin][1] } - { pin for pin in small if not small[pin][1] }, {16, 26})
+
+	def test_a_pin_on_a_bus_is_offered_with_a_note_not_refused(self):
+		name, available = self.by_pin(Panel("waveshare", 800, 480))[2]
+		self.assertTrue(available)
+		self.assertIn("I²C", name)
+
+	def test_the_panel_is_the_one_the_settings_choose_with_the_size_of_the_one_running_only_when_it_is_the_same_kind(self):
+		running = Panel("inky", 1600, 1200)
+		self.assertEqual(panel_for("inky", running), running)
+		self.assertEqual(panel_for("waveshare", running), Panel("waveshare", 0, 0), "a change of display is not started yet: the old size is not its")
+		self.assertIsNone(panel_for(None, running))
+		self.assertIsNone(panel_for("", None))
+
+	def test_a_pin_the_panel_uses_is_an_error_on_its_row(self):
+		rows = [{ "pin": 5, "action": "next" }, { "pin": 17, "action": "toggle" }, { "pin": True, "action": "play" }]
+		self.assertEqual(panel_pin_errors(rows, Panel("waveshare", 800, 480)),
+			[{ "path": ["triggers", "1", "pin"], "message": "The panel uses this pin (reset): choose another." }])
+		self.assertEqual(panel_pin_errors(rows, None), [])
+		self.assertEqual(panel_pin_errors("not a list", Panel("waveshare", 800, 480)), [])
 
 class TestButtons(unittest.TestCase):
 	def test_the_pins_are_the_settings_that_are_set(self):
@@ -477,6 +524,35 @@ class TestDevicesSettings(WebApiTestBase):
 	def put(self, rows: list[dict[str, Any]]):
 		doc = self.client.get("/api/settings/devices").json()
 		return self.client.put("/api/settings/devices", json={ **doc, "triggers": rows })
+
+	def choose_display(self, kind: str) -> None:
+		doc = self.client.get("/api/settings/display").json()
+		self.assertEqual(self.client.put("/api/settings/display", json={ **doc, "display_type": kind }).status_code, 200)
+
+	def test_the_pins_are_a_list_the_display_type_chooses_and_nothing_else_is_asked_of_the_route(self):
+		self.choose_display("waveshare")
+		answer = self.client.get("/api/system/gpio-pins")
+		self.assertEqual(answer.status_code, 200)
+		pins = { c["value"]: c for c in answer.json() }
+		self.assertEqual(sorted(pins), list(range(FIRST_PIN, LAST_PIN + 1)))
+		self.assertEqual((pins[17]["disabled"], pins[5]["disabled"]), (True, False))
+		self.assertIn("reset", pins[17]["name"])
+		# read-only: it is the driver's table, kept nowhere
+		for method in ("post", "put", "patch", "delete"):
+			self.assertIn(getattr(self.client, method)("/api/system/gpio-pins").status_code, (404, 405), method)
+		# a change of display is followed at once, before it restarts
+		self.choose_display("inky")
+		inky = { c["value"]: c["disabled"] for c in self.client.get("/api/system/gpio-pins").json() }
+		self.assertEqual((inky[27], inky[24]), (True, False))
+
+	def test_a_button_on_a_pin_the_panel_uses_is_refused_where_it_is_chosen(self):
+		self.choose_display("waveshare")
+		refused = self.put([{ "pin": 5, "action": "toggle" }, { "pin": 17, "action": "next" }])
+		self.assertEqual(refused.status_code, 422)
+		self.assertIn({ "path": ["triggers", "1", "pin"], "message": "The panel uses this pin (reset): choose another." }, refused.json()["errors"])
+		self.choose_display("inky")
+		self.assertEqual(self.put([{ "pin": 24, "action": "next" }]).status_code, 200, "24 is the Waveshare's busy line and free on an Inky")
+		self.assertEqual(self.put([{ "pin": 17, "action": "next" }]).status_code, 422, "17 is the Inky's busy line")
 
 	def test_buttons_are_saved_and_one_off_the_header_is_refused(self):
 		saved = self.put([{ "pin": 5, "action": "toggle" }, { "pin": 6, "action": "next" }])

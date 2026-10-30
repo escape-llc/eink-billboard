@@ -109,6 +109,8 @@ class Application(DispatcherTask):
 		# the parts that said they are configured (COMPONENTS): all of them is "running"
 		self._up: set[str] = set()
 		self._panel: tuple[int, int]|None = None
+		# what the display is (its kind and size), once it has started: the GPIO settings offer the pins the panel leaves free (`GET /api/system/gpio-pins`)
+		self.panel: Panel|None = None
 		# a restore of a backup: `idle`, `restoring` (files are being written) or `draining` (written; waiting for the watcher's events to pass). Only this thread changes it.
 		self._restore_state = "idle"
 		self._restore_generation = 0
@@ -188,6 +190,7 @@ class Application(DispatcherTask):
 		configs = ConfigureEvent(msg.timestamp, ConfigureOptions(cm=self.cm, isp=plcontainer), "playlist-layer", self)
 		configt = ConfigureEvent(msg.timestamp, ConfigureOptions(cm=self.cm, isp=tlcontainer), "timer-layer", self)
 		self._panel = (msg.width, msg.height)
+		self.panel = Panel(msg.name, msg.width, msg.height)
 		# the devices start now, claimed or not: a press while the device is unclaimed is dropped by `_transport_command`
 		self._start_devices(msg.timestamp, msg.name, msg.width, msg.height)
 		if self._unclaimed():

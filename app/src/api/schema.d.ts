@@ -1380,6 +1380,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/system/gpio-pins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Gpio Pins
+         * @description The header's GPIO pins (BCM numbers) a button may be wired to, for the GPIO settings' pin field: the lines the panel uses are `disabled` and say what for, so the choice follows the
+         *     display type the settings choose now. A pin on a bus is offered with a note. The same rule refuses them at a save.
+         */
+        get: operations["get_gpio_pins_api_system_gpio_pins_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/system/locate": {
         parameters: {
             query?: never;
@@ -1832,6 +1853,18 @@ export interface components {
             throttled?: string[] | null;
             /** Throttled Now */
             throttled_now?: boolean | null;
+        };
+        /**
+         * PinChoice
+         * @description One pin of the header, for the GPIO settings' drop-down: what it shows, the number it stores, and `disabled` when the panel uses it.
+         */
+        PinChoice: {
+            /** Disabled */
+            disabled: boolean;
+            /** Name */
+            name: string;
+            /** Value */
+            value: number;
         };
         /** PlaylistDocument */
         PlaylistDocument: {
@@ -4962,6 +4995,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemInfo"];
+                };
+            };
+        };
+    };
+    get_gpio_pins_api_system_gpio_pins_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PinChoice"][];
                 };
             };
         };

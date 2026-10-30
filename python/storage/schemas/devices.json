@@ -1,7 +1,11 @@
 {
 	"_schema": "urn:inky:storage:schema:devices:1",
 	"schema": {
-		"lookups": {},
+		"lookups": {
+			"pins": {
+				"url": "/api/system/gpio-pins"
+			}
+		},
 		"properties": [
 			{
 				"name": "buttonsHeader",
@@ -13,7 +17,7 @@
 				"type": "array",
 				"title": "Triggers",
 				"required": false,
-				"description": "One row for each push button wired between a GPIO pin (BCM number) and ground, and what pressing it does: play, stop, toggle (stop while playing, else play), next (the next page of the playlist) or run a task (a Priority Update task, set up on the row, that shows for its minutes). Play, stop, toggle and next can each be on one button only. Not a pin the panel uses (the app says which, if you choose one). Changes apply within a few seconds.",
+				"description": "One row for each push button wired between a GPIO pin (BCM number) and ground, and what pressing it does: play, stop, toggle (stop while playing, else play), next (the next page of the playlist) or run a task (a Priority Update task, set up on the row, that shows for its minutes). Play, stop, toggle and next can each be on one button only. Not a pin the panel uses (the list says which). Changes apply within a few seconds.",
 				"items": {
 					"type": "object",
 					"key": "pin",
@@ -35,7 +39,8 @@
 							"minimum": 2,
 							"maximum": 27,
 							"default": null,
-							"description": "The GPIO number (BCM) the button is wired to."
+							"description": "The GPIO number (BCM) the button is wired to: the choices follow the display type chosen in Display, and the pins the panel uses are not available.",
+							"lookup": "pins"
 						},
 						{
 							"name": "action",

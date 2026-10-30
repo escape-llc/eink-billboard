@@ -37,10 +37,23 @@ def _descriptors() -> Iterator[tuple[str, Any]]:
 		with open(path, encoding="utf-8") as f:
 			yield os.path.relpath(path, ROOT), json.load(f)
 
-def _addresses(node: Any) -> Iterator[tuple[str, str, list[str]]]:
+def _whole_number_lookups(node: Any) -> set[str]:
+	"""The names of the lookups that a field of type `integer` or `number` reads: their choices store a number, not a string (the GPIO settings' pins)."""
+	found: set[str] = set()
+	if isinstance(node, list):
+		for item in node:
+			found |= _whole_number_lookups(item)
+	elif isinstance(node, dict):
+		if isinstance(node.get("lookup"), str) and node.get("type") in ("integer", "number"):
+			found.add(node["lookup"])
+		for value in node.values():
+			found |= _whole_number_lookups(value)
+	return found
+
+def _addresses(node: Any) -> Iterator[tuple[str, str, list[str], str]]:
 	"""
-	(kind, address, query) for each address a descriptor names: a Test button's (`test.url`), a row action's (`action.url`), a URL lookup's
-	(in `lookups`). `query` is what a lookup sends: its `with` fields, and `q` for a `search`.
+	(kind, address, query, name) for each address a descriptor names: a Test button's (`test.url`), a row action's (`action.url`), a URL lookup's
+	(in `lookups`, with its name). `query` is what a lookup sends: its `with` fields, and `q` for a `search`.
 	"""
 	if isinstance(node, list):
 		for item in node:
@@ -48,18 +61,18 @@ def _addresses(node: Any) -> Iterator[tuple[str, str, list[str]]]:
 	elif isinstance(node, dict):
 		for key, value in node.items():
 			if key in ("test", "action") and isinstance(value, dict) and isinstance(value.get("url"), str):
-				yield key, value["url"], []
+				yield key, value["url"], [], ""
 			elif key == "lookups" and isinstance(value, dict):
-				for lookup in value.values():
+				for lookup_name, lookup in value.items():
 					if isinstance(lookup, dict) and isinstance(lookup.get("url"), str):
-						yield "lookup", lookup["url"], [*lookup.get("with", []), *(["q"] if lookup.get("search") else [])]
+						yield "lookup", lookup["url"], [*lookup.get("with", []), *(["q"] if lookup.get("search") else [])], lookup_name
 			yield from _addresses(value)
 
 class TestDescriptorAddresses(unittest.TestCase):
 	"""
 	The form calls the addresses a descriptor names (a Test, a row action, a URL lookup) by address, so the web app cannot type them by path (#590): each must be a route of the
 	document that declares the answer the form reads (TestUrlButton: `TestAnswer`; RowAction: `RowStep` for each step; a lookup: a list of choices,
-	each a `name` and a `value` that are strings), and a lookup's route takes what the form sends it as query parameters (its `with` fields, `q` for a `search`).
+	each a `name` and a `value` that are strings, or numbers for a field that is one), and a lookup's route takes what the form sends it as query parameters (its `with` fields, `q` for a `search`).
 	"""
 	paths: dict[str, Any]
 	schemas: dict[str, Any]
@@ -82,7 +95,8 @@ class TestDescriptorAddresses(unittest.TestCase):
 	def test_every_address_a_descriptor_names_answers_what_the_form_reads(self):
 		found = { "test": 0, "action": 0, "lookup": 0, "query": 0 }
 		for name, descriptor in _descriptors():
-			for kind, address, query in _addresses(descriptor):
+			numbers = _whole_number_lookups(descriptor)
+			for kind, address, query, lookup_name in _addresses(descriptor):
 				found[kind] += 1
 				found["query"] += len(query)
 				with self.subTest(file=name, address=address):
@@ -95,7 +109,8 @@ class TestDescriptorAddresses(unittest.TestCase):
 						schema = self.answer(address, "get")
 						self.assertEqual(schema.get("type"), "array")
 						item = self.schemas[schema["items"]["$ref"].rsplit("/", 1)[-1]]
-						self.assertEqual({ field: item["properties"][field]["type"] for field in ("name", "value") }, { "name": "string", "value": "string" })
+						# what a choice stores is what its field is: a string, or a number for a field that is one (a pin)
+						self.assertEqual({ field: item["properties"][field]["type"] for field in ("name", "value") }, { "name": "string", "value": "integer" if lookup_name in numbers else "string" })
 						self.assertLessEqual({ "name", "value" }, set(item.get("required", [])))
 						declared = { p["name"] for p in self.operation(address, "get").get("parameters", []) if p.get("in") == "query" }
 						self.assertLessEqual(set(query), declared, "a lookup's `with` fields and a search's `q` are query parameters of its route")

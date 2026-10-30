@@ -60,7 +60,7 @@
 			</template>
 			<template v-else-if="'lookup' in field">
 				<Select size="small" :name="field.name" :inputId="field.name" :invalid="isInvalid" :options="lookupChoices"
-					optionLabel="name" optionValue="value" :showClear="field.required === false"
+					optionLabel="name" optionValue="value" optionDisabled="disabled" :showClear="field.required === false"
 					:placeholder="field.title" fluid />
 				<!-- a search lookup: what is typed is sent on Enter or Search, never per keystroke; the answer is the Select's choices -->
 				<template v-if="field.lookupSearch">
