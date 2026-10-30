@@ -5,6 +5,8 @@ import ThemeSelector from './components/ThemeSelector.vue'
 import AuthDialog from './components/AuthDialog.vue'
 import HelpDrawer from './components/HelpDrawer.vue'
 import DeviceStatusTag from './components/DeviceStatusTag.vue'
+import RestartBanner from './components/RestartBanner.vue'
+import RestartOverlay from './components/RestartOverlay.vue'
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useQueryCache } from '@pinia/colada'
@@ -183,11 +185,13 @@ const items = ref([
 			</InputGroup>
 	</template>
 	</Toolbar>
+	<RestartBanner />
 	<div class="main-area">
 		<RouterView class="router-view" />
 	</div>
 	<ConfirmDialog></ConfirmDialog>
 	<AuthDialog />
+	<RestartOverlay />
 	<HelpDrawer v-model:visible="helpOpen" :section="helpSection" />
 	<Toast position="bottom-left"/>
 </template>

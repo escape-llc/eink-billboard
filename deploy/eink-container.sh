@@ -705,7 +705,7 @@ cmd_start() {
 
 	if ! podman run -d --name "$NAME" --restart unless-stopped \
 		-p "$PORT:8080" -v "$VOLUME:/data" \
-		-e EINK_PUBLIC_URL="$url" -e EINK_ALLOW_HOSTS="$hosts" "${token[@]}" \
+		-e EINK_PUBLIC_URL="$url" -e EINK_ALLOW_HOSTS="$hosts" -e EINK_RESTARTABLE=1 "${token[@]}" \
 		"${devices[@]}" "${tls_mounts[@]}" "${clock[@]}" \
 		"$IMAGE" uv run --no-sync python -m python.eink-billboard --host 0.0.0.0 --port 8080 --storage /data --app /work/app/dist "${tls_args[@]}" >/dev/null; then
 		fail "the app did not start: the lines above say why. '$SCRIPT check' looks at everything."

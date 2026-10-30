@@ -1299,6 +1299,29 @@
 				"title": "Rendered",
 				"type": "object"
 			},
+			"RestartState": {
+				"additionalProperties": false,
+				"description": "Whether the app can be restarted from the web app, and what is waiting for one.",
+				"properties": {
+					"available": {
+						"title": "Available",
+						"type": "boolean"
+					},
+					"waiting": {
+						"items": {
+							"type": "string"
+						},
+						"title": "Waiting",
+						"type": "array"
+					}
+				},
+				"required": [
+					"available",
+					"waiting"
+				],
+				"title": "RestartState",
+				"type": "object"
+			},
 			"RestoreFile": {
 				"additionalProperties": false,
 				"properties": {
@@ -5909,6 +5932,42 @@
 					}
 				},
 				"summary": "Locate By Ip"
+			}
+		},
+		"/api/system/restart": {
+			"get": {
+				"description": "What is waiting for a restart (display settings saved since the display started: `Application.restart_waiting`), and whether the web app can do it.",
+				"operationId": "get_restart_api_system_restart_get",
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RestartState"
+								}
+							}
+						},
+						"description": "Successful Response"
+					}
+				},
+				"summary": "Get Restart"
+			},
+			"post": {
+				"description": "Stop the app cleanly, after this answer is sent; the container's restart policy starts it again. The owner's: an unclaimed device has none (the same rule as a backup).\nWhere nothing would start it again, it is refused, so a press cannot leave the device stopped.",
+				"operationId": "restart_api_system_restart_post",
+				"responses": {
+					"202": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Done"
+								}
+							}
+						},
+						"description": "Successful Response"
+					}
+				},
+				"summary": "Restart"
 			}
 		},
 		"/api/telemetry": {

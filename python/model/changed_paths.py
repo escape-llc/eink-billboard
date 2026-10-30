@@ -87,6 +87,8 @@ def changed_paths(cm: ConfigurationManager, path: str|bytes) -> list[str]:
 		if stem == "display":
 			# the header's pins a button may use depend on the display type the settings choose (the panel's lines are not available)
 			paths.append("/api/system/gpio-pins")
+			# and whether a restart is waiting for what the display read once
+			paths.append("/api/system/restart")
 		return _unique(paths)
 	if area == "schemas" and len(parts) == 2 and name.endswith(".json"):
 		stem = _leaf(name[:-len(".json")])
