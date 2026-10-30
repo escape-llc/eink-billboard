@@ -3,7 +3,9 @@
 	<div class="panel-now" :data-link="link.state.status">
 		<!-- the playlist the layer is on, its tracks in order and the one playing, with play, stop and next (usePlaylistPanel) -->
 		<SystemCard title="Playlist">
-			<template #head><Tag :severity="transport.state.stopped ? 'warn' : 'success'" :value="transport.state.stopped ? 'Stopped' : 'Playing'" class="ml-auto" data-testid="playback-state" /></template>
+			<template #head><!-- what the layer last said is not news while the link is down: the tag then says that, as the header does -->
+				<Tag v-if="link.state.status !== 'live'" :severity="statusSeverity" :value="statusText" class="ml-auto" :title="`The page cannot hear from the device: ${statusText.toLowerCase()}.`" data-testid="playback-state" />
+				<Tag v-else :severity="transport.state.stopped ? 'warn' : 'success'" :value="transport.state.stopped ? 'Stopped' : 'Playing'" class="ml-auto" data-testid="playback-state" /></template>
 			<div class="playlist-head">
 				<InputGroup class="system-actions" role="group" aria-label="Playback">
 					<Button size="small" severity="secondary" type="button" data-testid="play-stop"

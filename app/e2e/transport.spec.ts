@@ -90,3 +90,13 @@ test("the playlist panel shows the playlist that plays, and marks the track the 
 	}
 	watch.expectNone()
 })
+
+test("the playback tag says so when the page cannot hear from the device, not what the layer last said", async ({ page }) => {
+	await stubMapTiles(page)
+	// the link never opens: the page has no news of the layer
+	await page.routeWebSocket(/\/api\/telemetry/, ws => ws.close())
+	await page.goto("/#/system")
+	const tag = page.getByTestId("playback-state")
+	await expect(tag).toHaveText(/Offline|Connecting/)
+	await expect(tag).not.toHaveText("Playing")
+})
