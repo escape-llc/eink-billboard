@@ -6,7 +6,7 @@
 			<span>Restarting the app. This page loads again when it is back.</span>
 		</div>
 	</Dialog>
-	<Message v-if="restartFailed" severity="error" class="restart-failed" data-testid="restart-failed">{{ restartFailed }}</Message>
+	<Message v-if="restartFailed" size="small" severity="error" class="restart-failed" data-testid="restart-failed">{{ restartFailed }}</Message>
 </template>
 <script setup lang="ts">
 import { Dialog, Message, ProgressSpinner } from "primevue"
