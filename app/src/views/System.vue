@@ -9,7 +9,7 @@
 			<InputGroup class="system-actions">
 				<Button size="small" severity="secondary" type="button" icon="mi mi-download" aria-label="Back up" title="Back up" data-testid="open-backup" @click="dialog = 'backup'" />
 				<Button size="small" severity="secondary" type="button" icon="mi mi-history" aria-label="Restore" title="Restore from a backup" data-testid="open-restore" @click="dialog = 'restore'" />
-				<Button size="small" severity="secondary" type="button" icon="mi mi-key" aria-label="Device password" title="Change the device password" data-testid="open-password" @click="dialog = 'password'" />
+				<Button size="small" severity="warn" type="button" icon="mi mi-key" aria-label="Device password" title="Change the device password" data-testid="open-password" @click="dialog = 'password'" />
 				<!-- the whole app starts again (useRestart): only where something starts it, and only after the owner confirms -->
 				<Button size="small" severity="danger" type="button" icon="mi mi-restart-alt" aria-label="Restart the app" :title="available ? 'Restart the app' : 'Only where the container starts the app again; restart it where it runs'" :disabled="!available" data-testid="restart-app" @click="askRestart" />
 			</InputGroup>
