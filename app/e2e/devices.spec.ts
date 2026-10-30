@@ -57,7 +57,7 @@ test("a pin is one of the header's, a pin has one button, and Play, Stop, Toggle
 	await expect(page.getByText("Already used by another row")).toHaveCount(0)
 	await saveButton(page).click()
 	await expect(page.getByText("Settings saved successfully")).toBeVisible()
-	expect(JSON.parse(fs.readFileSync(FILE, "utf8")).triggers).toEqual([{ pin: 5, action: "toggle" }, { pin: 6, action: "next" }])
+	expect(JSON.parse(fs.readFileSync(FILE, "utf8")).triggers).toEqual([{ pin: 5, action: "toggle", playlist: null }, { pin: 6, action: "next", playlist: null }])
 	watch.expectNone()
 })
 
@@ -92,7 +92,7 @@ test("a button can run a task: its Priority Update is set up on the row, Run now
 	await saveButton(page).click()
 	await expect(page.getByText("Settings saved successfully").last()).toBeVisible()
 	await expect.poll(() => row().content).toBeUndefined()
-	expect(row()).toEqual({ pin: 16, action: "next" })
+	expect(row()).toEqual({ pin: 16, action: "next", playlist: null })
 	watch.expectNone()
 })
 
@@ -129,5 +129,28 @@ test("the GPIO tab shows the buttons live: what each pin did, and what the devic
 	const live = page.getByTestId("gpio-live")
 	await expect(live.locator("[data-level=pin]")).toHaveText([/GPIO 6: pressed/, /GPIO 5: pressed/])
 	await expect(live.locator("[data-level=action]")).toHaveText([/next ignored, the device is not set up yet/, /pressed: next\./])
+	watch.expectNone()
+})
+
+test("a button can play a playlist: the picker appears with that action, a playlist is required, and the choice is saved by its id", async ({ page, request }) => {
+	const watch = watchProblems(page)
+	const playlists: { name: string, value: string }[] = await (await request.get(`${OPEN.url}/api/devices/playlists`)).json()
+	expect(playlists.length).toBeGreaterThan(0)
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "GPIO" }).click()
+	await page.getByRole("button", { name: "Add to Triggers" }).click()
+	await choosePin(page, 1, 16)
+	// the picker is not there for the other actions
+	await expect(page.getByRole("combobox", { name: "Playlist 1" })).toHaveCount(0)
+	await page.getByRole("combobox", { name: "Action 1" }).click()
+	await page.getByRole("option", { name: "playlist", exact: true }).click()
+	// no playlist chosen: the row says so and the form cannot be saved
+	await expect(page.getByText("Required").first()).toBeVisible()
+	await expect(saveButton(page)).toBeDisabled()
+	await page.getByRole("combobox", { name: "Playlist 1" }).click()
+	await page.getByRole("option", { name: playlists[0].name, exact: true }).last().click()
+	await saveButton(page).click()
+	await expect(page.getByText("Settings saved successfully")).toBeVisible()
+	expect(JSON.parse(fs.readFileSync(FILE, "utf8")).triggers).toEqual([{ pin: 16, action: "playlist", playlist: playlists[0].value }])
 	watch.expectNone()
 })
