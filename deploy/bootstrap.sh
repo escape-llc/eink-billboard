@@ -295,7 +295,8 @@ EOF
 
 	# ---- the app's image ---------------------------------------------------------------------------------------------------------------------------
 	step "Getting the app (a download)"
-	"$KIT" get || exit 1
+	# IN_UPDATE=1: the kit leaves out its "Start it with" hint, since this starts the app itself (now, or on the run after the restart)
+	IN_UPDATE=1 "$KIT" get || exit 1
 
 	if [ "$reboot" -eq 1 ]; then
 		step "Restart the Pi"

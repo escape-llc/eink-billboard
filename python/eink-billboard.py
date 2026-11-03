@@ -33,6 +33,7 @@ from .task.messages import QuitMessage, StartOptions
 from .web.access import AccessState, clear_password
 from .web.app import WebSettings, create_app
 from .web.https import CERTFILE_ENV, KEYFILE_ENV, SSL_ENV, device_names, https_files, ssl_wanted
+from .web.listen import EVERY_ADDRESS, dual_stack_socket
 from .utils.utils import local_address
 
 APPNAME: str = "EInk Billboard"
@@ -105,7 +106,7 @@ def configure_logging(dev: bool = True) -> None:
 def parse_args(argv: list[str]|None = None) -> argparse.Namespace:
 	parser = argparse.ArgumentParser(description=f"{APPNAME} Server")
 	parser.add_argument('--dev', action='store_true', help='Development: DEBUG logging, and port 8080 unless --port says otherwise')
-	parser.add_argument('--host', default="0.0.0.0", help='Change listening interface')
+	parser.add_argument('--host', default="0.0.0.0", help='Change listening interface; "::" is every address, IPv4 and IPv6')
 	parser.add_argument('--port', type=int, help='Listening port; default 8080 in development mode, 80 otherwise')
 	parser.add_argument('--app', default=DEFAULT_APP_PATH, help='Path to web app bundle; a relative path is relative to the current working directory (default: app/dist of this repository)')
 	parser.add_argument('--storage', help='Path to storage folder; a relative path is relative to the current working directory')
@@ -234,7 +235,18 @@ def run_application(args: argparse.Namespace) -> None:
 		# endpoints are plain functions: they run in uvicorn's thread pool and may block on the (locked) configuration files
 		# log_config=None keeps the logging configuration from logging.yaml
 		# HTTPS is uvicorn's own (no proxy): the session cookie is then Secure, since the app sees https
-		server = uvicorn.Server(uvicorn.Config(app, host=args.host, port=port, log_config=None,
+		# `--host ::` is every address, IPv4 and IPv6, on one socket of our own (uvicorn's would be IPv6 only)
+		host: str = args.host
+		sockets: list[socket.socket]|None = None
+		if host == EVERY_ADDRESS:
+			sock = dual_stack_socket(port)
+			if sock is None:
+				logger.warning("This machine has no IPv6: listening on IPv4 only (0.0.0.0).")
+				host = "0.0.0.0"
+			else:
+				sockets = [sock]
+				logger.info(f"Listening on every address, IPv4 and IPv6, port {port}")
+		server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_config=None,
 			ssl_certfile=https.certfile if https else None, ssl_keyfile=https.keyfile if https else None))
 		# the web app's restart: the server ends as for Ctrl+C, the application shuts down below, and the container's restart policy starts the app again (`routers/system.py`)
 		def force_exit() -> None:
@@ -248,7 +260,7 @@ def run_application(args: argparse.Namespace) -> None:
 			killer.daemon = True
 			killer.start()
 		app.state.stop = stop
-		server.run()
+		server.run(sockets=sockets)
 	except Exception as e:
 		logger.error(f"Exception in main: {e}", exc_info=True)
 	finally:
