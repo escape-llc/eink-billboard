@@ -27,6 +27,9 @@ class PanelGuard:
 		def run() -> None:
 			try:
 				outcome.append(work())
+			except SystemExit as e:
+				# a driver that gives up exits (gpiodevice does when a pin it needs is taken): raised in the Display task, that would end it without a word
+				failure.append(RuntimeError(f"The panel's driver stopped by itself (exit {e.code}): a pin it needs may be taken (an Inky needs dtoverlay=spi0-0cs; 'deploy/eink-container.sh check' says)."))
 			except BaseException as e:
 				failure.append(e)
 		worker = threading.Thread(target=run, name=f"{self._name}-panel", daemon=True)

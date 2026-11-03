@@ -23,7 +23,7 @@ A self-hosted e-ink billboard for a Raspberry Pi. Playlists of data sources (com
 
 From a fresh Raspberry Pi to a working billboard in one command. The app runs in a container (Podman), so the Pi itself only gets Podman, git and its panel connections switched on; Python, the browser that draws the pages and the panel drivers are all inside the container.
 
-> **Status:** the whole setup runs start to finish on a Raspberry Pi 5 (Raspberry Pi OS Bookworm, Podman 4.3), including starting again after a restart, with no panel attached: the app opens the panel's devices and loads every driver inside the container. Driving a real panel is untested, and so is a Pi 3 B+ (the setup accepts it).
+> **Status:** the whole setup runs start to finish on a **Raspberry Pi 3 B+ with Raspberry Pi OS Lite (Trixie, 64-bit) and Podman 5.4.2, driving a Pimoroni Inky Spectra 6 7.3" (E673)**: from a fresh card through the setup, claiming the device from a phone, pages drawn on the panel, and starting again after a restart. Earlier, a Raspberry Pi 5 (Bookworm, Podman 4.3) with no panel. A Waveshare panel on real hardware is untested.
 
 ## What you need
 

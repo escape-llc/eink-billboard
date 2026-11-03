@@ -13,6 +13,13 @@ class TestPanelGuard(unittest.TestCase):
 			guard.run(broken, 1.0)
 		self.assertFalse(guard.busy())
 
+	def test_a_driver_that_exits_is_a_failure_not_an_exit(self):
+		# gpiodevice calls sys.exit when a pin it needs is taken (an Inky's chip select, held by the kernel's SPI without dtoverlay=spi0-0cs)
+		def gives_up():
+			raise SystemExit(1)
+		with self.assertRaisesRegex(RuntimeError, "spi0-0cs"):
+			PanelGuard().run(gives_up, 1.0)
+
 	def test_a_call_that_does_not_come_back_is_a_timeout_and_blocks_the_next_until_it_does(self):
 		release = threading.Event()
 		self.addCleanup(release.set)

@@ -1,4 +1,5 @@
 import unittest
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
@@ -6,6 +7,7 @@ from starlette.websockets import WebSocketDisconnect
 from ..task.telemetry_hub import TelemetryHub
 from ..web.app import WebSettings, create_app
 from ..web.hosts import HostPolicy, host_of
+from ..web.routers.session import client_of
 from ..web.sessions import SignInThrottle
 from .test_web_api import WebApiTestBase
 
@@ -58,6 +60,14 @@ class TestServerRefusesOtherNames(WebApiTestBase):
 	def test_a_name_from_allow_host_is_answered(self):
 		client = TestClient(create_app(WebSettings(allowed_hosts=("eink.home.arpa",))))
 		self.assertNotEqual(client.get("/api/nothing", headers={ "Host": "eink.home.arpa" }).status_code, 421)
+
+class TestClientOf(unittest.TestCase):
+	def test_an_ipv4_client_of_the_dual_stack_socket_is_its_ipv4_address(self):
+		# `--host ::` (#860) gives an IPv4 client as ::ffff:a.b.c.d: one client, one throttle, one address in the log
+		for host, client in (("::ffff:10.0.0.28", "10.0.0.28"), ("10.0.0.28", "10.0.0.28"), ("2601:410::1", "2601:410::1"), ("::1", "::1"), ("testclient", "testclient")):
+			with self.subTest(host):
+				self.assertEqual(client_of(SimpleNamespace(client=SimpleNamespace(host=host))), client)  # type: ignore[arg-type]
+		self.assertEqual(client_of(SimpleNamespace(client=None)), "unknown")  # type: ignore[arg-type]
 
 class Clock:
 	def __init__(self):
