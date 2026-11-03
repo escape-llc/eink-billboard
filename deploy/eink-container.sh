@@ -703,11 +703,15 @@ cmd_start() {
 	local clock=()
 	[ -d "$TIMESYNC_DIR" ] && clock=(-v "$TIMESYNC_DIR:$TIMESYNC_DIR:ro")
 
+	# the Pi's own network (#860), not a published port: Podman 5 publishes with pasta, whose old process still holds the port when "podman restart" or the restart
+	# policy starts the new one ("Failed to bind port"), so every restart left the app stopped; pasta also showed the Pi's own requests as remote ones.
+	# The app listens on "::", every address, IPv4 and IPv6 (a browser on Windows 11 reaches a .local name over IPv6 first).
+	# unmask=/sys/firmware: Podman hides it, and the Inky driver (gpiodevice) knows a Raspberry Pi by /proc/device-tree/model, which is in it (read-only, as /sys is)
 	if ! podman run -d --name "$NAME" --restart unless-stopped \
-		-p "$PORT:8080" -v "$VOLUME:/data" \
+		--network host --security-opt unmask=/sys/firmware -v "$VOLUME:/data" \
 		-e EINK_PUBLIC_URL="$url" -e EINK_ALLOW_HOSTS="$hosts" -e EINK_RESTARTABLE=1 "${token[@]}" \
 		"${devices[@]}" "${tls_mounts[@]}" "${clock[@]}" \
-		"$IMAGE" uv run --no-sync python -m python.eink-billboard --host 0.0.0.0 --port 8080 --storage /data --app /work/app/dist "${tls_args[@]}" >/dev/null; then
+		"$IMAGE" uv run --no-sync python -m python.eink-billboard --host :: --port "$PORT" --storage /data --app /work/app/dist "${tls_args[@]}" >/dev/null; then
 		fail "the app did not start: the lines above say why. '$SCRIPT check' looks at everything."
 	fi
 	# the container must run the image that was just built (not an older one that still has the name): the update says which code it is
@@ -872,6 +876,12 @@ for module in ("inky", "spidev", "smbus2", "gpiod", "gpiozero", "lgpio"):
 	except Exception as e:
 		print("FIX driver library", module, "does not load (" + type(e).__name__ + "): build the image again")
 print("ok the page renderer is there" if shutil.which("chromium-headless-shell") else "FIX the page renderer (chromium) is missing: build the image again")
+# the Inky driver knows a Raspberry Pi by its model (gpiodevice); Podman hides /sys/firmware unless the container is started with it unmasked
+try:
+	with open("/proc/device-tree/model", encoding="utf-8") as f:
+		print("ok the app can read the board's model:", f.read().strip("\0\n "))
+except OSError:
+	print("FIX the app cannot read the board's model (/proc/device-tree/model), so an Inky panel cannot draw: start  again")
 from python.model.configuration_manager import ConfigurationManager
 _, doc = ConfigurationManager(storage_path="/data").settings_manager().open("display").get()
 doc = doc or {}
