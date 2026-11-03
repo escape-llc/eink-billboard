@@ -96,7 +96,7 @@ fi
 if [ -n "${FAKE_APP:-}" ]; then
 	case "$*" in
 		"inspect -f {{.State.Running}} eink") if [ -f "$FAKE_APP" ]; then echo true; else echo false; fi; exit 0 ;;
-		"stop -t 15 eink") echo stop >> /tmp/lifecycle.log; rm -f "$FAKE_APP"; exit 0 ;;
+		"stop eink") echo stop >> /tmp/lifecycle.log; rm -f "$FAKE_APP"; exit 0 ;;
 		"start eink") echo start >> /tmp/lifecycle.log; touch "$FAKE_APP"; exit 0 ;;
 	esac
 	[ "${1:-}" != pull ] || echo pull >> /tmp/lifecycle.log

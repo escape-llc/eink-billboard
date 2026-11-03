@@ -633,7 +633,7 @@ update_app() {
 		# e-ink panel keeps its picture with the app stopped, so nobody sees it. Stopped, not removed: on a failure the same container starts again.
 		section "Getting the app"
 		say "This Pi has less than 1 GB of memory, so the app is stopped while the new version is downloaded and checked, and started again after (the panel keeps its picture)."
-		podman stop -t 15 "$NAME" >/dev/null 2>&1 || fail "the app could not be stopped for the download, so nothing was changed:  podman stop $NAME"
+		podman stop "$NAME" >/dev/null 2>&1 || fail "the app could not be stopped for the download, so nothing was changed:  podman stop $NAME"
 		# Ctrl+C during the download leaves the app as it was, running
 		trap 'podman start "$NAME" >/dev/null 2>&1; printf "\nStopped; the app is running again on the image it had.\n"; exit 130' INT TERM
 		local got=0
@@ -711,7 +711,8 @@ cmd_start() {
 	# policy starts the new one ("Failed to bind port"), so every restart left the app stopped; pasta also showed the Pi's own requests as remote ones.
 	# The app listens on "::", every address, IPv4 and IPv6 (a browser on Windows 11 reaches a .local name over IPv6 first).
 	# unmask=/sys/firmware: Podman hides it, and the Inky driver (gpiodevice) knows a Raspberry Pi by /proc/device-tree/model, which is in it (read-only, as /sys is)
-	if ! podman run -d --name "$NAME" --restart unless-stopped \
+	# --stop-timeout: every stop and restart lets the app end in order (it gives itself 20 s, RESTART_FORCE_SECONDS; a panel refresh can be in progress): Podman's 10 s killed it
+	if ! podman run -d --name "$NAME" --restart unless-stopped --stop-timeout 30 \
 		--network host --security-opt unmask=/sys/firmware -v "$VOLUME:/data" \
 		-e EINK_PUBLIC_URL="$url" -e EINK_ALLOW_HOSTS="$hosts" -e EINK_RESTARTABLE=1 "${token[@]}" \
 		"${devices[@]}" "${tls_mounts[@]}" "${clock[@]}" \
@@ -1068,7 +1069,7 @@ Environment=$settings
 TimeoutStartSec=600
 ExecStartPre=/bin/sh -c 'i=0; until grep -q "^nameserver" /etc/resolv.conf || [ \$\$i -ge 60 ]; do i=\$\$((i + 1)); sleep 2; done'
 ExecStart=/bin/sh -c '$(command -v podman) start $NAME || exec $HERE/deploy/eink-container.sh start'
-ExecStop=$(command -v podman) stop -t 15 $NAME
+ExecStop=$(command -v podman) stop $NAME
 
 [Install]
 WantedBy=default.target
