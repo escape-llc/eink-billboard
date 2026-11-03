@@ -31,6 +31,7 @@ main() {
 	local CHANNEL=${EINK_CHANNEL:-}
 	local DIR=${EINK_DIR:-$HOME/eink-billboard}
 	local STATE_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/eink-billboard
+	local CS_OVERLAY="dtoverlay=spi0-0cs"
 	local YES=0 DRY=0 FROM_CLONE=0 NEEDS_REBOOT=0 arg
 	for arg in "$@"; do
 		case "$arg" in
@@ -75,6 +76,31 @@ EOF
 	fail() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 	# runs a command, or only shows it with --dry-run
 	run() { if [ "$DRY" -eq 1 ]; then printf '    would run: %s\n' "$*"; else "$@"; fi; }
+
+	# An Inky's driver works the panel's chip select (GPIO 8) itself, so the kernel's SPI must leave it to it: dtoverlay=spi0-0cs. A Waveshare panel needs the
+	# kernel's (its driver does not touch the pin), so the line follows the display. $1: the display chosen; true when config.txt was changed (a restart is needed)
+	board_config() { if [ -f /boot/firmware/config.txt ]; then echo /boot/firmware/config.txt; else echo /boot/config.txt; fi; }
+	chip_select() {
+		local cfg has=0
+		cfg=$(board_config)
+		[ -f "$cfg" ] || return 1
+		grep -qE "^[[:space:]]*${CS_OVERLAY}[[:space:]]*$" "$cfg" && has=1
+		case "$1" in
+			inky)
+				[ "$has" -eq 0 ] || return 1
+				say "An Inky works its chip select itself: adding $CS_OVERLAY to $cfg (sudo asks for your password)"
+				# under [all], wherever the file ends
+				if [ "$DRY" -eq 1 ]; then run sudo tee -a "$cfg"; else printf '\n[all]\n%s\n' "$CS_OVERLAY" | sudo tee -a "$cfg" >/dev/null; fi \
+					|| { warn "$cfg could not be changed: add the line $CS_OVERLAY at its end yourself, then restart the Pi."; return 1; } ;;
+			waveshare)
+				[ "$has" -eq 1 ] || return 1
+				say "A Waveshare panel needs the kernel's chip select: removing $CS_OVERLAY from $cfg (sudo asks for your password)"
+				run sudo sed -i -E "/^[[:space:]]*${CS_OVERLAY}[[:space:]]*$/d" "$cfg" \
+					|| { warn "$cfg could not be changed: remove the line $CS_OVERLAY yourself, then restart the Pi."; return 1; } ;;
+			*) return 1 ;;
+		esac
+		return 0
+	}
 
 	# questions come from the keyboard: when this script is piped into bash, its own input is the download
 	local TTY=""
@@ -317,6 +343,9 @@ EOF
 		pick_display
 	fi
 	step "Choosing the display"
+	# config.txt first, so the kit's display finds it right
+	local cs_changed=0
+	chip_select "$kind" && cs_changed=1
 	"$KIT" display "$kind" ${model:+"$model"} || warn "the display could not be chosen; choose it in the web app (Settings, Display) and restart:  $KIT start"
 	if [ "$kind" = "inky" ] && [ "$detected" -eq 0 ]; then
 		# an Inky says what it is: a warning if it does not answer, never a reason to stop
@@ -324,6 +353,14 @@ EOF
 	fi
 	step "Starting the app when the Pi starts"
 	"$KIT" autostart on || warn "the app will not start by itself after a restart:  $KIT autostart on"
+
+	if [ "$cs_changed" -eq 1 ]; then
+		step "Restart the Pi"
+		say "The panel's chip select changed in $(board_config), which takes effect only after a restart. The app starts by itself after it."
+		if [ "$YES" -eq 0 ] && yes_no "Restart now?"; then sudo reboot; fi
+		say "Until the restart the panel cannot draw. After it:  $KIT code"
+		return 0
+	fi
 
 	step "Done"
 	"$KIT" code

@@ -132,6 +132,10 @@ public_url() {
 	say "$(scheme)://${address:-$(hostname).local}:$PORT"
 }
 in_group() { id -nG | tr ' ' '\n' | grep -qx "$1"; }
+board_config() { if [ -f /boot/firmware/config.txt ]; then echo /boot/firmware/config.txt; else echo /boot/config.txt; fi; }
+# an Inky's driver works the panel's chip select (GPIO 8) itself, so the kernel's SPI must leave it: this line in config.txt (the bootstrap writes it); a Waveshare panel needs the kernel's
+CS_OVERLAY="dtoverlay=spi0-0cs"
+chip_select_ours() { grep -qE "^[[:space:]]*${CS_OVERLAY}[[:space:]]*$" "$(board_config)" 2>/dev/null; }
 ssl_on() { [ "$(cat "$SSL_FILE" 2>/dev/null)" = "on" ]; }
 scheme() { if ssl_on; then echo https; else echo http; fi; }
 own_certificate() { podman secret inspect "$SECRET_CERT" >/dev/null 2>&1 && podman secret inspect "$SECRET_KEY" >/dev/null 2>&1; }
@@ -793,8 +797,8 @@ cmd_check() {
 	for g in "${GROUPS_NEEDED[@]}"; do
 		if in_group "$g"; then note "you are in the $g group"; else problem "you are not in the $g group:  sudo usermod -aG $g $(id -un)  then log out and in again"; fi
 	done
-	local cfg=/boot/firmware/config.txt
-	[ -f "$cfg" ] || cfg=/boot/config.txt
+	local cfg
+	cfg=$(board_config)
 	if grep -qE "^[[:space:]]*dtparam=spi=on" "$cfg" 2>/dev/null; then note "SPI is on"; else problem "SPI is off:  sudo raspi-config  (Interface Options, SPI), then reboot"; fi
 	if grep -qE "^[[:space:]]*dtparam=i2c_arm=on" "$cfg" 2>/dev/null; then note "I2C is on"; else problem "I2C is off (an Inky panel needs it):  sudo raspi-config  (Interface Options, I2C), then reboot"; fi
 	# memory: a Chromium render costs about 75 to 110 MB and the app about 135 MB, so a board with less than 1 GB (a Pi Zero 2 W: 512 MB) runs with swap or not at all well
@@ -816,6 +820,7 @@ cmd_check() {
 	section "the devices"
 	for d in "${DEVICES[@]}"; do
 		if [ -L "$d" ]; then info "$d is a link to $(readlink "$d") (not needed)"
+		elif [ "$d" = /dev/spidev0.1 ] && [ ! -e "$d" ] && chip_select_ours; then info "$d is not there ($CS_OVERLAY: not needed)"
 		elif [ -c "$d" ]; then note "$d ($(stat -c '%G' "$d") group)"
 		else problem "$d is missing (is SPI/I2C on? then reboot)"; fi
 	done
@@ -896,6 +901,14 @@ EOF
 			*) info "$line" ;;
 		esac
 	done <<< "$inside"
+	case "$inside" in
+		*"display chosen: inky"*)
+			if chip_select_ours; then note "chip select is the Inky's ($CS_OVERLAY)"
+			else problem "an Inky needs $CS_OVERLAY in $(board_config) (without it the panel cannot draw): run the setup again, or add the line at its end yourself, then restart the Pi"; fi ;;
+		*"display chosen: waveshare"*)
+			if chip_select_ours; then problem "a Waveshare panel needs the kernel's chip select: remove the line $CS_OVERLAY from $(board_config) (run the setup again, or yourself), then restart the Pi"
+			else note "chip select is the kernel's (a Waveshare panel needs it)"; fi ;;
+	esac
 	cmd_code | sed 's/^/        /'
 
 	local auto
@@ -976,6 +989,12 @@ EOF
 	wait_ready
 	say "The display:"
 	display_lines "$since" | sed 's/^/    /'
+	# the line this needs in config.txt is the setup's to write (sudo): say what to do when it does not match
+	case "$kind" in
+		inky) chip_select_ours || warn "an Inky needs $CS_OVERLAY in $(board_config), or the panel cannot draw: run the setup again (it adds it), or add the line at its end yourself, then restart the Pi." ;;
+		waveshare) chip_select_ours && warn "a Waveshare panel needs the kernel's chip select: remove the line $CS_OVERLAY from $(board_config) (or run the setup again), then restart the Pi." ;;
+	esac
+	return 0
 }
 
 # asks the I2C bus whether an Inky panel is attached (it says what it is from a small memory chip on the board): prints what answered;
@@ -1019,6 +1038,12 @@ cmd_autostart() {
 			[ -n "${XDG_RUNTIME_DIR:-}" ] && systemctl --user show-environment >/dev/null 2>&1 \
 				|| fail "your user's systemd is not reachable from this shell (logged in with su or sudo?). Log in as $(id -un) directly (or over ssh) and run it again."
 			mkdir -p "$(dirname "$(unit_file)")"
+			# the container keeps the devices it was made with: when one is gone after a restart (dtoverlay=spi0-0cs for an Inky removes /dev/spidev0.1), Podman
+			# refuses to start it, so then this script's own "start" makes it again from the devices there are, with the settings below (a token is not written
+			# into the unit: one given with EINK_API_TOKEN is not passed to the container made again, and the device password still applies)
+			local settings="EINK_NAME=$NAME EINK_IMAGE=$IMAGE EINK_VOLUME=$VOLUME EINK_PORT=$PORT"
+			[ -z "${EINK_PUBLIC_URL:-}" ] || settings="$settings EINK_PUBLIC_URL=$EINK_PUBLIC_URL"
+			[ -z "${EINK_ALLOW_HOSTS:-}" ] || settings="$settings EINK_ALLOW_HOSTS=$EINK_ALLOW_HOSTS"
 			cat > "$(unit_file)" <<EOF
 # made by $SCRIPT autostart on: starts the eInk Billboard container when the Pi starts
 [Unit]
@@ -1029,7 +1054,9 @@ After=network-online.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=$(command -v podman) start $NAME
+Environment=$settings
+TimeoutStartSec=600
+ExecStart=/bin/sh -c '$(command -v podman) start $NAME || exec $HERE/deploy/eink-container.sh start'
 ExecStop=$(command -v podman) stop -t 15 $NAME
 
 [Install]
