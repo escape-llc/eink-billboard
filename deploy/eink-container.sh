@@ -887,6 +887,13 @@ try:
 		print("ok the app can read the board's model:", f.read().strip("\0\n "))
 except OSError:
 	print("FIX the app cannot read the board's model (/proc/device-tree/model), so an Inky panel cannot draw: start  again")
+# its copy of the Pi's resolv.conf, made when it started: none when that was before the network was up
+try:
+	with open("/etc/resolv.conf", encoding="utf-8") as f:
+		servers = [line.split()[1] for line in f if line.startswith("nameserver") and len(line.split()) > 1]
+except OSError:
+	servers = []
+print(("ok the app can look up names (" + ", ".join(servers) + ")") if servers else "FIX the app has no name server, so every download fails (it started before the network was up): restart")
 from python.model.configuration_manager import ConfigurationManager
 _, doc = ConfigurationManager(storage_path="/data").settings_manager().open("display").get()
 doc = doc or {}
@@ -1044,6 +1051,9 @@ cmd_autostart() {
 			local settings="EINK_NAME=$NAME EINK_IMAGE=$IMAGE EINK_VOLUME=$VOLUME EINK_PORT=$PORT"
 			[ -z "${EINK_PUBLIC_URL:-}" ] || settings="$settings EINK_PUBLIC_URL=$EINK_PUBLIC_URL"
 			[ -z "${EINK_ALLOW_HOSTS:-}" ] || settings="$settings EINK_ALLOW_HOSTS=$EINK_ALLOW_HOSTS"
+			# on the host's network the container gets a copy of the Pi's /etc/resolv.conf when it starts, and at boot that can be before the network is up (no
+			# nameserver: every download fails, found on a Pi 3 B+ on Wi-Fi). A unit of one's own cannot wait for the system's network-online.target, so it waits for
+			# the nameserver itself, at most 2 minutes ($$ is systemd's way to write a $)
 			cat > "$(unit_file)" <<EOF
 # made by $SCRIPT autostart on: starts the eInk Billboard container when the Pi starts
 [Unit]
@@ -1056,6 +1066,7 @@ Type=oneshot
 RemainAfterExit=yes
 Environment=$settings
 TimeoutStartSec=600
+ExecStartPre=/bin/sh -c 'i=0; until grep -q "^nameserver" /etc/resolv.conf || [ \$\$i -ge 60 ]; do i=\$\$((i + 1)); sleep 2; done'
 ExecStart=/bin/sh -c '$(command -v podman) start $NAME || exec $HERE/deploy/eink-container.sh start'
 ExecStop=$(command -v podman) stop -t 15 $NAME
 
