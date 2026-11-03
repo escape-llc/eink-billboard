@@ -1,4 +1,5 @@
 """Sign in and out of the web app when the device requires it. These are not behind the sign-in check: signing in is how you get past it."""
+import ipaddress
 import logging
 import math
 from typing import Any
@@ -23,7 +24,17 @@ class SignedIn(Answer):
 	required: bool
 
 def client_of(request: Request) -> str:
-	return request.client.host if request.client else "unknown"
+	if request.client is None:
+		return "unknown"
+	host = request.client.host
+	# the dual-stack socket (`--host ::`, #860) gives an IPv4 client as ::ffff:a.b.c.d: the client is the IPv4 address
+	try:
+		address = ipaddress.ip_address(host)
+	except ValueError:
+		return host
+	if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+		return str(address.ipv4_mapped)
+	return host
 
 def start_session(request: Request, response: Response) -> None:
 	"""A new session for this browser: the server remembers it, the browser holds only an HttpOnly, SameSite=Strict cookie with its unguessable ID."""
