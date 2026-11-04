@@ -12,6 +12,7 @@ import logging
 import tempfile
 import subprocess
 import threading
+import time
 from dataclasses import dataclass
 import psutil
 from dotenv import load_dotenv
@@ -30,6 +31,9 @@ CHROME_TIMEOUT_SECONDS = 60.0
 RENDER_SLOTS_ENV = "EINK_RENDER_SLOTS"
 SMALL_MEMORY_BYTES = 800 * 1024 * 1024
 RENDER_SLOT_WAIT_SECONDS = 180.0
+# a render the kernel killed for lack of memory is tried once more after this long, still holding its slot (#853): memory taken for a moment (a big picture
+# decoded, a download, another program) is usually free again by then, and a page too heavy for the board fails again
+OOM_RETRY_SECONDS = 10.0
 
 @dataclass(frozen=True)
 class Downloaded:
@@ -298,9 +302,21 @@ def render_chrome_headless_arglist(source_html_path: str, arglist: list[str], ti
 		logger.error(f"Render gave up after waiting {RENDER_SLOT_WAIT_SECONDS:g} seconds for a free Chromium slot.")
 		return None
 	try:
-		return _render_chrome_headless(source_html_path, arglist, timeout)
+		try:
+			return _render_chrome_headless(source_html_path, arglist, timeout)
+		except _OutOfMemory:
+			logger.warning(f"Rendering once more in {OOM_RETRY_SECONDS:g} seconds, when memory may be free again.")
+			time.sleep(OOM_RETRY_SECONDS)
+		try:
+			return _render_chrome_headless(source_html_path, arglist, timeout)
+		except _OutOfMemory:
+			logger.error("Failed to render again for lack of memory: the page may be too heavy for this board.")
+			return None
 	finally:
 		slots.release()
+
+class _OutOfMemory(Exception):
+	"""Chromium was killed for lack of memory (already logged): worth one more try."""
 
 def _render_chrome_headless(source_html_path: str, arglist: list[str], timeout: float|None = None):
 	image = None
@@ -339,18 +355,24 @@ def _render_chrome_headless(source_html_path: str, arglist: list[str], timeout: 
 		if proc.returncode != 0 or not os.path.exists(img_file_path) or os.path.getsize(img_file_path) == 0:
 			# our timeout has already returned: a SIGKILL now is the kernel's, and the counter also sees a helper killed while the browser lived on
 			oom_after = _oom_kills()
+			out_of_memory = True
 			if oom_before is not None and oom_after is not None and oom_after > oom_before:
 				logger.error(f"Failed to render: out of memory, the kernel killed Chromium (exit code {proc.returncode}).")
 			elif sys.platform != "win32" and proc.returncode == -signal.SIGKILL:
 				logger.error("Failed to render: Chromium was killed (SIGKILL), most likely out of memory.")
 			else:
+				out_of_memory = False
 				logger.error(f"Failed to render (exit code {proc.returncode}):")
 			logger.error(stderr.decode('utf-8', errors='replace'))
+			if out_of_memory:
+				raise _OutOfMemory()
 			return None
 
 		# a copy, so the file is closed (and can be removed) before the picture is used
 		with Image.open(img_file_path) as screenshot:
 			image = screenshot.copy()
+	except _OutOfMemory:
+		raise
 	except Exception as e:
 		logger.error(f"Failed to render: {str(e)}")
 	finally:
