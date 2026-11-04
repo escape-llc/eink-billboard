@@ -31,6 +31,7 @@ from ..task.timer import TimerThreadService
 from ..task.protocols import IRequireShutdown
 from ..model.theme import ThemeInputs, current_inputs
 from ..utils.error_image import WebAddress, error_detail, render_error_image, safe_reason
+from ..utils.image_utils import PageTooHeavy
 
 @dataclass(frozen=True, slots=True)
 class LayerControlMessage(BasicMessage):
@@ -117,6 +118,9 @@ class PlaylistLayer(DispatcherTask):
 	# success clears it. Without it a network that was down for a minute (or a site that was slow) skipped a track until someone edited the schedule or restarted the device.
 	STRIKE_RETRY_SECONDS = 60.0
 	STRIKE_RETRY_MAX_SECONDS = 900.0
+	# a track whose page did not fit this board (`PageTooHeavy`) waits this long for its next try: each try costs two out-of-memory kills, but two kills 10 seconds apart can still
+	# be a moment's shortage (an update's download), so it is not given up for good
+	UNFIT_RETRY_SECONDS = 6 * 3600.0
 	# a failed slot shows its error page for as long as the track would have shown its slides (its `slideMinutes`, or this)
 	ERROR_SLOT_MINUTES = 15
 	# these cannot be fixed by trying again (the plugin or its setup is wrong): one strike is out
@@ -142,6 +146,8 @@ class PlaylistLayer(DispatcherTask):
 		self._strikes: dict[tuple[int, int], int] = {}
 		# when each struck-out track last failed (`_clock`), which is when its wait for the next try began
 		self._struck_at: dict[tuple[int, int], float] = {}
+		# struck out as not fitting this board: their page ran out of memory on both tries (#853); tried again only after UNFIT_RETRY_SECONDS, when the configuration changes or at a restart
+		self._unfit: set[tuple[int, int]] = set()
 		self._clock = time.monotonic
 		# why each failed track failed, for its error page (our own words or an exception's type name, never the exception's text)
 		self._reasons: dict[tuple[int, int], str] = {}
@@ -200,12 +206,20 @@ class PlaylistLayer(DispatcherTask):
 		count = max(strikes, previous + 1) if permanent else previous + 1
 		self._strikes[key] = count
 		self._reasons[key] = safe_reason(e)
+		self._unfit.discard(key)
 		if count >= strikes:
 			self._struck_at[key] = self._clock()
 			self._error_with_telemetry(f"Track '{track.title}' struck out: it is not run, its error page is shown instead, and it is tried again in {self._words(self._retry_seconds(count))} (or when the configuration changes)", ts, e)
 			return True
 		self._error_with_telemetry(f"Track '{track.title}' failed (strike {count} of {strikes})", ts, e)
 		return False
+	def _mark_unfit(self, key: tuple[int, int], track: PlaylistSchedule, e: PageTooHeavy, ts: datetime) -> None:
+		"""The track's page does not fit this board: struck out, and tried again only after `UNFIT_RETRY_SECONDS` (or when the configuration changes, or at a restart)."""
+		self._strikes[key] = max(self._policy().strikes, self._strikes.get(key, 0) + 1)
+		self._struck_at[key] = self._clock()
+		self._reasons[key] = safe_reason(e)
+		self._unfit.add(key)
+		self._error_with_telemetry(f"Track '{track.title}' does not fit this board: it is not run, its error page is shown instead, and it is tried again in {self._words(self.UNFIT_RETRY_SECONDS)} (or when the configuration changes)", ts, e)
 	def _slot_minutes(self, track: PlaylistSchedule) -> float:
 		data = track.content.data if track.content is not None else {}
 		minutes = data.get("slideMinutes") if isinstance(data, dict) else None
@@ -282,16 +296,20 @@ class PlaylistLayer(DispatcherTask):
 		return StrikePolicy(int(number("maxStrikes", 1, 10, self.MAX_STRIKES)), number("strikeRetrySeconds", 10, 3600, self.STRIKE_RETRY_SECONDS), number("strikeRetryMaxSeconds", 10, 86400, self.STRIKE_RETRY_MAX_SECONDS))
 	@staticmethod
 	def _words(seconds: float) -> str:
-		return f"{round(seconds)} seconds" if seconds < 90 else f"{round(seconds / 60)} minutes"
+		if seconds < 90:
+			return f"{round(seconds)} seconds"
+		return f"{round(seconds / 60)} minutes" if seconds < 7200 else f"{round(seconds / 3600)} hours"
 	def _retry_in(self, key: tuple[int, int]) -> float:
 		"""Seconds until a struck-out track is tried again; 0 for one that is not struck out or whose wait is over."""
+		if key in self._unfit:
+			return max(0.0, self.UNFIT_RETRY_SECONDS - (self._clock() - self._struck_at.get(key, self._clock())))
 		count = self._strikes.get(key, 0)
 		if count < self._policy().strikes:
 			return 0.0
 		return max(0.0, self._retry_seconds(count) - (self._clock() - self._struck_at.get(key, self._clock())))
 	def _struck_out(self, key: tuple[int, int]) -> bool:
-		"""Skipped now: it struck out and its wait for the next try is not over."""
-		return self._strikes.get(key, 0) >= self._policy().strikes and self._retry_in(key) > 0
+		"""Skipped now: it struck out (or does not fit this board) and its wait for the next try is not over."""
+		return (key in self._unfit or self._strikes.get(key, 0) >= self._policy().strikes) and self._retry_in(key) > 0
 	def _create_container(self) -> ServiceContainer:
 		if self.cm is None or self.datasources is None or self.router is None or self.timer is None or self.timebase is None:
 			raise ValueError("Cannot create context, one or more required components are not set.")
@@ -486,6 +504,7 @@ class PlaylistLayer(DispatcherTask):
 						self._strikes.pop(key, None)
 						self._struck_at.pop(key, None)
 						self._reasons.pop(key, None)
+						self._unfit.discard(key)
 						self._backoff = 0.0
 						self.state = 'playing'
 						telemetry: TelemetryDict = {
@@ -498,6 +517,12 @@ class PlaylistLayer(DispatcherTask):
 						self.router.send("telemetry", Telemetry(tod.current_time(), "playlist_layer", cast(Mapping[str,Any], telemetry)))
 					except CancelledError:
 						raise
+					except PageTooHeavy as e:
+						self.state = "error"
+						self._mark_unfit(key, track, e, tod.current_time())
+						self.logger.error(f"Track '{track.title}' ({plugin.name}) does not fit this board.")
+						held += 1
+						await self._error_slot(track, key, playlist, plindex, tkindex, tod, started=True)
 					except Exception as e:
 						self.state = "error"
 						if self._strike(key, track, e, tod.current_time(), isinstance(e, self.PERMANENT_ERRORS)):
@@ -697,6 +722,7 @@ class PlaylistLayer(DispatcherTask):
 		self._backoff = 0.0
 		self._strikes.clear()
 		self._struck_at.clear()
+		self._unfit.clear()
 		self._current = located
 		if self._halted:
 			self.logger.info(f"'{self.name}' playlists changed while stopped, they wait for Play.")
@@ -735,6 +761,7 @@ class PlaylistLayer(DispatcherTask):
 		self.cm = msg.content.cm
 		self._strikes.clear()
 		self._struck_at.clear()
+		self._unfit.clear()
 		try:
 			# validate the schedule before allocating resources
 			sm = self.cm.schedule_manager()

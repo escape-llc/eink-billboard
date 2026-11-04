@@ -9,7 +9,7 @@ from ..model.configuration_manager import StaticConfigurationManager
 from ..model.theme import inputs_from
 from ..plugins.plugin_base import PermanentError
 from ..utils import error_image
-from ..utils.image_utils import chrome_command
+from ..utils.image_utils import PAGE_TOO_HEAVY, PageTooHeavy, chrome_command
 from ..utils.error_image import plain_error_image, render_error_image, safe_reason
 
 STATIC = os.path.join(os.path.dirname(__file__), "..", "static")
@@ -45,6 +45,7 @@ class PlainErrorImageTests(unittest.TestCase):
 		self.assertEqual(text, "The server answered 401 Unauthorized. Check the API key or the sign-in in the settings.")
 		self.assertEqual(safe_reason(KeyError("temp")), "The data had no 'temp' field.")
 		self.assertEqual(safe_reason(PermanentError("folder: Required")), "folder: Required")
+		self.assertEqual(safe_reason(PageTooHeavy(PAGE_TOO_HEAVY)), PAGE_TOO_HEAVY)
 
 class ThemedErrorImageTests(unittest.TestCase):
 	def setUp(self):

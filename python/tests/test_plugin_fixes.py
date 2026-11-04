@@ -14,6 +14,7 @@ from ..plugins.slide_show.slide_show import SlideShowAsync
 from ..task.display import DisplayImage, PriorityImage
 from ..task.message_router import MessageRouter
 from ..task.timer import IProvideTimer
+from ..utils.image_utils import PAGE_TOO_HEAVY, PageTooHeavy
 from .test_web_api import WebApiTestBase
 
 class FakeRouter:
@@ -29,7 +30,7 @@ class FakeTimer:
 		self.slept.append(delta)
 
 class FakeList:
-	"""A MediaList datasource whose items named 'bad*' fail to render."""
+	"""A MediaList datasource whose items named 'bad*' fail to render, and 'heavy*' run out of memory."""
 	def __init__(self, items, name="fake"):
 		self.items = list(items)
 		self.name = name
@@ -41,6 +42,8 @@ class FakeList:
 		self.rendered.append(state)
 		if str(state).startswith("bad"):
 			raise RuntimeError(f"dead url for {state}")
+		if str(state).startswith("heavy"):
+			raise PageTooHeavy(PAGE_TOO_HEAVY)
 		return MediaRenderResult(image=Image.new("RGB", (4, 4)), title=f"title {state}")
 
 class FakeItem:
@@ -89,6 +92,20 @@ class TestSlideShow(unittest.IsolatedAsyncioTestCase):
 		with self.assertLogs(show.logger, level="ERROR"), self.assertRaisesRegex(RuntimeError, "All 2"):
 			await show._run_slideshow(cast(Any, make_context(ds, router, timer)), cast(Any, self._track()))
 		self.assertEqual(router.sent, [])
+	async def test_a_show_whose_every_page_is_too_heavy_says_so(self):
+		# the playlist layer tells it from an ordinary failure (#853): the track does not fit the board
+		for items, raised in ((["heavy1", "heavy2"], PageTooHeavy), (["heavy1", "bad1"], RuntimeError)):
+			with self.subTest(items):
+				show = SlideShowAsync("slide-show", "slide-show")
+				with self.assertLogs(show.logger, level="ERROR"), self.assertRaises(raised) as caught:
+					await show._run_slideshow(cast(Any, make_context(FakeList(items), FakeRouter(), FakeTimer())), cast(Any, self._track()))
+				self.assertIs(type(caught.exception), raised)
+	async def test_one_heavy_page_does_not_abort_the_show(self):
+		router = FakeRouter()
+		show = SlideShowAsync("slide-show", "slide-show")
+		with self.assertLogs(show.logger, level="ERROR"):
+			await show._run_slideshow(cast(Any, make_context(FakeList(["heavy1", "a"]), router, FakeTimer())), cast(Any, self._track()))
+		self.assertEqual([m.title for _, m in router.sent], ["title a"])
 	async def test_slide_max_counts_shown_slides_not_failures(self):
 		ds = FakeList(["bad1", "a", "b", "c"])
 		router, timer = FakeRouter(), FakeTimer()

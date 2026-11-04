@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 from ..model.configuration_manager import StaticConfigurationManager
 from ..model.theme import ThemeInputs
 from ..plugins.plugin_base import PermanentError, RenderSession
+from .image_utils import PageTooHeavy
 from .qr_image import qr_data_uri
 
 logger = logging.getLogger(__name__)
@@ -43,12 +44,12 @@ def _hint(status: int) -> str:
 
 def safe_reason(error: BaseException) -> str:
 	"""
-	What the panel and the telemetry say about a failure, so the user knows what to fix: our own message when the error is one of ours (`PermanentError`),
+	What the panel and the telemetry say about a failure, so the user knows what to fix: our own message when the error is one of ours (`PermanentError`, `PageTooHeavy`),
 	a sentence of our own for the usual network failures (the status the server answered, a timeout, no connection), and otherwise the type's name with the
 	exception's text **cleaned**: addresses become `<address>` and anything after `key=`, `token`, `password`... is removed, since the text can hold a URL with a key in it
 	and the panel is visible to anyone in the room. The full text goes to the log only.
 	"""
-	if isinstance(error, PermanentError):
+	if isinstance(error, (PermanentError, PageTooHeavy)):
 		return str(error)
 	if isinstance(error, httpx.HTTPStatusError):
 		code = error.response.status_code
