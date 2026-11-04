@@ -786,6 +786,17 @@ cmd_check() {
 	else
 		info "plain HTTP ('$SCRIPT ssl on' for HTTPS)"
 	fi
+	# Raspberry Pi Imager's network (netplan) leaves IPv6 to the kernel (ipv6.method ignore): after the network drops once NetworkManager turns it off and never
+	# back on, and a computer that prefers IPv6 (Windows 11) cannot reach the .local name (#864). The setup sets it to auto
+	if command -v nmcli >/dev/null; then
+		local uuid ctype dev
+		while IFS=: read -r uuid ctype dev; do
+			case "$ctype" in 802-11-wireless|802-3-ethernet) ;; *) continue ;; esac
+			if [ "$(nmcli -g ipv6.method connection show "$uuid" 2>/dev/null)" = ignore ]; then
+				problem "the network on $dev leaves IPv6 alone (Raspberry Pi Imager sets it so): once the network drops, IPv6 stays off and Windows cannot find the Pi by name:  sudo nmcli connection modify $uuid ipv6.method auto && sudo nmcli device reapply $dev"
+			else note "IPv6 is managed on $dev"; fi
+		done < <(nmcli -g UUID,TYPE,DEVICE connection show --active 2>/dev/null)
+	fi
 	[ "$(uname -m)" = "aarch64" ] && note "64-bit" || problem "not 64-bit ($(uname -m)): install Raspberry Pi OS 64-bit"
 	if podman_version_ok; then note "Podman $(podman version --format '{{.Client.Version}}' 2>/dev/null)"; else problem "Podman $(podman version --format '{{.Client.Version}}' 2>/dev/null) is older than 4.3"; fi
 	local driver

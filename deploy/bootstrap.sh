@@ -168,6 +168,15 @@ EOF
 	done
 	local subids=1
 	grep -q "^$(id -un):" /etc/subuid 2>/dev/null && grep -q "^$(id -un):" /etc/subgid 2>/dev/null || subids=0
+	# Raspberry Pi Imager's network (netplan) leaves IPv6 to the kernel (ipv6.method ignore): it works until the network drops once, then NetworkManager turns IPv6
+	# off on the interface and never back on, and a computer that prefers IPv6 (Windows 11) cannot reach the .local name (#864). Each: "the connection's UUID, its device"
+	local ipv6_ignored=() uuid ctype dev c
+	if command -v nmcli >/dev/null; then
+		while IFS=: read -r uuid ctype dev; do
+			case "$ctype" in 802-11-wireless|802-3-ethernet) ;; *) continue ;; esac
+			[ "$(nmcli -g ipv6.method connection show "$uuid" 2>/dev/null)" = ignore ] && ipv6_ignored+=("$uuid $dev")
+		done < <(nmcli -g UUID,TYPE,DEVICE connection show --active 2>/dev/null)
+	fi
 
 	if [ "$FROM_CLONE" -eq 0 ]; then
 		say ""
@@ -177,6 +186,7 @@ EOF
 		[ "$need_spi" -eq 0 ] || say "  - turn on SPI (the panel's data connection)"
 		[ "$need_i2c" -eq 0 ] || say "  - turn on I2C (how an Inky panel says what it is)"
 		[ ${#groups_missing[@]} -eq 0 ] || say "  - add you to the group(s) ${groups_missing[*]} (so the app may use the panel)"
+		for c in "${ipv6_ignored[@]}"; do say "  - keep IPv6 on for ${c#* } (or it goes off when the network drops, and Windows cannot find the Pi by name)"; done
 		if [ -n "$REF" ]; then say "  - get the app into $DIR (from $REPO, $REF)"
 		else say "  - get the app into $DIR (from $REPO, the newest version of the ${CHANNEL:-stable} channel)"; fi
 		say "  - ask which display you have"
@@ -189,7 +199,7 @@ EOF
 
 	# ---- the Pi itself (sudo) --------------------------------------------------------------------------------------------------------------------
 	local reboot=$relogin
-	if [ ${#packages[@]} -gt 0 ] || [ "$subids" -eq 0 ] || [ "$need_spi" -eq 1 ] || [ "$need_i2c" -eq 1 ] || [ ${#groups_missing[@]} -gt 0 ]; then
+	if [ ${#packages[@]} -gt 0 ] || [ "$subids" -eq 0 ] || [ "$need_spi" -eq 1 ] || [ "$need_i2c" -eq 1 ] || [ ${#groups_missing[@]} -gt 0 ] || [ ${#ipv6_ignored[@]} -gt 0 ]; then
 		step "Setting up the Pi (sudo asks for your password)"
 		if [ ${#packages[@]} -gt 0 ]; then
 			run sudo apt-get update || fail "the package lists could not be updated: is the Pi on the internet? Run this again."
@@ -204,6 +214,12 @@ EOF
 			run sudo usermod -aG "$(IFS=,; echo "${groups_missing[*]}")" "$(id -un)" || fail "you could not be added to ${groups_missing[*]}."
 			reboot=1
 		fi
+		# saved to the netplan file, so it lasts; reapply changes the running connection without dropping it (no restart)
+		for c in "${ipv6_ignored[@]}"; do
+			if ! { run sudo nmcli connection modify "${c%% *}" ipv6.method auto && run sudo nmcli device reapply "${c#* }"; }; then
+				warn "IPv6 could not be turned on for ${c#* }: '~/eink-billboard/deploy/eink-container.sh check' gives the commands. Going on."
+			fi
+		done
 	fi
 
 	# ---- the app's code ---------------------------------------------------------------------------------------------------------------------------
