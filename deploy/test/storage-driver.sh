@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# How Podman keeps its images (#552), end to end, with no Pi and no GitHub: in a Debian Bookworm container (the Pi's Podman 4.3), a Podman that keeps its
+# How Podman keeps its images (#552), end to end, with no Pi and no GitHub: in a Debian Trixie container (the Pi's Podman 5.4), a Podman that keeps its
 # images as vfs (every layer a full copy, as one Pi did) is changed to overlay by "deploy/eink-container.sh storage", with the app's data saved, checked and put
 # back and the app downloaded again from a registry of its own; one that holds nothing yet is changed by "get" without asking; and "check" says which it is.
 #
-#   podman run --rm --privileged -v "$PWD:/src:ro" docker.io/library/debian:bookworm bash /src/deploy/test/storage-driver.sh
+#   podman run --rm --privileged -v "$PWD:/src:ro" docker.io/library/debian:trixie bash /src/deploy/test/storage-driver.sh
 #   (Git Bash on Windows: MSYS_NO_PATHCONV=1, and "$(pwd -W)" for the folder)
 #
 # Podman's store is on a tmpfs; EINK_TEST_STORE=disk leaves it on the container's own file system (itself an overlay). Either way the kernel's overlay worked

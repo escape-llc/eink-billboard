@@ -100,13 +100,15 @@ preflight() {
 	fi
 }
 
+# Raspberry Pi OS Trixie's (#853): the only one this is tested with
+PODMAN_MIN_MAJOR=5
+PODMAN_MIN_MINOR=4
 podman_version_ok() {
-	# 4.3 (Raspberry Pi OS Bookworm) is the oldest this was tried with
 	local version major minor
 	version=$(podman version --format '{{.Client.Version}}' 2>/dev/null) || return 0
 	major=${version%%.*}; minor=${version#*.}; minor=${minor%%.*}
 	case "$major$minor" in *[!0-9]*|'') return 0 ;; esac
-	[ "$major" -gt 4 ] || { [ "$major" -eq 4 ] && [ "$minor" -ge 3 ]; }
+	[ "$major" -gt "$PODMAN_MIN_MAJOR" ] || { [ "$major" -eq "$PODMAN_MIN_MAJOR" ] && [ "$minor" -ge "$PODMAN_MIN_MINOR" ]; }
 }
 
 running() { [ "$(podman inspect -f '{{.State.Running}}' "$NAME" 2>/dev/null)" = "true" ]; }
@@ -245,7 +247,7 @@ build_failure_hint() {
 
 cmd_build() {
 	prefer_overlay
-	podman_version_ok || warn "Podman $(podman version --format '{{.Client.Version}}' 2>/dev/null) is older than 4.3, the oldest this was tried with."
+	podman_version_ok || warn "Podman $(podman version --format '{{.Client.Version}}' 2>/dev/null) is older than $PODMAN_MIN_MAJOR.$PODMAN_MIN_MINOR, the one this is tested with (Raspberry Pi OS Trixie's)."
 	case "$(uname -m)" in
 		aarch64) ;;
 		armv7l|armv6l) warn "this is a 32-bit system ($(uname -m)). The app is built for 64-bit Raspberry Pi OS; install that if the build fails." ;;
@@ -798,7 +800,7 @@ cmd_check() {
 		done < <(nmcli -g UUID,TYPE,DEVICE connection show --active 2>/dev/null)
 	fi
 	[ "$(uname -m)" = "aarch64" ] && note "64-bit" || problem "not 64-bit ($(uname -m)): install Raspberry Pi OS 64-bit"
-	if podman_version_ok; then note "Podman $(podman version --format '{{.Client.Version}}' 2>/dev/null)"; else problem "Podman $(podman version --format '{{.Client.Version}}' 2>/dev/null) is older than 4.3"; fi
+	if podman_version_ok; then note "Podman $(podman version --format '{{.Client.Version}}' 2>/dev/null)"; else problem "Podman $(podman version --format '{{.Client.Version}}' 2>/dev/null) is older than $PODMAN_MIN_MAJOR.$PODMAN_MIN_MINOR (Raspberry Pi OS Trixie's): install Raspberry Pi OS based on Trixie"; fi
 	local driver
 	driver=$(store_driver)
 	case "$driver" in
@@ -825,7 +827,7 @@ cmd_check() {
 			note "memory $((mem_kb / 1024)) MB, swap $((swap_kb / 1024)) MB"
 			info "less than 1 GB of memory: the app draws one page at a time here (small boards are experimental)"
 		else
-			problem "only $((mem_kb / 1024)) MB of memory and $((swap_kb / 1024)) MB of swap: add swap (sudo apt install zram-tools, or raise CONF_SWAPSIZE in /etc/dphys-swapfile to 512) or the app can be stopped for lack of memory"
+			problem "only $((mem_kb / 1024)) MB of memory and $((swap_kb / 1024)) MB of swap: turn on swap in memory (zram, never a file on the card) or the app can be stopped for lack of memory:  sudo apt install rpi-swap; sudo mkdir -p /etc/rpi/swap.conf.d; printf '[Main]\nMechanism=zram\n' | sudo tee /etc/rpi/swap.conf.d/50-eink.conf; sudo reboot"
 		fi
 	fi
 

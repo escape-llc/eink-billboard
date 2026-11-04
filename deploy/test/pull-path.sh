@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# The pull path of deploy/eink-container.sh (#310), end to end, with no Pi and no GitHub: in a Debian Bookworm container (the Pi's Podman 4.3), a registry of its
+# The pull path of deploy/eink-container.sh (#310), end to end, with no Pi and no GitHub: in a Debian Trixie container (the Pi's Podman 5.4), a registry of its
 # own on localhost:5000 stands in for ghcr.io, small images labelled as GitHub labels them stand in for its builds, and a `podman build` shim makes a "build"
 # in a second. The real script then gets, refuses what it cannot download (it never builds unless asked), keeps the previous image, tidies the older ones and
 # rolls back; and "update" follows its channel (#504) over a repository of its own standing in for GitHub's, with snapshot tags and a release.
 #
-#   podman run --rm --privileged -v "$PWD:/src:ro" docker.io/library/debian:bookworm bash /src/deploy/test/pull-path.sh
+#   podman run --rm --privileged -v "$PWD:/src:ro" docker.io/library/debian:trixie bash /src/deploy/test/pull-path.sh
 #   (Git Bash on Windows: MSYS_NO_PATHCONV=1, and "$(pwd -W)" for the folder)
 #
 # Run as root it installs what it needs, makes a user and runs itself again as that user (the script refuses root, as on a Pi). Exit 0: every check passed.
