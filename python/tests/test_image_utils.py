@@ -127,14 +127,18 @@ sys.exit(1)
 	@unittest.skipIf(sys.platform == "win32", "SIGKILL is POSIX")
 	def test_a_killed_browser_is_reported_as_out_of_memory(self):
 		self._browser("killed", "import os, signal\nos.kill(os.getpid(), signal.SIGKILL)")
-		with self.assertLogs(image_utils.logger, level="ERROR") as cm:
+		with patch.object(image_utils, "OOM_RETRY_SECONDS", 0), self.assertLogs(image_utils.logger, level="WARNING") as cm:
 			self.assertIsNone(render_html_arglist("<html></html>", []))
-		self.assertIn("out of memory", "\n".join(cm.output))
+		logged = "\n".join(cm.output)
+		# tried twice (#853), then given up as too heavy
+		self.assertEqual(logged.count("most likely out of memory"), 2)
+		self.assertIn("Rendering once more", logged)
+		self.assertIn("too heavy for this board", logged)
 		self.assertEqual(os.listdir(self.tmp), [])
 	def test_a_helper_killed_for_memory_is_reported(self):
 		# the kernel killed a helper, the browser lived on and failed: only the cgroup's counter tells
 		self._browser("failing", "import sys\nsys.exit(1)")
-		with patch.object(image_utils, "_oom_kills", side_effect=[3, 4]), self.assertLogs(image_utils.logger, level="ERROR") as cm:
+		with patch.object(image_utils, "_oom_kills", side_effect=[3, 4, 4, 5]), patch.object(image_utils, "OOM_RETRY_SECONDS", 0), self.assertLogs(image_utils.logger, level="ERROR") as cm:
 			self.assertIsNone(render_html_arglist("<html></html>", []))
 		self.assertIn("out of memory", "\n".join(cm.output))
 	def test_an_ordinary_failure_is_not_called_out_of_memory(self):
@@ -317,6 +321,33 @@ class TestRenderSlots(unittest.TestCase):
 			with self.assertLogs(image_utils.logger, level="ERROR") as logged:
 				self.assertIsNone(image_utils.render_chrome_headless_arglist("x.html", []))
 		self.assertTrue(any("free Chromium slot" in line for line in logged.output))
+
+	def test_a_render_killed_for_memory_is_tried_once_more_after_a_pause(self):
+		# the temporary kind (#853): memory is free again by the second try, which still holds the slot
+		slots = threading.BoundedSemaphore(1)
+		tries: list[bool] = []
+		def short_of_memory_once(source: str, arglist: list[str], timeout: float|None = None):
+			tries.append(slots.acquire(blocking=False))
+			if len(tries) == 1:
+				raise image_utils._OutOfMemory()
+			return Image.new("RGB", (2, 2))
+		with patch.object(image_utils, "_slots", slots), patch.object(image_utils, "_render_chrome_headless", short_of_memory_once), \
+			patch.object(image_utils.time, "sleep") as paused, self.assertLogs(image_utils.logger, level="WARNING"):
+			self.assertIsNotNone(image_utils.render_chrome_headless_arglist("x.html", []))
+		paused.assert_called_once_with(image_utils.OOM_RETRY_SECONDS)
+		self.assertEqual(tries, [False, False], "the slot was given up between the tries")
+		self.assertTrue(slots.acquire(blocking=False), "the slot was not given back")
+
+	def test_an_ordinary_failure_is_not_tried_again(self):
+		tries: list[int] = []
+		def failing(source: str, arglist: list[str], timeout: float|None = None):
+			tries.append(1)
+			return None
+		with patch.object(image_utils, "_slots", threading.BoundedSemaphore(1)), patch.object(image_utils, "_render_chrome_headless", failing), \
+			patch.object(image_utils.time, "sleep") as paused:
+			self.assertIsNone(image_utils.render_chrome_headless_arglist("x.html", []))
+		self.assertEqual(len(tries), 1)
+		paused.assert_not_called()
 
 	def test_the_slot_comes_back_when_a_render_fails(self):
 		slots = threading.BoundedSemaphore(1)
