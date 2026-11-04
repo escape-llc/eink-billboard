@@ -141,6 +141,12 @@ EOF
 		buster|bullseye|bookworm) fail "this needs Raspberry Pi OS based on Trixie (Raspberry Pi Imager's default). This one is based on ${codename^} (Legacy), which is not supported: write the card again with Raspberry Pi Imager, then run this again." ;;
 		*) first warn "this was tested on Raspberry Pi OS based on Trixie; this one is ${codename:-of an unknown release}. Going on." ;;
 	esac
+	# 1 GB is the supported minimum (#853); a 1 GB Pi shows about 900 MB, the kit's small-board line is 800 MB
+	local mem_kb
+	mem_kb=${EINK_MEM_KB:-$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo 2>/dev/null)}
+	if [ -n "$mem_kb" ] && [ "$mem_kb" -lt 800000 ]; then
+		first warn "this Pi has $((mem_kb / 1024)) MB of memory; 1 GB is the supported minimum. A smaller board may work, at your own risk: it draws one page at a time and a heavy page may not fit. Going on."
+	fi
 	case "$model" in
 		# the 400 and 500 too; a 3 B+ ("Raspberry Pi 3 Model B Plus") has 1 GB, as the smallest Pi 4 does, and the same 40-pin header
 		*"Raspberry Pi 3 Model B Plus"*|*"Raspberry Pi 4"*|*"Raspberry Pi 5"*|*"Compute Module 4"*|*"Compute Module 5"*) ;;
