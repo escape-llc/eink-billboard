@@ -840,7 +840,7 @@ cmd_check() {
 			note "memory $((mem_kb / 1024)) MB, $swapping"
 		elif [ "$zram_kb" -ge 256000 ]; then
 			note "memory $((mem_kb / 1024)) MB, $swapping"
-			info "less than 1 GB of memory: the app draws one page at a time here (small boards are experimental)"
+			info "less than 1 GB of memory: the app draws one page at a time here (1 GB is the supported minimum: a smaller board is at your own risk)"
 		elif [ "$file_kb" -gt 0 ]; then
 			problem "only $((mem_kb / 1024)) MB of memory, and the swap is a file or partition on the card, which wears it out: swap in memory instead (zram):  $zram_fix"
 		else

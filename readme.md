@@ -9,7 +9,7 @@ A self-hosted e-ink billboard for a Raspberry Pi. Playlists of data sources (com
 * **No real panel has been driven through the container setup yet.** The setup runs start to finish on a Raspberry Pi 5 with no panel attached: the app opens the panel's devices and loads every driver.
 * **Plain HTTP unless you turn HTTPS on.** The app serves HTTPS itself (`ssl on`, see [On your network](#on-your-network)); with the device's own certificate a browser warns the first time, since nobody vouches for it.
 * **Addresses you type are checked, then fetched.** The check that keeps a feed or picture address off the device and its local services can be fooled by a name that resolves differently the second time (DNS rebinding).
-* **Boards with less than 1 GB of memory are experimental** (a Pi Zero 2 W, a Pi 3 A+): see [What you need](#what-you-need).
+* **1 GB of memory is the minimum supported.** A board with less (a Pi Zero 2 W, a Pi 3 A+: 512 MB) may work, at your own risk: see [What you need](#what-you-need).
 
 ## Documentation
 
@@ -28,7 +28,7 @@ From a fresh Raspberry Pi to a working billboard in one command. The app runs in
 ## What you need
 
 * A **Raspberry Pi 3 B+, 4 or 5** with **Raspberry Pi OS Lite 64-bit based on Trixie** (Raspberry Pi Imager's default; Bookworm is not supported), a 16 GB card or larger, on your network, with internet access.
-  * **Memory:** 1 GB or more is comfortable (the app uses about 135 MB and each page drawn with the browser about 75 to 110 MB). A Pi 3 B+ has 1 GB, as the smallest Pi 4 does. A Pi 3 B, a Pi 3 A+ or a **Pi Zero 2 W** (the smallest 64-bit board) should work too, but only the Pi 5 is tested: with 512 MB it needs swap (`deploy/eink-container.sh check` says), draws one page at a time, and building the image on it is the part most likely to run out of memory. Boards with a 32-bit system only (Pi 1, Pi Zero and Zero W, Pi 2 before the v1.2) cannot run it.
+  * **Memory: 1 GB is the minimum supported** (the app uses about 320 MB on a Pi, and each page drawn with the browser about 75 to 110 MB more). A Pi 3 B or B+ has 1 GB, as the smallest Pi 4 does; a Pi 3 B+ and a Pi 5 are tested. **Less than 1 GB is at your own risk**: a Pi 3 A+ or a Pi Zero 2 W (512 MB) may work, with swap in memory (`deploy/eink-container.sh check` says how), one page drawn at a time and the app stopped during an update, but it is not tested, and a heavy page may need more memory than the board has (its track then shows an error page saying so). Boards with a 32-bit system only (Pi 1, Pi Zero and Zero W, Pi 2 before the v1.2) cannot run it.
 * Your own user on it, allowed to use `sudo` (the user Raspberry Pi Imager makes is).
 * A panel, or none yet: a **Pimoroni Inky** (it identifies itself) or a **Waveshare e-Paper** (you choose its model, e.g. `epd7in3e`; the name is on the panel's Waveshare wiki page). With no panel you can still try the whole app; the pages are drawn but not shown.
 * Free space for the app's image. (When there is no download for the version you install, it is built on the Pi, which takes much longer and needs about 6 GB free.)
