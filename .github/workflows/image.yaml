@@ -81,8 +81,12 @@ jobs:
           --metadata-file metadata.json)
         IFS=, read -ra names <<< "$TAGS"
         for name in "${names[@]}"; do args+=(-t "$name"); done
+        # zstd layers (#853): a Pi's Cortex-A53 unpacks them several times faster than gzip, and Podman 5 pulls them. force-compression makes every layer zstd,
+        # those reused from the cache (kept as gzip) too, so two snapshots that differ only in code still share all the other layers. A pull request builds the
+        # same image without pushing it, so the output is tried before it reaches master
+        args+=(--output "type=image,push=$PUBLISH,compression=zstd,force-compression=true,oci-mediatypes=true")
         if [ "$PUBLISH" = true ]; then
-          args+=(--push --cache-to "type=registry,ref=$IMAGE:buildcache,mode=max")
+          args+=(--cache-to "type=registry,ref=$IMAGE:buildcache,mode=max")
         fi
         docker buildx build "${args[@]}" .
         echo "digest=$(jq -r '."containerimage.digest" // empty' metadata.json)" >> "$GITHUB_OUTPUT"
