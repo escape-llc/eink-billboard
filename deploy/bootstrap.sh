@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# eInk Billboard: set up a Raspberry Pi 3 B+, 4 or 5 (Raspberry Pi OS 64-bit) to run it, in one command:
+# eInk Billboard: set up a Raspberry Pi 3 B+, 4 or 5 (Raspberry Pi OS 64-bit, based on Trixie) to run it, in one command:
 #
 #   curl -fsSL https://raw.githubusercontent.com/escape-llc/eink-billboard/master/deploy/bootstrap.sh | bash
 #
@@ -43,7 +43,7 @@ main() {
 			--insider|--master) CHANNEL=insider ;;
 			# written out here, not read from this file: piped from curl, there is no file to read
 			--help|-h) cat <<'EOF'
-eInk Billboard setup for a Raspberry Pi 3 B+, 4 or 5 (Raspberry Pi OS 64-bit). Run it as your own user:
+eInk Billboard setup for a Raspberry Pi 3 B+, 4 or 5 (Raspberry Pi OS 64-bit, based on Trixie). Run it as your own user:
 
   curl -fsSL https://raw.githubusercontent.com/escape-llc/eink-billboard/master/deploy/bootstrap.sh | bash
 
@@ -133,6 +133,14 @@ EOF
 	os=$( . /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-unknown}")
 	first say "$model, $os, $arch"
 	[ "$arch" = "aarch64" ] || fail "this needs the 64-bit Raspberry Pi OS (this one is $arch). Install it with Raspberry Pi Imager (Raspberry Pi OS 64-bit), then run this again."
+	# Trixie is the one tested (#853: Podman 5, rpi-swap's zram); an older one is refused, a newer one is let through with a warning
+	local codename
+	codename=$( . /etc/os-release 2>/dev/null && echo "${VERSION_CODENAME:-}")
+	case "$codename" in
+		trixie) ;;
+		buster|bullseye|bookworm) fail "this needs Raspberry Pi OS based on Trixie (Raspberry Pi Imager's default). This one is based on ${codename^} (Legacy), which is not supported: write the card again with Raspberry Pi Imager, then run this again." ;;
+		*) first warn "this was tested on Raspberry Pi OS based on Trixie; this one is ${codename:-of an unknown release}. Going on." ;;
+	esac
 	case "$model" in
 		# the 400 and 500 too; a 3 B+ ("Raspberry Pi 3 Model B Plus") has 1 GB, as the smallest Pi 4 does, and the same 40-pin header
 		*"Raspberry Pi 3 Model B Plus"*|*"Raspberry Pi 4"*|*"Raspberry Pi 5"*|*"Compute Module 4"*|*"Compute Module 5"*) ;;

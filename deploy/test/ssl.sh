@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# The kit's HTTPS (deploy/eink-container.sh ssl), end to end, with no Pi: in a Debian Bookworm container (the Pi's Podman 4.3), rootless Podman runs a
+# The kit's HTTPS (deploy/eink-container.sh ssl), end to end, with no Pi: in a Debian Trixie container (the Pi's Podman 5.4), rootless Podman runs a
 # stand-in for the app's image (its user is a system user, as the real one's is, and its "uv" serves /api/access over HTTPS with the files it was given,
 # the way uvicorn does). The real script then turns HTTPS on with the device's own certificate (the stand-in makes one, as the app does), with a
 # certificate of one's own (two Podman secrets that only the app's user can read), off again, and forgets the certificate.
 #
-#   podman run --rm --privileged -v "$PWD:/src:ro" docker.io/library/debian:bookworm bash /src/deploy/test/ssl.sh
+#   podman run --rm --privileged -v "$PWD:/src:ro" docker.io/library/debian:trixie bash /src/deploy/test/ssl.sh
 #   (Git Bash on Windows: MSYS_NO_PATHCONV=1, and "$(pwd -W)" for the folder)
 #
 # Run as root it installs what it needs, makes a user and runs itself again as that user (the script refuses root, as on a Pi). Exit 0: every check passed.
@@ -15,7 +15,7 @@ CLONE=/home/pi/eink-billboard
 
 if [ "$(id -u)" -eq 0 ]; then
 	export DEBIAN_FRONTEND=noninteractive
-	apt-get update -qq && apt-get install -y -qq --no-install-recommends podman uidmap slirp4netns curl ca-certificates openssl procps >/dev/null || { echo "could not install the tools"; exit 1; }
+	apt-get update -qq && apt-get install -y -qq --no-install-recommends podman uidmap passt curl ca-certificates openssl procps >/dev/null || { echo "could not install the tools"; exit 1; }
 	id pi >/dev/null 2>&1 || useradd -m -s /bin/bash pi
 	# a range inside this container's own (a container has 65536 ids)
 	grep -q '^pi:' /etc/subuid || echo "pi:2000:60000" >> /etc/subuid
@@ -54,6 +54,8 @@ class Answer(http.server.BaseHTTPRequestHandler):
 		body = json.dumps({ "setupRequired": False, "scheme": "https" if "--ssl" in args else "http" }).encode()
 		self.send_response(200)
 		self.send_header("content-type", "application/json")
+		# as uvicorn does: without it curl reads to the end of the connection, which this server closes with no TLS close_notify, and Trixie's OpenSSL 3.5 calls that an error
+		self.send_header("content-length", str(len(body)))
 		self.end_headers()
 		self.wfile.write(body)
 server = http.server.HTTPServer(("0.0.0.0", 8080), Answer)
@@ -74,7 +76,7 @@ server.serve_forever()
 PY
 printf '#!/bin/sh\n# uv run --no-sync python -m python.eink-billboard ARGS\nshift 3\nshift 2\nexec python3 /serve.py "$@"\n' > uv
 cat > Containerfile <<'CF'
-FROM docker.io/library/debian:bookworm-slim
+FROM docker.io/library/debian:trixie-slim
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 openssl >/dev/null && rm -rf /var/lib/apt/lists/*
 RUN useradd --system --create-home eink && mkdir /data && chown eink /data
 COPY serve.py /serve.py
