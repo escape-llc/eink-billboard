@@ -14,6 +14,7 @@ from ...task.display import DisplayImage
 from ...task.display_messages import DISPLAY_LAYERS, DisplayLayer, SourcePicture
 from ...task.message_router import MessageRouter
 from ...task.timer import IProvideTimer
+from ...utils.image_utils import PageTooHeavy
 
 class SettingsDict(TypedDict):
 	dataSource: str
@@ -124,6 +125,8 @@ class SlideShowAsync(PluginAsync):
 			slideMax = 1 if is_single_picture(context, dataSourceName) else settings.get("slideMax", 0)
 			count = 0
 			failures = 0
+			# items that did not fit this board (#853): when nothing else was tried, the track as a whole does not fit
+			too_heavy = 0
 			last_error: Exception|None = None
 			try:
 				while slideMax == 0 or count < slideMax:
@@ -136,6 +139,7 @@ class SlideShowAsync(PluginAsync):
 					except Exception as e:
 						# one dead item (URL, file, ...) must not abort the whole show; a failed item is not a slide
 						failures += 1
+						too_heavy += isinstance(e, PageTooHeavy)
 						last_error = e
 						self.logger.error(f"{self.id} '{track.title}' item failed ({type(e).__name__}: {e})", exc_info=True)
 						kept.drop()
@@ -156,6 +160,8 @@ class SlideShowAsync(PluginAsync):
 				raise
 			if count == 0 and failures == 0:
 				raise RuntimeError(f"{dataSourceName}: No media items found for slide show")
+			if failures > 0 and count == 0 and too_heavy == failures and last_error is not None:
+				raise last_error
 			if failures > 0 and count == 0:
 				raise RuntimeError(f"{dataSourceName}: All {failures} slide show items failed; last error: {last_error}")
 		pass

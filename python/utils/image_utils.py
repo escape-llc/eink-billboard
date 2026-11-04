@@ -169,7 +169,7 @@ def _remove_quietly(path: str|None) -> None:
 			logger.warning(f"Could not remove temporary file: {e}")
 
 def render_html_arglist(html_str: str, arglist: list[str]) -> Image.Image | None:
-	"""Render HTML to an image with headless Chromium. Blocking: from async code use render_html_arglist_async."""
+	"""Render HTML to an image with headless Chromium (None when it failed, `PageTooHeavy` when it ran out of memory twice). Blocking: from async code use render_html_arglist_async."""
 	# Chromium opens a page from a file: the page is written to one of its own, removed afterwards whatever happens
 	fd, page_path = tempfile.mkstemp(suffix=".html")
 	try:
@@ -177,6 +177,9 @@ def render_html_arglist(html_str: str, arglist: list[str]) -> Image.Image | None
 			page.write(html_str.encode("utf-8"))
 		logger.debug(f"render html ({len(html_str)} chars)")
 		return render_chrome_headless_arglist(page_path, arglist)
+	except PageTooHeavy:
+		# not a failure like the others: whoever runs the track decides what to do with it
+		raise
 	except Exception as e:
 		logger.error(f"Failed to render: {str(e)}")
 		return None
@@ -296,7 +299,10 @@ def _oom_kills() -> int|None:
 	return None
 
 def render_chrome_headless_arglist(source_html_path: str, arglist: list[str], timeout: float|None = None):
-	"""Render the page with headless Chromium, when one of the render slots is free (see `render_slot_count`). None when it failed, timed out, or no slot came free."""
+	"""
+	Render the page with headless Chromium, when one of the render slots is free (see `render_slot_count`). None when it failed, timed out, or no slot came free;
+	`PageTooHeavy` when it ran out of memory twice.
+	"""
 	slots = _render_slots()
 	if not slots.acquire(timeout=RENDER_SLOT_WAIT_SECONDS):
 		logger.error(f"Render gave up after waiting {RENDER_SLOT_WAIT_SECONDS:g} seconds for a free Chromium slot.")
@@ -311,12 +317,20 @@ def render_chrome_headless_arglist(source_html_path: str, arglist: list[str], ti
 			return _render_chrome_headless(source_html_path, arglist, timeout)
 		except _OutOfMemory:
 			logger.error("Failed to render again for lack of memory: the page may be too heavy for this board.")
-			return None
+			raise PageTooHeavy(PAGE_TOO_HEAVY) from None
 	finally:
 		slots.release()
 
 class _OutOfMemory(Exception):
 	"""Chromium was killed for lack of memory (already logged): worth one more try."""
+
+PAGE_TOO_HEAVY = "The page needs more memory than this device has: it ran out twice."
+
+class PageTooHeavy(Exception):
+	"""
+	A page that ran out of memory on both tries (#853): it does not fit this board, and trying it again every pass only repeats the failure.
+	Its text is our own sentence (`PAGE_TOO_HEAVY`), safe for the panel and the telemetry. The playlist layer strikes the track out and tries it again only hours later (`UNFIT_RETRY_SECONDS`).
+	"""
 
 def _render_chrome_headless(source_html_path: str, arglist: list[str], timeout: float|None = None):
 	image = None

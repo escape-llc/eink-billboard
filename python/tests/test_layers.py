@@ -4,7 +4,7 @@ from PIL import Image
 from datetime import datetime, timedelta, timezone
 import os
 from threading import Event
-from typing import cast
+from typing import Any, cast
 import unittest
 
 from python.model.schedule_loader import ScheduleLoaderDict
@@ -16,13 +16,14 @@ from ..model.service_container import ServiceContainer
 from ..model.time_of_day import TimeOfDay
 from ..plugins.plugin_base import PermanentError, PluginAsync, PluginExecutionContext, TrackType
 from ..task.display_messages import DisplaySettings
-from ..task.messages import BasicMessage, QuitMessage, Telemetry
+from ..task.messages import BasicMessage, QuitMessage, ReloadSchedules, Telemetry
 from ..task.protocols import MessageSink
 from ..task.configure_event import ConfigureEvent, ConfigureOptions
 from ..task.playlist_layer import LayerFaulted, PlaylistLayer, RetryStruckOut, StartPlayback
 from ..task.message_router import MessageRouter, Route
 from ..task.timer_layer import TimerLayer
 from ..task.protocols import IProvideTimer
+from ..utils.image_utils import PAGE_TOO_HEAVY, PageTooHeavy
 from .utils import RecordingTask, ScaledTimeOfDay, ScaledTimerThreadService, create_configuration_manager, save_images
 
 class TestPlugin(PluginAsync):
@@ -420,6 +421,45 @@ class PlaylistLayerTests(unittest.TestCase):
 				layer, playlists, root, calls = self._strike_setup(Hard)
 				self.assertIsInstance(self._run_pass(layer, playlists, root), LayerFaulted)
 				self.assertEqual(calls, ["t0"])
+
+	def test_a_track_too_heavy_for_the_board_waits_hours_for_its_next_try(self):
+		from types import SimpleNamespace
+		class Heavy:
+			def __init__(self, id, name):
+				self.id, self.name = id, name
+			async def task_async(self, ctx, track, donev):
+				self.calls.append(track.id)
+				raise PageTooHeavy(PAGE_TOO_HEAVY)
+		layer, playlists, root, calls = self._strike_setup(Heavy)
+		now = [1000.0]
+		layer._clock = lambda: now[0]
+		# struck out at the first failure (#853), its error page says why, and the telemetry that it does not fit
+		self.assertIsInstance(self._run_pass(layer, playlists, root), LayerFaulted)
+		self.assertEqual(calls, ["t0"])
+		self.assertEqual(self.render_error.call_args_list[0].args[3], [PAGE_TOO_HEAVY])
+		failed = [msg.values["message"] for route, msg in self.sent if route == "telemetry" and msg.values.get("kind") == "track-failed"]
+		self.assertEqual(len(failed), 1)
+		self.assertIn("does not fit this board", failed[0])
+		self.assertIn("tried again in 6 hours", failed[0])
+		# not the strikes' minutes (each try is two out-of-memory kills): an hour later it is still not run, and the faulted layer waits the hours left
+		now[0] += 3600
+		self.assertIsInstance(self._run_pass(layer, playlists, root), LayerFaulted)
+		self.assertEqual(len(calls), 1)
+		self.sent.clear()
+		layer._layer_faulted(LayerFaulted(datetime.now()))
+		self.addCleanup(layer._cancel_restart)
+		self.assertIsNotNone(layer._restart_timer)
+		self.assertIn("tried again in 5 hours", self.sent[-1][1].values["message"])
+		# its wait over, it is tried once more (a shortage of the moment may have passed), and marked again when it still does not fit
+		now[0] += 5 * 3600
+		self.assertIsInstance(self._run_pass(layer, playlists, root), LayerFaulted)
+		self.assertEqual(calls, ["t0", "t0"])
+		# a change to the playlists clears the mark
+		changed = cast(list[ScheduleLoaderDict], [{**playlists[0], "info": Playlist("pl1", "Main", items=[PlaylistSchedule("p1", "t0", "Track 0", PlaylistScheduleData({"slideMinutes": 1}))])}])
+		layer.cm = cast(Any, SimpleNamespace(schedule_manager=lambda: SimpleNamespace(load=lambda: {"playlists": changed}, validate=lambda info: None)))
+		layer.accept = lambda msg: None  # type: ignore
+		layer._reload_schedules(ReloadSchedules(datetime.now()))
+		self.assertFalse(layer._struck_out((0, 0)))
 
 	def _slot_events(self) -> list:
 		"""The start, failure and end of each track the layer reported (in order), as `[(kind, track)]`, from what `_strike_setup` recorded."""
