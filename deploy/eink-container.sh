@@ -116,6 +116,18 @@ running() { [ "$(podman inspect -f '{{.State.Running}}' "$NAME" 2>/dev/null)" = 
 # draws one page at a time (render_slot_count) and "update" stops the app while it downloads
 board_mem_kb() { if [ -n "${EINK_MEM_KB:-}" ]; then echo "$EINK_MEM_KB"; else awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null; fi; }
 small_board() { local kb; kb=$(board_mem_kb); [ -n "$kb" ] && [ "$kb" -lt 800000 ]; }
+# "KB of swap in memory (zram), KB in files or partitions"; EINK_SWAPS is a test's /proc/swaps
+swap_kb() {
+	awk 'NR > 1 { if ($1 ~ /^\/dev\/zram/) z += $3; else f += $3 } END { printf "%d %d\n", z, f }' "${EINK_SWAPS:-/proc/swaps}" 2>/dev/null | grep . || echo "0 0"
+}
+# free KB where Podman keeps its images (EINK_FREE_KB is a test's)
+free_disk_kb() { if [ -n "${EINK_FREE_KB:-}" ]; then echo "$EINK_FREE_KB"; else store_free_kb; fi; }
+# what a whole new image needs while it downloads: its compressed layers and the unpacked image, about one and a half of the image there is (887 MB on a Pi in #853)
+update_needs_kb() {
+	local bytes
+	bytes=$(podman image inspect --format '{{.Size}}' "$IMAGE" 2>/dev/null)
+	case "$bytes" in ''|*[!0-9]*) echo 1500000 ;; *) echo $((bytes / 1024 * 3 / 2)) ;; esac
+}
 exists() { podman container exists "$NAME" 2>/dev/null; }
 need_running() {
 	running && return 0
@@ -815,20 +827,38 @@ cmd_check() {
 	cfg=$(board_config)
 	if grep -qE "^[[:space:]]*dtparam=spi=on" "$cfg" 2>/dev/null; then note "SPI is on"; else problem "SPI is off:  sudo raspi-config  (Interface Options, SPI), then reboot"; fi
 	if grep -qE "^[[:space:]]*dtparam=i2c_arm=on" "$cfg" 2>/dev/null; then note "I2C is on"; else problem "I2C is off (an Inky panel needs it):  sudo raspi-config  (Interface Options, I2C), then reboot"; fi
-	# memory: a Chromium render costs about 75 to 110 MB and the app about 135 MB, so a board with less than 1 GB (a Pi Zero 2 W: 512 MB) runs with swap or not at all well
-	local mem_kb swap_kb
+	# memory: a Chromium render costs about 75 to 110 MB and the app about 300 MB on a Pi (#853), so a board with less than 1 GB (a Pi Zero 2 W: 512 MB) runs with swap or
+	# not at all well. Swap in memory (zram, Trixie's own with rpi-swap) is what it should be: a swap file on the card wears it out
+	local mem_kb zram_kb file_kb swapping
 	mem_kb=$(board_mem_kb)
-	swap_kb=$(awk '/^SwapTotal:/ {print $2}' /proc/meminfo 2>/dev/null)
+	read -r zram_kb file_kb <<< "$(swap_kb)"
 	if [ -n "$mem_kb" ]; then
-		swap_kb=${swap_kb:-0}
+		swapping="swap $((zram_kb / 1024)) MB in memory (zram)"
+		[ "$file_kb" -eq 0 ] || swapping="$swapping and $((file_kb / 1024)) MB in a file or partition"
+		local zram_fix="sudo apt install rpi-swap; sudo mkdir -p /etc/rpi/swap.conf.d; printf '[Main]\nMechanism=zram\n' | sudo tee /etc/rpi/swap.conf.d/50-eink.conf; sudo reboot"
 		if ! small_board; then
-			note "memory $((mem_kb / 1024)) MB, swap $((swap_kb / 1024)) MB"
-		elif [ "$swap_kb" -ge 256000 ]; then
-			note "memory $((mem_kb / 1024)) MB, swap $((swap_kb / 1024)) MB"
+			note "memory $((mem_kb / 1024)) MB, $swapping"
+		elif [ "$zram_kb" -ge 256000 ]; then
+			note "memory $((mem_kb / 1024)) MB, $swapping"
 			info "less than 1 GB of memory: the app draws one page at a time here (small boards are experimental)"
+		elif [ "$file_kb" -gt 0 ]; then
+			problem "only $((mem_kb / 1024)) MB of memory, and the swap is a file or partition on the card, which wears it out: swap in memory instead (zram):  $zram_fix"
 		else
-			problem "only $((mem_kb / 1024)) MB of memory and $((swap_kb / 1024)) MB of swap: turn on swap in memory (zram, never a file on the card) or the app can be stopped for lack of memory:  sudo apt install rpi-swap; sudo mkdir -p /etc/rpi/swap.conf.d; printf '[Main]\nMechanism=zram\n' | sudo tee /etc/rpi/swap.conf.d/50-eink.conf; sudo reboot"
+			problem "only $((mem_kb / 1024)) MB of memory and no swap in memory: turn on zram (never a file on the card) or the app can be stopped for lack of memory:  $zram_fix"
 		fi
+	fi
+	# Raspberry Pi firmware boots a Pi 3 (and a Zero 2 W) with cgroup_disable=memory: nothing breaks (a render that runs out is killed first by its oom_score_adj), but
+	# Podman cannot limit or measure the container's memory there (#853)
+	if [ -r /sys/fs/cgroup/cgroup.controllers ] && ! grep -qw memory /sys/fs/cgroup/cgroup.controllers; then
+		info "the kernel's memory accounting is off (this board's default): 'podman stats' shows no memory for the app, and nothing limits it (nothing to fix)"
+	fi
+	# disk: an update may need a whole image (a new base image changes every layer) next to the running one and the one 'rollback' keeps
+	local free_kb need_kb
+	free_kb=$(free_disk_kb)
+	if [ -n "$free_kb" ]; then
+		need_kb=$(update_needs_kb)
+		if [ "$free_kb" -ge "$need_kb" ]; then note "$((free_kb / 1048576)) GB free where Podman keeps images"
+		else problem "only $((free_kb / 1024)) MB free where Podman keeps images, and an update can need about $((need_kb / 1024)) MB: free some space ('podman system df' shows what Podman holds; 'podman image prune' removes the images nothing is tagged for)"; fi
 	fi
 
 	section "the devices"

@@ -112,6 +112,10 @@ out=$(kit storage 2>&1)
 check "again: nothing to change" grep -q "Podman keeps images with overlay: nothing to change" <<< "$out"
 out=$(kit check 2>&1)
 check "check says overlay" grep -q "ok    Podman keeps images with overlay" <<< "$out"
+check "check says the free space where the images are" grep -q "ok    [0-9]* GB free where Podman keeps images" <<< "$out"
+# the stand-in image is a few MB, and what an update needs is sized from it
+out=$(EINK_FREE_KB=1 kit check 2>&1)
+check "too little for a whole image is a FIX" grep -q "FIX   only 0 MB free where Podman keeps images, and an update can need about [0-9]* MB" <<< "$out"
 
 echo "== a Podman that holds nothing yet, as vfs: get changes it without asking"
 as_vfs
