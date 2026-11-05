@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.13"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -414,6 +414,7 @@ device = [
     { name = "gpiozero", marker = "sys_platform == 'linux'" },
     { name = "inky", marker = "sys_platform == 'linux'" },
     { name = "lgpio", marker = "sys_platform == 'linux'" },
+    { name = "pyalsaaudio", marker = "sys_platform == 'linux'" },
     { name = "spidev", marker = "sys_platform == 'linux'" },
 ]
 
@@ -453,6 +454,7 @@ device = [
     { name = "gpiozero", marker = "sys_platform == 'linux'", specifier = "==2.0.1.post3" },
     { name = "inky", marker = "sys_platform == 'linux'", specifier = "==2.6.0" },
     { name = "lgpio", marker = "sys_platform == 'linux'", specifier = "==0.2.2.0" },
+    { name = "pyalsaaudio", marker = "sys_platform == 'linux'", specifier = "==0.11.0" },
     { name = "spidev", marker = "sys_platform == 'linux'", specifier = "==3.8" },
 ]
 
@@ -1193,6 +1195,12 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b4/90/e2159492b5426be0c1fef7acba807a03511f97c5f86b3caeda6ad92351a7/psutil-7.2.2-cp37-abi3-win_amd64.whl", hash = "sha256:eb7e81434c8d223ec4a219b5fc1c47d0417b12be7ea866e24fb5ad6e84b3d988", size = 137737, upload-time = "2026-01-28T18:15:33.849Z" },
     { url = "https://files.pythonhosted.org/packages/8c/c7/7bb2e321574b10df20cbde462a94e2b71d05f9bbda251ef27d104668306a/psutil-7.2.2-cp37-abi3-win_arm64.whl", hash = "sha256:8c233660f575a5a89e6d4cb65d9f938126312bca76d8fe087b947b3a1aaac9ee", size = 134617, upload-time = "2026-01-28T18:15:36.514Z" },
 ]
+
+[[package]]
+name = "pyalsaaudio"
+version = "0.11.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/21/a6/3d833079b030d449345e35ce0e2874e330d3612135734f07b9ceace25bcf/pyalsaaudio-0.11.0.tar.gz", hash = "sha256:a78a9dca33524b2c9064b34e21f5ab874272313cf324a9a77592f396a5e0fddc", size = 311152, upload-time = "2024-05-30T21:35:57.928Z" }
 
 [[package]]
 name = "pycparser"
