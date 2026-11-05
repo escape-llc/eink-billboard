@@ -1,13 +1,16 @@
 """
 The DeviceIO task: the single owner of every GPIO, I2C and SPI line that is not the panel's.
 
-The display's driver stage keeps the panel's lines; whatever else is connected to the Pi (buttons now, sensors later) is opened, listened to and closed here. This task knows hardware and nothing
+The display's driver stage keeps the panel's lines; whatever else is connected to the Pi (buttons and an LED now, sensors later) is opened, listened to and closed here. This task knows hardware and nothing
 about what an input means: a device reports that something happened (`InputEvent`) and the Application decides what that does (python/device/bindings.py). Hardware libraries are imported by
 the devices, only when they are opened.
 
 A device calls `emit` from whatever thread its library uses; `emit` only puts an `InputEvent` on this task's queue, and everything else (forwarding it on the `device-input` route, opening and
 closing devices, reading the settings) happens on the task's own thread. The settings are the `devices` document: a change is read again, after a short wait for a burst of saves to end,
 and a configuration that cannot be opened leaves the previous one working.
+
+The LED (python/device/led.py) is the one output: it is told each press and long press of a button, each state on the `indicator` route (`Indicate`: drawing, a problem), and a Test
+(`LedTest`). The states are kept here, so an LED opened again after a save shows what is on at once.
 """
 import logging
 from typing import Any, Callable, Mapping
@@ -16,9 +19,10 @@ from .basic_task import DispatcherTask, handles
 from .coalescer import Coalescer
 from .configure_event import ConfigureEvent
 from .message_router import MessageRouter
-from .messages import ConfigurationChanged, InputEvent, ReloadDevices, Telemetry
+from .messages import ConfigurationChanged, Indicate, InputEvent, LedTest, ReloadDevices, Telemetry
 from ..device.base import InputDevice
 from ..device.buttons import physical_words
+from ..device.led import Led
 from ..device.pins import Panel, check_pins
 from ..device.registry import available_devices
 from ..model.configuration_manager import ConfigurationManager
@@ -44,6 +48,8 @@ class DeviceIO(DispatcherTask):
 		# the devices that are open, by id, and the settings they were opened with
 		self._open: dict[str, InputDevice] = {}
 		self._config: dict[str, Any] = {}
+		# the states the LED shows, by what began them (`faulted`, `unclaimed`, `drawing`): what is on survives the LED being opened again
+		self._signals: set[str] = set()
 		self._reload_coalescer = Coalescer(self.RELOAD_DELAY_SECONDS, self._request_reload)
 		self.logger = logging.getLogger(__name__)
 
@@ -51,6 +57,15 @@ class DeviceIO(DispatcherTask):
 	def open_devices(self) -> tuple[str, ...]:
 		"""The ids of the devices that are open (what the status says is connected)."""
 		return tuple(self._open)
+
+	@property
+	def led_open(self) -> bool:
+		"""An LED is open (the Test route asks from the web app's thread: a read of a dict that is replaced whole)."""
+		return isinstance(self._open.get(Led.id), Led)
+
+	def _led(self) -> Led|None:
+		led = self._open.get(Led.id)
+		return led if isinstance(led, Led) else None
 
 	def emit(self, source: str, name: str, gesture: str) -> None:
 		"""What a device calls from its own thread: the event goes on this task's queue, and nothing else is done there."""
@@ -130,7 +145,32 @@ class DeviceIO(DispatcherTask):
 			self.router.send("telemetry", Telemetry(msg.timestamp, "device-io", { "kind": "gpio", "input": msg.name, "gesture": msg.gesture, "message": physical_words(msg.name, msg.gesture) }))
 		except Exception as e:
 			self.logger.warning(f"The input could not be reported ({type(e).__name__}).")
+		led = self._led()
+		if led is not None and msg.source != Led.id:
+			led.gesture(msg.gesture)
 		self.router.send("device-input", msg)
+
+	@handles(Indicate)
+	def _indicate(self, msg: Indicate):
+		"""A state began or ended: kept, and shown by the LED when there is one (`faulted` and `unclaimed` are both a problem)."""
+		if msg.on:
+			self._signals.add(msg.signal)
+		else:
+			self._signals.discard(msg.signal)
+		self._show_states()
+
+	@handles(LedTest)
+	def _led_test(self, msg: LedTest):
+		led = self._led()
+		if led is not None:
+			led.test(msg.pattern)
+
+	def _show_states(self) -> None:
+		led = self._led()
+		if led is None:
+			return
+		led.state("drawing", "drawing" in self._signals)
+		led.state("problem", bool(self._signals & { "faulted", "unclaimed" }))
 
 	def quitMsg(self, msg):
 		self._reload_coalescer.cancel()
@@ -161,7 +201,7 @@ class DeviceIO(DispatcherTask):
 		devices = { device_id: make() for device_id, make in self._makers.items() }
 		wanted = { device_id: device for device_id, device in devices.items() if device.pins(settings) }
 		pins = { f"{device_id}:{name}": pin for device_id, device in wanted.items() for name, pin in device.pins(settings).items() }
-		labels = { f"{device_id}:{name}": "button" for device_id, device in wanted.items() for name in device.pins(settings) }
+		labels = { f"{device_id}:{name}": "LED" if device_id == Led.id else "button" for device_id, device in wanted.items() for name in device.pins(settings) }
 		problems = check_pins(pins, self.panel, labels)
 		if problems:
 			raise PermanentError(" ".join(problems))
@@ -176,13 +216,28 @@ class DeviceIO(DispatcherTask):
 		self._close_all()
 		try:
 			for device_id, device in wanted.items():
+				if isinstance(device, Led):
+					device.on_play = self._led_played
+					device.clock = self._now
 				device.open(self.emit_for(device_id), settings)
 				self._open[device_id] = device
 		except Exception:
 			self._close_all()
 			raise
 		self._config = dict(settings)
+		self._show_states()
 		return tuple(self._open)
+
+	def _now(self):
+		return (self.timebase or SystemTimeOfDay()).current_time()
+
+	def _led_played(self, title: str, why: str) -> None:
+		"""On the LED's thread: a pattern began, for the GPIO tab's live view."""
+		try:
+			now = (self.timebase or SystemTimeOfDay()).current_time()
+			self.router.send("telemetry", Telemetry(now, "device-io", { "kind": "led", "pattern": title, "why": why, "message": f"LED: {title.lower()}" + (f", {why}" if why else "") }))
+		except Exception as e:
+			self.logger.debug(f"The LED's pattern could not be reported ({type(e).__name__}).")
 
 	def emit_for(self, source: str) -> Callable[[str, str], None]:
 		"""`emit` for one device: it says which device the event is from."""

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Callable, Mapping
 
-from .messages import ClockCheck, ConfigurationChanged, ConfigurationWatcherEvent, InputEvent, PushedImage, RestoreBegin, RestoreEnd, RestoreSettled, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, RunTask, RunTrigger, Telemetry, TransportCommand
+from .messages import ClockCheck, ConfigurationChanged, ConfigurationWatcherEvent, Indicate, InputEvent, LedTest, PushedImage, RestoreBegin, RestoreEnd, RestoreSettled, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, RunTask, RunTrigger, Telemetry, TransportCommand
 from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
 from .coalescer import Coalescer
 from .protocols import MessageSink, IProvideTimer
@@ -205,6 +205,9 @@ class Application(DispatcherTask):
 			self.logger.info(f"'{self.name}' the device is not claimed: the layers wait for it.")
 			self._startup(msg.timestamp, "waiting-for-setup", "The device is not set up yet: the playlist and the timer tasks start once it is claimed.")
 			self._show_setup_notice(msg.width, msg.height, msg.timestamp)
+			# the LED's problem, when it has one: someone has to claim the device
+			if self.router is not None:
+				self.router.send("indicator", Indicate(msg.timestamp, "unclaimed", True))
 			return
 		self._start_when_clock_set(msg.timestamp, configs, configt)
 	def _display_keys(self) -> dict[str, Any]:
@@ -377,6 +380,7 @@ class Application(DispatcherTask):
 		if self.router is None:
 			return
 		self.router.send("display", PriorityRevoke(msg.timestamp, SETUP_TITLE))
+		self.router.send("indicator", Indicate(msg.timestamp, "unclaimed", False))
 		held, self._held = self._held, None
 		if held is not None:
 			self.logger.info(f"'{self.name}' the device was claimed: the layers start.")
@@ -398,6 +402,16 @@ class Application(DispatcherTask):
 		if self.router is None or self._layers_held() or not isinstance(content, dict):
 			return False
 		self.router.send("timer-layer", RunTrigger(timestamp, f"Button on pin {row.get('pin')}", "priority-update", content))
+		return True
+	def led_test(self, pattern: str) -> bool:
+		"""Play a pattern on the LED now (the GPIO settings' Test, called from the web app's thread). False: no LED is open, or the application has stopped."""
+		device_io = self.device_io
+		if device_io is None or not device_io.led_open:
+			return False
+		try:
+			device_io.accept(LedTest(self._now(), pattern))
+		except ValueError:
+			return False
 		return True
 	def run_trigger(self, pin: int) -> str:
 		"""
@@ -691,6 +705,8 @@ class Application(DispatcherTask):
 		self.router.addRoute(Route("display-settings", [self, self.playlist_layer, self.timer_layer]))
 		# what the devices report (a button pressed): the Application gives it a meaning
 		self.router.addRoute(Route("device-input", [self]))
+		# what the LED shows (#885): the panel drawing, a problem
+		self.router.addRoute(Route("indicator", [self.device_io]))
 		# every task hears about changes to the configuration files
 		self.router.addRoute(Route("configuration", [self.display, self.playlist_layer, self.timer_layer, self.device_io]))
 		if self.sink is not None:

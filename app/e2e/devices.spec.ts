@@ -28,6 +28,22 @@ test("the devices tab lists the buttons: a pin and an action, none to start with
 	watch.expectNone()
 })
 
+// the LED (#885): its pin and a pattern for each event, each with a Test that asks the server to play it; the e2e server has no LED, so the Test says so
+test("the LED has a pin, the factory patterns, and a Test that reaches the server", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "GPIO" }).click()
+	await expect(page.getByRole("combobox", { name: "LED Pin" })).toBeVisible()
+	// a chosen value names its drop-down (the form's Select), so each pattern is found by the factory's choice, each with its Test
+	for (const [field, pattern] of [["On a Press", "One blink"], ["On a Long Press", "Two blinks"], ["While Drawing", "Steady"], ["On a Problem", "Off"]]) {
+		await expect(page.getByRole("combobox", { name: pattern, exact: true })).toBeVisible()
+		await expect(page.getByRole("button", { name: `Test ${field}`, exact: true })).toBeVisible()
+	}
+	await page.getByRole("button", { name: "Test On a Press" }).click()
+	await expect(page.getByTestId("test-result")).toContainText("There is no LED")
+	watch.expectNone()
+})
+
 // a row's pin is chosen from the list the server gives (`GET /api/system/gpio-pins`: the header's pins, the panel's not available)
 async function choosePin(page: Page, row: number, pin: number) {
 	await page.getByRole("combobox", { name: `GPIO Pin ${row}` }).click()

@@ -14,7 +14,7 @@ from ..model.inks import publish_panel_ink_set
 from ..model.theme import current_palette
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
 from ..task.basic_task import DispatcherTask, handles
-from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage, Telemetry
+from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, Indicate, QuitMessage, Telemetry
 from ..task.configure_event import ConfigureEvent
 from ..task.protocols import IProvideTimer
 from ..task.protocols import CreateTimerResult
@@ -103,6 +103,12 @@ class Display(DispatcherTask):
 			self.router.send("telemetry", Telemetry(now, "display", { "kind": kind, **values }))
 		except Exception as e:
 			self.logger.warning(f"Display telemetry could not be sent ({type(e).__name__}).")
+	def _indicate(self, on: bool) -> None:
+		"""The LED's `drawing` (#885): on while the panel refreshes. A failure to tell must never stop the panel."""
+		try:
+			self.router.send("indicator", Indicate((self.timebase or SystemTimeOfDay()).current_time(), "drawing", on))
+		except Exception as e:
+			self.logger.debug(f"The LED could not be told ({type(e).__name__}).")
 	@handles(ConfigurationChanged)
 	def _configuration_changed(self, msg: ConfigurationChanged):
 		# the display settings are read when the display starts; reconfiguring it live is not supported yet
@@ -352,7 +358,11 @@ class Display(DispatcherTask):
 					displayImageCount += 1
 					self.logger.info(f"Compositor v:{package.version} '{the_title}' ({displayImageCount})")
 					# render() is synchronous and slow (an e-ink refresh takes seconds): keep it off the loop; awaiting it keeps it one at a time
-					await asyncio.to_thread(display.render, the_image, displayImageCount, the_title)
+					self._indicate(True)
+					try:
+						await asyncio.to_thread(display.render, the_image, displayImageCount, the_title)
+					finally:
+						self._indicate(False)
 					# the telemetry shows the panel as it looks, not in the exact colours the driver is given
 					the_image = to_appearance(the_image, ink_set)
 					shown = digest
