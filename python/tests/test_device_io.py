@@ -14,7 +14,7 @@ from typing import Any, Callable, Mapping
 from unittest.mock import patch
 
 from ..device.bindings import action_for
-from ..device.buttons import DEBOUNCE_SECONDS, LONG_PRESS_SECONDS, Buttons, load_button
+from ..device.buttons import DEBOUNCE_SECONDS, LONG_PRESS_SECONDS, Buttons, load_button, physical_words
 from ..device.pins import FIRST_PIN, LAST_PIN, Panel, check_pins, panel_for, panel_lines, panel_pin_errors, pin_choices
 from ..device.registry import available_devices
 from ..model.service_container import ServiceContainer
@@ -35,12 +35,13 @@ from .utils import temp_configuration_manager
 NOW = datetime.datetime(2026, 10, 19, 12, 0)
 
 class FakeButton:
-	"""A gpiozero-style button: the app sets `when_pressed` and `when_held`; a test presses it."""
+	"""A gpiozero-style button: the app sets `when_pressed`, `when_held` and `when_released`; a test presses it."""
 	made: list["FakeButton"] = []
 	def __init__(self, pin: int, pull_up: bool = True, bounce_time: float|None = None, hold_time: float = 1.0):
 		self.pin, self.pull_up, self.bounce_time, self.hold_time = pin, pull_up, bounce_time, hold_time
 		self.when_pressed: Callable[[], None]|None = None
 		self.when_held: Callable[[], None]|None = None
+		self.when_released: Callable[[], None]|None = None
 		self.closed = False
 		FakeButton.made.append(self)
 	def close(self) -> None:
@@ -162,23 +163,33 @@ class TestButtons(unittest.TestCase):
 			self.assertTrue(button.pull_up)
 			self.assertEqual((button.bounce_time, button.hold_time), (DEBOUNCE_SECONDS, LONG_PRESS_SECONDS))
 
-	def test_a_press_and_a_long_press_are_reported_with_the_inputs_name(self):
+	def test_a_press_and_a_long_press_are_decided_when_the_button_is_let_go(self):
 		make, made = fake_factory()
 		said: list[tuple[str, str]] = []
 		Buttons(make).open(lambda name, gesture: said.append((name, gesture)), triggers((5, "toggle"), (6, "next")))
-		assert made[0].when_pressed and made[1].when_pressed and made[1].when_held
-		made[0].when_pressed()
-		made[1].when_pressed()
-		made[1].when_held()
-		self.assertEqual(said, [("gpio-5", "press"), ("gpio-6", "press"), ("gpio-6", "long-press")])
+		short, long = made
+		assert short.when_pressed and short.when_released and long.when_pressed and long.when_held and long.when_released
+		short.when_pressed()
+		short.when_released()
+		long.when_pressed()
+		long.when_held()
+		long.when_released()
+		self.assertEqual(said, [("gpio-5", "down"), ("gpio-5", "release"), ("gpio-5", "press"), ("gpio-6", "down"), ("gpio-6", "hold"), ("gpio-6", "release"), ("gpio-6", "long-press")])
 
-	def test_a_release_is_reported_too_for_the_pin_level(self):
+	def test_a_press_after_a_long_press_is_a_press_again(self):
 		make, made = fake_factory()
 		said: list[tuple[str, str]] = []
 		Buttons(make).open(lambda name, gesture: said.append((name, gesture)), triggers((5, "toggle")))
-		assert made[0].when_released
-		made[0].when_released()
-		self.assertEqual(said, [("gpio-5", "release")])
+		[button] = made
+		assert button.when_pressed and button.when_held and button.when_released
+		button.when_pressed(); button.when_held(); button.when_released()
+		button.when_pressed(); button.when_released()
+		self.assertEqual([g for _, g in said if g in ("press", "long-press")], ["long-press", "press"])
+
+	def test_only_a_pins_edges_are_said_as_the_pin_level(self):
+		self.assertEqual([physical_words("gpio-5", g) for g in ("down", "hold", "release")], ["GPIO 5: pressed", "GPIO 5: held", "GPIO 5: released"])
+		self.assertIsNone(physical_words("gpio-5", "press"))
+		self.assertIsNone(physical_words("gpio-5", "long-press"))
 
 	def test_callbacks_take_no_arguments_as_gpiozero_looks_at_them(self):
 		make, made = fake_factory()
@@ -339,9 +350,9 @@ class TestDeviceIO(unittest.TestCase):
 		self.configure()
 		emit = self.made[0].emit
 		assert emit is not None
-		for gesture in ("press", "long-press", "release"):
+		for gesture in ("down", "hold", "release", "long-press"):
 			emit("gpio-6", gesture)
-		emit("gpio-9", "press")
+		emit("gpio-9", "down")
 		end = time.monotonic() + 3
 		told: list[Telemetry] = []
 		while len(told) < 4 and time.monotonic() < end:

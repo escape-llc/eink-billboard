@@ -50,6 +50,8 @@ class DeviceIO(DispatcherTask):
 		self._config: dict[str, Any] = {}
 		# the states the LED shows, by what began them (`faulted`, `unclaimed`, `drawing`): what is on survives the LED being opened again
 		self._signals: set[str] = set()
+		# the buttons held past a long press, not yet let go
+		self._holding: set[str] = set()
 		self._reload_coalescer = Coalescer(self.RELOAD_DELAY_SECONDS, self._request_reload)
 		self.logger = logging.getLogger(__name__)
 
@@ -141,12 +143,20 @@ class DeviceIO(DispatcherTask):
 	@handles(InputEvent)
 	def _input_event(self, msg: InputEvent):
 		"""An event a device reported: said as it happened (the pin level: the web app shows the wiring works), then on to the Application, which gives it its meaning."""
+		words = physical_words(msg.name, msg.gesture)
 		try:
-			self.router.send("telemetry", Telemetry(msg.timestamp, "device-io", { "kind": "gpio", "input": msg.name, "gesture": msg.gesture, "message": physical_words(msg.name, msg.gesture) }))
+			if words is not None:
+				self.router.send("telemetry", Telemetry(msg.timestamp, "device-io", { "kind": "gpio", "input": msg.name, "gesture": msg.gesture, "message": words }))
 		except Exception as e:
 			self.logger.warning(f"The input could not be reported ({type(e).__name__}).")
+		# held past the long press (a `hold` until its `release`): the LED's Holding, the cue to let go
+		if msg.gesture == "hold":
+			self._holding.add(msg.name)
+		elif msg.gesture == "release":
+			self._holding.discard(msg.name)
 		led = self._led()
 		if led is not None and msg.source != Led.id:
+			led.state("holding", bool(self._holding))
 			led.gesture(msg.gesture)
 		self.router.send("device-input", msg)
 

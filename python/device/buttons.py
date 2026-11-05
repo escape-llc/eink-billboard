@@ -12,7 +12,7 @@ from ..plugins.plugin_base import PermanentError
 logger = logging.getLogger(__name__)
 
 DEBOUNCE_SECONDS = 0.05
-# a press held this long is also a `long-press`
+# a press held this long is a `long-press` (said at the release; `hold` says when it is reached)
 LONG_PRESS_SECONDS = 1.0
 
 def input_name(pin: int) -> str:
@@ -23,10 +23,13 @@ def input_label(name: str) -> str:
 	"""What a button is called to a person: `gpio-5` is "button on pin 5"."""
 	return f"button on pin {name.removeprefix('gpio-')}" if name.startswith("gpio-") else name
 
-def physical_words(name: str, gesture: str) -> str:
-	"""What a pin did, in our words, before anything decides what it means (`pressed`, `released`, `held`): the live view of the wiring."""
-	what = { "press": "pressed", "release": "released", "long-press": "held" }.get(gesture, gesture)
-	return f"{name.replace('gpio-', 'GPIO ', 1) if name.startswith('gpio-') else name}: {what}"
+# what a pin did (its edges, as they happen), in our words; `press` and `long-press` are what the button decided at the release, not a pin's own news
+PIN_WORDS: Mapping[str, str] = { "down": "pressed", "hold": "held", "release": "released" }
+
+def physical_words(name: str, gesture: str) -> str|None:
+	"""What a pin did, in our words, before anything decides what it means (`pressed`, `held`, `released`): the live view of the wiring. None: not a pin's edge."""
+	what = PIN_WORDS.get(gesture)
+	return f"{name.replace('gpio-', 'GPIO ', 1) if name.startswith('gpio-') else name}: {what}" if what is not None else None
 
 def load_button() -> Any:
 	"""gpiozero's `Button`, or a `PermanentError` that says, in our words, what to do."""
@@ -36,11 +39,24 @@ def load_button() -> Any:
 		raise PermanentError("The buttons need the device libraries (`uv sync --group device`, Raspberry Pi only). On another machine leave the button pins empty in the GPIO settings.") from e
 	return Button
 
-def _callback(emit: Emit, name: str, gesture: str) -> Callable[[], None]:
-	# gpiozero looks at the number of parameters a callback takes: this one takes none
-	def called() -> None:
-		emit(name, gesture)
-	return called
+def _wire(button: Any, emit: Emit, name: str) -> None:
+	"""
+	A button's edges (`down`, `hold` when it has been down `LONG_PRESS_SECONDS`, `release`), and at the release what it was: a `press`, or a `long-press` when it was held. Decided at the
+	release, so a long press is never a press first (#866). gpiozero looks at the number of parameters a callback takes: these take none.
+	"""
+	held = False
+	def pressed() -> None:
+		nonlocal held
+		held = False
+		emit(name, "down")
+	def holding() -> None:
+		nonlocal held
+		held = True
+		emit(name, "hold")
+	def released() -> None:
+		emit(name, "release")
+		emit(name, "long-press" if held else "press")
+	button.when_pressed, button.when_held, button.when_released = pressed, holding, released
 
 class Buttons:
 	"""`factory` makes a gpiozero-style button (a test gives a fake one); by default it is gpiozero's."""
@@ -66,9 +82,7 @@ class Buttons:
 			for name, pin in pins.items():
 				button = factory(pin, pull_up=True, bounce_time=DEBOUNCE_SECONDS, hold_time=LONG_PRESS_SECONDS)
 				self._buttons.append(button)
-				button.when_pressed = _callback(emit, name, "press")
-				button.when_held = _callback(emit, name, "long-press")
-				button.when_released = _callback(emit, name, "release")
+				_wire(button, emit, name)
 				logger.info(f"The {input_label(name)} is open.")
 		except Exception as e:
 			self.close()

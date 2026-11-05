@@ -143,6 +143,16 @@
 				"test": { "url": "/api/devices/led/test" }
 			},
 			{
+				"name": "ledHolding",
+				"type": "string",
+				"title": "While Held",
+				"required": false,
+				"default": "steady",
+				"description": "What the LED does once a button has been held for a second, until it is let go: the cue that letting go now is a long press. A press is decided when the button is let go.",
+				"lookup": "ledPatterns",
+				"test": { "url": "/api/devices/led/test" }
+			},
+			{
 				"name": "ledDrawing",
 				"type": "string",
 				"title": "While Drawing",
@@ -201,6 +211,7 @@
 		"ledPin": null,
 		"ledPress": "blink-1",
 		"ledLongPress": "blink-2",
+		"ledHolding": "steady",
 		"ledDrawing": "steady",
 		"ledProblem": "off",
 		"ledSpeed": "0.4",
