@@ -2,7 +2,7 @@
 An LED on one of the header's GPIO pins, wired from the pin through a resistor to ground (the Inky Impression has one on GPIO 13, at the top centre edge of the board). It is the device's
 only fast signal: a panel refresh takes about 30 seconds, so the LED says at once that a button was pressed, while the panel draws, and when something needs a look (#885).
 
-It plays a pattern for each event, as the GPIO settings choose (`led*`): a gesture (a press, a long press) plays its pattern once; a state (drawing, a problem) plays its pattern for as long as
+It plays a pattern for each event, as the GPIO settings choose (`led*`), at the speed they choose (`ledSpeed`: every pattern's times stretched alike):a gesture (a press, a long press) plays its pattern once; a state (drawing, a problem) plays its pattern for as long as
 the state lasts. One LED plays one pattern at a time: a gesture interrupts, then the state underneath goes on; a problem outranks drawing; in the quiet hours it is dark (a Test still plays).
 An LED is on or off (no brightness), so a pattern is only times: on for so long, off for so long.
 
@@ -27,6 +27,10 @@ class Pattern:
 	repeat: bool
 
 BLINK = (0.15, 0.25)
+# one blink's on and off together: the patterns' times are written for it, and the speed (`ledSpeed`) stretches them all by its ratio to this
+NORMAL_BLINK = 0.4
+# the speeds a person chooses from (the schema's `ledSpeeds` lookup), the seconds one blink takes
+SPEEDS = ("0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8")
 
 # the patterns a person chooses from, by the value stored in the settings; the order is the list's in the form (the schema's `ledPatterns` lookup says the same titles)
 PATTERNS: Mapping[str, Pattern] = {
@@ -55,6 +59,10 @@ def pattern_of(config: Mapping[str, Any], field: str, fallback: str) -> str:
 	"""The pattern a field of the settings chooses: its value when it is one of `PATTERNS`, else the field's default."""
 	value = config.get(field)
 	return value if isinstance(value, str) and value in PATTERNS else fallback
+
+def scale_of(speed: object) -> float:
+	"""How much a speed (one of `SPEEDS`: the seconds one blink takes) stretches every pattern's times; anything else is the normal speed (1)."""
+	return float(speed) / NORMAL_BLINK if isinstance(speed, str) and speed in SPEEDS else 1.0
 
 def quiet(config: Mapping[str, Any], now: datetime) -> bool:
 	"""In the quiet hours: from `ledQuietFrom` (an hour, 0 to 23) up to `ledQuietTo`, across midnight when it is earlier; either unset is never quiet, and the same hour is never quiet."""
@@ -102,8 +110,8 @@ class Led:
 		self._wake = threading.Event()
 		self._urgent = threading.Event()
 		self._states: set[str] = set()
-		# a pattern to play once, ahead of the states: (pattern, why, ignores the quiet hours)
-		self._once: tuple[str, str, bool]|None = None
+		# a pattern to play once, ahead of the states: (pattern, why, ignores the quiet hours, its times' scale)
+		self._once: tuple[str, str, bool, float]|None = None
 		self._thread: threading.Thread|None = None
 		self._closing = False
 
@@ -150,7 +158,7 @@ class Led:
 		"""A button was pressed (`press`) or held (`long-press`): its pattern, once."""
 		chosen = GESTURES.get(gesture)
 		if chosen is not None:
-			self._play_once(pattern_of(self._config, *chosen), "a press" if gesture == "press" else "a long press", False)
+			self._play_once(pattern_of(self._config, *chosen), "a press" if gesture == "press" else "a long press", False, scale_of(self._config.get("ledSpeed")))
 
 	def state(self, name: str, on: bool) -> None:
 		"""A state began or ended (`drawing`, `problem`)."""
@@ -164,14 +172,17 @@ class Led:
 				return
 		self._wake.set()
 
-	def test(self, pattern: str) -> None:
-		"""Play a pattern once now, the quiet hours or not (the settings' Test): a pattern that repeats plays for `TEST_SECONDS`."""
+	def test(self, pattern: str, speed: str|None = None) -> None:
+		"""
+		Play a pattern once now, the quiet hours or not (the settings' Test): a pattern that repeats plays for `TEST_SECONDS`. `speed` is the one chosen in the form (the Test beside the
+		speed), else the saved one.
+		"""
 		if pattern in PATTERNS:
-			self._play_once(pattern, "a test", True)
+			self._play_once(pattern, "a test", True, scale_of(speed if speed is not None else self._config.get("ledSpeed")))
 
-	def _play_once(self, pattern: str, why: str, loud: bool) -> None:
+	def _play_once(self, pattern: str, why: str, loud: bool, scale: float) -> None:
 		with self._lock:
-			self._once = (pattern, why, loud)
+			self._once = (pattern, why, loud, scale)
 		self._urgent.set()
 		self._wake.set()
 
@@ -194,11 +205,11 @@ class Led:
 				states = set(self._states)
 			if once is not None:
 				self._urgent.clear()
-				chosen, why, loud = once
+				chosen, why, loud, scale = once
 				pattern = PATTERNS[chosen]
 				if pattern.steps and (loud or not quiet(self._config, self.clock())):
 					self._report(pattern.title, why)
-					self._play(led, pattern, self._urgent, self.TEST_SECONDS if pattern.repeat else 0.0)
+					self._play(led, pattern, self._urgent, self.TEST_SECONDS if pattern.repeat else 0.0, scale)
 				# the state underneath is told again when it plays on
 				reported = None
 				continue
@@ -216,7 +227,7 @@ class Led:
 			if reported != key:
 				self._report(pattern.title, STATE_WORDS.get(state or "", ""))
 				reported = key
-			interrupted = self._play(led, pattern, self._wake, 0.0)
+			interrupted = self._play(led, pattern, self._wake, 0.0, scale_of(self._config.get("ledSpeed")))
 			played = key if not pattern.repeat and not interrupted else None
 		if led is not None:
 			try:
@@ -233,11 +244,11 @@ class Led:
 			logger.debug("The LED's pattern could not be reported", exc_info=True)
 
 	@staticmethod
-	def _play(led: Any, pattern: Pattern, stop: threading.Event, seconds: float) -> bool:
-		"""One cycle of `pattern`'s steps, or cycles for `seconds`; True when `stop` was set meanwhile (the LED is left off)."""
+	def _play(led: Any, pattern: Pattern, stop: threading.Event, seconds: float, scale: float = 1.0) -> bool:
+		"""One cycle of `pattern`'s steps, each time times `scale` (the speed), or cycles for `seconds`; True when `stop` was set meanwhile (the LED is left off)."""
 		played = 0.0
 		while True:
-			for on_time, off_time in pattern.steps:
+			for on_time, off_time in ((on * scale, off * scale) for on, off in pattern.steps):
 				led.on()
 				if stop.wait(on_time):
 					led.off()
