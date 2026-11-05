@@ -79,7 +79,7 @@ cd app && npm run e2e                      # build, then the browser tests (Play
 ```
 
 - `npm run build` runs `vue-tsc -b` first, which reports **zero** errors; keep it that way (a type error fails the build).
-- **Logging:** production logs at INFO, `--dev` at DEBUG, `EINK_LOG_LEVEL` decides last; `watchdog`'s file events are WARNING everywhere. The setup code is a block of its own in the log (`setup_banner`), found with `grep "Setup code"`.
+- **Logging:** production logs at INFO, `--dev` at DEBUG, `EINK_LOG_LEVEL` decides last; `watchdog`'s file events and `httpx`'s request lines (each request's whole address, which can hold a secret, #881) are WARNING everywhere. The setup code is a block of its own in the log (`setup_banner`), found with `grep "Setup code"`.
 - Options: `--port` (default 8080 with `--dev`, else 80), `--token` or `EINK_API_TOKEN` (Bearer token on `/api`), `--app` (web bundle folder), `--ssl` (or `EINK_SSL=1`) with `--ssl-certfile` / `--ssl-keyfile` (or `EINK_SSL_CERTFILE` / `EINK_SSL_KEYFILE`).
 - Do not start the server with `pkill -f`/`pgrep -f` patterns that match your own shell command; start it in the background, record its PID, and signal that PID
   (`uv run` is a wrapper: signal the Python child, not the `uv` process).

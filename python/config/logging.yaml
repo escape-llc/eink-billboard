@@ -37,6 +37,10 @@ loggers:
     level: WARNING    # Only show Warnings and Errors
     handlers: [consoleHandler]
     propagate: False
+  httpx:
+    level: WARNING    # its INFO line is every request's whole address, which can hold a secret (a private calendar address, a password in it; #881)
+    handlers: [consoleHandler]
+    propagate: False
   httpcore.connection:
     level: WARNING    # Only show Warnings and Errors
     handlers: [consoleHandler]

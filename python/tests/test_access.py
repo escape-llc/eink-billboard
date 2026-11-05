@@ -237,6 +237,14 @@ class TestPublicUrl(unittest.TestCase):
 		for unknown in ("", "loud", "5"):
 			self.assertEqual(self.main.log_level(False, unknown), logging.INFO, unknown)
 
+	def test_no_request_address_is_logged_at_any_level(self):
+		# httpx logs each request's whole address at INFO, and an address the user typed can hold a secret (#881): its loggers stay at WARNING, --dev too
+		import logging, yaml
+		with open(os.path.join(os.path.dirname(self.main.__file__), "config", "logging.yaml"), encoding="utf-8") as f:
+			loggers = yaml.safe_load(f)["loggers"]
+		for name in ("httpx", "httpcore.connection", "httpcore.http11"):
+			self.assertGreaterEqual(logging.getLevelName(loggers[name]["level"]), logging.WARNING, name)
+
 class TestSetupPageOnThePanel(unittest.TestCase):
 	def application(self, notice):
 		import tempfile
