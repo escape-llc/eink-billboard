@@ -38,6 +38,7 @@ TRIVIAL = re.compile(r"^(import |from \S+ import |#|//|/\*|\*|\{#|<!--|[\][(){}<
 # our files that share lines with InkyPi for a reason, reviewed (#694): the path from the repository's root, and why
 ACCEPTED = {
 	"python/static/render/plugin.html": "the @font-face loop and the stylesheet links: what a page that declares its fonts and links its stylesheets is made of",
+	"python/datasources/transit/render/transit.html": "four single CSS declarations (justify-content flex-start, flex-end, space-between; text-transform uppercase) and the {% extends %} line every page of ours starts with",
 }
 
 
