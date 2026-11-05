@@ -269,6 +269,8 @@ class FakeDevice:
 		self.opened_with: dict[str, Any]|None = None
 		self.emit: Callable[[str, str], None]|None = None
 		self.closed = False
+	def wanted(self, config: Mapping[str, Any]) -> bool:
+		return bool(self.pins(config))
 	def pins(self, config: Mapping[str, Any]) -> dict[str, int]:
 		return { f"gpio-{row['pin']}": row["pin"] for row in config.get("triggers") or [] if isinstance(row.get("pin"), int) }
 	def open(self, emit: Callable[[str, str], None], config: Mapping[str, Any]) -> None:

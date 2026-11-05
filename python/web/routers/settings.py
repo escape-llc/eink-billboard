@@ -5,7 +5,7 @@ from typing import Any, Callable, cast
 from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse
 
-from ...device.pins import led_pin_errors, panel_pin_errors, playlist_row_errors
+from ...device.pins import feedback_row_errors, output_pin_errors, panel_pin_errors, playlist_row_errors
 from ...model.configuration_manager import CollectInfoDict
 from ..deps import CM
 from ..documents import playlist_ids, from_source, row_plugin_errors, get_document, instance_properties, load_schema_lookups, load_schema_properties, put_document, secret_fields, settings_choices, settings_lookup_items
@@ -101,7 +101,8 @@ def put_device_settings(name: str, request: Request, cm: CM, body: dict[str, Any
 		if name == "devices":
 			# a button on a pin the panel uses cannot work: said on its row, as the pin list says it (the panel is the one the display settings choose now)
 			errors += panel_pin_errors(document.get("triggers"), chosen_panel(request, cm))
-			errors += led_pin_errors(document, chosen_panel(request, cm))
+			errors += output_pin_errors(document, chosen_panel(request, cm))
+			errors += feedback_row_errors(document)
 			errors += playlist_row_errors(document.get("triggers"), playlist_ids(cm))
 		return errors
 	return put_document(f"{name}-settings", body, cob, properties, lookups=lookups, schema_id=(schema or {}).get("_schema"), extra_errors=extra)

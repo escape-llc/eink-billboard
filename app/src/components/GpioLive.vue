@@ -1,21 +1,21 @@
 <template>
-	<!-- the buttons as they are used, at two levels: what the pin did ("pin"), and what the device made of it ("action"), and what the LED plays ("led"); newest first. Press a button to see the wiring work -->
+	<!-- the buttons as they are used, at two levels: what the pin did ("pin"), and what the device made of it ("action"), and what an output plays ("output"); newest first. Press a button to see the wiring work -->
 	<section class="gpio-live" aria-label="Buttons, live" data-testid="gpio-live">
 		<h3 class="m-0">Buttons, live</h3>
 		<ol class="event-list">
-			<li v-for="(e, i) in shown" :key="e.seq ?? `x${i}`" class="event" :class="{ ignored: e.values?.result === 'ignored' }" :data-level="e.kind === 'gpio' ? 'pin' : e.kind === 'led' ? 'led' : 'action'">
+			<li v-for="(e, i) in shown" :key="e.seq ?? `x${i}`" class="event" :class="{ ignored: e.values?.result === 'ignored' }" :data-level="e.kind === 'gpio' ? 'pin' : e.kind === 'output' ? 'output' : 'action'">
 				<span class="time">{{ clockOf(e.ts) }}</span>
-				<Tag :value="tagOf(e)" :severity="e.kind === 'gpio' ? 'secondary' : e.kind === 'led' ? 'info' : e.values?.result === 'ignored' ? 'warn' : 'success'" />
+				<Tag :value="tagOf(e)" :severity="e.kind === 'gpio' ? 'secondary' : e.kind === 'output' ? 'info' : e.values?.result === 'ignored' ? 'warn' : 'success'" />
 				<span class="text">{{ describe(e) }}</span>
 			</li>
-			<li v-if="shown.length === 0" class="muted">Nothing yet: press a button, or Test an LED pattern.</li>
+			<li v-if="shown.length === 0" class="muted">Nothing yet: press a button, or Test a cue.</li>
 		</ol>
 	</section>
 </template>
 <script setup lang="ts">
 /**
  * The GPIO tab's live view of the buttons: the link's `gpio` events (a pin's own level: pressed, held, released, whatever it is set to), `input` events (what the press became, or why
- * it became nothing) and `led` events (the pattern the LED began, and why: #885). The page's one link is App.vue's.
+ * it became nothing) and `output` events (the cue an output began, and why: #885, #891). The page's one link is App.vue's.
  */
 import { computed } from "vue"
 import { Tag } from "primevue"
@@ -24,9 +24,9 @@ import { describeEvent as describe } from "../composables/usePanelNow"
 
 const SHOWN = 8
 const link = useTelemetry()
-const KINDS = ["gpio", "input", "led"]
+const KINDS = ["gpio", "input", "output"]
 const shown = computed(() => link.state.events.filter(e => KINDS.includes(e.kind)).slice(0, SHOWN))
-const tagOf = (e: TelemetryEvent) => e.kind === "gpio" ? "Pin" : e.kind === "led" ? "LED" : "Action"
+const tagOf = (e: TelemetryEvent) => e.kind === "gpio" ? "Pin" : e.kind === "output" ? "Output" : "Action"
 </script>
 <style scoped>
 .gpio-live {

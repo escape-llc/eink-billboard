@@ -131,17 +131,18 @@ class ReloadDevices(BasicMessage):
 @dataclass(frozen=True, slots=True)
 class Indicate(BasicMessage):
 	"""
-	A state the LED shows (#885), on the `indicator` route to the DeviceIO task: `drawing` (the Display, while the panel refreshes) or `problem` (`faulted`: the playlist layer, every track
-	struck out; `unclaimed`: the Application, until the device is claimed). `on` says whether it began or ended. Sent whether there is an LED or not.
+	A state the outputs show (#885, #891), on the `indicator` route to the DeviceIO task: `drawing` (the Display, while the panel refreshes) or `problem` (`faulted`: the playlist layer, every track
+	struck out; `unclaimed`: the Application, until the device is claimed). `on` says whether it began or ended. Sent whether there is an output or not.
 	"""
 	signal: str
 	on: bool
 
 @dataclass(frozen=True, slots=True)
-class LedTest(BasicMessage):
-	"""Play a pattern on the LED now (the GPIO settings' Test beside a pattern or the speed), for the DeviceIO task. `speed` is the one to play it at, else the saved one."""
-	pattern: str
-	speed: str|None = None
+class OutputTest(BasicMessage):
+	"""Play a cue on one output now (the GPIO settings' Test beside a feedback row's cue, or an output's speed), for the DeviceIO task. `options` are the form's (a `speed`), else the saved ones."""
+	output: str
+	cue: str
+	options: Mapping[str, Any]|None = None
 
 @dataclass(frozen=True, slots=True)
 class SetupCodeChanged(BasicMessage):
