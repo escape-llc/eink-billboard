@@ -576,7 +576,7 @@ class TestDevicesSettings(WebApiTestBase):
 
 	def test_its_schema_is_served_and_every_property_is_described(self):
 		schema = self.client.get("/api/schemas/devices").json()
-		[triggers] = [p for p in schema["schema"]["properties"] if p["type"] != "header"]
+		[triggers] = [p for p in schema["schema"]["properties"] if p["name"] == "triggers"]
 		self.assertEqual(triggers["name"], "triggers")
 		self.assertTrue(triggers.get("title") and triggers.get("description"))
 		pin, action, playlist = triggers["items"]["properties"]

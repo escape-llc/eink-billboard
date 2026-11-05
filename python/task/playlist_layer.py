@@ -12,7 +12,7 @@ from typing import Any, Mapping, NamedTuple, NotRequired, ReadOnly, TypedDict, c
 from PIL import Image
 from .display_messages import DisplayImage, DisplaySettings
 from .coalescer import Coalescer
-from .messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage, ReloadSchedules, Telemetry
+from .messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, Indicate, QuitMessage, ReloadSchedules, Telemetry
 from .configure_event import ConfigureEvent
 from .message_router import MessageRouter
 from .source_router import SourceRouter, image_source
@@ -152,6 +152,8 @@ class PlaylistLayer(DispatcherTask):
 		# why each failed track failed, for its error page (our own words or an exception's type name, never the exception's text)
 		self._reasons: dict[tuple[int, int], str] = {}
 		self._restart_timer: threading.Timer|None = None
+		# the LED was told the layer faulted (#885): told again, once, when a track plays or the playlists change
+		self._fault_shown = False
 		# stopped by a transport command: nothing starts the layer again (a reload, the restart timer, the end of a pass) until it is resumed
 		self._halted = False
 		# the track the layer is on (set on the pool's loop when each track begins; replaced whole, so a reader sees one or the other)
@@ -507,6 +509,7 @@ class PlaylistLayer(DispatcherTask):
 						self._unfit.discard(key)
 						self._backoff = 0.0
 						self.state = 'playing'
+						self._show_fault(False, tod.current_time())
 						telemetry: TelemetryDict = {
 							"state": self.state,
 							'current_playlist_index': plindex,
@@ -549,6 +552,7 @@ class PlaylistLayer(DispatcherTask):
 	def _layer_faulted(self, msg: LayerFaulted):
 		"""Every track has struck out: say so once, and try again when the first of them is due (or when the configuration changes)."""
 		self.state = 'faulted'
+		self._show_fault(True, msg.timestamp)
 		delay = max(1.0, min((self._retry_in(key) for key in self._struck_at), default=self._policy().retry))
 		self.logger.error(f"'{self.name}' faulted: every track struck out. Trying again in {self._words(delay)}, or when the configuration changes.")
 		self._cancel_restart()
@@ -580,6 +584,12 @@ class PlaylistLayer(DispatcherTask):
 		self.logger.info(f"'{self.name}' trying the struck-out tracks again.")
 		self.state = 'loaded'
 		self.accept(StartPlayback(self._now(msg.timestamp)))
+	def _show_fault(self, on: bool, ts: datetime) -> None:
+		"""The LED's problem: every track struck out (on), or that is over (off); said only when it changes."""
+		if on == self._fault_shown:
+			return
+		self._fault_shown = on
+		self.router.send("indicator", Indicate(ts, "faulted", on))
 	def _next_backoff(self) -> float:
 		"""Doubles the wait before the next pass, from BACKOFF_INITIAL_SECONDS up to BACKOFF_MAX_SECONDS."""
 		self._backoff = self.BACKOFF_INITIAL_SECONDS if self._backoff <= 0 else min(self._backoff * 2, self.BACKOFF_MAX_SECONDS)
@@ -723,6 +733,7 @@ class PlaylistLayer(DispatcherTask):
 		self._strikes.clear()
 		self._struck_at.clear()
 		self._unfit.clear()
+		self._show_fault(False, msg.timestamp)
 		self._current = located
 		if self._halted:
 			self.logger.info(f"'{self.name}' playlists changed while stopped, they wait for Play.")

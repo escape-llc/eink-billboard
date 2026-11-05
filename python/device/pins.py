@@ -81,6 +81,19 @@ def panel_pin_errors(rows: object, panel: Panel|None, list_name: str = "triggers
 			errors.append({ "path": [list_name, str(index), "pin"], "message": f"The panel uses this pin ({taken[pin]}): choose another." })
 	return errors
 
+def led_pin_errors(document: Mapping[str, object], panel: Panel|None) -> list[dict]:
+	"""The LED's pin (`ledPin`) at a save: not one the panel uses, not one a button's row uses (`triggers`), at `["ledPin"]`. The same rules `check_pins` applies when the devices are opened."""
+	pin = document.get("ledPin")
+	if not isinstance(pin, int) or isinstance(pin, bool):
+		return []
+	taken = panel_lines(panel)
+	if pin in taken:
+		return [{ "path": ["ledPin"], "message": f"The panel uses this pin ({taken[pin]}): choose another." }]
+	rows = document.get("triggers")
+	if isinstance(rows, list) and any(isinstance(row, dict) and row.get("pin") == pin for row in rows):
+		return [{ "path": ["ledPin"], "message": "A button uses this pin: each needs its own." }]
+	return []
+
 def playlist_row_errors(rows: object, playlists: Mapping[str, str], list_name: str = "triggers") -> list[dict]:
 	"""A row that plays a playlist names one that exists (`playlists`: each id with its name), at `[list, "<row>", "playlist"]`; the choice is a lookup the form cannot check."""
 	errors: list[dict] = []

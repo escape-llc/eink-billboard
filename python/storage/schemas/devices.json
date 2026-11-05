@@ -7,6 +7,18 @@
 			},
 			"playlists": {
 				"url": "/api/devices/playlists"
+			},
+			"ledPatterns": {
+				"items": [
+					{ "name": "Off", "value": "off" },
+					{ "name": "One blink", "value": "blink-1" },
+					{ "name": "Two blinks", "value": "blink-2" },
+					{ "name": "Three blinks", "value": "blink-3" },
+					{ "name": "Steady", "value": "steady" },
+					{ "name": "Slow blink", "value": "slow" },
+					{ "name": "Fast blink", "value": "fast" },
+					{ "name": "Heartbeat", "value": "heartbeat" }
+				]
 			}
 		},
 		"properties": [
@@ -82,10 +94,95 @@
 						"run": "/api/devices/triggers"
 					}
 				}
+			},
+			{
+				"name": "ledHeader",
+				"type": "header",
+				"title": "LED"
+			},
+			{
+				"name": "ledPin",
+				"type": "integer",
+				"title": "LED Pin",
+				"required": false,
+				"minimum": 2,
+				"maximum": 27,
+				"default": null,
+				"description": "The GPIO number (BCM) of an LED wired from the pin through a resistor to ground; the Inky Impression has one on 13, at the top centre edge of the board. Empty: no LED. Not a pin the panel or a button uses. Its patterns say at once what the panel takes half a minute to show.",
+				"lookup": "pins"
+			},
+			{
+				"name": "ledPress",
+				"type": "string",
+				"title": "On a Press",
+				"required": false,
+				"default": "blink-1",
+				"description": "What the LED does when a button is pressed: played once. Test plays the pattern chosen now, on the LED of the saved pin.",
+				"lookup": "ledPatterns",
+				"test": { "url": "/api/devices/led/test" }
+			},
+			{
+				"name": "ledLongPress",
+				"type": "string",
+				"title": "On a Long Press",
+				"required": false,
+				"default": "blink-2",
+				"description": "What the LED does when a button is held for a second: played once.",
+				"lookup": "ledPatterns",
+				"test": { "url": "/api/devices/led/test" }
+			},
+			{
+				"name": "ledDrawing",
+				"type": "string",
+				"title": "While Drawing",
+				"required": false,
+				"default": "steady",
+				"description": "What the LED does while the panel refreshes (about half a minute): played until the panel is done. A press plays over it.",
+				"lookup": "ledPatterns",
+				"test": { "url": "/api/devices/led/test" }
+			},
+			{
+				"name": "ledProblem",
+				"type": "string",
+				"title": "On a Problem",
+				"required": false,
+				"default": "off",
+				"description": "What the LED does while something needs a look: every track of the playlist failed, or the device is waiting to be set up. Played until it is dealt with; it comes before Drawing.",
+				"lookup": "ledPatterns",
+				"test": { "url": "/api/devices/led/test" }
+			},
+			{
+				"name": "ledQuietFrom",
+				"type": "integer",
+				"title": "Quiet From",
+				"required": false,
+				"minimum": 0,
+				"maximum": 23,
+				"default": null,
+				"units": "h",
+				"description": "The hour (0 to 23, the device's time) the LED goes dark, for the night; it lights again at Quiet To. Either empty: never dark. A Test still plays."
+			},
+			{
+				"name": "ledQuietTo",
+				"type": "integer",
+				"title": "Quiet To",
+				"required": false,
+				"minimum": 0,
+				"maximum": 23,
+				"default": null,
+				"units": "h",
+				"description": "The hour (0 to 23) the LED lights again after Quiet From: 22 to 7 is dark from ten at night to seven in the morning."
 			}
 		]
 	},
 	"default": {
-		"triggers": []
+		"triggers": [],
+		"ledPin": null,
+		"ledPress": "blink-1",
+		"ledLongPress": "blink-2",
+		"ledDrawing": "steady",
+		"ledProblem": "off",
+		"ledQuietFrom": null,
+		"ledQuietTo": null
 	}
 }

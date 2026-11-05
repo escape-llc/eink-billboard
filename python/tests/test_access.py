@@ -291,10 +291,12 @@ class TestSetupPageOnThePanel(unittest.TestCase):
 		from ..task.messages import SetupDone
 		app, now = self.application(lambda: None)
 		app._setup_done(SetupDone(now))
-		route, message = app.router.send.call_args.args
-		self.assertEqual(route, "display")
+		sent = [call.args for call in app.router.send.call_args_list]
+		[message] = [m for route, m in sent if route == "display"]
 		self.assertIsInstance(message, PriorityRevoke)
 		self.assertEqual(message.title, "Set up this device")
+		# and the LED's problem is over (#885)
+		self.assertEqual([(m.signal, m.on) for route, m in sent if route == "indicator"], [("unclaimed", False)])
 
 	def test_the_setup_page_holds_the_panel_until_the_device_is_claimed(self):
 		from ..task.application import SETUP_HOLD
@@ -321,7 +323,10 @@ class TestSetupPageOnThePanel(unittest.TestCase):
 		playlist, timer = self.layers_of(app, now, lambda: ["Open http://pi.local", "Setup code 1234 5678"])
 		playlist.accept.assert_not_called()
 		timer.accept.assert_not_called()
-		self.assertEqual(app.router.send.call_args.args[1].title, "Set up this device")
+		shown = [call.args[1] for call in app.router.send.call_args_list if call.args[0] == "display"]
+		self.assertEqual(shown[-1].title, "Set up this device")
+		# the LED's problem while it waits (#885)
+		self.assertIn(("unclaimed", True), [(call.args[1].signal, call.args[1].on) for call in app.router.send.call_args_list if call.args[0] == "indicator"])
 		app.setup_notice = lambda: None
 		app._setup_done(SetupDone(now))
 		for layer, token in ((playlist, "playlist-layer"), (timer, "timer-layer")):

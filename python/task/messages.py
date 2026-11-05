@@ -129,6 +129,20 @@ class ReloadDevices(BasicMessage):
 	"""The DeviceIO task's own request (after it coalesced a burst of ConfigurationChanged) to read the devices' settings again and open what they say."""
 
 @dataclass(frozen=True, slots=True)
+class Indicate(BasicMessage):
+	"""
+	A state the LED shows (#885), on the `indicator` route to the DeviceIO task: `drawing` (the Display, while the panel refreshes) or `problem` (`faulted`: the playlist layer, every track
+	struck out; `unclaimed`: the Application, until the device is claimed). `on` says whether it began or ended. Sent whether there is an LED or not.
+	"""
+	signal: str
+	on: bool
+
+@dataclass(frozen=True, slots=True)
+class LedTest(BasicMessage):
+	"""Play a pattern on the LED now (the GPIO settings' Test beside a pattern), for the DeviceIO task."""
+	pattern: str
+
+@dataclass(frozen=True, slots=True)
 class SetupCodeChanged(BasicMessage):
 	"""The setup code was replaced (too many wrong ones): the setup page on the panel shows the new one."""
 

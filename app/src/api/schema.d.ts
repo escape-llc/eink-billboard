@@ -768,6 +768,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/devices/led/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Led Pattern
+         * @description The Test beside an LED pattern: plays the pattern chosen in the form on the LED of the saved pin, now (a pattern that repeats for a few seconds), the quiet hours or not.
+         */
+        post: operations["test_led_pattern_api_devices_led_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/devices/playlists": {
         parameters: {
             query?: never;
@@ -3702,6 +3722,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Saved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_led_pattern_api_devices_led_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Value */
+                    value?: unknown;
+                } & {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestAnswer"];
                 };
             };
             /** @description Validation Error */
