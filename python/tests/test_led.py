@@ -303,6 +303,21 @@ class TestLedInDeviceIO(unittest.TestCase):
 			self.assertIn("LED: one blink, a press", said)
 			self.assertIn("LED: three blinks, a test", said)
 
+	def test_held_past_a_long_press_the_led_says_let_go_and_then_plays_the_long_press(self):
+		with patch.dict(led_module.PATTERNS, FAST):
+			self.configure(ledPin=13, triggers=[{ "pin": 5, "action": "next" }])
+			[fake] = self.fakes
+			self.io.accept(InputEvent(NOW, "fake", "gpio-5", "down"))
+			time.sleep(0.1)
+			self.assertEqual(fake.lit_count(), 0, "a button going down plays nothing: what it is is decided at the release")
+			self.io.accept(InputEvent(NOW, "fake", "gpio-5", "hold"))
+			self.assertTrue(wait_until(lambda: fake.lit), "held: steady, the cue to let go")
+			self.io.accept(InputEvent(NOW, "fake", "gpio-5", "release"))
+			self.io.accept(InputEvent(NOW, "fake", "gpio-5", "long-press"))
+			self.assertTrue(wait_until(lambda: fake.lit_count() == 3 and not fake.lit), "then two blinks, and dark")
+			time.sleep(0.15)
+			self.assertEqual(fake.lit_count(), 3, "the hold is over: nothing more")
+
 	def test_a_state_that_began_before_the_led_was_opened_shows_at_once(self):
 		self.io.cm = self.cm
 		self.io._indicate(Indicate(NOW, "faulted", True))

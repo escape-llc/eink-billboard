@@ -47,9 +47,9 @@ PATTERNS: Mapping[str, Pattern] = {
 # what each event of the settings is, its field and the pattern when the field is not set (the schema's defaults)
 GESTURES: Mapping[str, tuple[str, str]] = { "press": ("ledPress", "blink-1"), "long-press": ("ledLongPress", "blink-2") }
 # the states, the more urgent first
-STATES: tuple[tuple[str, str, str], ...] = (("problem", "ledProblem", "off"), ("drawing", "ledDrawing", "steady"))
+STATES: tuple[tuple[str, str, str], ...] = (("holding", "ledHolding", "steady"), ("problem", "ledProblem", "off"), ("drawing", "ledDrawing", "steady"))
 # what each state is called in the telemetry
-STATE_WORDS: Mapping[str, str] = { "problem": "a problem", "drawing": "the panel drawing" }
+STATE_WORDS: Mapping[str, str] = { "holding": "a button held", "problem": "a problem", "drawing": "the panel drawing" }
 
 def led_pin(config: Mapping[str, Any]) -> int|None:
 	pin = config.get("ledPin")

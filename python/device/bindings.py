@@ -1,7 +1,7 @@
 """
 What an input means. A device only says that something happened (`InputEvent`: its name, which input, which gesture); the Application decides what that does, here. A button is bound by the
 GPIO settings' `triggers`: each row is a pin and an action the Application already has: `play`, `stop`, `next` (the transport commands), `toggle` (play when playback is stopped, else
-stop), `task` (run the task the row carries) or `playlist` (seek to the playlist the row names, by id). Only a press is bound; a long press does nothing yet.
+stop), `task` (run the task the row carries) or `playlist` (seek to the playlist the row names, by id). Only a press is bound; a long press does nothing yet. Both are decided when the button is let go (`buttons._wire`), so a long press is never a press too.
 """
 from typing import Any, Mapping
 
