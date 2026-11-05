@@ -6,13 +6,14 @@ A self-hosted e-ink billboard for a Raspberry Pi. Playlists of data sources (com
 
 ## Known limitations
 
-* **No real panel has been driven through the container setup yet.** The setup runs start to finish on a Raspberry Pi 5 with no panel attached: the app opens the panel's devices and loads every driver.
+* **A Waveshare panel has not been tried on real hardware.** It is tested against a stand-in panel; the setup has driven a real Pimoroni Inky only.
 * **Plain HTTP unless you turn HTTPS on.** The app serves HTTPS itself (`ssl on`, see [On your network](#on-your-network)); with the device's own certificate a browser warns the first time, since nobody vouches for it.
 * **Addresses you type are checked, then fetched.** The check that keeps a feed or picture address off the device and its local services can be fooled by a name that resolves differently the second time (DNS rebinding).
 * **1 GB of memory is the minimum supported.** A board with less (a Pi Zero 2 W, a Pi 3 A+: 512 MB) may work, at your own risk: see [What you need](#what-you-need).
 
 ## Documentation
 
+* Building one, with photos: [Build an E-ink Billboard](https://github.com/escape-llc/eink-billboard/wiki/Build-an-E%E2%80%90ink-Billboard) on the wiki (a Pi 3 B+ and an Inky Impression 7.3", from the card to the first playlist).
 * How to use the app: the **Help** drawer in the web app (the ? button).
 * [The Pi's command line](docs/pi-commands.md): every command of `deploy/eink-container.sh`, its settings and the setup's options.
 * [Architecture](docs/architecture.md): the display layers and compositor, the tasks, the storage.
@@ -21,9 +22,9 @@ A self-hosted e-ink billboard for a Raspberry Pi. Playlists of data sources (com
 
 # Set up a Raspberry Pi
 
-From a fresh Raspberry Pi to a working billboard in one command. The app runs in a container (Podman), so the Pi itself only gets Podman, git and its panel connections switched on; Python, the browser that draws the pages and the panel drivers are all inside the container.
+From a fresh Raspberry Pi to a working billboard in one command. The app runs in a container (Podman), so the Pi itself only gets Podman, git and its panel connections switched on; Python, the browser that draws the pages and the panel drivers are all inside the container. Putting the Pi and the panel together is on the wiki: [Build an E-ink Billboard](https://github.com/escape-llc/eink-billboard/wiki/Build-an-E%E2%80%90ink-Billboard).
 
-> **Status:** the whole setup runs start to finish on a **Raspberry Pi 3 B+ with Raspberry Pi OS Lite (Trixie, 64-bit) and Podman 5.4.2, driving a Pimoroni Inky Spectra 6 7.3" (E673)**: from a fresh card through the setup, claiming the device from a phone, pages drawn on the panel, and starting again after a restart. Earlier, a Raspberry Pi 5 (Bookworm, Podman 4.3) with no panel. A Waveshare panel on real hardware is untested.
+> **Status:** the whole setup runs start to finish on a **Raspberry Pi 3 B+ with Raspberry Pi OS Lite (Trixie, 64-bit) and Podman 5.4.2, driving a Pimoroni Inky Spectra 6 7.3" (E673)**: from a fresh card through the setup, claiming the device from a phone, pages drawn on the panel, its buttons, and starting again after a restart. Earlier, a Raspberry Pi 5 (Bookworm, Podman 4.3) with no panel. A Waveshare panel on real hardware is untested.
 
 ## What you need
 
@@ -45,7 +46,7 @@ It checks the Pi, **lists what it will do and asks once**, then asks for your pa
 
 ```mermaid
 flowchart TD
-    A["curl ... bootstrap.sh | bash"] --> B["Check the Pi: 64-bit, Pi 3 B+/4/5, not root, internet"]
+    A["curl ... bootstrap.sh | bash"] --> B["Check the Pi: 64-bit, Pi 3 B+/4/5, Trixie, not root, internet"]
     B --> C{"Go ahead?"}
     C -- no --> X["Nothing changed"]
     C -- yes --> D["sudo: install Podman and git,<br/>turn on SPI and I2C,<br/>add you to spi, i2c, gpio"]
