@@ -7,7 +7,7 @@ from ..errors import ApiError
 from ..deps import CM
 from ..documents import playlist_ids
 from ..openapi import Choice, Done, answers, test_route
-from ...device.led import PATTERNS
+from ...device.led import PATTERNS, SPEEDS
 from .transport import application_of
 
 router = APIRouter(prefix="/devices")
@@ -36,3 +36,16 @@ def test_led_pattern(request: Request, body: dict[str, Any] = Body(...)):
 	if not application_of(request).led_test(pattern):
 		return { "ok": False, "message": "There is no LED: choose its pin and save first (the GPIO tab says when it is open)." }
 	return { "ok": True, "message": f"Playing {PATTERNS[pattern].title.lower()} on the LED." }
+
+# what the Test beside the speed plays
+SPEED_TEST = "blink-3"
+
+@router.post("/led/speed-test", **test_route())
+def test_led_speed(request: Request, body: dict[str, Any] = Body(...)):
+	"""The Test beside the LED's speed: plays three blinks at the speed chosen in the form, on the LED of the saved pin, now, the quiet hours or not."""
+	speed = body.get("value")
+	if not isinstance(speed, str) or speed not in SPEEDS:
+		return { "ok": False, "message": "Choose a speed first." }
+	if not application_of(request).led_test(SPEED_TEST, speed):
+		return { "ok": False, "message": "There is no LED: choose its pin and save first (the GPIO tab says when it is open)." }
+	return { "ok": True, "message": f"Playing three blinks at {speed} s a blink on the LED." }

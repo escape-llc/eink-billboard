@@ -19,6 +19,17 @@
 					{ "name": "Fast blink", "value": "fast" },
 					{ "name": "Heartbeat", "value": "heartbeat" }
 				]
+			},
+			"ledSpeeds": {
+				"items": [
+					{ "name": "0.2 s (fastest)", "value": "0.2" },
+					{ "name": "0.3 s", "value": "0.3" },
+					{ "name": "0.4 s (normal)", "value": "0.4" },
+					{ "name": "0.5 s", "value": "0.5" },
+					{ "name": "0.6 s", "value": "0.6" },
+					{ "name": "0.7 s", "value": "0.7" },
+					{ "name": "0.8 s (slowest)", "value": "0.8" }
+				]
 			}
 		},
 		"properties": [
@@ -152,6 +163,16 @@
 				"test": { "url": "/api/devices/led/test" }
 			},
 			{
+				"name": "ledSpeed",
+				"type": "string",
+				"title": "Speed",
+				"required": false,
+				"default": "0.4",
+				"description": "How long one blink takes, on and off: every pattern speeds up or slows down with it, keeping its rhythm. Slower is easier to see from across a room. Test plays three blinks at the speed chosen now; the Tests beside the patterns use the saved speed.",
+				"lookup": "ledSpeeds",
+				"test": { "url": "/api/devices/led/speed-test" }
+			},
+			{
 				"name": "ledQuietFrom",
 				"type": "integer",
 				"title": "Quiet From",
@@ -182,6 +203,7 @@
 		"ledLongPress": "blink-2",
 		"ledDrawing": "steady",
 		"ledProblem": "off",
+		"ledSpeed": "0.4",
 		"ledQuietFrom": null,
 		"ledQuietTo": null
 	}

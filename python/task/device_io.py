@@ -163,7 +163,7 @@ class DeviceIO(DispatcherTask):
 	def _led_test(self, msg: LedTest):
 		led = self._led()
 		if led is not None:
-			led.test(msg.pattern)
+			led.test(msg.pattern, msg.speed)
 
 	def _show_states(self) -> None:
 		led = self._led()

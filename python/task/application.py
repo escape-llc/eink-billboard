@@ -403,13 +403,13 @@ class Application(DispatcherTask):
 			return False
 		self.router.send("timer-layer", RunTrigger(timestamp, f"Button on pin {row.get('pin')}", "priority-update", content))
 		return True
-	def led_test(self, pattern: str) -> bool:
-		"""Play a pattern on the LED now (the GPIO settings' Test, called from the web app's thread). False: no LED is open, or the application has stopped."""
+	def led_test(self, pattern: str, speed: str|None = None) -> bool:
+		"""Play a pattern on the LED now, at `speed` or the saved one (the GPIO settings' Test, called from the web app's thread). False: no LED is open, or the application has stopped."""
 		device_io = self.device_io
 		if device_io is None or not device_io.led_open:
 			return False
 		try:
-			device_io.accept(LedTest(self._now(), pattern))
+			device_io.accept(LedTest(self._now(), pattern, speed))
 		except ValueError:
 			return False
 		return True

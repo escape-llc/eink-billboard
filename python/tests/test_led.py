@@ -11,7 +11,7 @@ from typing import Any
 from unittest.mock import patch
 
 from ..device import led as led_module
-from ..device.led import GESTURES, PATTERNS, STATES, Led, Pattern, pattern_of, quiet, state_pattern
+from ..device.led import GESTURES, NORMAL_BLINK, PATTERNS, SPEEDS, STATES, Led, Pattern, pattern_of, quiet, scale_of, state_pattern
 from ..device.pins import Panel
 from ..model.service_container import ServiceContainer
 from ..model.time_of_day import SystemTimeOfDay, TimeOfDay
@@ -88,6 +88,17 @@ class TestPatternRules(unittest.TestCase):
 			self.assertEqual(fields[field]["default"], fallback, field)
 			self.assertEqual(schema["default"][field], fallback, field)
 			self.assertEqual(fields[field]["lookup"], "ledPatterns", field)
+		speeds = schema["schema"]["lookups"]["ledSpeeds"]["items"]
+		self.assertEqual(tuple(i["value"] for i in speeds), SPEEDS)
+		self.assertEqual((fields["ledSpeed"]["default"], schema["default"]["ledSpeed"]), ("0.4", "0.4"))
+		self.assertEqual(sum(led_module.BLINK), NORMAL_BLINK, "the normal speed is the blink the patterns are written for")
+
+	def test_a_speed_stretches_every_pattern_alike_and_anything_else_is_the_normal_speed(self):
+		self.assertEqual(scale_of("0.4"), 1.0)
+		self.assertEqual(scale_of("0.8"), 2.0)
+		self.assertEqual(scale_of("0.2"), 0.5)
+		for normal in (None, "", "0.9", 0.8, "fast"):
+			self.assertEqual(scale_of(normal), 1.0, normal)
 
 	def test_a_field_not_set_or_not_a_pattern_is_its_default(self):
 		self.assertEqual(pattern_of({}, "ledPress", "blink-1"), "blink-1")
@@ -195,6 +206,30 @@ class TestLed(unittest.TestCase):
 		led.test("disco")
 		time.sleep(0.1)
 		self.assertEqual(fake.lit_count(), count, "not a pattern: nothing")
+
+	def test_the_speed_plays_each_step_longer_or_shorter(self):
+		fake = FakeLed(13)
+		Led._play(fake, Pattern("One blink", ((0.03, 0.03),), False), threading.Event(), 0.0, 3.0)
+		[(on, _), (off, _)] = fake.switches
+		self.assertGreaterEqual(off - on, 0.085, "on for three times as long")
+
+	def test_the_saved_speed_plays_a_gesture_and_a_state_and_a_test_may_choose_its_own(self):
+		scales: list[float] = []
+		play = Led._play
+		def recording(led, pattern, stop, seconds, scale=1.0):
+			scales.append(scale)
+			return play(led, pattern, stop, seconds, scale)
+		with patch.object(Led, "_play", staticmethod(recording)):
+			led, [fake] = self.open(ledSpeed="0.8")
+			led.gesture("press")
+			self.assertTrue(wait_until(lambda: fake.lit_count() == 1 and not fake.lit))
+			led.test("blink-1", "0.2")
+			self.assertTrue(wait_until(lambda: fake.lit_count() == 2 and not fake.lit))
+			led.test("blink-1")
+			self.assertTrue(wait_until(lambda: fake.lit_count() == 3 and not fake.lit))
+			led.state("drawing", True)
+			self.assertTrue(wait_until(lambda: len(scales) >= 4))
+		self.assertEqual(scales[:4], [2.0, 0.5, 2.0, 2.0])
 
 	def test_closing_switches_it_off_and_lets_the_pin_go(self):
 		led, [fake] = self.open()
@@ -322,7 +357,9 @@ class TestApplicationLedTest(unittest.TestCase):
 		self.assertTrue(app.led_test("blink-1"))
 		[msg] = taken
 		self.assertIsInstance(msg, LedTest)
-		self.assertEqual(msg.pattern, "blink-1")
+		self.assertEqual((msg.pattern, msg.speed), ("blink-1", None))
+		self.assertTrue(app.led_test("blink-3", "0.6"))
+		self.assertEqual((taken[-1].pattern, taken[-1].speed), ("blink-3", "0.6"))
 
 class TestLedSettings(WebApiTestBase):
 	def put(self, **fields: Any):
@@ -363,6 +400,21 @@ class TestLedSettings(WebApiTestBase):
 		self.assertEqual(self.client.post("/api/devices/led/test", json={ "value": "disco" }).json(), { "ok": False, "message": "Choose a pattern first." })
 		self.assertTrue(self.client.post("/api/devices/led/test", json={ "value": "off" }).json()["ok"])
 		self.assertEqual(asked, ["heartbeat", "slow"], "Off and a pattern that is not one are not played")
+
+	def test_the_test_beside_the_speed_plays_three_blinks_at_the_speed_chosen(self):
+		asked: list[tuple[str, str|None]] = []
+		self.app.state.root_container.add_service(Application, SimpleNamespace(playlist_layer=object(), led_test=lambda p, s=None: asked.append((p, s)) or True))
+		played = self.client.post("/api/devices/led/speed-test", json={ "value": "0.7" })
+		self.assertEqual(played.json(), { "ok": True, "message": "Playing three blinks at 0.7 s a blink on the LED." })
+		self.assertEqual(asked, [("blink-3", "0.7")])
+		self.assertEqual(self.client.post("/api/devices/led/speed-test", json={ "value": "9" }).json(), { "ok": False, "message": "Choose a speed first." })
+		self.assertEqual(len(asked), 1)
+
+	def test_a_speed_that_is_not_one_is_refused(self):
+		self.assertEqual(self.put(ledSpeed="0.8").status_code, 200)
+		bad = self.put(ledSpeed="0.05")
+		self.assertEqual(bad.status_code, 422)
+		self.assertIn(["ledSpeed"], [e["path"] for e in bad.json()["errors"]])
 
 if __name__ == "__main__":
 	unittest.main()

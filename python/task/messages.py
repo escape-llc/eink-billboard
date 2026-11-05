@@ -139,8 +139,9 @@ class Indicate(BasicMessage):
 
 @dataclass(frozen=True, slots=True)
 class LedTest(BasicMessage):
-	"""Play a pattern on the LED now (the GPIO settings' Test beside a pattern), for the DeviceIO task."""
+	"""Play a pattern on the LED now (the GPIO settings' Test beside a pattern or the speed), for the DeviceIO task. `speed` is the one to play it at, else the saved one."""
 	pattern: str
+	speed: str|None = None
 
 @dataclass(frozen=True, slots=True)
 class SetupCodeChanged(BasicMessage):
