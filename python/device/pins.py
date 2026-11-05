@@ -39,6 +39,13 @@ def panel_lines(panel: Panel|None) -> Mapping[int, str]:
 # lines of the buses the install turns on for the panel: a button may use one when that bus is off, so they are said, not refused
 BUS_LINES: Mapping[int, str] = { 2: "I²C data", 3: "I²C clock", 7: "SPI chip select 1", 9: "SPI data in" }
 
+# what the panel's board wires to a free line (the Inky Impression's LED, #887): said in the list of pins, so the person sees which one to choose
+INKY_PARTS: Mapping[int, str] = { 13: "LED" }
+
+def board_parts(panel: Panel|None) -> Mapping[int, str]:
+	"""The parts on the panel's board that use a line the panel leaves free, by pin number; none when the board has none or is not known."""
+	return INKY_PARTS if panel is not None and panel.display_type == "inky" else {}
+
 @dataclass(frozen=True)
 class PinChoice:
 	"""One pin of the header as the GPIO settings offer it: its name (what it is, and why it cannot be used when it cannot) and whether it can be chosen."""
@@ -56,12 +63,14 @@ def panel_for(display_type: str|None, running: Panel|None) -> Panel|None:
 	return running if running is not None and running.display_type == display_type else Panel(display_type, 0, 0)
 
 def pin_choices(panel: Panel|None) -> list[PinChoice]:
-	"""Every pin the header offers (`FIRST_PIN` to `LAST_PIN`), the panel's lines marked as not available, the buses' lines said, in the order of the header's numbers."""
-	taken = panel_lines(panel)
+	"""Every pin the header offers (`FIRST_PIN` to `LAST_PIN`), the panel's lines marked as not available, the board's parts and the buses' lines said, in the order of the header's numbers."""
+	taken, parts = panel_lines(panel), board_parts(panel)
 	choices: list[PinChoice] = []
 	for pin in range(FIRST_PIN, LAST_PIN + 1):
 		if pin in taken:
 			choices.append(PinChoice(pin, f"GPIO {pin} · not available: the panel's {taken[pin]}", False))
+		elif pin in parts:
+			choices.append(PinChoice(pin, f"GPIO {pin} · {parts[pin]}", True))
 		elif pin in BUS_LINES:
 			choices.append(PinChoice(pin, f"GPIO {pin} · {BUS_LINES[pin]}: in use while that bus is on", True))
 		else:
