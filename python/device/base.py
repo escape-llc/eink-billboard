@@ -10,6 +10,9 @@ type Emit = Callable[[str, str], None]
 class InputDevice(Protocol):
 	# the device's name in events (`InputEvent.source`) and in the settings
 	id: str
+	def wanted(self, config: Mapping[str, Any]) -> bool:
+		"""The settings ask for this device (a button with a pin, an output that is connected): only then is it opened."""
+		...
 	def pins(self, config: Mapping[str, Any]) -> dict[str, int]:
 		"""The GPIO pins the settings give this device, by the name of the input (none when it is not set up). Nothing is opened to tell."""
 		...

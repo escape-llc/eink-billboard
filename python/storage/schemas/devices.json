@@ -8,19 +8,19 @@
 			"playlists": {
 				"url": "/api/devices/playlists"
 			},
-			"ledPatterns": {
+			"cues": {
 				"items": [
 					{ "name": "Off", "value": "off" },
-					{ "name": "One blink", "value": "blink-1" },
-					{ "name": "Two blinks", "value": "blink-2" },
-					{ "name": "Three blinks", "value": "blink-3" },
+					{ "name": "One", "value": "one" },
+					{ "name": "Two", "value": "two" },
+					{ "name": "Three", "value": "three" },
 					{ "name": "Steady", "value": "steady" },
-					{ "name": "Slow blink", "value": "slow" },
-					{ "name": "Fast blink", "value": "fast" },
+					{ "name": "Slow", "value": "slow" },
+					{ "name": "Fast", "value": "fast" },
 					{ "name": "Heartbeat", "value": "heartbeat" }
 				]
 			},
-			"ledSpeeds": {
+			"speeds": {
 				"items": [
 					{ "name": "0.2 s (fastest)", "value": "0.2" },
 					{ "name": "0.3 s", "value": "0.3" },
@@ -30,6 +30,18 @@
 					{ "name": "0.7 s", "value": "0.7" },
 					{ "name": "0.8 s (slowest)", "value": "0.8" }
 				]
+			},
+			"events": {
+				"items": [
+					{ "name": "Press", "value": "press" },
+					{ "name": "Long press", "value": "long-press" },
+					{ "name": "Held", "value": "holding" },
+					{ "name": "Problem", "value": "problem" },
+					{ "name": "Drawing", "value": "drawing" }
+				]
+			},
+			"outputs": {
+				"url": "/api/devices/outputs"
 			}
 		},
 		"properties": [
@@ -98,92 +110,128 @@
 					"plugin": {
 						"id": "priority-update",
 						"field": "content",
-						"when": {
-							"field": "action",
-							"const": "task"
-						},
+						"when": { "field": "action", "const": "task" },
 						"run": "/api/devices/triggers"
 					}
 				}
 			},
 			{
-				"name": "ledHeader",
+				"name": "outputsHeader",
 				"type": "header",
-				"title": "LED"
+				"title": "Outputs"
 			},
 			{
-				"name": "ledPin",
-				"type": "integer",
-				"title": "LED Pin",
+				"name": "outputs",
+				"type": "array",
+				"title": "Outputs",
 				"required": false,
-				"minimum": 2,
-				"maximum": 27,
-				"default": null,
-				"description": "The GPIO number (BCM) of an LED wired from the pin through a resistor to ground; the Inky Impression has one on 13, at the top centre edge of the board. Empty: no LED. Not a pin the panel or a button uses. Its patterns say at once what the panel takes half a minute to show.",
-				"lookup": "pins"
+				"description": "One row for each thing the device can say something with: a GPIO output (an LED wired from a pin through a resistor to ground, or an active buzzer; the Inky Impression has an LED on pin 13, at the top centre edge of the board), a haptic motor (a DRV2605 driver on the I²C bus, such as on the Impression's Qw/ST socket) or a sound card (a USB sound stick). A GPIO output with no pin is not connected. Feedback, below, says what each one says and when. An output whose hardware is not found is said in Activity, and the others still work.",
+				"items": {
+					"type": "object",
+					"key": "name",
+					"properties": [
+						{
+							"name": "name",
+							"type": "string",
+							"title": "Name",
+							"required": true,
+							"default": null,
+							"maxLength": 30,
+							"description": "What the output is called in Feedback and in Buttons, live: LED, Buzzer, Speaker."
+						},
+						{
+							"name": "kind",
+							"type": "string",
+							"title": "Kind",
+							"required": true,
+							"enum": [
+								"gpio",
+								"haptic",
+								"audio"
+							],
+							"default": "gpio",
+							"description": "GPIO: an LED or a buzzer on a pin. Haptic: a vibration motor (felt only while touching the device, so for the buttons). Audio: a sound card."
+						},
+						{
+							"name": "pin",
+							"type": "integer",
+							"title": "Pin",
+							"required": false,
+							"minimum": 2,
+							"maximum": 27,
+							"default": null,
+							"lookup": "pins",
+							"visibleIf": { "field": "kind", "const": "gpio" },
+							"description": "The GPIO number (BCM) it is wired to. Empty: not connected. Not a pin the panel, a button or another output uses."
+						},
+						{
+							"name": "speed",
+							"type": "string",
+							"title": "Speed",
+							"required": false,
+							"default": "0.4",
+							"lookup": "speeds",
+							"visibleIf": { "field": "kind", "const": "gpio" },
+							"test": { "url": "/api/devices/outputs/speed-test" },
+							"description": "How long one blink takes, on and off: every cue speeds up or slows down with it, keeping its rhythm. Slower is easier to see from across a room. Test plays three blinks at the speed chosen now, on the saved output."
+						},
+						{
+							"name": "volume",
+							"type": "integer",
+							"title": "Volume",
+							"required": false,
+							"minimum": 0,
+							"maximum": 100,
+							"default": 70,
+							"units": "%",
+							"visibleIf": { "field": "kind", "const": "audio" },
+							"description": "How loud the sound card plays the cues."
+						}
+					]
+				}
 			},
 			{
-				"name": "ledPress",
-				"type": "string",
-				"title": "On a Press",
+				"name": "feedback",
+				"type": "array",
+				"title": "Feedback",
 				"required": false,
-				"default": "blink-1",
-				"description": "What the LED does when a button is pressed: played once. Test plays the pattern chosen now, on the LED of the saved pin.",
-				"lookup": "ledPatterns",
-				"test": { "url": "/api/devices/led/test" }
+				"description": "What the outputs say, and when: one row for each event and output. Press and Long Press play once, when the button is let go; Held plays once a button has been held for a second (the cue that letting go is a long press); Problem while every track of the playlist has failed or the device waits to be set up; Drawing while the panel refreshes. One cue plays at a time on an output: a press plays over the others, Held comes before Problem, and Problem before Drawing. An LED keeps a Steady, Slow, Fast or Heartbeat cue going while the state lasts; a haptic motor and a sound card play a state's cue once, when it begins.",
+				"items": {
+					"type": "object",
+					"properties": [
+						{
+							"name": "event",
+							"type": "string",
+							"title": "Event",
+							"required": true,
+							"default": "press",
+							"lookup": "events",
+							"description": "When the output says it."
+						},
+						{
+							"name": "output",
+							"type": "string",
+							"title": "Output",
+							"required": true,
+							"default": null,
+							"lookup": "outputs",
+							"description": "Which output says it: one of the saved Outputs (save a new one first)."
+						},
+						{
+							"name": "cue",
+							"type": "string",
+							"title": "Cue",
+							"required": true,
+							"default": "one",
+							"lookup": "cues",
+							"test": { "url": "/api/devices/outputs/test" },
+							"description": "What it says. An LED blinks (One, Two, Three), stays lit (Steady) or keeps a rhythm (Slow, Fast, Heartbeat); a haptic motor clicks or buzzes the same counts and rhythms; a sound card plays a tone for each. Test plays it on the saved output now."
+						}
+					]
+				}
 			},
 			{
-				"name": "ledLongPress",
-				"type": "string",
-				"title": "On a Long Press",
-				"required": false,
-				"default": "blink-2",
-				"description": "What the LED does when a button is held for a second: played once.",
-				"lookup": "ledPatterns",
-				"test": { "url": "/api/devices/led/test" }
-			},
-			{
-				"name": "ledHolding",
-				"type": "string",
-				"title": "While Held",
-				"required": false,
-				"default": "steady",
-				"description": "What the LED does once a button has been held for a second, until it is let go: the cue that letting go now is a long press. A press is decided when the button is let go.",
-				"lookup": "ledPatterns",
-				"test": { "url": "/api/devices/led/test" }
-			},
-			{
-				"name": "ledDrawing",
-				"type": "string",
-				"title": "While Drawing",
-				"required": false,
-				"default": "steady",
-				"description": "What the LED does while the panel refreshes (about half a minute): played until the panel is done. A press plays over it.",
-				"lookup": "ledPatterns",
-				"test": { "url": "/api/devices/led/test" }
-			},
-			{
-				"name": "ledProblem",
-				"type": "string",
-				"title": "On a Problem",
-				"required": false,
-				"default": "off",
-				"description": "What the LED does while something needs a look: every track of the playlist failed, or the device is waiting to be set up. Played until it is dealt with; it comes before Drawing.",
-				"lookup": "ledPatterns",
-				"test": { "url": "/api/devices/led/test" }
-			},
-			{
-				"name": "ledSpeed",
-				"type": "string",
-				"title": "Speed",
-				"required": false,
-				"default": "0.4",
-				"description": "How long one blink takes, on and off: every pattern speeds up or slows down with it, keeping its rhythm. Slower is easier to see from across a room. Test plays three blinks at the speed chosen now; the Tests beside the patterns use the saved speed.",
-				"lookup": "ledSpeeds",
-				"test": { "url": "/api/devices/led/speed-test" }
-			},
-			{
-				"name": "ledQuietFrom",
+				"name": "quietFrom",
 				"type": "integer",
 				"title": "Quiet From",
 				"required": false,
@@ -191,10 +239,10 @@
 				"maximum": 23,
 				"default": null,
 				"units": "h",
-				"description": "The hour (0 to 23, the device's time) the LED goes dark, for the night; it lights again at Quiet To. Either empty: never dark. A Test still plays."
+				"description": "The hour (0 to 23, the device's time) every output goes still, for the night; it wakes again at Quiet To. Either empty: never still. A Test still plays."
 			},
 			{
-				"name": "ledQuietTo",
+				"name": "quietTo",
 				"type": "integer",
 				"title": "Quiet To",
 				"required": false,
@@ -202,20 +250,44 @@
 				"maximum": 23,
 				"default": null,
 				"units": "h",
-				"description": "The hour (0 to 23) the LED lights again after Quiet From: 22 to 7 is dark from ten at night to seven in the morning."
+				"description": "The hour (0 to 23) the outputs wake again after Quiet From: 22 to 7 is still from ten at night to seven in the morning."
 			}
 		]
 	},
 	"default": {
 		"triggers": [],
-		"ledPin": null,
-		"ledPress": "blink-1",
-		"ledLongPress": "blink-2",
-		"ledHolding": "steady",
-		"ledDrawing": "steady",
-		"ledProblem": "off",
-		"ledSpeed": "0.4",
-		"ledQuietFrom": null,
-		"ledQuietTo": null
+		"outputs": [
+			{
+				"name": "LED",
+				"kind": "gpio",
+				"pin": null,
+				"speed": "0.4",
+				"volume": null
+			}
+		],
+		"feedback": [
+			{
+				"event": "press",
+				"output": "LED",
+				"cue": "one"
+			},
+			{
+				"event": "long-press",
+				"output": "LED",
+				"cue": "two"
+			},
+			{
+				"event": "holding",
+				"output": "LED",
+				"cue": "steady"
+			},
+			{
+				"event": "drawing",
+				"output": "LED",
+				"cue": "steady"
+			}
+		],
+		"quietFrom": null,
+		"quietTo": null
 	}
 }

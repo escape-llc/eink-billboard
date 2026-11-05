@@ -15,10 +15,12 @@ import { apiPost, joinUrl } from "./ApiClient"
 import type { components } from "../api/schema"
 
 export interface PropsType {
-	/** the server's check for this field (`test.url` of the property): it gets `{ value }` and answers `{ ok, message }` */
+	/** the server's check for this field (`test.url` of the property): it gets `{ value }` (and `row`, in a list) and answers `{ ok, message }` */
 	route: string
 	baseUrl: string
 	value: unknown
+	/** in a list: the whole row the field is in, so the server knows what the value is for (a feedback row's output) */
+	row?: Record<string, unknown>
 	/** what is being tested, for the button's accessible name */
 	label?: string
 	/** the value is not valid, so there is nothing to test yet */
@@ -44,7 +46,7 @@ async function run() {
 	result.value = null
 	try {
 		// the address is the descriptor's, so it is not typed by path: its answer is
-		const answer = await apiPost<TestResult>(joinUrl(props.baseUrl, props.route), { value: props.value })
+		const answer = await apiPost<TestResult>(joinUrl(props.baseUrl, props.route), props.row ? { value: props.value, row: props.row } : { value: props.value })
 		if (mine === sent) result.value = { ok: answer?.ok === true, message: String(answer?.message ?? "") }
 	}
 	catch (ex: any) {

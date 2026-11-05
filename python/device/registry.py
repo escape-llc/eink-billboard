@@ -3,8 +3,8 @@ from typing import Callable
 
 from .base import InputDevice
 from .buttons import Buttons
-from .led import Led
+from .outputs import Outputs
 
 def available_devices() -> dict[str, Callable[[], InputDevice]]:
 	"""What makes each device, by its id."""
-	return { Buttons.id: Buttons, Led.id: Led }
+	return { Buttons.id: Buttons, Outputs.id: Outputs }

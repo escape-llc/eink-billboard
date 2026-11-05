@@ -56,7 +56,7 @@
 							<Button type="button" size="small" icon="mi mi-search" :aria-label="`Search for ${f.title} ${index + 1}`" :loading="rowLookup(f, row, index)?.loading === true"
 								@click="search(index, f)" />
 						</template>
-						<TestUrlButton v-if="f.test?.url && baseUrl !== undefined" bare :route="f.test.url" :baseUrl="baseUrl" :value="row[f.name]" :label="`${f.title} ${index + 1}`"
+						<TestUrlButton v-if="f.test?.url && baseUrl !== undefined" bare :route="f.test.url" :baseUrl="baseUrl" :value="row[f.name]" :row="row" :label="`${f.title} ${index + 1}`"
 							:disabled="!!cellError(index, f.name)" @result="(r: TestResult | null) => tested[`${index}:${f.name}`] = r" />
 					</InputGroup>
 					<Message v-if="f.lookup && lookupProblem(f, row, index)" severity="warn" size="small" variant="simple">{{ lookupProblem(f, row, index) }}</Message>

@@ -66,6 +66,9 @@ class Buttons:
 		self._factory = factory
 		self._buttons: list[Any] = []
 
+	def wanted(self, config: Mapping[str, Any]) -> bool:
+		return bool(self.pins(config))
+
 	def pins(self, config: Mapping[str, Any]) -> dict[str, int]:
 		found: dict[str, int] = {}
 		rows = config.get("triggers")

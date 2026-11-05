@@ -4114,57 +4114,33 @@
 				"summary": "Put Datasource Settings"
 			}
 		},
-		"/api/devices/led/speed-test": {
-			"post": {
-				"description": "The Test beside the LED's speed: plays three blinks at the speed chosen in the form, on the LED of the saved pin, now, the quiet hours or not.",
-				"operationId": "test_led_speed_api_devices_led_speed_test_post",
-				"requestBody": {
-					"content": {
-						"application/json": {
-							"schema": {
-								"additionalProperties": true,
-								"description": "A Test button's question: the field's value as typed (a write-only field's mask, or nothing, means the saved one).",
-								"properties": {
-									"value": {
-										"title": "Value"
-									}
-								},
-								"title": "TestBody",
-								"type": "object"
-							}
-						}
-					},
-					"required": true
-				},
+		"/api/devices/outputs": {
+			"get": {
+				"description": "The outputs a feedback row can name (the GPIO settings' saved Outputs), by name.",
+				"operationId": "get_outputs_api_devices_outputs_get",
 				"responses": {
 					"200": {
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/TestAnswer"
+									"items": {
+										"$ref": "#/components/schemas/Choice"
+									},
+									"title": "Response Get Outputs Api Devices Outputs Get",
+									"type": "array"
 								}
 							}
 						},
 						"description": "Successful Response"
-					},
-					"422": {
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/HTTPValidationError"
-								}
-							}
-						},
-						"description": "Validation Error"
 					}
 				},
-				"summary": "Test Led Speed"
+				"summary": "Get Outputs"
 			}
 		},
-		"/api/devices/led/test": {
+		"/api/devices/outputs/speed-test": {
 			"post": {
-				"description": "The Test beside an LED pattern: plays the pattern chosen in the form on the LED of the saved pin, now (a pattern that repeats for a few seconds), the quiet hours or not.",
-				"operationId": "test_led_pattern_api_devices_led_test_post",
+				"description": "The Test beside a GPIO output's speed: plays three blinks at the speed chosen in the form on that output (a saved, open one), now, the quiet hours or not.",
+				"operationId": "test_output_speed_api_devices_outputs_speed_test_post",
 				"requestBody": {
 					"content": {
 						"application/json": {
@@ -4205,7 +4181,54 @@
 						"description": "Validation Error"
 					}
 				},
-				"summary": "Test Led Pattern"
+				"summary": "Test Output Speed"
+			}
+		},
+		"/api/devices/outputs/test": {
+			"post": {
+				"description": "The Test beside a feedback row's cue: plays the cue chosen in the form on the row's output (a saved, open one), now (a cue that repeats for a few seconds on an LED), the quiet hours or not.",
+				"operationId": "test_feedback_cue_api_devices_outputs_test_post",
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"additionalProperties": true,
+								"description": "A Test button's question: the field's value as typed (a write-only field's mask, or nothing, means the saved one).",
+								"properties": {
+									"value": {
+										"title": "Value"
+									}
+								},
+								"title": "TestBody",
+								"type": "object"
+							}
+						}
+					},
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TestAnswer"
+								}
+							}
+						},
+						"description": "Successful Response"
+					},
+					"422": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPValidationError"
+								}
+							}
+						},
+						"description": "Validation Error"
+					}
+				},
+				"summary": "Test Feedback Cue"
 			}
 		},
 		"/api/devices/playlists": {

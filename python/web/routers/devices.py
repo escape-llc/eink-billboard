@@ -1,4 +1,4 @@
-"""The buttons and the LED wired to the device (the GPIO settings): running a button's task, and playing an LED pattern, from the web app."""
+"""The buttons and the outputs wired to the device (the GPIO settings): running a button's task, the outputs a feedback row names, and playing a cue, from the web app."""
 from typing import Any
 
 from fastapi import APIRouter, Body, Request
@@ -7,7 +7,9 @@ from ..errors import ApiError
 from ..deps import CM
 from ..documents import playlist_ids
 from ..openapi import Choice, Done, answers, test_route
-from ...device.led import PATTERNS, SPEEDS
+from ...device.cues import CUES
+from ...device.gpio_output import SPEEDS
+from ...device.outputs import output_rows
 from .transport import application_of
 
 router = APIRouter(prefix="/devices")
@@ -25,27 +27,48 @@ def run_button_task(pin: int, request: Request):
 		raise ApiError(409, reason, None)
 	return { "success": True }
 
-@router.post("/led/test", **test_route())
-def test_led_pattern(request: Request, body: dict[str, Any] = Body(...)):
-	"""The Test beside an LED pattern: plays the pattern chosen in the form on the LED of the saved pin, now (a pattern that repeats for a few seconds), the quiet hours or not."""
-	pattern = body.get("value")
-	if not isinstance(pattern, str) or pattern not in PATTERNS:
-		return { "ok": False, "message": "Choose a pattern first." }
-	if pattern == "off":
-		return { "ok": True, "message": "Off: the LED stays dark." }
-	if not application_of(request).led_test(pattern):
-		return { "ok": False, "message": "There is no LED: choose its pin and save first (the GPIO tab says when it is open)." }
-	return { "ok": True, "message": f"Playing {PATTERNS[pattern].title.lower()} on the LED." }
+def stored_devices(cm: Any) -> dict[str, Any]:
+	"""The saved `devices` settings (none saved: empty)."""
+	_, content = cm.settings_manager().open("devices").get()
+	return content if isinstance(content, dict) else {}
 
-# what the Test beside the speed plays
-SPEED_TEST = "blink-3"
+def _row_of(body: dict[str, Any]) -> dict[str, Any]:
+	row = body.get("row")
+	return row if isinstance(row, dict) else {}
 
-@router.post("/led/speed-test", **test_route())
-def test_led_speed(request: Request, body: dict[str, Any] = Body(...)):
-	"""The Test beside the LED's speed: plays three blinks at the speed chosen in the form, on the LED of the saved pin, now, the quiet hours or not."""
+def _no_output(name: str) -> dict:
+	return { "ok": False, "message": f"The output {name} is not open: save it first, with its hardware connected (the GPIO tab says when it is open)." }
+
+@router.get("/outputs", **answers(list[Choice]))
+def get_outputs(cm: CM):
+	"""The outputs a feedback row can name (the GPIO settings' saved Outputs), by name."""
+	return [{ "name": row["name"], "value": row["name"] } for row in output_rows(stored_devices(cm))]
+
+@router.post("/outputs/test", **test_route())
+def test_feedback_cue(request: Request, body: dict[str, Any] = Body(...)):
+	"""The Test beside a feedback row's cue: plays the cue chosen in the form on the row's output (a saved, open one), now (a cue that repeats for a few seconds on an LED), the quiet hours or not."""
+	cue = body.get("value")
+	output = _row_of(body).get("output")
+	if not isinstance(cue, str) or cue not in CUES:
+		return { "ok": False, "message": "Choose a cue first." }
+	if not isinstance(output, str) or output == "":
+		return { "ok": False, "message": "Choose an output first." }
+	if cue == "off":
+		return { "ok": True, "message": "Off: the output stays still." }
+	if not application_of(request).output_test(output, cue):
+		return _no_output(output)
+	return { "ok": True, "message": f"Playing {CUES[cue].title.lower()} on {output}." }
+
+# what the Test beside a speed plays
+SPEED_TEST = "three"
+
+@router.post("/outputs/speed-test", **test_route())
+def test_output_speed(request: Request, body: dict[str, Any] = Body(...)):
+	"""The Test beside a GPIO output's speed: plays three blinks at the speed chosen in the form on that output (a saved, open one), now, the quiet hours or not."""
 	speed = body.get("value")
+	output = _row_of(body).get("name")
 	if not isinstance(speed, str) or speed not in SPEEDS:
 		return { "ok": False, "message": "Choose a speed first." }
-	if not application_of(request).led_test(SPEED_TEST, speed):
-		return { "ok": False, "message": "There is no LED: choose its pin and save first (the GPIO tab says when it is open)." }
-	return { "ok": True, "message": f"Playing three blinks at {speed} s a blink on the LED." }
+	if not isinstance(output, str) or not application_of(request).output_test(output, SPEED_TEST, { "speed": speed }):
+		return _no_output(str(output or "this output"))
+	return { "ok": True, "message": f"Playing three blinks at {speed} s a blink on {output}." }

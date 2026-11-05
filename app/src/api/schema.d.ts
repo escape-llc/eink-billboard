@@ -768,27 +768,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/devices/led/speed-test": {
+    "/api/devices/outputs": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
         /**
-         * Test Led Speed
-         * @description The Test beside the LED's speed: plays three blinks at the speed chosen in the form, on the LED of the saved pin, now, the quiet hours or not.
+         * Get Outputs
+         * @description The outputs a feedback row can name (the GPIO settings' saved Outputs), by name.
          */
-        post: operations["test_led_speed_api_devices_led_speed_test_post"];
+        get: operations["get_outputs_api_devices_outputs_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/devices/led/test": {
+    "/api/devices/outputs/speed-test": {
         parameters: {
             query?: never;
             header?: never;
@@ -798,10 +798,30 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Test Led Pattern
-         * @description The Test beside an LED pattern: plays the pattern chosen in the form on the LED of the saved pin, now (a pattern that repeats for a few seconds), the quiet hours or not.
+         * Test Output Speed
+         * @description The Test beside a GPIO output's speed: plays three blinks at the speed chosen in the form on that output (a saved, open one), now, the quiet hours or not.
          */
-        post: operations["test_led_pattern_api_devices_led_test_post"];
+        post: operations["test_output_speed_api_devices_outputs_speed_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/devices/outputs/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Feedback Cue
+         * @description The Test beside a feedback row's cue: plays the cue chosen in the form on the row's output (a saved, open one), now (a cue that repeats for a few seconds on an LED), the quiet hours or not.
+         */
+        post: operations["test_feedback_cue_api_devices_outputs_test_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3755,7 +3775,27 @@ export interface operations {
             };
         };
     };
-    test_led_speed_api_devices_led_speed_test_post: {
+    get_outputs_api_devices_outputs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Choice"][];
+                };
+            };
+        };
+    };
+    test_output_speed_api_devices_outputs_speed_test_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -3793,7 +3833,7 @@ export interface operations {
             };
         };
     };
-    test_led_pattern_api_devices_led_test_post: {
+    test_feedback_cue_api_devices_outputs_test_post: {
         parameters: {
             query?: never;
             header?: never;

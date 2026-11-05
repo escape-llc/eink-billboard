@@ -28,19 +28,19 @@ test("the devices tab lists the buttons: a pin and an action, none to start with
 	watch.expectNone()
 })
 
-// the LED (#885): its pin and a pattern for each event, each with a Test that asks the server to play it; the e2e server has no LED, so the Test says so
-test("the LED has a pin, the factory patterns, and a Test that reaches the server", async ({ page }) => {
+// the outputs (#885, #891): the factory LED (no pin yet) and its feedback rows, each cue with a Test that sends its row; the e2e server has no LED open, so the Test says so
+test("the outputs list the factory LED and its feedback, and a cue's Test reaches the server with its row", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "GPIO" }).click()
-	await expect(page.getByRole("combobox", { name: "LED Pin" })).toBeVisible()
-	// a chosen value names its drop-down (the form's Select), so each pattern is found by the factory's choice, each with its Test
-	for (const [field, pattern] of [["On a Press", "One blink"], ["On a Long Press", "Two blinks"], ["While Drawing", "Steady"], ["On a Problem", "Off"]]) {
-		await expect(page.getByRole("combobox", { name: pattern, exact: true })).toBeVisible()
-		await expect(page.getByRole("button", { name: `Test ${field}`, exact: true })).toBeVisible()
-	}
-	await page.getByRole("button", { name: "Test On a Press" }).click()
-	await expect(page.getByTestId("test-result")).toContainText("There is no LED")
+	await expect(page.getByRole("group", { name: "Outputs" })).toBeVisible()
+	await expect(page.getByRole("textbox", { name: "Name 1" })).toHaveValue("LED")
+	await expect(page.getByRole("group", { name: "Feedback" })).toBeVisible()
+	// the factory's four rows: each cue with its Test
+	for (const row of [1, 2, 3, 4])
+		await expect(page.getByRole("button", { name: `Test Cue ${row}`, exact: true })).toBeVisible()
+	await page.getByRole("button", { name: "Test Cue 1", exact: true }).click()
+	await expect(page.getByText("The output LED is not open")).toBeVisible()
 	watch.expectNone()
 })
 

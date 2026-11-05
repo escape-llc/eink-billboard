@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Callable, Mapping
 
-from .messages import ClockCheck, ConfigurationChanged, ConfigurationWatcherEvent, Indicate, InputEvent, LedTest, PushedImage, RestoreBegin, RestoreEnd, RestoreSettled, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, RunTask, RunTrigger, Telemetry, TransportCommand
+from .messages import ClockCheck, ConfigurationChanged, ConfigurationWatcherEvent, Indicate, InputEvent, OutputTest, PushedImage, RestoreBegin, RestoreEnd, RestoreSettled, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, RunTask, RunTrigger, Telemetry, TransportCommand
 from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
 from .coalescer import Coalescer
 from .protocols import MessageSink, IProvideTimer
@@ -403,13 +403,13 @@ class Application(DispatcherTask):
 			return False
 		self.router.send("timer-layer", RunTrigger(timestamp, f"Button on pin {row.get('pin')}", "priority-update", content))
 		return True
-	def led_test(self, pattern: str, speed: str|None = None) -> bool:
-		"""Play a pattern on the LED now, at `speed` or the saved one (the GPIO settings' Test, called from the web app's thread). False: no LED is open, or the application has stopped."""
+	def output_test(self, output: str, cue: str, options: Mapping[str, Any]|None = None) -> bool:
+		"""Play a cue on an output now, with the form's `options` (a speed) or the saved ones (the GPIO settings' Test, called from the web app's thread). False: that output is not open, or the application has stopped."""
 		device_io = self.device_io
-		if device_io is None or not device_io.led_open:
+		if device_io is None or not device_io.output_open(output):
 			return False
 		try:
-			device_io.accept(LedTest(self._now(), pattern, speed))
+			device_io.accept(OutputTest(self._now(), output, cue, options))
 		except ValueError:
 			return False
 		return True
