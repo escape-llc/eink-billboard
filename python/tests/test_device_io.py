@@ -120,6 +120,12 @@ class TestPinChoices(unittest.TestCase):
 		small, big = self.by_pin(Panel("inky", 800, 480)), self.by_pin(Panel("inky", 1600, 1200))
 		self.assertEqual({ pin for pin in big if not big[pin][1] } - { pin for pin in small if not small[pin][1] }, {16, 26})
 
+	def test_the_inkys_led_is_named_on_its_pin_and_only_on_an_inky(self):
+		self.assertEqual(self.by_pin(Panel("inky", 800, 480))[13], ("GPIO 13 · LED", True))
+		self.assertEqual(self.by_pin(Panel("inky", 1600, 1200))[13], ("GPIO 13 · LED", True))
+		self.assertEqual(self.by_pin(Panel("waveshare", 800, 480))[13], ("GPIO 13", True))
+		self.assertEqual(self.by_pin(None)[13], ("GPIO 13", True))
+
 	def test_a_pin_on_a_bus_is_offered_with_a_note_not_refused(self):
 		name, available = self.by_pin(Panel("waveshare", 800, 480))[2]
 		self.assertTrue(available)
