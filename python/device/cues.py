@@ -30,6 +30,9 @@ CUES: Mapping[str, Cue] = {
 GESTURES: Mapping[str, str] = { "press": "a press", "long-press": "a long press" }
 # the states, the more urgent first: holding (the cue to let go) before a problem before drawing
 STATES: Mapping[str, str] = { "holding": "a button held", "problem": "a problem", "drawing": "the panel drawing" }
+# why an output that showed a state goes off: the state is over (the live view's words)
+ENDED: Mapping[str, str] = { "holding": "the button let go", "problem": "the problem over", "drawing": "the panel drawn" }
+QUIET = "the quiet hours"
 EVENTS = (*GESTURES, *STATES)
 
 # the kinds of output (the schema's `kind` of an output row), each with the settings list of its feedback rows and its title in our sentences
