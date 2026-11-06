@@ -8,7 +8,7 @@ import time
 import unittest
 from typing import Any
 
-from ..device.audio import RATE, TONES, AudioRenderer, level, tone, usb_card
+from ..device.audio import CARDS, RATE, TONES, AudioRenderer, card_of, level, tone, usb_card
 from ..device.cues import CUES
 from ..plugins.plugin_base import PermanentError
 
@@ -177,6 +177,30 @@ class TestAudio(unittest.TestCase):
 		tone.cache_clear()
 		AudioRenderer(37, FakeAlsa(WITH_STICK))
 		self.assertTrue(wait_for(lambda: tone.cache_info().currsize >= len(TONES)), "each cue at the output's volume, before the first press")
+
+class TestCards(unittest.TestCase):
+	def test_the_headphone_jack_and_hdmi_are_found_by_name_and_opened_as_each_takes(self):
+		alsa = FakeAlsa(WITH_STICK)
+		AudioRenderer(70, alsa, "headphones").play("one", threading.Event(), 0.0)
+		assert alsa.pcm is not None
+		self.assertEqual(alsa.pcm.kwargs["device"], "plughw:1,0")
+		AudioRenderer(70, alsa, "hdmi").play("one", threading.Event(), 0.0)
+		self.assertEqual(alsa.pcm.kwargs["device"], "plug:'hdmi:CARD=0,DEV=0'", "the hdmi device makes the frames the Pi's HDMI takes; plug turns mono into what it takes")
+		AudioRenderer(70, alsa, "usb").play("one", threading.Event(), 0.0)
+		self.assertEqual(alsa.pcm.kwargs["device"], "plughw:2,0")
+
+	def test_anything_else_is_usb(self):
+		for choice in (None, "", "bluetooth", 3):
+			self.assertIs(card_of(choice), CARDS["usb"], choice)
+
+	def test_each_card_says_in_our_words_when_it_is_missing_or_refused(self):
+		with self.assertRaises(PermanentError) as raised:
+			AudioRenderer(70, FakeAlsa({ 0: "vc4-hdmi-0" }), "headphones")
+		self.assertIn("a Pi 5 or a Zero has none", str(raised.exception))
+		renderer = AudioRenderer(70, FakeAlsa(PI, busy=True), "hdmi")
+		with self.assertLogs("python.device.audio", "ERROR"), self.assertRaises(PermanentError) as refused:
+			renderer.play("one", threading.Event(), 0.0)
+		self.assertTrue(str(refused.exception).startswith("HDMI audio needs a display that plays sound connected and on"))
 
 def wait_for(test, seconds: float = 5.0) -> bool:
 	end = time.monotonic() + seconds

@@ -12,6 +12,7 @@ from typing import Any, Mapping
 from unittest.mock import patch
 
 from ..device import gpio_output
+from ..device.audio import CARDS
 from ..device.cues import CUES, EVENTS, FEEDBACK, KIND_CUES, KIND_EVENTS, KINDS
 from ..device.gpio_output import BLINK, NORMAL_BLINK, PATTERNS, SPEEDS, GpioRenderer, scale_of
 from ..device.outputs import Outputs, cues_for
@@ -108,6 +109,7 @@ class TestCueRules(unittest.TestCase):
 			schema = json.load(f)
 		lookups = schema["schema"]["lookups"]
 		self.assertEqual(tuple(i["value"] for i in lookups["speeds"]["items"]), SPEEDS)
+		self.assertEqual(tuple(i["value"] for i in lookups["cards"]["items"]), tuple(CARDS), "an audio output's cards are the ones it knows")
 		fields = { p["name"]: p for p in schema["schema"]["properties"] }
 		kind = next(p for p in fields["outputs"]["items"]["properties"] if p["name"] == "kind")
 		self.assertEqual(tuple(kind["enum"]), KINDS)

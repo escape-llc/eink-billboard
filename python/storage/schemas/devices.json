@@ -64,6 +64,13 @@
 					{ "name": "Drawing", "value": "drawing" }
 				]
 			},
+			"cards": {
+				"items": [
+					{ "name": "USB (first found)", "value": "usb" },
+					{ "name": "Headphone jack", "value": "headphones" },
+					{ "name": "HDMI", "value": "hdmi" }
+				]
+			},
 			"buttonEvents": {
 				"items": [
 					{ "name": "Press", "value": "press" },
@@ -164,7 +171,7 @@
 				"type": "array",
 				"title": "Outputs",
 				"required": false,
-				"description": "One row for each thing the device can say something with: a GPIO output (an LED wired from a pin through a resistor to ground, or an active buzzer; the Inky Impression has an LED on pin 13, at the top centre edge of the board), a haptic motor (a DRV2605 driver on the I²C bus, such as on the Impression's Qw/ST socket) or a sound card (a USB sound stick). A GPIO output with no pin is not connected. Feedback, below, says what each one says and when, a section for each kind. An output whose hardware is not found is said in Activity, and the others still work.",
+				"description": "One row for each thing the device can say something with: a GPIO output (an LED wired from a pin through a resistor to ground, or an active buzzer; the Inky Impression has an LED on pin 13, at the top centre edge of the board), a haptic motor (a DRV2605 driver on the I²C bus, such as on the Impression's Qw/ST socket) or a sound card (a USB sound stick, the Pi's headphone jack or its HDMI). A GPIO output with no pin is not connected. Feedback, below, says what each one says and when, a section for each kind. An output whose hardware is not found is said in Activity, and the others still work.",
 				"items": {
 					"type": "object",
 					"key": "name",
@@ -225,6 +232,16 @@
 							"units": "%",
 							"visibleIf": { "field": "kind", "const": "audio" },
 							"description": "How loud the sound card plays the cues."
+						},
+						{
+							"name": "card",
+							"type": "string",
+							"title": "Card",
+							"required": false,
+							"default": "usb",
+							"lookup": "cards",
+							"visibleIf": { "field": "kind", "const": "audio" },
+							"description": "Where the sound goes. USB: the first USB sound stick or USB speaker plugged in. Headphone jack: the Pi's own (a Pi 3 B+ or 4; a Pi 5 or a Zero has none), to any powered speaker. HDMI: a display that plays sound, a receiver, or an HDMI audio extractor (one with EDID emulation works with no display); it plays only while one is connected and on."
 						}
 					]
 				}
@@ -387,7 +404,8 @@
 				"kind": "gpio",
 				"pin": null,
 				"speed": "0.4",
-				"volume": null
+				"volume": null,
+				"card": null
 			}
 		],
 		"gpioFeedback": [
