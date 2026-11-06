@@ -118,5 +118,24 @@ class TestHaptic(unittest.TestCase):
 			builtins.__import__ = real
 		self.assertIn("device libraries", str(raised.exception))
 
+class TestUnplugged(unittest.TestCase):
+	def test_a_module_unplugged_is_said_in_our_words_and_plugged_in_again_gets_its_settings_back(self):
+		bus = FakeBus()
+		renderer = opened(bus)
+		bus.present = False
+		with self.assertRaises(PermanentError) as raised:
+			renderer.play("one", threading.Event(), 0.0)
+		self.assertEqual(str(raised.exception), "The haptic driver stopped answering on the I²C bus (address 0x5A): check the Qw/ST cable and the module.")
+		# plugged in again: the chip starts in standby with its own library, so the settings are written before the cue
+		bus.present = True
+		bus.registers[MODE] = STANDBY
+		bus.writes.clear()
+		self.assertFalse(renderer.play("one", threading.Event(), 0.0))
+		self.assertEqual(bus.writes[0], (MODE, 0x00))
+		self.assertIn((GO, 1), bus.writes)
+		bus.writes.clear()
+		renderer.play("one", threading.Event(), 0.0)
+		self.assertNotIn((MODE, 0x00), bus.writes, "only once")
+
 if __name__ == "__main__":
 	unittest.main()

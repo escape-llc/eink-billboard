@@ -1,6 +1,11 @@
 """
 An audio output (#867, #891): a USB sound card (a sound stick and a small speaker), found by itself. It does not hold: every cue plays once, as a tone made here (`TONES`), so no sound
-file ships with the app. The output's `volume` (0 to 100) scales the samples themselves, so no mixer is needed.
+file ships with the app. The output's `volume` (0 to 100) scales the samples themselves; the card's own playback control is set full and unmuted when the card is found (some sticks
+start muted), so the output's Volume is the one volume.
+
+The card is found and opened for each cue, and closed after it (#906): no stream sits idle between cues (a write after an idle stream can underrun: a clipped or silent first cue), a
+stick pulled out holds nothing open, and one plugged in again (its number can change) is found by the next cue. A cue whose card is gone raises our `PermanentError`, which the player
+says once.
 
 ALSA is reached with `pyalsaaudio` (the device dependency group, Linux; built in the device image against the ALSA library), imported only when the output is opened. The container is given
 `/dev/snd` (deploy/eink-container.sh).
@@ -19,6 +24,8 @@ logger = logging.getLogger(__name__)
 RATE = 48000
 # how much is written at a time: a cue cut short stops within this
 CHUNK_FRAMES = 1024
+# the controls of a card that are its output (a USB stick's, the Pi's own), set full when it is found
+OUTPUT_CONTROLS = ("PCM", "Speaker", "Master", "Headphone")
 # a note's edges are faded this long, so it starts and ends without a click
 FADE_SECONDS = 0.005
 
@@ -80,34 +87,86 @@ class AudioRenderer:
 	def __init__(self, volume: object = None, alsa: Any = None):
 		self._alsa = alsa or load_alsa()
 		self._volume = volume
+		# the card whose playback control was last set full (a stick plugged in again is set again)
+		self._card: int|None = None
+		self._find()
+		# each cue's tone at the output's volume, made in the background: the first press sounds at once
+		threading.Thread(target=self._prepare, name="audio-tones", daemon=True).start()
+
+	def _prepare(self) -> None:
+		for cue in TONES:
+			tone(cue, self._volume)
+
+	def _find(self) -> int:
+		"""The USB card now, its playback control set full and unmuted when it is new; else our `PermanentError`."""
 		try:
 			card = usb_card(self._alsa)
 		except Exception as e:
 			raise PermanentError("The sound cards could not be listed: check that the app is given /dev/snd.") from e
 		if card is None:
+			self._card = None
 			raise PermanentError("No USB sound card was found: plug one in (a USB sound stick), and check that the app is given /dev/snd.")
+		if card != self._card:
+			self._full(card)
+			self._card = card
+			logger.info(f"The sound card {card} is found.")
+		return card
+
+	def _full(self, card: int) -> None:
+		"""
+		The card's output controls full and unmuted: a stick that starts muted or low would make the Volume setting do nothing. Only these (`OUTPUT_CONTROLS`): a stick's `Mic`
+		control has a playback volume too, which would send the microphone to the speaker. A card without them is left as it is.
+		"""
+		try:
+			for name in self._alsa.mixers(cardindex=card):
+				if name not in OUTPUT_CONTROLS:
+					continue
+				mixer = self._alsa.Mixer(name, cardindex=card)
+				try:
+					caps = mixer.volumecap()
+					if "Volume" in caps or "Playback Volume" in caps:
+						mixer.setvolume(100)
+					switches = mixer.switchcap()
+					if "Mute" in switches or "Playback Mute" in switches:
+						mixer.setmute(0)
+				finally:
+					mixer.close()
+		except Exception as e:
+			logger.debug(f"The sound card {card}'s playback control could not be set ({type(e).__name__}).")
+
+	def play(self, cue: str, stop: threading.Event, seconds: float, options: Mapping[str, Any]|None = None) -> bool:
+		"""The cue's tone, once, on the card found now, written a chunk at a time; True when `stop` was set before it ended. A Test's `volume` replaces the output's."""
+		volume = options.get("volume") if options is not None and options.get("volume") is not None else self._volume
+		data = tone(cue, volume)
+		if not data:
+			return False
+		card = self._find()
 		try:
 			# plughw: ALSA converts our 48 kHz mono to what the card takes
-			self._pcm = self._alsa.PCM(type=self._alsa.PCM_PLAYBACK, mode=self._alsa.PCM_NORMAL, device=f"plughw:{card},0", channels=1, rate=RATE,
+			pcm = self._alsa.PCM(type=self._alsa.PCM_PLAYBACK, mode=self._alsa.PCM_NORMAL, device=f"plughw:{card},0", channels=1, rate=RATE,
 				format=self._alsa.PCM_FORMAT_S16_LE, periodsize=CHUNK_FRAMES)
 		except Exception as e:
 			logger.error(f"The sound card {card} could not be opened: {e}", exc_info=True)
 			raise PermanentError("The USB sound card could not be opened: is another program using it? The log has the detail.") from e
-		logger.info(f"The sound card {card} is open.")
-
-	def play(self, cue: str, stop: threading.Event, seconds: float, options: Mapping[str, Any]|None = None) -> bool:
-		"""The cue's tone, once, written a chunk at a time; True when `stop` was set before it ended. A Test's `volume` replaces the output's."""
-		volume = options.get("volume") if options is not None and options.get("volume") is not None else self._volume
-		data = tone(cue, volume)
 		step = CHUNK_FRAMES * 2
-		for start in range(0, len(data), step):
-			if stop.is_set():
-				return True
-			self._pcm.write(data[start:start + step])
-		return False
+		try:
+			for start in range(0, len(data), step):
+				if stop.is_set():
+					pcm.drop()
+					return True
+				pcm.write(data[start:start + step])
+			# what is still in the card's buffer plays out before it is closed
+			pcm.drain()
+			return False
+		except Exception as e:
+			# pulled out while it played: found again (or said missing) by the next cue
+			self._card = None
+			raise PermanentError("The USB sound card stopped while it played: is it still plugged in?") from e
+		finally:
+			pcm.close()
 
 	def off(self) -> None:
 		pass
 
 	def close(self) -> None:
-		self._pcm.close()
+		pass

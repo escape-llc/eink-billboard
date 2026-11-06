@@ -4,6 +4,9 @@ felt only while touching the device, so it suits the buttons. It does not hold: 
 
 The chip is reached with `smbus2` (pure Python, already brought by the `inky` package; the device dependency group, Linux), imported only when the output is opened. Its registers are the
 datasheet's (TI SLOS854): the motor is an ERM (eccentric rotating mass), so the ERM library and open loop are chosen.
+
+A module unplugged while open (#906) makes a cue raise our `PermanentError` (the player says it once); plugged in again it starts with the chip's own defaults, so its settings are
+written again before the next cue.
 """
 import logging
 import threading
@@ -71,22 +74,37 @@ class HapticRenderer:
 			self._close_bus()
 			raise PermanentError(f"The chip at address 0x{ADDRESS:02X} is not a DRV2605 haptic driver.")
 		try:
-			self._bus.write_byte_data(ADDRESS, MODE, INTERNAL_TRIGGER)
-			self._bus.write_byte_data(ADDRESS, RTP, 0)
-			self._bus.write_byte_data(ADDRESS, LIBRARY, ERM_LIBRARY)
-			# an ERM motor (N_ERM_LRA clear), driven open loop (ERM_OPEN_LOOP set)
-			self._bus.write_byte_data(ADDRESS, FEEDBACK, self._bus.read_byte_data(ADDRESS, FEEDBACK) & 0x7F)
-			self._bus.write_byte_data(ADDRESS, CONTROL3, self._bus.read_byte_data(ADDRESS, CONTROL3) | 0x20)
+			self._configure()
 		except OSError as e:
 			self._close_bus()
 			raise PermanentError("The haptic driver did not take its settings: check the Qw/ST cable.") from e
+		# the chip stopped answering (unplugged): its settings are written again before the next cue
+		self._lost = False
 		logger.info(f"The haptic driver at 0x{ADDRESS:02X} is open.")
+
+	def _configure(self) -> None:
+		self._bus.write_byte_data(ADDRESS, MODE, INTERNAL_TRIGGER)
+		self._bus.write_byte_data(ADDRESS, RTP, 0)
+		self._bus.write_byte_data(ADDRESS, LIBRARY, ERM_LIBRARY)
+		# an ERM motor (N_ERM_LRA clear), driven open loop (ERM_OPEN_LOOP set)
+		self._bus.write_byte_data(ADDRESS, FEEDBACK, self._bus.read_byte_data(ADDRESS, FEEDBACK) & 0x7F)
+		self._bus.write_byte_data(ADDRESS, CONTROL3, self._bus.read_byte_data(ADDRESS, CONTROL3) | 0x20)
 
 	def play(self, cue: str, stop: threading.Event, seconds: float, options: Mapping[str, Any]|None = None) -> bool:
 		"""The cue's effects, once; True when `stop` was set before they ended (the chip is stopped)."""
 		effects = EFFECTS.get(cue, ())
 		if not effects:
 			return False
+		try:
+			return self._play(effects, stop)
+		except OSError as e:
+			self._lost = True
+			raise PermanentError(f"The haptic driver stopped answering on the I²C bus (address 0x{ADDRESS:02X}): check the Qw/ST cable and the module.") from e
+
+	def _play(self, effects: tuple[int, ...], stop: threading.Event) -> bool:
+		if self._lost:
+			self._configure()
+			self._lost = False
 		for slot in range(SLOTS):
 			self._bus.write_byte_data(ADDRESS, SEQUENCE + slot, effects[slot] if slot < len(effects) else 0)
 		self._bus.write_byte_data(ADDRESS, GO, 1)

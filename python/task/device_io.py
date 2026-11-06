@@ -228,6 +228,8 @@ class DeviceIO(DispatcherTask):
 			for device_id, device in wanted.items():
 				if isinstance(device, Outputs):
 					device.on_play = self._output_played
+					# an output opened late, or whose hardware went, is said where a person looks (from the outputs' own threads: a telemetry send)
+					device.on_tell = self._tell
 					device.clock = self._now
 				device.open(self.emit_for(device_id), settings)
 				self._open[device_id] = device

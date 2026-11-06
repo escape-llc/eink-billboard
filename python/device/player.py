@@ -15,6 +15,7 @@ import threading
 from typing import Any, Callable, Mapping, Protocol
 
 from .cues import CUES, ENDED, GESTURES, QUIET, STATES
+from ..plugins.plugin_base import PermanentError
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class Player:
 	"""
 	`cues` is what this output plays for each event (the feedback rows that name it; an event with none plays nothing). `clock` says the time for the quiet hours (the DeviceIO task gives
 	the device's own, in its zone); `on_play` is told the title of each cue that starts and why, and Off when a state an output that holds showed is over, for the live view (from the player's own thread).
+	`on_fault` is told, once, in our words, that its hardware went (a sound card pulled out: the renderer's `PermanentError`), until a cue plays again.
 	"""
 	# a cue that repeats is played this long by a Test
 	TEST_SECONDS = 4.0
@@ -57,6 +59,7 @@ class Player:
 		self._config = dict(config)
 		self.clock = clock
 		self.on_play = on_play
+		self.on_fault: Callable[[str], None]|None = None
 		self._lock = threading.Lock()
 		# set when anything changes (a state, a cue to play once), and when a cue to play once arrives (it cuts short what plays; a state's change does not cut short a gesture)
 		self._wake = threading.Event()
@@ -136,6 +139,9 @@ class Player:
 		# the state cue last reported, while it shows (the live view hears of a change, not of each cycle), and a once-only state cue already played
 		reported: tuple[str, str]|None = None
 		played: tuple[str, str]|None = None
+		# the state cue being played (a once-only one that fails is not tried again: it would sound long after its state began), and what was last said of the hardware going
+		trying: tuple[str, str]|None = None
+		fault: str|None = None
 		while not self._closing:
 			self._wake.clear()
 			with self._lock:
@@ -148,6 +154,7 @@ class Player:
 					if cue != "off" and (loud or not quiet(self._config, self.clock())):
 						self._report(CUES[cue].title, why)
 						renderer.play(cue, self._urgent, self.TEST_SECONDS if self._repeats(cue) else 0.0, options)
+						fault = None
 					# the state underneath is told again when it plays on
 					reported = None
 					continue
@@ -170,8 +177,19 @@ class Player:
 				if reported != key:
 					self._report(CUES[cue].title, STATES.get(state or "", ""))
 					reported = key
+				trying = key
 				interrupted = renderer.play(cue, self._wake, 0.0)
+				trying, fault = None, None
 				played = key if not self._repeats(cue) and not interrupted else None
+			except PermanentError as e:
+				# the hardware went (a sound card pulled out): said once, not each cycle; it is tried again when something plays, or after a while
+				if fault != str(e):
+					fault = str(e)
+					self._fault(fault)
+				if trying is not None and not self._repeats(trying[0]):
+					played = trying
+				trying = None
+				self._wake.wait(self.IDLE_SECONDS)
 			except Exception:
 				# a medium that fails (a sound card pulled out) is said once a cycle and waited out, not a dead thread
 				logger.warning(f"The output '{self.name}' could not play", exc_info=True)
@@ -180,6 +198,15 @@ class Player:
 			renderer.off()
 		except Exception:
 			logger.debug(f"The output '{self.name}' could not be stilled", exc_info=True)
+
+	def _fault(self, message: str) -> None:
+		logger.warning(f"The output '{self.name}' could not play: {message}")
+		if self.on_fault is None:
+			return
+		try:
+			self.on_fault(message)
+		except Exception:
+			logger.debug(f"The output '{self.name}''s fault could not be said", exc_info=True)
 
 	def _report(self, title: str, why: str) -> None:
 		if self.on_play is None:
