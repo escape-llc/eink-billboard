@@ -4116,8 +4116,26 @@
 		},
 		"/api/devices/outputs": {
 			"get": {
-				"description": "The outputs a feedback row can name (the GPIO settings' saved Outputs), by name.",
+				"description": "The outputs a feedback row can name (the GPIO settings' saved Outputs), by name; `kind`: only that kind's (a feedback section's), any other value none.",
 				"operationId": "get_outputs_api_devices_outputs_get",
+				"parameters": [
+					{
+						"in": "query",
+						"name": "kind",
+						"required": false,
+						"schema": {
+							"anyOf": [
+								{
+									"type": "string"
+								},
+								{
+									"type": "null"
+								}
+							],
+							"title": "Kind"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"content": {
@@ -4132,6 +4150,16 @@
 							}
 						},
 						"description": "Successful Response"
+					},
+					"422": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/HTTPValidationError"
+								}
+							}
+						},
+						"description": "Validation Error"
 					}
 				},
 				"summary": "Get Outputs"

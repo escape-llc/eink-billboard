@@ -1,6 +1,6 @@
 """
 The outputs (#867, #891): what the device says back, at once, while the panel takes half a minute. The GPIO settings list each piece of hardware once (`outputs`: a name, a kind and the
-kind's own settings) and what each says (`feedback`: rows of an event, an output by name and a cue); the quiet hours (`quietFrom`, `quietTo`) apply to every output alike.
+kind's own settings) and what each says (a feedback section per kind, `FEEDBACK`: rows of an event, an output of that kind by name and a cue); the quiet hours (`quietFrom`, `quietTo`) apply to every output alike.
 
 Each output that is connected plays through a `Player` of its own (python/device/player.py), drawn by its kind's renderer: `gpio` (python/device/gpio_output.py), `haptic` (python/device/haptic.py) and `audio` (python/device/audio.py).
 An output whose hardware is not there (no chip on the bus, no sound card) is said, in our words (`problems`), and the others play: one missing part does not take the buttons or the other
@@ -10,7 +10,7 @@ from datetime import datetime
 import logging
 from typing import Any, Callable, Mapping
 
-from .cues import CUES, EVENTS
+from .cues import FEEDBACK, KIND_CUES, KIND_EVENTS, KINDS
 from .audio import AudioRenderer
 from .gpio_output import GpioRenderer
 from .haptic import HapticRenderer
@@ -25,7 +25,7 @@ I2C_PINS: Mapping[str, int] = { "i2c-data": 2, "i2c-clock": 3 }
 def output_rows(config: Mapping[str, Any]) -> list[Mapping[str, Any]]:
 	"""The `outputs` rows that have a name and a kind we know."""
 	rows = config.get("outputs")
-	return [row for row in (rows if isinstance(rows, list) else []) if isinstance(row, dict) and isinstance(row.get("name"), str) and row.get("kind") in ("gpio", "haptic", "audio")]
+	return [row for row in (rows if isinstance(rows, list) else []) if isinstance(row, dict) and isinstance(row.get("name"), str) and row.get("kind") in KINDS]
 
 def output_pin(row: Mapping[str, Any]) -> int|None:
 	pin = row.get("pin")
@@ -35,12 +35,12 @@ def connected(row: Mapping[str, Any]) -> bool:
 	"""An output asks for hardware: a GPIO one with its pin set, any haptic or audio one."""
 	return output_pin(row) is not None or row.get("kind") in ("haptic", "audio")
 
-def cues_for(config: Mapping[str, Any], output: str) -> dict[str, str]:
-	"""What an output plays for each event: the `feedback` rows that name it (the first row of an event wins)."""
+def cues_for(config: Mapping[str, Any], output: str, kind: str) -> dict[str, str]:
+	"""What an output of `kind` plays for each event: the rows of its kind's feedback section that name it (the first row of an event wins)."""
 	cues: dict[str, str] = {}
-	rows = config.get("feedback")
+	rows = config.get(FEEDBACK[kind]) if kind in FEEDBACK else None
 	for row in rows if isinstance(rows, list) else []:
-		if isinstance(row, dict) and row.get("output") == output and row.get("event") in EVENTS and row.get("cue") in CUES:
+		if isinstance(row, dict) and row.get("output") == output and row.get("event") in KIND_EVENTS[kind] and row.get("cue") in KIND_CUES[kind]:
 			cues.setdefault(row["event"], row["cue"])
 	return cues
 
@@ -109,7 +109,7 @@ class Outputs:
 			def told(title: str, why: str, name: str = name) -> None:
 				if self.on_play is not None:
 					self.on_play(name, title, why)
-			players[name] = Player(name, renderer, cues_for(config, name), config, self.clock, told)
+			players[name] = Player(name, renderer, cues_for(config, name, row["kind"]), config, self.clock, told)
 		for player in players.values():
 			player.start()
 		self._players = players

@@ -35,6 +35,8 @@ class TestChangedPaths(unittest.TestCase):
 		self.assertEqual(self.paths("settings", "theme-settings.json"), ["/api/settings/theme"])
 		# the display type chooses which of the header's pins are the panel's
 		self.assertEqual(self.paths("settings", "display-settings.json"), ["/api/settings/display", "/api/system/gpio-pins", "/api/system/restart"])
+		# the outputs a feedback row chooses from are the saved GPIO settings' (each section's list, `?kind=`, is under the path)
+		self.assertEqual(self.paths("settings", "devices-settings.json"), ["/api/settings/devices", "/api/devices/outputs"])
 
 	def test_the_system_settings_also_change_the_providers_lists_and_the_timeline(self):
 		paths = self.paths("settings", "system-settings.json")

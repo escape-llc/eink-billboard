@@ -28,19 +28,26 @@ test("the devices tab lists the buttons: a pin and an action, none to start with
 	watch.expectNone()
 })
 
-// the outputs (#885, #891): the factory LED (no pin yet) and its feedback rows, each cue with a Test that sends its row; the e2e server has no LED open, so the Test says so
+// the outputs (#885, #891): the factory LED (no pin yet) and its feedback rows, in the GPIO section (#897), each cue with a Test that sends its row; the e2e server has no LED open,
+// so the Test says so. A section's Output offers its own kind's outputs alone
 test("the outputs list the factory LED and its feedback, and a cue's Test reaches the server with its row", async ({ page }) => {
 	const watch = watchProblems(page)
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "GPIO" }).click()
 	await expect(page.getByRole("group", { name: "Outputs" })).toBeVisible()
 	await expect(page.getByRole("textbox", { name: "Name 1" })).toHaveValue("LED")
-	await expect(page.getByRole("group", { name: "Feedback" })).toBeVisible()
+	await expect(page.getByRole("group", { name: "GPIO Feedback" })).toBeVisible()
+	await expect(page.getByRole("group", { name: "Haptic Feedback" })).toBeVisible()
+	await expect(page.getByRole("group", { name: "Audio Feedback" })).toBeVisible()
 	// the factory's four rows: each cue with its Test
 	for (const row of [1, 2, 3, 4])
 		await expect(page.getByRole("button", { name: `Test Cue ${row}`, exact: true })).toBeVisible()
 	await page.getByRole("button", { name: "Test Cue 1", exact: true }).click()
 	await expect(page.getByText("The output LED is not open")).toBeVisible()
+	await page.getByRole("button", { name: "Add to Haptic Feedback" }).click()
+	await page.getByRole("group", { name: "Haptic Feedback" }).getByRole("combobox", { name: "Output 1" }).click()
+	await expect(page.getByRole("option", { name: "LED", exact: true })).toHaveCount(0)
+	await page.keyboard.press("Escape")
 	watch.expectNone()
 })
 

@@ -8,6 +8,8 @@ Pins are Broadcom (BCM) numbers, the GPIO numbers of the header (2 to 27), as gp
 from dataclasses import dataclass
 from typing import Mapping
 
+from .cues import FEEDBACK, KIND_TITLES
+
 # the GPIO numbers of the 40-pin header
 FIRST_PIN, LAST_PIN = 2, 27
 
@@ -127,12 +129,19 @@ def output_pin_errors(document: Mapping[str, object], panel: Panel|None) -> list
 	return errors
 
 def feedback_row_errors(document: Mapping[str, object]) -> list[dict]:
-	"""A feedback row names an output of the document being saved, at `["feedback", "<row>", "output"]`; the choice is a lookup of the saved outputs, which the form cannot check."""
+	"""
+	A feedback row names an output of its section's kind in the document being saved, at `["<section>", "<row>", "output"]`; the choice is a lookup of the
+	saved outputs, which the form cannot check.
+	"""
 	outputs = document.get("outputs")
-	names = { row.get("name") for row in outputs if isinstance(row, dict) } if isinstance(outputs, list) else set()
-	rows = document.get("feedback")
-	return [{ "path": ["feedback", str(index), "output"], "message": "No output has this name: add it under Outputs." }
-		for index, row in enumerate(rows if isinstance(rows, list) else []) if isinstance(row, dict) and row.get("output") not in names]
+	rows_of = [row for row in outputs if isinstance(row, dict)] if isinstance(outputs, list) else []
+	errors: list[dict] = []
+	for kind, section in FEEDBACK.items():
+		names = { row.get("name") for row in rows_of if row.get("kind") == kind }
+		rows = document.get(section)
+		errors += [{ "path": [section, str(index), "output"], "message": f"No {KIND_TITLES[kind]} output has this name: add it under Outputs." }
+			for index, row in enumerate(rows if isinstance(rows, list) else []) if isinstance(row, dict) and row.get("output") not in names]
+	return errors
 
 def playlist_row_errors(rows: object, playlists: Mapping[str, str], list_name: str = "triggers") -> list[dict]:
 	"""A row that plays a playlist names one that exists (`playlists`: each id with its name), at `[list, "<row>", "playlist"]`; the choice is a lookup the form cannot check."""
