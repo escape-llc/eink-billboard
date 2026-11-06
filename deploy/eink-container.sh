@@ -703,6 +703,9 @@ cmd_start() {
 		# your spi, i2c and gpio groups go into the container with you: that is what lets the app open the devices
 		devices+=(--group-add keep-groups)
 	fi
+	# a sound card, for an audio output (#867): /dev/snd as a folder, not its devices one by one, because a USB card's come and go with it and Podman refuses to start a container
+	# made with a device that is gone (rootless: what you may open is what your audio group, which comes in with the others, may open)
+	[ -d /dev/snd ] && devices+=(--volume /dev/snd:/dev/snd)
 	local token=()
 	# passed by name, so the token is not on a command line (anyone on the Pi can read those)
 	[ -n "${EINK_API_TOKEN:-}" ] && token=(-e EINK_API_TOKEN)
@@ -827,6 +830,12 @@ cmd_check() {
 	cfg=$(board_config)
 	if grep -qE "^[[:space:]]*dtparam=spi=on" "$cfg" 2>/dev/null; then note "SPI is on"; else problem "SPI is off:  sudo raspi-config  (Interface Options, SPI), then reboot"; fi
 	if grep -qE "^[[:space:]]*dtparam=i2c_arm=on" "$cfg" 2>/dev/null; then note "I2C is on"; else problem "I2C is off (an Inky panel needs it):  sudo raspi-config  (Interface Options, I2C), then reboot"; fi
+	# a sound card is only for an audio output (#867): said, never a problem; the app is given /dev/snd and your audio group
+	if grep -q "USB" /proc/asound/cards 2>/dev/null; then
+		if in_group audio; then note "a USB sound card is plugged in (for an audio output)"; else info "a USB sound card is plugged in, but you are not in the audio group, so an audio output cannot use it:  sudo usermod -aG audio $(id -un)  then log out and in again"; fi
+	else
+		info "no USB sound card is plugged in (only an audio output needs one)"
+	fi
 	# memory: a Chromium render costs about 75 to 110 MB and the app about 300 MB on a Pi (#853), so a board with less than 1 GB (a Pi Zero 2 W: 512 MB) runs with swap or
 	# not at all well. Swap in memory (zram, Trixie's own with rpi-swap) is what it should be: a swap file on the card wears it out
 	local mem_kb zram_kb file_kb swapping

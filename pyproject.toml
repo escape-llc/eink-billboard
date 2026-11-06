@@ -44,6 +44,8 @@ device = [
     "gpiozero==2.0.1.post3 ; sys_platform == 'linux'",
     "lgpio==0.2.2.0 ; sys_platform == 'linux'",
     "spidev==3.8 ; sys_platform == 'linux'",
+    # an audio output's sound card (python/device/audio.py, #867): ALSA's own binding, built from its source package against the ALSA library (the device image has its headers while it builds)
+    "pyalsaaudio==0.11.0 ; sys_platform == 'linux'",
 ]
 
 [tool.coverage.run]

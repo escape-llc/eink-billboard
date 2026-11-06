@@ -2,7 +2,7 @@
 The outputs (#867, #891): what the device says back, at once, while the panel takes half a minute. The GPIO settings list each piece of hardware once (`outputs`: a name, a kind and the
 kind's own settings) and what each says (`feedback`: rows of an event, an output by name and a cue); the quiet hours (`quietFrom`, `quietTo`) apply to every output alike.
 
-Each output that is connected plays through a `Player` of its own (python/device/player.py), drawn by its kind's renderer: `gpio` (python/device/gpio_output.py), `haptic` (python/device/haptic.py) and `audio`.
+Each output that is connected plays through a `Player` of its own (python/device/player.py), drawn by its kind's renderer: `gpio` (python/device/gpio_output.py), `haptic` (python/device/haptic.py) and `audio` (python/device/audio.py).
 An output whose hardware is not there (no chip on the bus, no sound card) is said, in our words (`problems`), and the others play: one missing part does not take the buttons or the other
 outputs down with it. A GPIO output with no pin is not connected, and nothing is opened for it.
 """
@@ -11,6 +11,7 @@ import logging
 from typing import Any, Callable, Mapping
 
 from .cues import CUES, EVENTS
+from .audio import AudioRenderer
 from .gpio_output import GpioRenderer
 from .haptic import HapticRenderer
 from .player import Player, Renderer
@@ -52,7 +53,7 @@ def make_haptic(row: Mapping[str, Any]) -> Renderer:
 	return HapticRenderer()
 
 def make_audio(row: Mapping[str, Any]) -> Renderer:
-	raise PermanentError("An audio output is not built yet.")
+	return AudioRenderer(row.get("volume"))
 
 class Outputs:
 	"""
