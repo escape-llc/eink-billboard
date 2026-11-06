@@ -1,5 +1,6 @@
 """
-An audio output (#867, #891): a USB sound card (a sound stick and a small speaker), found by itself. It does not hold: every cue plays once, as a tone made here (`TONES`), so no sound
+An audio output (#867, #891): a sound card, found by itself by the kind the output chooses (`CARDS`, #909): a USB one (a sound stick and a small speaker), the Pi's headphone
+jack (a Pi 3 B+ or 4, any powered speaker) or its HDMI (a display that plays sound, a receiver, or an HDMI audio extractor). It does not hold: every cue plays once, as a tone made here (`TONES`), so no sound
 file ships with the app. The output's `volume` (0 to 100) scales the samples themselves; the card's own playback control is set full and unmuted when the card is found (some sticks
 start muted), so the output's Volume is the one volume.
 
@@ -11,6 +12,7 @@ ALSA is reached with `pyalsaaudio` (the device dependency group, Linux; built in
 `/dev/snd` (deploy/eink-container.sh).
 """
 from array import array
+from dataclasses import dataclass
 from functools import lru_cache
 import logging
 import math
@@ -72,21 +74,56 @@ def load_alsa() -> Any:
 		raise PermanentError("An audio output needs the device libraries (`uv sync --group device`, Raspberry Pi only).") from e
 	return alsaaudio
 
-def usb_card(alsa: Any) -> int|None:
-	"""The first sound card that is a USB one (its long name says so), by its index; the Pi's own HDMI and headphone outputs are not chosen."""
+@dataclass(frozen=True)
+class Card:
+	"""
+	A kind of card the output can choose: a word its long name holds (`marker`, case ignored), the ALSA device it is opened as (`{card}` its index), what it is called in our
+	sentences, and what to do when none is found and when one cannot be opened.
+	"""
+	marker: str
+	device: str
+	title: str
+	missing: str
+	refused: str
+
+# the output's `card` (the schema's `cards` lookup); anything else is USB
+CARDS: Mapping[str, Card] = {
+	# plughw: ALSA converts our 48 kHz mono to what the card takes
+	"usb": Card("USB", "plughw:{card},0", "USB sound card",
+		"No USB sound card was found: plug one in (a USB sound stick), and check that the app is given /dev/snd.",
+		"The USB sound card could not be opened: is another program using it? The log has the detail."),
+	"headphones": Card("Headphones", "plughw:{card},0", "headphone jack",
+		"The Pi's headphone jack was not found: a Pi 5 or a Zero has none, and on a Pi 3 or 4 its audio must be on (dtparam=audio=on in config.txt).",
+		"The headphone jack could not be opened: is another program using it? The log has the detail."),
+	# the Pi's HDMI takes IEC958 frames, which the `hdmi:` device makes; `plug` turns our mono into what that takes
+	"hdmi": Card("hdmi", "plug:'hdmi:CARD={card},DEV=0'", "HDMI audio",
+		"The Pi's HDMI audio was not found: check that the app is given /dev/snd.",
+		"HDMI audio needs a display that plays sound connected and on (or a receiver, or an HDMI audio extractor that says it is one): nothing on HDMI took it."),
+}
+
+def card_of(choice: object) -> Card:
+	return CARDS[choice] if isinstance(choice, str) and choice in CARDS else CARDS["usb"]
+
+def find_card(alsa: Any, card: Card) -> int|None:
+	"""The first sound card of that kind (its long name holds the marker), by its index."""
 	for index in alsa.card_indexes():
 		_, long_name = alsa.card_name(index)
-		if "USB" in long_name:
+		if card.marker.lower() in long_name.lower():
 			return index
 	return None
+
+def usb_card(alsa: Any) -> int|None:
+	"""The first sound card that is a USB one; the Pi's own HDMI and headphone outputs are not chosen."""
+	return find_card(alsa, CARDS["usb"])
 
 class AudioRenderer:
 	"""`alsa` is the `alsaaudio` module (a test gives a fake one)."""
 	holds = False
 
-	def __init__(self, volume: object = None, alsa: Any = None):
+	def __init__(self, volume: object = None, alsa: Any = None, card: object = None):
 		self._alsa = alsa or load_alsa()
 		self._volume = volume
+		self._kind = card_of(card)
 		# the card whose playback control was last set full (a stick plugged in again is set again)
 		self._card: int|None = None
 		self._find()
@@ -98,14 +135,14 @@ class AudioRenderer:
 			tone(cue, self._volume)
 
 	def _find(self) -> int:
-		"""The USB card now, its playback control set full and unmuted when it is new; else our `PermanentError`."""
+		"""The card of the output's kind now, its playback control set full and unmuted when it is new; else our `PermanentError`."""
 		try:
-			card = usb_card(self._alsa)
+			card = find_card(self._alsa, self._kind)
 		except Exception as e:
 			raise PermanentError("The sound cards could not be listed: check that the app is given /dev/snd.") from e
 		if card is None:
 			self._card = None
-			raise PermanentError("No USB sound card was found: plug one in (a USB sound stick), and check that the app is given /dev/snd.")
+			raise PermanentError(self._kind.missing)
 		if card != self._card:
 			self._full(card)
 			self._card = card
@@ -142,12 +179,11 @@ class AudioRenderer:
 			return False
 		card = self._find()
 		try:
-			# plughw: ALSA converts our 48 kHz mono to what the card takes
-			pcm = self._alsa.PCM(type=self._alsa.PCM_PLAYBACK, mode=self._alsa.PCM_NORMAL, device=f"plughw:{card},0", channels=1, rate=RATE,
+			pcm = self._alsa.PCM(type=self._alsa.PCM_PLAYBACK, mode=self._alsa.PCM_NORMAL, device=self._kind.device.format(card=card), channels=1, rate=RATE,
 				format=self._alsa.PCM_FORMAT_S16_LE, periodsize=CHUNK_FRAMES)
 		except Exception as e:
 			logger.error(f"The sound card {card} could not be opened: {e}", exc_info=True)
-			raise PermanentError("The USB sound card could not be opened: is another program using it? The log has the detail.") from e
+			raise PermanentError(self._kind.refused) from e
 		step = CHUNK_FRAMES * 2
 		try:
 			for start in range(0, len(data), step):
@@ -161,7 +197,7 @@ class AudioRenderer:
 		except Exception as e:
 			# pulled out while it played: found again (or said missing) by the next cue
 			self._card = None
-			raise PermanentError("The USB sound card stopped while it played: is it still plugged in?") from e
+			raise PermanentError(f"The {self._kind.title} stopped while it played" + (": is it still plugged in?" if self._kind is CARDS["usb"] else ".")) from e
 		finally:
 			pcm.close()
 

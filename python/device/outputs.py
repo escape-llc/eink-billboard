@@ -57,7 +57,7 @@ def make_haptic(row: Mapping[str, Any]) -> Renderer:
 	return HapticRenderer()
 
 def make_audio(row: Mapping[str, Any]) -> Renderer:
-	return AudioRenderer(row.get("volume"))
+	return AudioRenderer(row.get("volume"), card=row.get("card"))
 
 # the kinds whose hardware can be plugged in after the outputs opened (a GPIO output's pin is there or refused)
 RETRIED = ("haptic", "audio")
