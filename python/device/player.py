@@ -14,7 +14,7 @@ import logging
 import threading
 from typing import Any, Callable, Mapping, Protocol
 
-from .cues import CUES, GESTURES, STATES
+from .cues import CUES, ENDED, GESTURES, QUIET, STATES
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def quiet(config: Mapping[str, Any], now: datetime) -> bool:
 class Player:
 	"""
 	`cues` is what this output plays for each event (the feedback rows that name it; an event with none plays nothing). `clock` says the time for the quiet hours (the DeviceIO task gives
-	the device's own, in its zone); `on_play` is told the title of each cue that starts and why, for the live view (from the player's own thread).
+	the device's own, in its zone); `on_play` is told the title of each cue that starts and why, and Off when a state an output that holds showed is over, for the live view (from the player's own thread).
 	"""
 	# a cue that repeats is played this long by a Test
 	TEST_SECONDS = 4.0
@@ -128,7 +128,12 @@ class Player:
 
 	def _run(self) -> None:
 		renderer = self._renderer
-		# the state cue last reported (the live view hears of a change, not of each cycle), and a once-only state cue already played
+		# whatever a run before this one left going (an LED lit, a sequence on the motor's chip) stops first: an app stopped hard and started again starts still
+		try:
+			renderer.off()
+		except Exception:
+			logger.warning(f"The output '{self.name}' could not be stilled when it opened", exc_info=True)
+		# the state cue last reported, while it shows (the live view hears of a change, not of each cycle), and a once-only state cue already played
 		reported: tuple[str, str]|None = None
 		played: tuple[str, str]|None = None
 		while not self._closing:
@@ -147,13 +152,19 @@ class Player:
 					reported = None
 					continue
 				state, cue = self._state_cue(states)
-				if quiet(self._config, self.clock()):
+				quieted = cue != "off" and quiet(self._config, self.clock())
+				if quieted:
 					state, cue = None, "off"
 				key = (cue, state or "")
 				if cue == "off" or (not self._repeats(cue) and played == key):
 					renderer.off()
 					if cue == "off":
 						played = None
+						# what showed is over: said by an output that held it (a click or a tone already ended), and a state that begins again is said again
+						if reported is not None:
+							if renderer.holds:
+								self._report(CUES["off"].title, QUIET if quieted else ENDED.get(reported[1], ""))
+							reported = None
 					self._wake.wait(self.IDLE_SECONDS)
 					continue
 				if reported != key:

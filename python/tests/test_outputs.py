@@ -58,16 +58,18 @@ class FakeLed:
 			return sum(1 for _, lit in self.switches if lit)
 
 class OnceRenderer:
-	"""A renderer that does not hold (a haptic motor, a sound card): each cue it is asked to play is recorded."""
+	"""A renderer that does not hold (a haptic motor, a sound card): each cue it is asked to play is recorded, and each time it is stilled."""
 	holds = False
 	def __init__(self) -> None:
 		self.played: list[tuple[str, Mapping[str, Any]|None]] = []
+		self.calls: list[str] = []
 		self.closed = False
 	def play(self, cue: str, stop: threading.Event, seconds: float, options: Mapping[str, Any]|None = None) -> bool:
 		self.played.append((cue, options))
+		self.calls.append(cue)
 		return False
 	def off(self) -> None:
-		pass
+		self.calls.append("off")
 	def close(self) -> None:
 		self.closed = True
 
@@ -206,6 +208,25 @@ class TestPlayer(unittest.TestCase):
 		self.assertTrue(wait_until(lambda: not fake.lit))
 		self.assertEqual(self.played[0], ("Steady", "the panel drawing"))
 		self.assertIn(("One", "a press"), self.played)
+		self.assertTrue(wait_until(lambda: self.played[-1] == ("Off", "the panel drawn")), "going off is said")
+
+	def test_each_time_a_state_begins_it_is_said_and_its_end_too(self):
+		player, fake = self.open()
+		for _ in range(2):
+			player.state("drawing", True)
+			self.assertTrue(wait_until(lambda: fake.lit))
+			player.state("drawing", False)
+			self.assertTrue(wait_until(lambda: not fake.lit))
+			# the player sees it end (a refresh is half a minute apart from the next)
+			time.sleep(0.1)
+		self.assertEqual(self.played, [("Steady", "the panel drawing"), ("Off", "the panel drawn")] * 2, "the second refresh is said as the first was")
+
+	def test_a_gesture_over_nothing_says_no_off(self):
+		player, fake = self.open()
+		player.gesture("press")
+		self.assertTrue(wait_until(lambda: fake.lit_count() == 1 and not fake.lit))
+		time.sleep(0.15)
+		self.assertEqual(self.played, [("One", "a press")], "nothing showed before it, so nothing goes off")
 
 	def test_held_comes_before_a_problem_and_a_problem_before_drawing(self):
 		player, fake = self.open(cues={ **FACTORY, "problem": "slow", "holding": "fast" })
@@ -230,6 +251,20 @@ class TestPlayer(unittest.TestCase):
 		player.test("two")
 		self.assertTrue(wait_until(lambda: fake.lit_count() == 2 and not fake.lit))
 		self.assertEqual(self.played, [("Two", "a test")])
+
+	def test_a_state_that_the_quiet_hours_still_says_so(self):
+		hour = [12]
+		made: list[FakeLed] = []
+		self.played = []
+		player = Player("LED", GpioRenderer(13, "0.4", lambda pin: made.append(FakeLed(pin)) or made[-1]), FACTORY, { "quietFrom": 22, "quietTo": 7 }, lambda: at(hour[0]), lambda title, why: self.played.append((title, why)))
+		player.IDLE_SECONDS = 0.05
+		player.start()
+		self.addCleanup(player.close)
+		player.state("drawing", True)
+		self.assertTrue(wait_until(lambda: made[0].lit))
+		hour[0] = 23
+		self.assertTrue(wait_until(lambda: not made[0].lit))
+		self.assertTrue(wait_until(lambda: self.played[-1] == ("Off", "the quiet hours")))
 
 	def test_a_test_of_a_cue_that_repeats_plays_a_few_seconds(self):
 		player, fake = self.open()
@@ -293,6 +328,23 @@ class TestOutputThatDoesNotHold(unittest.TestCase):
 		self.assertTrue(wait_until(lambda: len(renderer.played) == 3), "a state that begins again plays again")
 		player.test("two", { "volume": 30 })
 		self.assertTrue(wait_until(lambda: renderer.played[-1] == ("two", { "volume": 30 })))
+
+	def test_an_output_is_stilled_when_it_opens_and_one_that_does_not_hold_says_no_off(self):
+		renderer = OnceRenderer()
+		played: list[tuple[str, str]] = []
+		player = Player("Motor", renderer, { "drawing": "fast" }, {}, lambda: at(12), lambda title, why: played.append((title, why)))
+		player.IDLE_SECONDS = 0.05
+		player.start()
+		self.addCleanup(player.close)
+		self.assertTrue(wait_until(lambda: len(renderer.calls) > 0))
+		self.assertEqual(renderer.calls[0], "off", "whatever a run before left going stops before anything plays")
+		player.state("drawing", True)
+		self.assertTrue(wait_until(lambda: len(renderer.played) == 1))
+		player.state("drawing", False)
+		time.sleep(0.15)
+		player.state("drawing", True)
+		self.assertTrue(wait_until(lambda: len(renderer.played) == 2))
+		self.assertEqual(played, [("Fast", "the panel drawing")] * 2, "the buzz ended by itself: no Off, and the next is said")
 
 class TestOutputs(unittest.TestCase):
 	def test_an_output_whose_hardware_is_not_there_is_said_and_the_rest_play(self):
