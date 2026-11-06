@@ -56,6 +56,26 @@ test("the outputs list the factory LED and its feedback, and a cue's Test reache
 	watch.expectNone()
 })
 
+// a long press (#866) is the row's Long Press: any action but a task, a playlist with its own picker, saved on the row beside the press's
+test("a button's long press does another action, and a playlist it plays is chosen on the row", async ({ page, request }) => {
+	const watch = watchProblems(page)
+	const playlists: { name: string, value: string }[] = await (await request.get(`${OPEN.url}/api/devices/playlists`)).json()
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "GPIO" }).click()
+	await page.getByRole("button", { name: "Add to Triggers" }).click()
+	await choosePin(page, 1, 20)
+	await page.getByRole("combobox", { name: "Long Press 1" }).click()
+	await expect(page.getByRole("option", { name: "task", exact: true })).toHaveCount(0)
+	await page.getByRole("option", { name: "playlist", exact: true }).click()
+	await expect(saveButton(page)).toBeDisabled()
+	await page.getByRole("combobox", { name: "Long Press Playlist 1" }).click()
+	await page.getByRole("option", { name: playlists[0].name, exact: true }).last().click()
+	await saveButton(page).click()
+	await expect(page.getByText("Settings saved successfully")).toBeVisible()
+	expect(JSON.parse(fs.readFileSync(FILE, "utf8")).triggers).toEqual([{ pin: 20, action: "toggle", playlist: null, longAction: "playlist", longPlaylist: playlists[0].value }])
+	watch.expectNone()
+})
+
 // a section that opens and closes never hides an error: an output with no name keeps Outputs open, closed or not, until it is put right
 test("a closed section with an error in it opens", async ({ page }) => {
 	const watch = watchProblems(page)
@@ -103,7 +123,7 @@ test("a pin is one of the header's, a pin has one button, and Play, Stop, Toggle
 	await expect(page.getByText("Already used by another row")).toHaveCount(0)
 	await saveButton(page).click()
 	await expect(page.getByText("Settings saved successfully")).toBeVisible()
-	expect(JSON.parse(fs.readFileSync(FILE, "utf8")).triggers).toEqual([{ pin: 5, action: "toggle", playlist: null }, { pin: 6, action: "next", playlist: null }])
+	expect(JSON.parse(fs.readFileSync(FILE, "utf8")).triggers).toEqual([{ pin: 5, action: "toggle", playlist: null, longAction: null, longPlaylist: null }, { pin: 6, action: "next", playlist: null, longAction: null, longPlaylist: null }])
 	watch.expectNone()
 })
 
@@ -138,7 +158,7 @@ test("a button can run a task: its Priority Update is set up on the row, Run now
 	await saveButton(page).click()
 	await expect(page.getByText("Settings saved successfully").last()).toBeVisible()
 	await expect.poll(() => row().content).toBeUndefined()
-	expect(row()).toEqual({ pin: 16, action: "next", playlist: null })
+	expect(row()).toEqual({ pin: 16, action: "next", playlist: null, longAction: null, longPlaylist: null })
 	watch.expectNone()
 })
 
@@ -197,6 +217,6 @@ test("a button can play a playlist: the picker appears with that action, a playl
 	await page.getByRole("option", { name: playlists[0].name, exact: true }).last().click()
 	await saveButton(page).click()
 	await expect(page.getByText("Settings saved successfully")).toBeVisible()
-	expect(JSON.parse(fs.readFileSync(FILE, "utf8")).triggers).toEqual([{ pin: 16, action: "playlist", playlist: playlists[0].value }])
+	expect(JSON.parse(fs.readFileSync(FILE, "utf8")).triggers).toEqual([{ pin: 16, action: "playlist", playlist: playlists[0].value, longAction: null, longPlaylist: null }])
 	watch.expectNone()
 })

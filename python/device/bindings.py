@@ -1,23 +1,33 @@
 """
 What an input means. A device only says that something happened (`InputEvent`: its name, which input, which gesture); the Application decides what that does, here. A button is bound by the
 GPIO settings' `triggers`: each row is a pin and an action the Application already has: `play`, `stop`, `next` (the transport commands), `toggle` (play when playback is stopped, else
-stop), `task` (run the task the row carries) or `playlist` (seek to the playlist the row names, by id). Only a press is bound; a long press does nothing yet. Both are decided when the button is let go (`buttons._wire`), so a long press is never a press too.
+stop), `task` (run the task the row carries) or `playlist` (seek to the playlist the row names, by id). A long press is the row's `longAction` (#866: any of those but a task,
+whose settings the row carries once, for the press; its playlist is `longPlaylist`), or nothing. Both are decided when the button is let go (`buttons._wire`), so a long press is never a
+press too.
 """
 from typing import Any, Mapping
 
 from .buttons import input_name
 
 ACTIONS = ("play", "stop", "toggle", "next", "task", "playlist")
+# what a long press can do: not a task (the row's task settings are the press's)
+LONG_ACTIONS = ("play", "stop", "toggle", "next", "playlist")
 
 def row_for(source: str, name: str, gesture: str, settings: Mapping[str, Any]|None) -> Mapping[str, Any]|None:
-	"""The row of the stored `devices` settings an input is bound by, or None when it is bound to nothing (a gesture nobody listens for is not an error)."""
-	if source != "buttons" or gesture != "press":
+	"""
+	The row of the stored `devices` settings an input is bound by, or None when it is bound to nothing (a gesture nobody listens for is not an error). For a long press, the row
+	as its long press: its `action` and `playlist` are the row's `longAction` and `longPlaylist`.
+	"""
+	if source != "buttons" or gesture not in ("press", "long-press"):
 		return None
 	rows = (settings or {}).get("triggers")
 	for row in rows if isinstance(rows, list) else []:
 		pin = row.get("pin") if isinstance(row, dict) else None
 		if isinstance(pin, int) and not isinstance(pin, bool) and input_name(pin) == name:
-			return row if row.get("action") in ACTIONS else None
+			if gesture == "press":
+				return row if row.get("action") in ACTIONS else None
+			long = row.get("longAction")
+			return { **row, "action": long, "playlist": row.get("longPlaylist") } if long in LONG_ACTIONS else None
 	return None
 
 def action_for(source: str, name: str, gesture: str, settings: Mapping[str, Any]|None) -> str|None:

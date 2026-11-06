@@ -243,6 +243,8 @@ class Application(DispatcherTask):
 		_, devices = self.cm.settings_manager().open("devices").get()
 		row = row_for(msg.source, msg.name, msg.gesture, devices if isinstance(devices, dict) else None)
 		label = input_label(msg.name)
+		# a long press is the row's long press (bindings.row_for): said as a hold
+		done = "held" if msg.gesture == "long-press" else "pressed"
 		def say(message: str, result: str, action: str|None = None) -> None:
 			assert self.router is not None
 			self.logger.info(f"'{self.name}' input: {message}")
@@ -254,30 +256,30 @@ class Application(DispatcherTask):
 			if msg.gesture == "press":
 				say(f"The {label} was pressed: no action is set up for it.", "ignored")
 			elif msg.gesture == "long-press":
-				say(f"The {label} was held: a long press does nothing yet.", "ignored")
+				say(f"The {label} was held: no long press is set up for it.", "ignored")
 			return
 		action = row["action"]
 		if action == "task":
-			say(f"The {label} was pressed: run its task.", "done", action)
+			say(f"The {label} was {done}: run its task.", "done", action)
 			self._run_trigger_row(msg.timestamp, row)
 			return
 		if action == "playlist":
 			target = row.get("playlist")
 			if not isinstance(target, str) or target == "":
-				say(f"The {label} was pressed: no playlist is chosen for it.", "ignored", action)
+				say(f"The {label} was {done}: no playlist is chosen for it.", "ignored", action)
 				return
 			if self._layers_held():
-				say(f"The {label} was pressed: {action} ignored, the device is not set up yet (not claimed, or its clock is not set).", "ignored", action)
+				say(f"The {label} was {done}: {action} ignored, the device is not set up yet (not claimed, or its clock is not set).", "ignored", action)
 				return
-			say(f"The {label} was pressed: play the playlist '{target}'.", "done", action)
+			say(f"The {label} was {done}: play the playlist '{target}'.", "done", action)
 			self._transport_command(TransportCommand(msg.timestamp, "seek", target))
 			return
 		if action == "toggle":
 			action = "play" if self.playback_stopped else "stop"
 		if self._layers_held():
-			say(f"The {label} was pressed: {action} ignored, the device is not set up yet (not claimed, or its clock is not set).", "ignored", action)
+			say(f"The {label} was {done}: {action} ignored, the device is not set up yet (not claimed, or its clock is not set).", "ignored", action)
 			return
-		say(f"The {label} was pressed: {action}.", "done", action)
+		say(f"The {label} was {done}: {action}.", "done", action)
 		self._transport_command(TransportCommand(msg.timestamp, action))
 	def _unclaimed(self) -> bool:
 		try:

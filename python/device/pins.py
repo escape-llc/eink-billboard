@@ -144,11 +144,17 @@ def feedback_row_errors(document: Mapping[str, object]) -> list[dict]:
 	return errors
 
 def playlist_row_errors(rows: object, playlists: Mapping[str, str], list_name: str = "triggers") -> list[dict]:
-	"""A row that plays a playlist names one that exists (`playlists`: each id with its name), at `[list, "<row>", "playlist"]`; the choice is a lookup the form cannot check."""
+	"""
+	A row that plays a playlist names one that exists (`playlists`: each id with its name), at `[list, "<row>", "playlist"]`, and so does its long press (`longAction`,
+	`longPlaylist`); the choice is a lookup the form cannot check.
+	"""
 	errors: list[dict] = []
 	for index, row in enumerate(rows if isinstance(rows, list) else []):
-		if isinstance(row, dict) and row.get("action") == "playlist" and row.get("playlist") not in playlists:
-			errors.append({ "path": [list_name, str(index), "playlist"], "message": "Not one of the allowed values" })
+		if not isinstance(row, dict):
+			continue
+		for action, playlist in (("action", "playlist"), ("longAction", "longPlaylist")):
+			if row.get(action) == "playlist" and row.get(playlist) not in playlists:
+				errors.append({ "path": [list_name, str(index), playlist], "message": "Not one of the allowed values" })
 	return errors
 
 def check_pins(pins: Mapping[str, int], panel: Panel|None, labels: Mapping[str, str]|None = None) -> list[str]:

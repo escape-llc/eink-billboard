@@ -100,7 +100,7 @@
 				"type": "array",
 				"title": "Triggers",
 				"required": false,
-				"description": "One row for each push button wired between a GPIO pin (BCM number) and ground, and what pressing it does: play, stop, toggle (stop while playing, else play), next (the next page of the playlist), run a task (a Priority Update task, set up on the row, that shows for its minutes) or play a playlist (the playlist layer goes to its first track and carries on from there). Play, stop, toggle and next can each be on one button only. Not a pin the panel uses (the list says which). Changes apply within a few seconds.",
+				"description": "One row for each push button wired between a GPIO pin (BCM number) and ground, and what pressing it does: play, stop, toggle (stop while playing, else play), next (the next page of the playlist), run a task (a Priority Update task, set up on the row, that shows for its minutes) or play a playlist (the playlist layer goes to its first track and carries on from there). Play, stop, toggle and next can each be on one button only. A button's Long Press, held a second and let go, can do another of these actions (not a task). Not a pin the panel uses (the list says which). Changes apply within a few seconds.",
 				"items": {
 					"type": "object",
 					"key": "pin",
@@ -150,6 +150,31 @@
 							"description": "The playlist the button starts: it begins at its first track and carries on from there, through the playlists after it.",
 							"lookup": "playlists",
 							"visibleIf": { "field": "action", "const": "playlist" }
+						},
+						{
+							"name": "longAction",
+							"type": "string",
+							"title": "Long Press",
+							"required": false,
+							"enum": [
+								"toggle",
+								"play",
+								"stop",
+								"next",
+								"playlist"
+							],
+							"default": null,
+							"description": "What holding the button for a second does, when it is let go (the Held cue says when): the same actions as a press, but not a task (the row's task is the press's). Empty: a long press does nothing."
+						},
+						{
+							"name": "longPlaylist",
+							"type": "string",
+							"title": "Long Press Playlist",
+							"required": true,
+							"default": null,
+							"description": "The playlist a long press starts: it begins at its first track and carries on from there.",
+							"lookup": "playlists",
+							"visibleIf": { "field": "longAction", "const": "playlist" }
 						}
 					],
 					"plugin": {
