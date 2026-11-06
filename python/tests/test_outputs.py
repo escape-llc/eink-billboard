@@ -12,7 +12,7 @@ from typing import Any, Mapping
 from unittest.mock import patch
 
 from ..device import gpio_output
-from ..device.cues import CUES, EVENTS, KINDS
+from ..device.cues import CUES, EVENTS, FEEDBACK, KIND_CUES, KIND_EVENTS, KINDS
 from ..device.gpio_output import BLINK, NORMAL_BLINK, PATTERNS, SPEEDS, GpioRenderer, scale_of
 from ..device.outputs import Outputs, cues_for
 from ..device.pins import Panel
@@ -96,7 +96,7 @@ FACTORY = { "press": "one", "long-press": "two", "holding": "steady", "drawing":
 
 def led_settings(pin: int|None = 13, cues: Mapping[str, str] = FACTORY, **extra: Any) -> dict[str, Any]:
 	"""The `devices` settings with one GPIO output, LED, on `pin`, saying `cues`."""
-	return { "outputs": [{ "name": "LED", "kind": "gpio", "pin": pin, "speed": "0.4", "volume": None }], "feedback": [{ "event": e, "output": "LED", "cue": c } for e, c in cues.items()], **extra }
+	return { "outputs": [{ "name": "LED", "kind": "gpio", "pin": pin, "speed": "0.4", "volume": None }], "gpioFeedback": [{ "event": e, "output": "LED", "cue": c } for e, c in cues.items()], **extra }
 
 class TestCueRules(unittest.TestCase):
 	def test_every_choice_of_the_schema_is_ours_and_the_factory_document_is_the_leds(self):
@@ -105,17 +105,25 @@ class TestCueRules(unittest.TestCase):
 		with open(path, encoding="utf-8") as f:
 			schema = json.load(f)
 		lookups = schema["schema"]["lookups"]
-		self.assertEqual([i["value"] for i in lookups["cues"]["items"]], list(CUES))
-		self.assertEqual([i["name"] for i in lookups["cues"]["items"]], [c.title for c in CUES.values()])
 		self.assertEqual(tuple(i["value"] for i in lookups["speeds"]["items"]), SPEEDS)
-		self.assertEqual(tuple(i["value"] for i in lookups["events"]["items"]), EVENTS)
 		fields = { p["name"]: p for p in schema["schema"]["properties"] }
 		kind = next(p for p in fields["outputs"]["items"]["properties"] if p["name"] == "kind")
 		self.assertEqual(tuple(kind["enum"]), KINDS)
+		# a section per kind, offering that kind's outputs, events and cues alone
+		for each, section in FEEDBACK.items():
+			row = { p["name"]: p for p in fields[section]["items"]["properties"] }
+			self.assertEqual(lookups[row["output"]["lookup"]], { "url": f"/api/devices/outputs?kind={each}" }, each)
+			cues = lookups[row["cue"]["lookup"]]["items"]
+			self.assertEqual(tuple(i["value"] for i in cues), KIND_CUES[each], each)
+			self.assertEqual([i["name"] for i in cues], [CUES[c].title for c in KIND_CUES[each]], each)
+			self.assertEqual(tuple(i["value"] for i in lookups[row["event"]["lookup"]]["items"]), KIND_EVENTS[each], each)
+		self.assertEqual(KIND_EVENTS["gpio"], EVENTS)
+		self.assertNotIn("drawing", KIND_EVENTS["haptic"], "a motor is felt only while touching the device")
 		self.assertEqual(set(PATTERNS), set(CUES), "the LED plays every cue")
 		self.assertEqual(sum(BLINK), NORMAL_BLINK, "the normal speed is the blink the patterns are written for")
 		factory = schema["default"]
-		self.assertEqual(cues_for(factory, "LED"), FACTORY)
+		self.assertEqual(cues_for(factory, "LED", "gpio"), FACTORY)
+		self.assertEqual((factory["hapticFeedback"], factory["audioFeedback"]), ([], []))
 		self.assertEqual(factory["outputs"][0]["pin"], None, "the factory LED is not connected until its pin is chosen")
 
 	def test_a_speed_stretches_every_cue_alike_and_anything_else_is_the_normal_speed(self):
@@ -131,16 +139,20 @@ class TestCueRules(unittest.TestCase):
 		for never in ({}, { "quietFrom": 22 }, { "quietTo": 7 }, { "quietFrom": 9, "quietTo": 9 }, { "quietFrom": True, "quietTo": 7 }, { "quietFrom": 24, "quietTo": 7 }):
 			self.assertFalse(any(quiet(never, at(h)) for h in range(24)), never)
 
-	def test_an_output_plays_what_its_rows_say_and_the_first_row_of_an_event_wins(self):
-		config = { "feedback": [
+	def test_an_output_plays_what_its_sections_rows_say_and_the_first_row_of_an_event_wins(self):
+		config = { "gpioFeedback": [
 			{ "event": "press", "output": "LED", "cue": "one" },
 			{ "event": "press", "output": "LED", "cue": "three" },
 			{ "event": "press", "output": "Motor", "cue": "two" },
 			{ "event": "drawing", "output": "LED", "cue": "disco" },
 			{ "event": "sneeze", "output": "LED", "cue": "one" },
 		] }
-		self.assertEqual(cues_for(config, "LED"), { "press": "one" })
-		self.assertEqual(cues_for(config, "Motor"), { "press": "two" })
+		self.assertEqual(cues_for(config, "LED", "gpio"), { "press": "one" })
+		self.assertEqual(cues_for(config, "Motor", "gpio"), { "press": "two" })
+		self.assertEqual(cues_for(config, "LED", "haptic"), {}, "an output reads its own kind's section")
+		motor = { "hapticFeedback": [{ "event": "press", "output": "Motor", "cue": "two" }, { "event": "drawing", "output": "Motor", "cue": "one" }] }
+		self.assertEqual(cues_for(motor, "Motor", "haptic"), { "press": "two" }, "a motor answers the buttons alone")
+		self.assertEqual(cues_for(motor, "Motor", "light"), {}, "a kind we do not know has no section")
 
 	def test_what_each_kind_of_output_asks_of_the_header(self):
 		outputs = Outputs()
@@ -456,7 +468,7 @@ class TestOutputSettings(WebApiTestBase):
 	def test_the_factory_document_has_the_led_with_no_pin_and_its_feedback(self):
 		doc = self.client.get("/api/settings/devices").json()
 		self.assertEqual([(o["name"], o["kind"], o["pin"]) for o in doc["outputs"]], [("LED", "gpio", None)])
-		self.assertEqual(cues_for(doc, "LED"), FACTORY)
+		self.assertEqual(cues_for(doc, "LED", "gpio"), FACTORY)
 
 	def test_an_output_is_saved_and_its_pin_is_not_a_buttons_another_outputs_or_the_panels(self):
 		self.assertEqual(self.put(**led_settings(quietFrom=22, quietTo=7)).status_code, 200)
@@ -478,15 +490,26 @@ class TestOutputSettings(WebApiTestBase):
 
 	def test_a_row_names_an_output_of_the_settings_and_a_cue_and_an_event_are_ours(self):
 		settings = led_settings()
-		settings["feedback"] += [{ "event": "press", "output": "Motor", "cue": "one" }, { "event": "sneeze", "output": "LED", "cue": "disco" }]
+		settings["outputs"].append({ "name": "Motor", "kind": "haptic", "pin": None, "speed": None, "volume": None })
+		settings["gpioFeedback"] += [{ "event": "press", "output": "Motor", "cue": "one" }, { "event": "sneeze", "output": "LED", "cue": "disco" }]
+		settings["hapticFeedback"] = [{ "event": "press", "output": "Motor", "cue": "two" }, { "event": "drawing", "output": "Motor", "cue": "one" }, { "event": "press", "output": "LED", "cue": "one" }]
 		paths = { tuple(e["path"]): e["message"] for e in self.errors(self.put(**settings)) }
-		self.assertEqual(paths[("feedback", "4", "output")], "No output has this name: add it under Outputs.")
-		self.assertIn(("feedback", "5", "event"), paths)
-		self.assertIn(("feedback", "5", "cue"), paths)
+		self.assertEqual(paths[("gpioFeedback", "4", "output")], "No GPIO output has this name: add it under Outputs.", "a section names its own kind's outputs")
+		self.assertIn(("gpioFeedback", "5", "event"), paths)
+		self.assertIn(("gpioFeedback", "5", "cue"), paths)
+		self.assertIn(("hapticFeedback", "1", "event"), paths, "a motor answers the buttons alone")
+		self.assertEqual(paths[("hapticFeedback", "2", "output")], "No haptic output has this name: add it under Outputs.")
+		self.assertNotIn(("hapticFeedback", "0", "output"), paths)
 		self.assertIn(("quietFrom",), { tuple(e["path"]) for e in self.errors(self.put(quietFrom=24)) })
 
-	def test_a_feedback_row_chooses_from_the_saved_outputs(self):
-		self.assertEqual(self.client.get("/api/devices/outputs").json(), [{ "name": "LED", "value": "LED" }])
+	def test_a_feedback_section_chooses_from_the_saved_outputs_of_its_kind(self):
+		settings = led_settings()
+		settings["outputs"].append({ "name": "Motor", "kind": "haptic", "pin": None, "speed": None, "volume": None })
+		self.assertEqual(self.put(**settings).status_code, 200)
+		self.assertEqual(self.client.get("/api/devices/outputs").json(), [{ "name": "LED", "value": "LED" }, { "name": "Motor", "value": "Motor" }])
+		self.assertEqual(self.client.get("/api/devices/outputs?kind=gpio").json(), [{ "name": "LED", "value": "LED" }])
+		self.assertEqual(self.client.get("/api/devices/outputs?kind=haptic").json(), [{ "name": "Motor", "value": "Motor" }])
+		self.assertEqual(self.client.get("/api/devices/outputs?kind=../x").json(), [])
 
 	def test_the_test_beside_a_cue_plays_it_on_the_rows_output_when_it_is_open(self):
 		asked: list[tuple[str, str, Any]] = []

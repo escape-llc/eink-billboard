@@ -8,7 +8,31 @@
 			"playlists": {
 				"url": "/api/devices/playlists"
 			},
-			"cues": {
+			"gpioCues": {
+				"items": [
+					{ "name": "Off", "value": "off" },
+					{ "name": "One", "value": "one" },
+					{ "name": "Two", "value": "two" },
+					{ "name": "Three", "value": "three" },
+					{ "name": "Steady", "value": "steady" },
+					{ "name": "Slow", "value": "slow" },
+					{ "name": "Fast", "value": "fast" },
+					{ "name": "Heartbeat", "value": "heartbeat" }
+				]
+			},
+			"hapticCues": {
+				"items": [
+					{ "name": "Off", "value": "off" },
+					{ "name": "One", "value": "one" },
+					{ "name": "Two", "value": "two" },
+					{ "name": "Three", "value": "three" },
+					{ "name": "Steady", "value": "steady" },
+					{ "name": "Slow", "value": "slow" },
+					{ "name": "Fast", "value": "fast" },
+					{ "name": "Heartbeat", "value": "heartbeat" }
+				]
+			},
+			"audioCues": {
 				"items": [
 					{ "name": "Off", "value": "off" },
 					{ "name": "One", "value": "one" },
@@ -40,8 +64,21 @@
 					{ "name": "Drawing", "value": "drawing" }
 				]
 			},
-			"outputs": {
-				"url": "/api/devices/outputs"
+			"buttonEvents": {
+				"items": [
+					{ "name": "Press", "value": "press" },
+					{ "name": "Long press", "value": "long-press" },
+					{ "name": "Held", "value": "holding" }
+				]
+			},
+			"gpioOutputs": {
+				"url": "/api/devices/outputs?kind=gpio"
+			},
+			"hapticOutputs": {
+				"url": "/api/devices/outputs?kind=haptic"
+			},
+			"audioOutputs": {
+				"url": "/api/devices/outputs?kind=audio"
 			}
 		},
 		"properties": [
@@ -125,7 +162,7 @@
 				"type": "array",
 				"title": "Outputs",
 				"required": false,
-				"description": "One row for each thing the device can say something with: a GPIO output (an LED wired from a pin through a resistor to ground, or an active buzzer; the Inky Impression has an LED on pin 13, at the top centre edge of the board), a haptic motor (a DRV2605 driver on the I²C bus, such as on the Impression's Qw/ST socket) or a sound card (a USB sound stick). A GPIO output with no pin is not connected. Feedback, below, says what each one says and when. An output whose hardware is not found is said in Activity, and the others still work.",
+				"description": "One row for each thing the device can say something with: a GPIO output (an LED wired from a pin through a resistor to ground, or an active buzzer; the Inky Impression has an LED on pin 13, at the top centre edge of the board), a haptic motor (a DRV2605 driver on the I²C bus, such as on the Impression's Qw/ST socket) or a sound card (a USB sound stick). A GPIO output with no pin is not connected. Feedback, below, says what each one says and when, a section for each kind. An output whose hardware is not found is said in Activity, and the others still work.",
 				"items": {
 					"type": "object",
 					"key": "name",
@@ -137,7 +174,7 @@
 							"required": true,
 							"default": null,
 							"maxLength": 30,
-							"description": "What the output is called in Feedback and in Buttons, live: LED, Buzzer, Speaker."
+							"description": "What the output is called in its kind's Feedback and in Buttons, live: LED, Buzzer, Speaker."
 						},
 						{
 							"name": "kind",
@@ -191,11 +228,16 @@
 				}
 			},
 			{
-				"name": "feedback",
+				"name": "feedbackHeader",
+				"type": "header",
+				"title": "Feedback"
+			},
+			{
+				"name": "gpioFeedback",
 				"type": "array",
-				"title": "Feedback",
+				"title": "GPIO Feedback",
 				"required": false,
-				"description": "What the outputs say, and when: one row for each event and output. Press and Long Press play once, when the button is let go; Held plays once a button has been held for a second (the cue that letting go is a long press); Problem while every track of the playlist has failed or the device waits to be set up; Drawing while the panel refreshes. One cue plays at a time on an output: a press plays over the others, Held comes before Problem, and Problem before Drawing. An LED keeps a Steady, Slow, Fast or Heartbeat cue going while the state lasts; a haptic motor and a sound card play a state's cue once, when it begins.",
+				"description": "What the GPIO outputs say, and when: one row for each event and output. Press and Long Press play once, when the button is let go; Held plays once a button has been held for a second (the cue that letting go is a long press); Problem while every track of the playlist has failed or the device waits to be set up; Drawing while the panel refreshes. One cue plays at a time on an output: a press plays over the others, Held comes before Problem, and Problem before Drawing. An LED keeps a Steady, Slow, Fast or Heartbeat cue going while the state lasts.",
 				"items": {
 					"type": "object",
 					"properties": [
@@ -214,8 +256,8 @@
 							"title": "Output",
 							"required": true,
 							"default": null,
-							"lookup": "outputs",
-							"description": "Which output says it: one of the saved Outputs (save a new one first)."
+							"lookup": "gpioOutputs",
+							"description": "Which output says it: one of the saved Outputs of this kind (save a new one first)."
 						},
 						{
 							"name": "cue",
@@ -223,9 +265,89 @@
 							"title": "Cue",
 							"required": true,
 							"default": "one",
-							"lookup": "cues",
+							"lookup": "gpioCues",
 							"test": { "url": "/api/devices/outputs/test" },
-							"description": "What it says. An LED blinks (One, Two, Three), stays lit (Steady) or keeps a rhythm (Slow, Fast, Heartbeat); a haptic motor clicks or buzzes the same counts and rhythms; a sound card plays a tone for each. Test plays it on the saved output now."
+							"description": "What it says: an LED blinks (One, Two, Three), stays lit (Steady) or keeps a rhythm (Slow, Fast, Heartbeat). Test plays it on the saved output now."
+						}
+					]
+				}
+			},
+			{
+				"name": "hapticFeedback",
+				"type": "array",
+				"title": "Haptic Feedback",
+				"required": false,
+				"description": "What the haptic outputs say, and when: one row for each event and output. A motor is felt only while touching the device, so it answers the buttons: Press and Long Press once, when the button is let go; Held once a button has been held for a second (the cue that letting go is a long press). A press plays over Held.",
+				"items": {
+					"type": "object",
+					"properties": [
+						{
+							"name": "event",
+							"type": "string",
+							"title": "Event",
+							"required": true,
+							"default": "press",
+							"lookup": "buttonEvents",
+							"description": "When the output says it."
+						},
+						{
+							"name": "output",
+							"type": "string",
+							"title": "Output",
+							"required": true,
+							"default": null,
+							"lookup": "hapticOutputs",
+							"description": "Which output says it: one of the saved Outputs of this kind (save a new one first)."
+						},
+						{
+							"name": "cue",
+							"type": "string",
+							"title": "Cue",
+							"required": true,
+							"default": "one",
+							"lookup": "hapticCues",
+							"test": { "url": "/api/devices/outputs/test" },
+							"description": "What it says: the motor clicks the counts (One, Two, Three) or buzzes the rhythms (Steady, Slow, Fast, Heartbeat), once. Test plays it on the saved output now."
+						}
+					]
+				}
+			},
+			{
+				"name": "audioFeedback",
+				"type": "array",
+				"title": "Audio Feedback",
+				"required": false,
+				"description": "What the sound cards say, and when: one row for each event and output, with the events of GPIO Feedback. A sound card plays a state's cue once, when the state begins; a press plays over the others, Held comes before Problem, and Problem before Drawing.",
+				"items": {
+					"type": "object",
+					"properties": [
+						{
+							"name": "event",
+							"type": "string",
+							"title": "Event",
+							"required": true,
+							"default": "press",
+							"lookup": "events",
+							"description": "When the output says it."
+						},
+						{
+							"name": "output",
+							"type": "string",
+							"title": "Output",
+							"required": true,
+							"default": null,
+							"lookup": "audioOutputs",
+							"description": "Which output says it: one of the saved Outputs of this kind (save a new one first)."
+						},
+						{
+							"name": "cue",
+							"type": "string",
+							"title": "Cue",
+							"required": true,
+							"default": "one",
+							"lookup": "audioCues",
+							"test": { "url": "/api/devices/outputs/test" },
+							"description": "What it says: a tone for each count (One, Two, Three) and rhythm (Steady, Slow, Fast, Heartbeat). Test plays it on the saved output now."
 						}
 					]
 				}
@@ -265,7 +387,7 @@
 				"volume": null
 			}
 		],
-		"feedback": [
+		"gpioFeedback": [
 			{
 				"event": "press",
 				"output": "LED",
@@ -287,6 +409,8 @@
 				"cue": "steady"
 			}
 		],
+		"hapticFeedback": [],
+		"audioFeedback": [],
 		"quietFrom": null,
 		"quietTo": null
 	}

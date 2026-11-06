@@ -40,9 +40,9 @@ def _no_output(name: str) -> dict:
 	return { "ok": False, "message": f"The output {name} is not open: save it first, with its hardware connected (the GPIO tab says when it is open)." }
 
 @router.get("/outputs", **answers(list[Choice]))
-def get_outputs(cm: CM):
-	"""The outputs a feedback row can name (the GPIO settings' saved Outputs), by name."""
-	return [{ "name": row["name"], "value": row["name"] } for row in output_rows(stored_devices(cm))]
+def get_outputs(cm: CM, kind: str|None = None):
+	"""The outputs a feedback row can name (the GPIO settings' saved Outputs), by name; `kind`: only that kind's (a feedback section's), any other value none."""
+	return [{ "name": row["name"], "value": row["name"] } for row in output_rows(stored_devices(cm)) if kind is None or row["kind"] == kind]
 
 @router.post("/outputs/test", **test_route())
 def test_feedback_cue(request: Request, body: dict[str, Any] = Body(...)):

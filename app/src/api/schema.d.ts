@@ -777,7 +777,7 @@ export interface paths {
         };
         /**
          * Get Outputs
-         * @description The outputs a feedback row can name (the GPIO settings' saved Outputs), by name.
+         * @description The outputs a feedback row can name (the GPIO settings' saved Outputs), by name; `kind`: only that kind's (a feedback section's), any other value none.
          */
         get: operations["get_outputs_api_devices_outputs_get"];
         put?: never;
@@ -3777,7 +3777,9 @@ export interface operations {
     };
     get_outputs_api_devices_outputs_get: {
         parameters: {
-            query?: never;
+            query?: {
+                kind?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3791,6 +3793,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Choice"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
