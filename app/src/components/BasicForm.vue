@@ -11,17 +11,23 @@
 			</template>
 			<template v-else>
 				<slot name="before-fields"></slot>
-				<template v-for="field in localProperties" :key="field.name">
-					<!--
-					<div>{{  JSON.stringify(field)  }}</div>
-					-->
-					<template v-if="field.type === 'header'">
-						<slot name="group-header" v-bind="field">
-							<div>{{ field.title }}</div>
-						</slot>
-					</template>
+				<template v-for="section in sections" :key="section.header?.name ?? ''">
+					<!-- a header that opens and closes (`collapsed`): its fields stay in the form while it is closed (hidden, not removed), and one with an error opens -->
+					<section v-if="section.header?.collapsed !== undefined" class="form-section" :data-open="sectionOpen(section, $form)">
+						<button type="button" class="section-toggle" :aria-expanded="sectionOpen(section, $form)" :aria-controls="`${uid}-${section.header.name}`" @click="toggleSection(section.header.name)">
+							<i class="mi mi-chevron-right chevron" aria-hidden="true"></i>
+							<strong>{{ section.header.title }}</strong>
+						</button>
+						<div v-show="sectionOpen(section, $form)" :id="`${uid}-${section.header.name}`" class="section-body">
+							<BasicFormField v-for="field in section.fields" :key="field.name" :field="field" :formContext="$form" :fieldNameWidth="labelWidth" :baseUrl="baseUrl" :showHelp="showHelp" :newFields="newNames" :fields="localProperties" @form-field-event="handleFormFieldEvent">
+							</BasicFormField>
+						</div>
+					</section>
 					<template v-else>
-						<BasicFormField :field="field" :formContext="$form" :fieldNameWidth="labelWidth" :baseUrl="baseUrl" :showHelp="showHelp" :newFields="newNames" :fields="localProperties" @form-field-event="handleFormFieldEvent">
+						<slot v-if="section.header" name="group-header" v-bind="section.header">
+							<div>{{ section.header.title }}</div>
+						</slot>
+						<BasicFormField v-for="field in section.fields" :key="field.name" :field="field" :formContext="$form" :fieldNameWidth="labelWidth" :baseUrl="baseUrl" :showHelp="showHelp" :newFields="newNames" :fields="localProperties" @form-field-event="handleFormFieldEvent">
 						</BasicFormField>
 					</template>
 				</template>
@@ -46,7 +52,7 @@ import { followResource, useCatalog } from "../api/resources"
 //import { InputGroup, ToggleSwitch, InputGroupAddon, InputText, InputNumber, Message, Select } from 'primevue';
 import Form, { type FormInstance, type FormSubmitEvent } from "@primevue/forms/form"
 import { Tag } from "primevue"
-import { ref, toRaw, nextTick, watch, computed, onBeforeUnmount } from "vue"
+import { ref, toRaw, nextTick, watch, computed, onBeforeUnmount, useId } from "vue"
 import z from "zod"
 import BasicFormField, { type FieldEventData } from './BasicFormField.vue'
 import { fieldRules, type FormField } from "./FormValidation"
@@ -99,6 +105,29 @@ const labelWidth = computed(() => props.fieldNameWidth === "adaptive" ? adaptive
 // decides what happens next. Saving, discarding, a conflict and leaving belong to the editor around it (useEditor).
 const emits = defineEmits<EmitsType>()
 const localProperties = ref<ResolvedField[]>([])
+type HeaderField = Extract<ResolvedField, { type: "header" }>
+/** The fields by header: the ones before the first header, then each header with the fields up to the next */
+type Section = { header?: HeaderField, fields: ResolvedField[] }
+const sections = computed<Section[]>(() => {
+	const found: Section[] = [{ fields: [] }]
+	for (const field of localProperties.value) {
+		if (field.type === "header") found.push({ header: field, fields: [] })
+		else found[found.length - 1]!.fields.push(field)
+	}
+	return found.filter(section => section.header || section.fields.length > 0)
+})
+const uid = useId()
+// which sections that open and close are open, by header name (a header's `collapsed` says how it starts); not remembered
+const opened = ref<Record<string, boolean>>({})
+watch(localProperties, fields => {
+	opened.value = Object.fromEntries(fields.flatMap(f => f.type === "header" && f.collapsed !== undefined ? [[f.name, opened.value[f.name] ?? !f.collapsed]] : []))
+})
+const toggleSection = (name: string) => { opened.value = { ...opened.value, [name]: !opened.value[name] } }
+/** open, or holding a field with an error (which must not be hidden) */
+const sectionOpen = (section: Section, form: Record<string, unknown>): boolean => {
+	if (!section.header || opened.value[section.header.name]) return true
+	return section.fields.some(f => f.type !== "header" && (form[f.name] as { invalid?: boolean } | undefined)?.invalid === true)
+}
 const localValues = ref<FormValues>({})
 /** How deep a choice inside a choice goes (a plugin's data source, then the parts it chooses): the server's MAX_CHOICE_DEPTH (documents.py). Before the `immediate` watches, which use it. */
 const MAX_CHOICE_DEPTH = 3
@@ -502,6 +531,36 @@ const setValue = (name: string, value: unknown) => formRef.value?.setFieldValue(
 defineExpose({ submit, reset, setServerErrors, isDirty, setValue })
 </script>
 <style scoped>
+.form-section {
+	display: flex;
+	flex-direction: column;
+	gap: .25rem;
+}
+.section-toggle {
+	display: flex;
+	align-items: center;
+	gap: .35rem;
+	padding: .25rem 0;
+	border: none;
+	background: none;
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+	text-align: left;
+}
+.chevron {
+	color: var(--p-text-muted-color);
+	transition: transform .15s;
+}
+.section-toggle[aria-expanded="true"] .chevron {
+	transform: rotate(90deg);
+}
+/* not the utility classes: their display is !important, and would show a closed section (v-show hides by display) */
+.section-body {
+	display: flex;
+	flex-direction: column;
+	gap: .25rem;
+}
 .stale-fields {
 	margin-top: .5rem;
 	opacity: .6;

@@ -85,7 +85,8 @@
 			{
 				"name": "buttonsHeader",
 				"type": "header",
-				"title": "Buttons"
+				"title": "Buttons",
+				"collapsed": false
 			},
 			{
 				"name": "triggers",
@@ -155,7 +156,8 @@
 			{
 				"name": "outputsHeader",
 				"type": "header",
-				"title": "Outputs"
+				"title": "Outputs",
+				"collapsed": true
 			},
 			{
 				"name": "outputs",
@@ -230,7 +232,8 @@
 			{
 				"name": "feedbackHeader",
 				"type": "header",
-				"title": "Feedback"
+				"title": "Feedback",
+				"collapsed": true
 			},
 			{
 				"name": "gpioFeedback",
