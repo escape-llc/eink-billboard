@@ -346,7 +346,85 @@ class TestOutputThatDoesNotHold(unittest.TestCase):
 		self.assertTrue(wait_until(lambda: len(renderer.played) == 2))
 		self.assertEqual(played, [("Fast", "the panel drawing")] * 2, "the buzz ended by itself: no Off, and the next is said")
 
+class GoneRenderer(OnceRenderer):
+	"""A sound card that can be pulled out: while `gone`, each cue raises our error."""
+	def __init__(self) -> None:
+		super().__init__()
+		self.gone = True
+	def play(self, cue: str, stop: threading.Event, seconds: float, options: Mapping[str, Any]|None = None) -> bool:
+		if self.gone:
+			raise PermanentError("No USB sound card was found.")
+		return super().play(cue, stop, seconds, options)
+
+class TestHardwareThatGoes(unittest.TestCase):
+	def test_hardware_that_went_is_said_once_and_a_state_cue_is_not_played_late(self):
+		renderer = GoneRenderer()
+		faults: list[str] = []
+		player = Player("Speaker", renderer, { "press": "one", "drawing": "fast" }, {}, lambda: at(12))
+		player.on_fault = faults.append
+		player.IDLE_SECONDS = 0.02
+		player.start()
+		self.addCleanup(player.close)
+		with self.assertLogs("python.device.player", "WARNING"):
+			player.state("drawing", True)
+			player.gesture("press")
+			self.assertTrue(wait_until(lambda: len(faults) == 1))
+			time.sleep(0.15)
+		self.assertEqual(faults, ["No USB sound card was found."], "said once, not each cycle")
+		renderer.gone = False
+		time.sleep(0.15)
+		self.assertEqual(renderer.played, [], "the chime for drawing that began while it was gone is not played long after")
+		player.gesture("press")
+		self.assertTrue(wait_until(lambda: [c for c, _ in renderer.played] == ["one"]))
+		renderer.gone = True
+		with self.assertLogs("python.device.player", "WARNING"):
+			player.gesture("press")
+			self.assertTrue(wait_until(lambda: len(faults) == 2), "gone again after it played: said again")
+
 class TestOutputs(unittest.TestCase):
+	def test_hardware_plugged_in_later_is_found_said_and_shows_the_states_that_are_on(self):
+		plugged = [False]
+		made: list[OnceRenderer] = []
+		def audio(row: Mapping[str, Any]) -> OnceRenderer:
+			if not plugged[0]:
+				raise PermanentError("No USB sound card was found.")
+			made.append(OnceRenderer())
+			return made[-1]
+		outputs = Outputs({ "gpio": lambda row: OnceRenderer(), "haptic": audio, "audio": audio })
+		outputs.RETRY_SECONDS = 0.05
+		told: list[str] = []
+		outputs.on_tell = told.append
+		config = { "outputs": [{ "name": "Speaker", "kind": "audio" }], "audioFeedback": [{ "event": "drawing", "output": "Speaker", "cue": "steady" }] }
+		with self.assertLogs("python.device.outputs", "WARNING"):
+			outputs.open(lambda name, gesture: None, config)
+		self.addCleanup(outputs.close)
+		self.assertEqual(outputs.problems, ["The output Speaker: No USB sound card was found."])
+		outputs.state("drawing", True)
+		time.sleep(0.15)
+		self.assertEqual(outputs.names, ())
+		plugged[0] = True
+		self.assertTrue(wait_until(lambda: outputs.names == ("Speaker",)))
+		self.assertEqual(told, ["The output Speaker is open."])
+		self.assertEqual(outputs.problems, [])
+		self.assertTrue(wait_until(lambda: len(made) == 1 and made[0].played == [("steady", None)]), "it shows the state that is on")
+		time.sleep(0.15)
+		self.assertEqual(len(made), 1, "found once: the retry ends")
+
+	def test_closing_stops_looking_for_what_is_missing(self):
+		tried = [0]
+		def audio(row: Mapping[str, Any]) -> OnceRenderer:
+			tried[0] += 1
+			raise PermanentError("No USB sound card was found.")
+		outputs = Outputs({ "gpio": lambda row: OnceRenderer(), "haptic": audio, "audio": audio })
+		outputs.RETRY_SECONDS = 0.02
+		with self.assertLogs("python.device.outputs", "WARNING"):
+			outputs.open(lambda name, gesture: None, { "outputs": [{ "name": "Speaker", "kind": "audio" }] })
+		self.assertTrue(wait_until(lambda: tried[0] >= 3), "looked for again")
+		outputs.close()
+		count = tried[0]
+		time.sleep(0.1)
+		self.assertEqual(tried[0], count)
+
 	def test_an_output_whose_hardware_is_not_there_is_said_and_the_rest_play(self):
 		def gpio(row: Mapping[str, Any]) -> GpioRenderer:
 			return GpioRenderer(row["pin"], row.get("speed"), FakeLed)
