@@ -8,6 +8,7 @@ import os
 import re
 import unittest
 from typing import Any, Iterator
+from urllib.parse import parse_qs
 
 from fastapi import FastAPI
 from fastapi.exceptions import ResponseValidationError
@@ -53,7 +54,8 @@ def _whole_number_lookups(node: Any) -> set[str]:
 def _addresses(node: Any) -> Iterator[tuple[str, str, list[str], str]]:
 	"""
 	(kind, address, query, name) for each address a descriptor names: a Test button's (`test.url`), a row action's (`action.url`), a URL lookup's
-	(in `lookups`, with its name). `query` is what a lookup sends: its `with` fields, and `q` for a `search`.
+	(in `lookups`, with its name). `query` is what a lookup sends: the parameters its address fixes (`?kind=gpio`, its path is the address), its `with`
+	fields, and `q` for a `search`.
 	"""
 	if isinstance(node, list):
 		for item in node:
@@ -65,7 +67,8 @@ def _addresses(node: Any) -> Iterator[tuple[str, str, list[str], str]]:
 			elif key == "lookups" and isinstance(value, dict):
 				for lookup_name, lookup in value.items():
 					if isinstance(lookup, dict) and isinstance(lookup.get("url"), str):
-						yield "lookup", lookup["url"], [*lookup.get("with", []), *(["q"] if lookup.get("search") else [])], lookup_name
+						path, _, fixed = lookup["url"].partition("?")
+						yield "lookup", path, [*parse_qs(fixed), *lookup.get("with", []), *(["q"] if lookup.get("search") else [])], lookup_name
 			yield from _addresses(value)
 
 class TestDescriptorAddresses(unittest.TestCase):
@@ -113,7 +116,7 @@ class TestDescriptorAddresses(unittest.TestCase):
 						self.assertEqual({ field: item["properties"][field]["type"] for field in ("name", "value") }, { "name": "string", "value": "integer" if lookup_name in numbers else "string" })
 						self.assertLessEqual({ "name", "value" }, set(item.get("required", [])))
 						declared = { p["name"] for p in self.operation(address, "get").get("parameters", []) if p.get("in") == "query" }
-						self.assertLessEqual(set(query), declared, "a lookup's `with` fields and a search's `q` are query parameters of its route")
+						self.assertLessEqual(set(query), declared, "the parameters a lookup's address fixes, its `with` fields and a search's `q` are query parameters of its route")
 		# the walk finds them: a descriptor that moved its addresses elsewhere would make this test pass with nothing checked
 		self.assertTrue(all(found.values()), found)
 
