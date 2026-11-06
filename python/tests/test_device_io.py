@@ -13,7 +13,7 @@ from types import SimpleNamespace
 from typing import Any, Callable, Mapping
 from unittest.mock import patch
 
-from ..device.bindings import action_for
+from ..device.bindings import LONG_ACTIONS, action_for, row_for
 from ..device.buttons import DEBOUNCE_SECONDS, LONG_PRESS_SECONDS, Buttons, load_button, physical_words
 from ..device.pins import FIRST_PIN, LAST_PIN, Panel, check_pins, panel_for, panel_lines, panel_pin_errors, pin_choices
 from ..device.registry import available_devices
@@ -235,6 +235,19 @@ class TestBindings(unittest.TestCase):
 		self.assertIsNone(action_for("buttons", "gpio-7", "press", rows), "a pin with no row")
 		self.assertIsNone(action_for("buttons", "gpio-6", "press", None))
 		self.assertIsNone(action_for("buttons", "gpio-6", "press", triggers((6, "launch"))), "an action we do not have")
+
+	def test_a_long_press_is_the_rows_long_press_and_never_a_task(self):
+		rows = { "triggers": [
+			{ "pin": 5, "action": "next", "longAction": "stop" },
+			{ "pin": 6, "action": "task", "longAction": "playlist", "longPlaylist": "transit", "playlist": None },
+			{ "pin": 7, "action": "toggle", "longAction": "task" },
+			{ "pin": 8, "action": "toggle" },
+		] }
+		self.assertEqual([action_for("buttons", f"gpio-{pin}", "long-press", rows) for pin in (5, 6, 7, 8)], ["stop", "playlist", None, None])
+		self.assertEqual(action_for("buttons", "gpio-5", "press", rows), "next", "the press is the row's own")
+		row = row_for("buttons", "gpio-6", "long-press", rows)
+		assert row is not None
+		self.assertEqual((row["action"], row["playlist"]), ("playlist", "transit"), "its playlist is the long press's")
 
 class Sent:
 	"""What went to the router, by route."""
@@ -542,7 +555,17 @@ class TestApplicationBindings(unittest.TestCase):
 		self.press(app, "gpio-9")
 		self.press(app, "gpio-9", "release")
 		self.assertEqual(sent.on("playlist-layer"), [])
-		self.assertEqual(self.told(sent), [("ignored", "The button on pin 6 was held: a long press does nothing yet."), ("ignored", "The button on pin 9 was pressed: no action is set up for it.")])
+		self.assertEqual(self.told(sent), [("ignored", "The button on pin 6 was held: no long press is set up for it."), ("ignored", "The button on pin 9 was pressed: no action is set up for it.")])
+
+	def test_a_long_press_does_the_rows_long_press(self):
+		app, sent = self.application(halted=True)
+		self.save_triggers(app, [{ "pin": 5, "action": "toggle", "longAction": "next" }, { "pin": 20, "action": "next", "longAction": "playlist", "longPlaylist": "transit" }])
+		self.press(app, "gpio-5", "long-press")
+		self.press(app, "gpio-20", "long-press")
+		[step, seek] = sent.on("playlist-layer")
+		self.assertEqual(type(seek), SeekPlaylist)
+		self.assertEqual(getattr(seek, "playlist_id", None), "transit")
+		self.assertEqual(self.told(sent), [("done", "The button on pin 5 was held: next."), ("done", "The button on pin 20 was held: play the playlist 'transit'.")])
 
 	def test_a_press_the_device_cannot_act_on_yet_says_why_instead_of_saying_it_acted(self):
 		app, sent = self.application(claimed=False)
@@ -598,12 +621,15 @@ class TestDevicesSettings(WebApiTestBase):
 		[triggers] = [p for p in schema["schema"]["properties"] if p["name"] == "triggers"]
 		self.assertEqual(triggers["name"], "triggers")
 		self.assertTrue(triggers.get("title") and triggers.get("description"))
-		pin, action, playlist = triggers["items"]["properties"]
+		pin, action, playlist, long_action, long_playlist = triggers["items"]["properties"]
 		self.assertEqual((pin["type"], pin["minimum"], pin["maximum"]), ("integer", FIRST_PIN, LAST_PIN))
 		self.assertEqual(triggers["items"]["key"], "pin")
-		for p in (pin, action, playlist):
+		for p in (pin, action, playlist, long_action, long_playlist):
 			self.assertTrue(p.get("title") and p.get("description"), p["name"])
 		self.assertEqual((playlist["lookup"], playlist["visibleIf"]), ("playlists", { "field": "action", "const": "playlist" }))
+		self.assertEqual((long_playlist["lookup"], long_playlist["visibleIf"]), ("playlists", { "field": "longAction", "const": "playlist" }))
+		self.assertEqual(set(long_action["enum"]), set(LONG_ACTIONS), "a long press is any action but a task")
+		self.assertEqual(set(action["enum"]) - set(long_action["enum"]), { "task" })
 
 	def put(self, rows: list[dict[str, Any]]):
 		doc = self.client.get("/api/settings/devices").json()
@@ -652,13 +678,18 @@ class TestDevicesSettings(WebApiTestBase):
 		errors = refused.json()["errors"]
 		self.assertIn({ "path": ["triggers", "0", "playlist"], "message": "Not one of the allowed values" }, errors)
 		self.assertTrue(any(e["path"][:3] == ["triggers", "1", "playlist"] for e in errors), errors)
+		# a long press that plays a playlist names one too
+		long = self.put([{ "pin": 5, "action": "next", "longAction": "playlist", "longPlaylist": "gone" }])
+		self.assertIn({ "path": ["triggers", "0", "longPlaylist"], "message": "Not one of the allowed values" }, long.json()["errors"])
+		self.assertEqual(self.put([{ "pin": 5, "action": "next", "longAction": "playlist", "longPlaylist": first["value"] }]).status_code, 200)
 		# two buttons may play playlists: only play, stop, toggle and next are one to a button
 		self.assertEqual(self.put([{ "pin": 5, "action": "playlist", "playlist": first["value"] }, { "pin": 6, "action": "playlist", "playlist": first["value"] }]).status_code, 200)
 
 	def test_buttons_are_saved_and_one_off_the_header_is_refused(self):
 		saved = self.put([{ "pin": 5, "action": "toggle", "playlist": None }, { "pin": 6, "action": "next", "playlist": None }])
 		self.assertEqual(saved.status_code, 200, saved.text)
-		self.assertEqual(self.client.get("/api/settings/devices").json()["triggers"], [{ "pin": 5, "action": "toggle", "playlist": None }, { "pin": 6, "action": "next", "playlist": None }])
+		# a field its row hides is saved empty (the long press's playlist)
+		self.assertEqual(self.client.get("/api/settings/devices").json()["triggers"], [{ "pin": 5, "action": "toggle", "playlist": None, "longPlaylist": None }, { "pin": 6, "action": "next", "playlist": None, "longPlaylist": None }])
 		refused = self.put([{ "pin": 40, "action": "next" }])
 		self.assertEqual(refused.status_code, 422)
 		self.assertEqual(refused.json()["errors"][0]["path"], ["triggers", "0", "pin"])
