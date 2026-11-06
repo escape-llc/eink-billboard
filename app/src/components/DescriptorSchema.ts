@@ -72,6 +72,7 @@ export const groupSchema = z.strictObject({
 	type: z.literal("header"),
 	description: z.string().optional(),
 	visibleIf: predicate.optional(),
+	collapsed: z.boolean().optional(),
 })
 
 export const propertySchema = z.discriminatedUnion("type", [groupSchema, fieldSchema])

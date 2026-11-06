@@ -6,6 +6,8 @@ export type FieldGroupDef = {
 	type: "header"
 	description?: string
 	visibleIf?: Predicate
+	/** the header's section (its fields, up to the next header) opens and closes; `true`: it starts closed. Not remembered (the browser stores only the theme) */
+	collapsed?: boolean
 }
 export type FieldDef = {
 	name: string

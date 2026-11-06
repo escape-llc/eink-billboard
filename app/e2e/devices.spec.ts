@@ -34,6 +34,11 @@ test("the outputs list the factory LED and its feedback, and a cue's Test reache
 	const watch = watchProblems(page)
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "GPIO" }).click()
+	// Outputs and Feedback start closed (the page is long, and the live view is under it): each opens from its heading
+	await expect(page.getByRole("group", { name: "Outputs" })).toBeHidden()
+	await expect(page.getByRole("button", { name: "Outputs", exact: true })).toHaveAttribute("aria-expanded", "false")
+	await page.getByRole("button", { name: "Outputs", exact: true }).click()
+	await page.getByRole("button", { name: "Feedback", exact: true }).click()
 	await expect(page.getByRole("group", { name: "Outputs" })).toBeVisible()
 	await expect(page.getByRole("textbox", { name: "Name 1" })).toHaveValue("LED")
 	await expect(page.getByRole("group", { name: "GPIO Feedback" })).toBeVisible()
@@ -48,6 +53,24 @@ test("the outputs list the factory LED and its feedback, and a cue's Test reache
 	await page.getByRole("group", { name: "Haptic Feedback" }).getByRole("combobox", { name: "Output 1" }).click()
 	await expect(page.getByRole("option", { name: "LED", exact: true })).toHaveCount(0)
 	await page.keyboard.press("Escape")
+	watch.expectNone()
+})
+
+// a section that opens and closes never hides an error: an output with no name keeps Outputs open, closed or not, until it is put right
+test("a closed section with an error in it opens", async ({ page }) => {
+	const watch = watchProblems(page)
+	await page.goto("/#/settings")
+	await page.getByRole("tab", { name: "GPIO" }).click()
+	const outputs = page.getByRole("button", { name: "Outputs", exact: true })
+	await outputs.click()
+	await page.getByRole("button", { name: "Add to Outputs" }).click()
+	await page.getByRole("textbox", { name: "Name 2" }).fill("x")
+	await page.getByRole("textbox", { name: "Name 2" }).fill("")
+	await outputs.click()
+	await expect(page.getByRole("group", { name: "Outputs" })).toBeVisible()
+	await expect(outputs).toHaveAttribute("aria-expanded", "true")
+	await page.getByRole("textbox", { name: "Name 2" }).fill("Buzzer")
+	await expect(page.getByRole("group", { name: "Outputs" })).toBeHidden()
 	watch.expectNone()
 })
 
