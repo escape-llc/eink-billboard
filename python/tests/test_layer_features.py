@@ -17,8 +17,14 @@ SOURCES = load("datasources", "datasource-info.json")
 
 def offered(plugin: dict) -> list[dict]:
 	"""The data sources the plugin's form offers: the ones that have one of the lookup's features (the same rule as the form and the server)."""
-	wanted = plugin["instanceSettings"]["schema"]["lookups"]["dataSource"]["features"]
-	return [s for s in SOURCES if set(wanted) & set(s.get("features") or [])]
+	lookup = draws(plugin)
+	if lookup is None:
+		return []
+	return [s for s in SOURCES if set(lookup["features"]) & set(s.get("features") or [])]
+
+def draws(plugin: dict) -> dict|None:
+	"""The plugin's data source lookup; None for a plugin that draws nothing (the Clock Chime plays on an output, #918)."""
+	return plugin["instanceSettings"]["schema"]["lookups"].get("dataSource")
 
 def layers(features: list[str]) -> set[str]:
 	return {f for f in features if f.startswith("layer-")}
@@ -76,12 +82,15 @@ class TestPluginsAndSourcesAgree(unittest.TestCase):
 
 	def test_a_plugin_asks_only_for_layers_it_advertises(self):
 		for plugin in PLUGINS.values():
-			wanted = set(plugin["instanceSettings"]["schema"]["lookups"]["dataSource"]["features"])
+			lookup = draws(plugin)
+			wanted = set(lookup["features"]) if lookup is not None else set()
 			with self.subTest(plugin["id"]):
 				self.assertTrue(wanted <= layers(plugin["features"]), f"{plugin['id']} asks for {wanted} but advertises {layers(plugin['features'])}")
 
 	def test_every_offered_source_has_media_the_plugin_handles(self):
 		for plugin in PLUGINS.values():
+			if draws(plugin) is None:
+				continue
 			handled = media(plugin["features"])
 			self.assertTrue(handled, f"{plugin['id']} advertises no media it handles")
 			for source in offered(plugin):
@@ -109,6 +118,11 @@ class TestPluginsAndSourcesAgree(unittest.TestCase):
 				for source in offered(plugin):
 					with self.subTest(f"{plugin['id']} offers {source['id']}"):
 						self.assertNotEqual(layers(source["features"]), {"layer-background"})
+
+	def test_a_plugin_that_draws_nothing_has_no_layer_or_media(self):
+		chime = PLUGINS["clock-chime"]
+		self.assertIsNone(draws(chime))
+		self.assertEqual(chime["features"], ["timer-output"])
 
 	def test_the_today_source_is_an_overlay_source_only(self):
 		today = next(s for s in SOURCES if s["id"] == "today")

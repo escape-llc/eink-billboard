@@ -34,7 +34,8 @@ type FieldError = { path: unknown[], message: string }
 
 // a timer task acts on the priority or overlay layer: the plugins for the playlist (background, foreground) are not offered.
 // A stored task keeps its plugin (and shows it) even when it would not be offered now
-const TIMER_LAYERS = ["layer-priority", "layer-overlay"]
+// a timer task draws over the playlist (priority, overlay) or plays on an output and draws nothing (the Clock Chime, #918)
+const TIMER_LAYERS = ["layer-priority", "layer-overlay", "timer-output"]
 export { DEFAULT_TRIGGER }
 
 /** A 422's problems, sorted: a plugin field's goes on that field (`onField`, the path the form knows); the rest (title, trigger, plugin) is listed. */

@@ -42,6 +42,9 @@ EFFECTS: Mapping[str, tuple[int, ...]] = {
 	"slow": (52,),
 	"fast": (47, wait(100), 47, wait(100), 47),
 	"heartbeat": (1, wait(120), 1),
+	# a clock's strike, and a Westminster change as four clicks (eight slots: the waits are slots too)
+	"bell": (1, wait(600)),
+	**{ f"change-{n}": (1, wait(150), 1, wait(150), 1, wait(150), 1, wait(500)) for n in range(1, 6) },
 }
 # how long a sequence may take before the chip is told to stop (the longest is about a second)
 LONGEST_SECONDS = 3.0

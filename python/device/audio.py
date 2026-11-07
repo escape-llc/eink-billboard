@@ -33,6 +33,19 @@ FADE_SECONDS = 0.005
 
 # a note: its pitch (Hz), how long it sounds (s), the silence after it (s), and whether it rings out (a bell) or holds level
 type Note = tuple[float, float, float, bool]
+# the Westminster quarters' notes (E major, an octave above the hour bell) and their five changes (#918)
+B4, E5, FS5, GS5 = 493.88, 659.26, 739.99, 830.61
+WESTMINSTER: Mapping[str, tuple[float, float, float, float]] = {
+	"change-1": (GS5, FS5, E5, B4),
+	"change-2": (E5, GS5, FS5, B4),
+	"change-3": (E5, FS5, GS5, E5),
+	"change-4": (GS5, E5, FS5, B4),
+	"change-5": (B4, FS5, GS5, E5),
+}
+def change(pitches: tuple[float, ...]) -> tuple[Note, ...]:
+	"""A change as bells: each note rings briefly, the last one longer, then a pause before the next change."""
+	return (*((pitch, 0.55, 0.05, True) for pitch in pitches[:-1]), (pitches[-1], 1.0, 0.6, True))
+
 # each cue as notes: a tick, a two-tone "bee-doop", three beeps, a chime, a low chime, an alert, a heartbeat
 TONES: Mapping[str, tuple[Note, ...]] = {
 	"off": (),
@@ -43,6 +56,9 @@ TONES: Mapping[str, tuple[Note, ...]] = {
 	"slow": ((523.0, 0.7, 0.0, True),),
 	"fast": ((1568.0, 0.07, 0.05, False), (1568.0, 0.07, 0.05, False), (1568.0, 0.07, 0.05, False), (1568.0, 0.07, 0.0, False)),
 	"heartbeat": ((220.0, 0.09, 0.12, True), (220.0, 0.09, 0.0, True)),
+	# a clock's hour bell, rung out, with room before the next strike
+	"bell": ((329.63, 1.6, 0.5, True),),
+	**{ name: change(notes) for name, notes in WESTMINSTER.items() },
 }
 
 def level(volume: object) -> float:

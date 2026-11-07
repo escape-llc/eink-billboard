@@ -10,7 +10,7 @@ closing devices, reading the settings) happens on the task's own thread. The set
 and a configuration that cannot be opened leaves the previous one working.
 
 The outputs (python/device/outputs.py: an LED, the haptic motor, a sound card) are told each press and long press of a button, a button held past a long press, each state on the
-`indicator` route (`Indicate`: drawing, a problem), and a Test (`OutputTest`). The states are kept here, so the outputs opened again after a save show what is on at once.
+`indicator` route (`Indicate`: drawing, a problem), a Test (`OutputTest`), and a task's cue (`OutputCue`). The states are kept here, so the outputs opened again after a save show what is on at once.
 """
 import logging
 from typing import Any, Callable, Mapping
@@ -19,7 +19,7 @@ from .basic_task import DispatcherTask, handles
 from .coalescer import Coalescer
 from .configure_event import ConfigureEvent
 from .message_router import MessageRouter
-from .messages import ConfigurationChanged, Indicate, InputEvent, OutputTest, ReloadDevices, Telemetry
+from .messages import ConfigurationChanged, Indicate, InputEvent, OutputCue, OutputTest, ReloadDevices, Telemetry
 from ..device.base import InputDevice
 from ..device.buttons import physical_words
 from ..device.outputs import Outputs
@@ -168,6 +168,13 @@ class DeviceIO(DispatcherTask):
 		else:
 			self._signals.discard(msg.signal)
 		self._show_states()
+
+	@handles(OutputCue)
+	def _output_cue(self, msg: OutputCue):
+		"""A task's cue: played on its output, or said when that output is not open (a name the GPIO settings no longer have, hardware not found)."""
+		outputs = self._outputs()
+		if outputs is None or not outputs.play(msg.output, msg.steps, msg.why):
+			self._tell(f"The output {msg.output} is not open, so {msg.why} played nothing: add it in the GPIO settings, with its hardware connected.")
 
 	@handles(OutputTest)
 	def _output_test(self, msg: OutputTest):

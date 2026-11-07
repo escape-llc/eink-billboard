@@ -77,6 +77,7 @@ describe("an event's label", () => {
 	it("shows the layer as a glyph, not the plugin's id", () => {
 		expect(eventLabel("Clock Hourly", "priority-update", ["layer-priority"])).toEqual({ title: "Clock Hourly", glyph: "mi mi-priority-high", layer: "Priority" })
 		expect(eventLabel("Today", "overlay", ["layer-overlay"])).toEqual({ title: "Today", glyph: "mi mi-picture-in-picture", layer: "Overlay" })
+		expect(eventLabel("Westminster", "clock-chime", ["timer-output"])).toEqual({ title: "Westminster", glyph: "mi mi-notifications", layer: "Output" })
 	})
 	it("keeps the id of a plugin that is not installed in the text", () => {
 		expect(eventLabel("Gone", "uninstalled", undefined)).toEqual({ title: "Gone (uninstalled)" })

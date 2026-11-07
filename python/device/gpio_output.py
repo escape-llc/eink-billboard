@@ -29,6 +29,9 @@ PATTERNS: Mapping[str, tuple[tuple[float, float], ...]] = {
 	"slow": ((1.0, 1.0),),
 	"fast": ((0.25, 0.25),),
 	"heartbeat": ((0.12, 0.12), (0.12, 0.8)),
+	# a clock's strike, and a Westminster change as its rhythm: three short blinks and a long one
+	"bell": ((0.6, 0.6),),
+	**{ f"change-{n}": ((0.15, 0.15), (0.15, 0.15), (0.15, 0.15), (0.3, 0.6)) for n in range(1, 6) },
 }
 
 def scale_of(speed: object) -> float:

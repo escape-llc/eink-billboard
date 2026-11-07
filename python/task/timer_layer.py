@@ -7,6 +7,7 @@ import threading
 from typing import Any, Mapping, NotRequired, ReadOnly, TypedDict, cast
 
 from ..datasources.data_source import DataSourceManager
+from ..device.cues import CUES
 from ..model.configuration_manager import CollectInfoDict, ConfigurationManager, SettingsConfigurationManager, StaticConfigurationManager
 from ..model.schedule import TimerTaskItem, TimerTaskTask, TriggerDict, Playlist, generate_schedule, instant, next_day_start
 from ..model.schedule_loader import ScheduleLoaderDict
@@ -19,7 +20,7 @@ from ..task.display_messages import DisplaySettings, OverlayDefinition, OverlayI
 from ..task.coalescer import Coalescer
 from ..task.message_router import MessageRouter
 from ..task.source_router import SourceRouter, image_source
-from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, QuitMessage, ReloadSchedules, RunTask, RunTrigger, Telemetry
+from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, OutputCue, QuitMessage, ReloadSchedules, RunTask, RunTrigger, Telemetry
 from ..task.protocols import IProvideTimer, IRequireShutdown, MessageSink
 from ..task.configure_event import ConfigureEvent
 from ..task.playlist_layer import StartPlayback
@@ -260,6 +261,7 @@ class TimerLayer(DispatcherTask):
 			started = True
 			plugin_result = await plugin.task_async(context, item, task_done)
 			self.state = 'playing'
+			self._play_task_cue(tod, item)
 			self.logger.info(f"{kind.capitalize()} task '{item.title}' completed with result: {plugin_result}")
 			telemetry: TelemetryDict = {
 				"state": self.state,
@@ -278,6 +280,15 @@ class TimerLayer(DispatcherTask):
 			await self._show_error(item, safe_reason(e), tod.current_time())
 			# the failure was announced after `task-started`: its slot ends like any other (the error page is what the task showed)
 			self._task_event("task-ended", tod, item, index, playlist, sched_ts)
+	def _play_task_cue(self, tod: TimeOfDay, item: TimerTaskItem) -> None:
+		"""
+		A task that ran plays its cue on its output (#918: a calendar reminder chimes as its page goes to the panel), when its settings choose both (`cueOutput`, `cue`, the same on every
+		timer plugin that draws). The quiet hours keep the output still; an output that is not open is said by the DeviceIO task.
+		"""
+		content = item.task.content if isinstance(item.task.content, dict) else {}
+		output, cue = content.get("cueOutput"), content.get("cue")
+		if isinstance(output, str) and output and isinstance(cue, str) and cue in CUES and cue != "off":
+			self.router.send("indicator", OutputCue(tod.current_time(), output, ((cue, 1),), f"the task '{item.title}'"))
 	async def _layer_task(self, isp: IServiceProvider, tasks: list[ScheduleLoaderDict], donev: threading.Event) -> BasicMessage|None:
 		"""
 		Runs until it is cancelled: the startup tasks once, then each local day's schedule in turn.

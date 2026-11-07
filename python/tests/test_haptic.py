@@ -8,7 +8,7 @@ from typing import Any
 
 from ..device import haptic
 from ..device.haptic import ADDRESS, CONTROL3, EFFECTS, FEEDBACK, GO, LIBRARY, MODE, SEQUENCE, SLOTS, STANDBY, STATUS, HapticRenderer
-from ..device.cues import CUES
+from ..device.cues import PLAYABLE
 from ..plugins.plugin_base import PermanentError
 
 class FakeBus:
@@ -42,7 +42,7 @@ def opened(bus: FakeBus) -> HapticRenderer:
 
 class TestHaptic(unittest.TestCase):
 	def test_every_cue_is_a_sequence_that_fits_the_chip(self):
-		self.assertEqual(set(EFFECTS), set(CUES))
+		self.assertEqual(set(EFFECTS), set(PLAYABLE))
 		for cue, effects in EFFECTS.items():
 			self.assertLessEqual(len(effects), SLOTS, cue)
 			self.assertTrue(all(0 < e <= 0xFF for e in effects), cue)

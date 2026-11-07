@@ -1,0 +1,86 @@
+{
+	"id": "clock-chime",
+	"name": "Clock Chime",
+	"version": "0.0.1",
+	"class": "ClockChimeAsync",
+	"file": "clock_chime.py",
+	"module": "python.plugins.clock_chime.clock_chime",
+	"description": "A timer task that chimes and strikes like a grandfather clock on one of the GPIO settings' outputs, and draws nothing. What it plays comes from the time it wakes at, to the nearest quarter hour. Its trigger chooses when: on the hour only, or at minutes 0, 15, 30 and 45 for the quarters.",
+	"describe": "On {cueOutput}",
+	"disabled": false,
+	"features": ["timer-output"],
+	"settings": {
+		"_schema": "urn:inky:storage:schema:plugin:clock-chime:1",
+		"schema": {
+			"properties": [
+			]
+		},
+		"default": null
+	},
+	"instanceSettings": {
+		"schema": {
+			"lookups": {
+				"outputs": { "url": "/api/devices/outputs" }
+			},
+			"properties": [
+				{
+					"name": "cueOutput",
+					"type": "string",
+					"required": true,
+					"default": null,
+					"lookup": "outputs",
+					"title": "Output",
+					"description": "Where it chimes: one of the GPIO settings' Outputs. A sound card plays the tune and the bell. An LED or the haptic motor plays their rhythm, as blinks or clicks."
+				},
+				{
+					"name": "chimes",
+					"type": "string",
+					"required": true,
+					"default": "westminster",
+					"enum": ["westminster", "none"],
+					"title": "Chimes",
+					"description": "westminster: the Westminster quarters, as on a grandfather clock. One change at a quarter past, two at half past, three at a quarter to, and all four before the hour is struck. none: only the strikes."
+				},
+				{
+					"name": "strikeHour",
+					"type": "boolean",
+					"required": false,
+					"default": true,
+					"title": "Strike the Hour",
+					"description": "On the hour, the bell strikes the hour's count, 1 to 12."
+				},
+				{
+					"name": "halfHour",
+					"type": "boolean",
+					"required": false,
+					"default": true,
+					"title": "Strike Half Hours",
+					"visibleIf": { "field": "chimes", "const": "none" },
+					"description": "With no chimes, one strike at half past, as a striking clock gives."
+				},
+				{
+					"name": "silentFrom",
+					"type": "integer",
+					"required": false,
+					"minimum": 0,
+					"maximum": 23,
+					"default": null,
+					"units": "h",
+					"title": "Silent From",
+					"description": "The hour (0 to 23, the device's time) the clock goes silent for the night. It chimes again at Silent To. Either empty: it never goes silent on its own. The GPIO settings' quiet hours keep it silent as well."
+				},
+				{
+					"name": "silentTo",
+					"type": "integer",
+					"required": false,
+					"minimum": 0,
+					"maximum": 23,
+					"default": null,
+					"units": "h",
+					"title": "Silent To",
+					"description": "The hour (0 to 23) the clock chimes again after Silent From: 22 to 7 is silent from ten at night to seven in the morning."
+				}
+			]
+		}
+	}
+}
