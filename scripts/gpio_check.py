@@ -4,7 +4,7 @@ Stop the app first (or have no buttons in its GPIO settings): two programs canno
 
 	uv run python -m scripts.gpio_check --pin 5 6 13
 	uv run python -m scripts.gpio_check --pin 5 --panel inky          # also refuse the panel's pins
-	podman exec -it eink-billboard python -m scripts.gpio_check --pin 5   # inside the container, where the devices are passed in
+	podman exec -it eink /opt/venv/bin/python -m scripts.gpio_check --pin 5   # inside the container (its own Python), where the devices are passed in
 
 Wire each button between its GPIO number (BCM, not the header position) and ground.
 """
