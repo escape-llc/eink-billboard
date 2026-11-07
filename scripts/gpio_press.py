@@ -7,6 +7,7 @@ The driver pin is only ever driven low and is then let go (an input again), neve
 	uv run python -m scripts.gpio_press --pin 12                  # a press: low for 0.1 s
 	uv run python -m scripts.gpio_press --pin 12 --hold 1.5       # a long press (the app counts one second)
 	uv run python -m scripts.gpio_press --pin 12 --count 3        # three presses, 0.5 s apart
+	podman exec -it eink /opt/venv/bin/python -m scripts.gpio_press --pin 12   # inside the container, beside the running app
 """
 import argparse
 import time

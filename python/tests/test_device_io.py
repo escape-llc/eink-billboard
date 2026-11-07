@@ -10,7 +10,7 @@ import threading
 import time
 import unittest
 from types import SimpleNamespace
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, cast
 from unittest.mock import patch
 
 from ..device.bindings import LONG_ACTIONS, action_for, row_for
@@ -126,6 +126,13 @@ class TestPinChoices(unittest.TestCase):
 		self.assertEqual(self.by_pin(Panel("inky", 1600, 1200))[13], ("GPIO 13 · LED", True))
 		self.assertEqual(self.by_pin(Panel("waveshare", 800, 480))[13], ("GPIO 13", True))
 		self.assertEqual(self.by_pin(None)[13], ("GPIO 13", True))
+
+	def test_the_inkys_buttons_are_named_on_their_pins_c_moves_on_the_big_one(self):
+		small, big = self.by_pin(Panel("inky", 800, 480)), self.by_pin(Panel("inky", 1600, 1200))
+		self.assertEqual([small[pin] for pin in (5, 6, 16, 24)], [(f"GPIO {pin} · Button {name}", True) for pin, name in ((5, "A"), (6, "B"), (16, "C"), (24, "D"))])
+		self.assertEqual(big[25], ("GPIO 25 · Button C", True))
+		self.assertFalse(big[16][1], "the big Inky's second chip select, not a button")
+		self.assertEqual(self.by_pin(Panel("waveshare", 800, 480))[5], ("GPIO 5", True))
 
 	def test_a_pin_on_a_bus_is_offered_with_a_note_not_refused(self):
 		name, available = self.by_pin(Panel("waveshare", 800, 480))[2]
@@ -579,6 +586,13 @@ class TestApplicationBindings(unittest.TestCase):
 		app, sent = self.application()
 		self.press(app, "gpio-6")
 		self.assertEqual(self.told(sent), [("done", "The button on pin 6 was pressed: next.")])
+
+	def test_a_press_while_the_panel_rests_says_when_it_is_drawn(self):
+		app, sent = self.application(halted=True)
+		app.display = cast(Any, SimpleNamespace(display=SimpleNamespace(ready_in=lambda: 24.6)))
+		self.press(app, "gpio-6")
+		self.press(app, "gpio-13")
+		self.assertEqual(self.told(sent), [("done", "The button on pin 6 was pressed: next. The panel is resting: it is drawn in about 25 seconds."), ("done", "The button on pin 13 was pressed: stop.")])
 
 	def test_a_press_on_a_task_button_runs_its_task_in_the_timer_layer(self):
 		app, sent = self.application()

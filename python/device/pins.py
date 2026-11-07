@@ -43,12 +43,17 @@ I2C_LINES: Mapping[int, str] = { 2: "I²C data", 3: "I²C clock" }
 # lines of the buses the install turns on for the panel: a button may use one when that bus is off, so they are said, not refused
 BUS_LINES: Mapping[int, str] = { 2: "I²C data", 3: "I²C clock", 7: "SPI chip select 1", 9: "SPI data in" }
 
-# what the panel's board wires to a free line (the Inky Impression's LED, #887): said in the list of pins, so the person sees which one to choose
-INKY_PARTS: Mapping[int, str] = { 13: "LED" }
+# what the panel's board wires to a free line (the Inky Impression's LED, #887, and its four buttons, #866, from Pimoroni's examples/spectra6): said in the list of pins, so the
+# person sees which one to choose
+INKY_PARTS: Mapping[int, str] = { 5: "Button A", 6: "Button B", 13: "LED", 16: "Button C", 24: "Button D" }
+# the 13.3 inch board's button C is on 25 (16 is its second chip select)
+INKY_13_PARTS: Mapping[int, str] = { 5: "Button A", 6: "Button B", 13: "LED", 24: "Button D", 25: "Button C" }
 
 def board_parts(panel: Panel|None) -> Mapping[int, str]:
 	"""The parts on the panel's board that use a line the panel leaves free, by pin number; none when the board has none or is not known."""
-	return INKY_PARTS if panel is not None and panel.display_type == "inky" else {}
+	if panel is None or panel.display_type != "inky":
+		return {}
+	return INKY_13_PARTS if (panel.width, panel.height) in INKY_13_SIZES else INKY_PARTS
 
 @dataclass(frozen=True)
 class PinChoice:
