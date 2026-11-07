@@ -24,7 +24,16 @@ CUES: Mapping[str, Cue] = {
 	"slow": Cue("Slow", True),
 	"fast": Cue("Fast", True),
 	"heartbeat": Cue("Heartbeat", True),
+	"bell": Cue("Bell", False),
 }
+
+# a clock's chimes (the Clock Chime task, #918): the five changes of the Westminster quarters, four notes each, played by a task and never chosen in a feedback row; a sound card plays the
+# tune, an LED and the haptic motor its rhythm. The hour is struck with the Bell.
+CHANGES: Mapping[str, Cue] = { f"change-{n}": Cue(f"Westminster change {n}", False) for n in range(1, 6) }
+# every cue a renderer plays
+PLAYABLE: Mapping[str, Cue] = { **CUES, **CHANGES }
+# a sequence to play once: each cue with how many times it plays (a strike of the hour is the Bell, its count the hour's)
+type Steps = tuple[tuple[str, int], ...]
 
 # the events a feedback row answers (the schema's `events` lookup), with their words in the live view
 GESTURES: Mapping[str, str] = { "press": "a press", "long-press": "a long press" }

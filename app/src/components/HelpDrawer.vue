@@ -98,6 +98,9 @@
 						<dd>Takes the panel for its minutes, then gives it back; the playlist keeps running underneath. <b>Show As</b> <b>priority</b> covers the whole screen, <b>blend</b> washes over what the playlist shows. Several queue up. A clock on the hour for a minute is one.</dd>
 						<dt>Overlay (a timer task)</dt>
 						<dd>Draws an overlay source in one of six <b>zones</b> (three across the top, three across the bottom) until its next run replaces it; when the source has nothing to show, the overlay is taken down. <b>Outline</b> (0 to 1) sets how wide the outline around the text is. Overlays are not kept across a restart, so trigger the task on startup too: the date in <code>top-right</code>, on startup and every day at 0:00, is a good first one.</dd>
+						<dd>Both have an <b>Output Cue</b> section: choose one of the GPIO settings' <b>Outputs</b> and a <b>Cue</b> (the <b>Bell</b> first), and it plays once each time the task runs, so a calendar reminder can chime or buzz as its page goes to the panel. The quiet hours keep it still.</dd>
+						<dt>Clock Chime (a timer task)</dt>
+						<dd>Chimes and strikes like a grandfather clock on an output, and draws nothing. What it plays comes from the time it wakes at, to the nearest quarter hour, so the trigger chooses: hourly at minute 0 for the hours only, or at minutes 0, 15, 30 and 45 for the quarters too. With <b>Chimes</b> <b>westminster</b> it plays the Westminster quarters (one change at a quarter past, two at half past, three at a quarter to, all four before the hour). With <b>none</b> it plays only strikes, and one strike at half past if <b>Strike Half Hours</b> is on. <b>Strike the Hour</b> rings the bell the hour's count, 1 to 12. <b>Silent From</b> and <b>Silent To</b> are its own night silence (22 to 7, say), and the GPIO settings' quiet hours apply too. A sound card plays the tune; an LED or the haptic motor plays its rhythm.</dd>
 					</dl>
 				</AccordionContent>
 			</AccordionPanel>

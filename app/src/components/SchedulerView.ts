@@ -25,6 +25,8 @@ export function timerLayer(features: readonly string[] | undefined): LayerKey | 
  */
 export function eventLabel(title: string, pluginId: string, features: readonly string[] | undefined): { title: string, glyph?: string, layer?: string } {
 	const layer = timerLayer(features)
+	// a task that plays on an output draws on no layer (the Clock Chime, #918)
+	if(layer === undefined && features?.includes("timer-output")) return { title, glyph: "mi mi-notifications", layer: "Output" }
 	if(layer === undefined) return { title: `${title} (${pluginId})` }
 	return { title, glyph: LAYERS[layer].glyph, layer: LAYERS[layer].name }
 }

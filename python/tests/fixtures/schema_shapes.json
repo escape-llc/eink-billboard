@@ -405,6 +405,24 @@
 		"properties": {
 			"triggers": {
 				"type": "array"
+			},
+			"outputs": {
+				"type": "array"
+			},
+			"gpioFeedback": {
+				"type": "array"
+			},
+			"hapticFeedback": {
+				"type": "array"
+			},
+			"audioFeedback": {
+				"type": "array"
+			},
+			"quietFrom": {
+				"type": "integer"
+			},
+			"quietTo": {
+				"type": "integer"
 			}
 		}
 	},
@@ -488,6 +506,10 @@
 				"format": "multiline"
 			}
 		}
+	},
+	"urn:inky:storage:schema:plugin:clock-chime": {
+		"version": 1,
+		"properties": {}
 	},
 	"urn:inky:storage:schema:plugin:overlay": {
 		"version": 1,

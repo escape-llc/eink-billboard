@@ -27,6 +27,7 @@ USER_SUPPLIED = {
 	("source", "countdown", "title"), ("source", "countdown", "targetDate"),
 	("source", "image-folder", "folder"), ("source", "ai-image", "prompt"), ("source", "rss", "feed"),
 	("source", "today", "customFormat"), ("source", "comicvine-covers", "series"), ("source", "image-url", "picture"), ("source", "transit", "stop"), ("source", "transit-overlay", "stop"),
+	("plugin", "clock-chime", "cueOutput"),
 }
 # one name, different shapes (each is one form at a time, and a change of plugin or data source resets the form's values):
 SAME_NAME_DIFFERENT = {
@@ -40,6 +41,7 @@ SAME_NAME_DIFFERENT = {
 	"textModel": "each provider's own text models (OpenAI, Google), chosen from its own list",
 	"randomizePrompt": "the Generated Image rewrites its prompt unless told not to; the Weather Visualizer's prompt is already made from the weather, so it asks first",
 	"severity": "the default differs: Service Alerts shows any alert, the Alert Takeover takes the panel only for a severe one",
+	"cueOutput": "the Clock Chime plays only on its output, so it needs one; a timer task that draws may have a cue or not",
 }
 TYPES: dict[str, Any] = { "string": str, "integer": int, "number": (int, float), "boolean": bool, "array": list }
 

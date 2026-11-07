@@ -47,7 +47,8 @@ class TestConfigurationManager(unittest.TestCase):
 		list = cm.enum_plugins()
 		self.assertIsNotNone(list)
 		by_id = { px['info']['id']: px['info'] for px in list }
-		self.assertEqual(set(by_id), { 'priority-update', 'overlay', 'slide-show' })
+		self.assertEqual(set(by_id), { 'priority-update', 'overlay', 'slide-show', 'clock-chime' })
+		self.assertEqual(by_id['clock-chime']['class'], 'ClockChimeAsync')
 		self.assertEqual(by_id['priority-update']['class'], 'PriorityUpdateAsync')
 		self.assertEqual(by_id['overlay']['class'], 'OverlayAsync')
 		self.assertEqual(by_id['slide-show']['class'], 'SlideShowAsync')
@@ -67,7 +68,7 @@ class TestConfigurationManager(unittest.TestCase):
 		infos = cm.enum_plugins()
 		plugins = cm.load_plugins(infos)
 		self.assertIsNotNone(plugins)
-		self.assertEqual(len(plugins), 3)  # priority update (id interstitial), overlay, slide-show
+		self.assertEqual(len(plugins), 4)  # priority update (id interstitial), overlay, slide-show, clock chime
 		plugin = plugins.get('priority-update', None)
 		self.assertIsNotNone(plugin, 'plugin interstitial failed')
 		if plugin is not None:

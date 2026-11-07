@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 from ..device import gpio_output
 from ..device.audio import CARDS
-from ..device.cues import CUES, EVENTS, FEEDBACK, KIND_CUES, KIND_EVENTS, KINDS
+from ..device.cues import CUES, EVENTS, FEEDBACK, KIND_CUES, KIND_EVENTS, KINDS, PLAYABLE
 from ..device.gpio_output import BLINK, NORMAL_BLINK, PATTERNS, SPEEDS, GpioRenderer, scale_of
 from ..device.outputs import Outputs, cues_for
 from ..device.pins import Panel
@@ -123,7 +123,7 @@ class TestCueRules(unittest.TestCase):
 			self.assertEqual(tuple(i["value"] for i in lookups[row["event"]["lookup"]]["items"]), KIND_EVENTS[each], each)
 		self.assertEqual(KIND_EVENTS["gpio"], EVENTS)
 		self.assertNotIn("drawing", KIND_EVENTS["haptic"], "a motor is felt only while touching the device")
-		self.assertEqual(set(PATTERNS), set(CUES), "the LED plays every cue")
+		self.assertEqual(set(PATTERNS), set(PLAYABLE), "the LED plays every cue, a clock's changes too")
 		self.assertEqual(sum(BLINK), NORMAL_BLINK, "the normal speed is the blink the patterns are written for")
 		factory = schema["default"]
 		self.assertEqual(cues_for(factory, "LED", "gpio"), FACTORY)

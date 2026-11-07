@@ -14,7 +14,7 @@ import logging
 import threading
 from typing import Any, Callable, Mapping
 
-from .cues import FEEDBACK, KIND_CUES, KIND_EVENTS, KINDS
+from .cues import FEEDBACK, KIND_CUES, KIND_EVENTS, KINDS, Steps
 from .audio import AudioRenderer
 from .gpio_output import GpioRenderer
 from .haptic import HapticRenderer
@@ -215,6 +215,14 @@ class Outputs:
 			players = list(self._players.values())
 		for player in players:
 			player.state(name, on)
+
+	def play(self, output: str, steps: Steps, why: str) -> bool:
+		"""Play cues once on one output (a timer task's), unless it is the quiet hours. False: no such output is open."""
+		player = self._players.get(output)
+		if player is None:
+			return False
+		player.play(steps, why)
+		return True
 
 	def test(self, output: str, cue: str, options: Mapping[str, Any]|None = None) -> bool:
 		"""Play a cue on one output now (a Test). False: no such output is open."""

@@ -9,7 +9,7 @@ import unittest
 from typing import Any
 
 from ..device.audio import CARDS, RATE, TONES, AudioRenderer, card_of, level, tone, usb_card
-from ..device.cues import CUES
+from ..device.cues import PLAYABLE
 from ..plugins.plugin_base import PermanentError
 
 class FakePcm:
@@ -83,9 +83,9 @@ def peak(data: bytes) -> int:
 
 class TestTones(unittest.TestCase):
 	def test_every_cue_has_a_tone_and_off_is_silence(self):
-		self.assertEqual(set(TONES), set(CUES))
+		self.assertEqual(set(TONES), set(PLAYABLE))
 		self.assertEqual(tone("off", 70), b"")
-		for cue in CUES:
+		for cue in PLAYABLE:
 			if cue != "off":
 				self.assertGreater(len(tone(cue, 70)), 0, cue)
 

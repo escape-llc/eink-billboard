@@ -23,6 +23,19 @@
 				"dataSource": {
 					"schema": "data-sources",
 					"features": ["layer-overlay"]
+				},
+				"outputs": { "url": "/api/devices/outputs" },
+				"cues": {
+					"items": [
+						{ "name": "Bell", "value": "bell" },
+						{ "name": "One", "value": "one" },
+						{ "name": "Two", "value": "two" },
+						{ "name": "Three", "value": "three" },
+						{ "name": "Steady", "value": "steady" },
+						{ "name": "Slow", "value": "slow" },
+						{ "name": "Fast", "value": "fast" },
+						{ "name": "Heartbeat", "value": "heartbeat" }
+					]
 				}
 			},
 			"properties": [
@@ -56,6 +69,26 @@
 					"maxFractionDigits": 2,
 					"title": "Outline",
 					"description": "An outline around the text so it reads over a busy picture, in the theme's outline color (white, or black on a black page): 0 is none, 1 is the full width (a fraction of the text size, not pixels)."
+				},
+				{ "name": "cueHeader", "type": "header", "title": "Output Cue", "collapsed": true },
+				{
+					"name": "cueOutput",
+					"type": "string",
+					"required": false,
+					"default": null,
+					"lookup": "outputs",
+					"title": "Output",
+					"description": "An output that plays a cue when this task runs, so a reminder is heard or felt as its page goes to the panel: one of the GPIO settings' Outputs. Empty: none. The quiet hours keep it still."
+				},
+				{
+					"name": "cue",
+					"type": "string",
+					"required": true,
+					"default": "bell",
+					"lookup": "cues",
+					"title": "Cue",
+					"visibleIf": { "not": { "field": "cueOutput", "const": null } },
+					"description": "What the output plays, once: a bell, a count (One, Two, Three) or a rhythm (Steady, Slow, Fast, Heartbeat)."
 				}
 			]
 		}

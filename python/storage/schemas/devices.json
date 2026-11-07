@@ -17,7 +17,8 @@
 					{ "name": "Steady", "value": "steady" },
 					{ "name": "Slow", "value": "slow" },
 					{ "name": "Fast", "value": "fast" },
-					{ "name": "Heartbeat", "value": "heartbeat" }
+					{ "name": "Heartbeat", "value": "heartbeat" },
+					{ "name": "Bell", "value": "bell" }
 				]
 			},
 			"hapticCues": {
@@ -29,7 +30,8 @@
 					{ "name": "Steady", "value": "steady" },
 					{ "name": "Slow", "value": "slow" },
 					{ "name": "Fast", "value": "fast" },
-					{ "name": "Heartbeat", "value": "heartbeat" }
+					{ "name": "Heartbeat", "value": "heartbeat" },
+					{ "name": "Bell", "value": "bell" }
 				]
 			},
 			"audioCues": {
@@ -41,7 +43,8 @@
 					{ "name": "Steady", "value": "steady" },
 					{ "name": "Slow", "value": "slow" },
 					{ "name": "Fast", "value": "fast" },
-					{ "name": "Heartbeat", "value": "heartbeat" }
+					{ "name": "Heartbeat", "value": "heartbeat" },
+					{ "name": "Bell", "value": "bell" }
 				]
 			},
 			"speeds": {
@@ -312,7 +315,7 @@
 							"default": "one",
 							"lookup": "gpioCues",
 							"test": { "url": "/api/devices/outputs/test" },
-							"description": "What it says: an LED blinks (One, Two, Three), stays lit (Steady) or keeps a rhythm (Slow, Fast, Heartbeat). Test plays it on the saved output now."
+							"description": "What it says: an LED blinks (One, Two, Three), stays lit (Steady), keeps a rhythm (Slow, Fast, Heartbeat) or gives one long blink (Bell). Test plays it on the saved output now."
 						}
 					]
 				}
@@ -352,7 +355,7 @@
 							"default": "one",
 							"lookup": "hapticCues",
 							"test": { "url": "/api/devices/outputs/test" },
-							"description": "What it says: the motor clicks the counts (One, Two, Three) or buzzes the rhythms (Steady, Slow, Fast, Heartbeat), once. Test plays it on the saved output now."
+							"description": "What it says: the motor clicks the counts (One, Two, Three) or buzzes the rhythms (Steady, Slow, Fast, Heartbeat), once, or gives one strong click (Bell). Test plays it on the saved output now."
 						}
 					]
 				}
@@ -392,7 +395,7 @@
 							"default": "one",
 							"lookup": "audioCues",
 							"test": { "url": "/api/devices/outputs/test" },
-							"description": "What it says: a tone for each count (One, Two, Three) and rhythm (Steady, Slow, Fast, Heartbeat). Test plays it on the saved output now."
+							"description": "What it says: a tone for each count (One, Two, Three) and rhythm (Steady, Slow, Fast, Heartbeat), or a clock's bell (Bell). Test plays it on the saved output now."
 						}
 					]
 				}

@@ -3,7 +3,7 @@ One output's compositor (#891), like the panel's: layers back to front, and one 
 
 - Background: the states that are on (`STATES`: the more urgent first), each with the cue the feedback rows give it on this output.
 - Foreground: a gesture (a press, a long press) plays its cue once over the background, which then goes on.
-- Priority: a Test plays now, over everything.
+- Priority: a Test plays now, over everything; a task's cue (a timer task's, the Clock Chime's strikes) plays once, as a gesture does.
 - Post-processing: the quiet hours (one setting for every output) keep the output still; a Test passes through.
 
 What plays is drawn by a `Renderer`, the output's own medium (an LED, the haptic motor, the sound card). A renderer that holds (an LED) plays a state's cue for as long as the state lasts when
@@ -14,7 +14,7 @@ import logging
 import threading
 from typing import Any, Callable, Mapping, Protocol
 
-from .cues import CUES, ENDED, GESTURES, QUIET, STATES
+from .cues import CUES, ENDED, GESTURES, PLAYABLE, QUIET, STATES, Steps
 from ..plugins.plugin_base import PermanentError
 
 logger = logging.getLogger(__name__)
@@ -51,6 +51,8 @@ class Player:
 	TEST_SECONDS = 4.0
 	# still, the player looks again this often whether the quiet hours began or ended
 	IDLE_SECONDS = 60.0
+	# the pause between two strikes of a cue played more than once (the hour's count)
+	STRIKE_SECONDS = 0.3
 
 	def __init__(self, name: str, renderer: Renderer, cues: Mapping[str, str], config: Mapping[str, Any], clock: Callable[[], datetime], on_play: Callable[[str, str], None]|None = None):
 		self.name = name
@@ -65,8 +67,8 @@ class Player:
 		self._wake = threading.Event()
 		self._urgent = threading.Event()
 		self._states: set[str] = set()
-		# a cue to play once, ahead of the states: (cue, why, ignores the quiet hours, a Test's options)
-		self._once: tuple[str, str, bool, Mapping[str, Any]|None]|None = None
+		# cues to play once, ahead of the states: (each cue with its count, why, ignores the quiet hours, a Test's options)
+		self._once: tuple[Steps, str, bool, Mapping[str, Any]|None]|None = None
 		self._closing = False
 		self._thread = threading.Thread(target=self._run, name=f"output-{name}", daemon=True)
 
@@ -91,7 +93,7 @@ class Player:
 		"""A button was let go (`press`, `long-press`): its cue, once."""
 		cue = self._cues.get(gesture)
 		if gesture in GESTURES and cue is not None:
-			self._play_once(cue, GESTURES[gesture], False, None)
+			self._play_once(((cue, 1),), GESTURES[gesture], False, None)
 
 	def state(self, name: str, on: bool) -> None:
 		"""A state began or ended (`holding`, `problem`, `drawing`)."""
@@ -108,11 +110,17 @@ class Player:
 	def test(self, cue: str, options: Mapping[str, Any]|None = None) -> None:
 		"""Play a cue once now, the quiet hours or not (the settings' Test): a cue that repeats plays for `TEST_SECONDS` on an output that holds. `options` are the form's (a speed)."""
 		if cue in CUES:
-			self._play_once(cue, "a test", True, options)
+			self._play_once(((cue, 1),), "a test", True, options)
 
-	def _play_once(self, cue: str, why: str, loud: bool, options: Mapping[str, Any]|None) -> None:
+	def play(self, steps: Steps, why: str) -> None:
+		"""Play cues once, in turn, each as many times as it says (a task's cue; the Clock Chime's changes and strikes), unless it is the quiet hours. `why` is said in the live view."""
+		known = tuple((cue, max(1, count)) for cue, count in steps if cue in PLAYABLE and cue != "off")
+		if known:
+			self._play_once(known, why, False, None)
+
+	def _play_once(self, steps: Steps, why: str, loud: bool, options: Mapping[str, Any]|None) -> None:
 		with self._lock:
-			self._once = (cue, why, loud, options)
+			self._once = (steps, why, loud, options)
 		self._urgent.set()
 		self._wake.set()
 
@@ -125,7 +133,19 @@ class Player:
 		return None, "off"
 
 	def _repeats(self, cue: str) -> bool:
-		return self._renderer.holds and CUES[cue].repeat
+		return self._renderer.holds and PLAYABLE[cue].repeat
+
+	def _play_steps(self, steps: Steps, why: str, options: Mapping[str, Any]|None) -> None:
+		"""On the player's thread: each cue in turn, its count of times, a pause between strikes; anything played once that arrives meanwhile cuts it short."""
+		for cue, count in steps:
+			if cue == "off":
+				continue
+			self._report(PLAYABLE[cue].title + (f" ×{count}" if count > 1 else ""), why)
+			for strike in range(count):
+				if strike > 0 and self._urgent.wait(self.STRIKE_SECONDS):
+					return
+				if self._renderer.play(cue, self._urgent, self.TEST_SECONDS if self._repeats(cue) else 0.0, options):
+					return
 
 	# ---- the player's own thread ------------------------------------------------------------------------------------------------------------------------
 
@@ -150,10 +170,9 @@ class Player:
 			try:
 				if once is not None:
 					self._urgent.clear()
-					cue, why, loud, options = once
-					if cue != "off" and (loud or not quiet(self._config, self.clock())):
-						self._report(CUES[cue].title, why)
-						renderer.play(cue, self._urgent, self.TEST_SECONDS if self._repeats(cue) else 0.0, options)
+					steps, why, loud, options = once
+					if loud or not quiet(self._config, self.clock()):
+						self._play_steps(steps, why, options)
 						fault = None
 					# the state underneath is told again when it plays on
 					reported = None

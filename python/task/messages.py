@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 from PIL import Image
 
+from ..device.cues import Steps
 from ..model.service_container import IServiceProvider
 
 @dataclass(frozen=True, slots=True)
@@ -143,6 +144,17 @@ class OutputTest(BasicMessage):
 	output: str
 	cue: str
 	options: Mapping[str, Any]|None = None
+
+@dataclass(frozen=True, slots=True)
+class OutputCue(BasicMessage):
+	"""
+	Play cues once on one output (#918), on the `indicator` route to the DeviceIO task: a timer task's cue as it runs, or the Clock Chime's changes and strikes. `steps` is each cue with its count;
+	`why` says whose it is in the live view ("the task 'Hourly'"). The quiet hours keep it still.
+	"""
+	output: str
+	# by its alias: the field check (`BasicMessage`) reads a type's text, and would take the counts' `int` for the field's
+	steps: Steps
+	why: str
 
 @dataclass(frozen=True, slots=True)
 class SetupCodeChanged(BasicMessage):
