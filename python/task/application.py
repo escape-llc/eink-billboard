@@ -247,6 +247,9 @@ class Application(DispatcherTask):
 		done = "held" if msg.gesture == "long-press" else "pressed"
 		def say(message: str, result: str, action: str|None = None) -> None:
 			assert self.router is not None
+			if result == "done" and action != "stop":
+				# what the press brings is drawn after the panel's rest (#866): said, so a press that shows nothing yet is not taken for one that did nothing
+				message += self._resting_note()
 			self.logger.info(f"'{self.name}' input: {message}")
 			self.router.send("telemetry", Telemetry(msg.timestamp, "application", { "kind": "input", "source": msg.source, "input": msg.name, "gesture": msg.gesture, "action": action, "result": result, "message": message }))
 		if row is None:
@@ -281,6 +284,11 @@ class Application(DispatcherTask):
 			return
 		say(f"The {label} was {done}: {action}.", "done", action)
 		self._transport_command(TransportCommand(msg.timestamp, action))
+	def _resting_note(self) -> str:
+		"""When the panel is resting after its last refresh, what is asked of it now waits: how long, in words to add to a sentence; nothing when it is not resting."""
+		shown_on = self.display.display if self.display is not None else None
+		wait = shown_on.ready_in() if shown_on is not None else 0.0
+		return f" The panel is resting: it is drawn in about {wait:.0f} seconds." if wait >= 1 else ""
 	def _unclaimed(self) -> bool:
 		try:
 			return bool(self.setup_notice()) if self.setup_notice is not None else False

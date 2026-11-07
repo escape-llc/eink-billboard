@@ -68,7 +68,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 # they are never in a layer: kept, they were about 250 MB of the image that nothing uses once the drivers are built. ca-certificates stays (HTTPS needs it).
 # pyalsaaudio (an audio output, #867) is built the same way against the ALSA headers (libasound2-dev, removed with the compiler); the ALSA library itself (libasound2t64) is installed by name, so it stays.
 RUN --mount=type=cache,target=/root/.cache/uv apt-get update 	&& apt-get install -y --no-install-recommends build-essential swig curl ca-certificates libasound2-dev libasound2t64 	&& rm -rf /var/lib/apt/lists/* 	&& curl -fsSL -o /tmp/lg.tgz https://github.com/joan2937/lg/archive/refs/tags/v0.2.2.tar.gz 	&& echo "b08d8569d6dc8fa91a42ba1e37f620fdcb19d6bf2330e4b7d7301431ddbe124c  /tmp/lg.tgz" | sha256sum -c - 	&& tar xzf /tmp/lg.tgz -C /tmp 	&& make -C /tmp/lg-0.2.2 liblgpio.so 	&& cp /tmp/lg-0.2.2/liblgpio.so /usr/local/lib/liblgpio.so.1 && ln -s liblgpio.so.1 /usr/local/lib/liblgpio.so 	&& cp /tmp/lg-0.2.2/lgpio.h /usr/local/include/ && ldconfig 	&& rm -rf /tmp/lg.tgz /tmp/lg-0.2.2 	&& uv sync --frozen --no-dev --group device --no-install-project 	&& apt-get purge -y --auto-remove build-essential swig curl libasound2-dev 	&& rm -rf /var/lib/apt/lists/*
-COPY scripts/fake_inky.py scripts/fake_waveshare.py ./scripts/
+# the GPIO tools (#866): run inside the container, where the pins are passed in ('podman exec -it eink /opt/venv/bin/python -m scripts.gpio_check --pin 5', the app stopped)
+COPY scripts/fake_inky.py scripts/fake_waveshare.py scripts/gpio_check.py scripts/gpio_press.py ./scripts/
 
 # --- app-device: the server with the drivers, to troubleshoot their failure flows (Inky #281, Waveshare); the image a Pi downloads -----
 FROM device-deps AS app-device
