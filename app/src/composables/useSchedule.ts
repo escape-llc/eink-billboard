@@ -9,7 +9,7 @@
 import { computed, ref, shallowRef, toRaw } from "vue"
 import { ApiError } from "../components/ApiClient"
 import { api } from "../api/client"
-import { eventLabel, rangeLabel, step, switchMode, taskRows, windowOf, type SchedulerMode, type TaskRow } from "../components/SchedulerView"
+import { eventLabel, rangeLabel, step, switchMode, taskRows, timerLayer, windowOf, type SchedulerMode, type TaskRow } from "../components/SchedulerView"
 import type { EventInfo } from "../components/AlCalendar.vue"
 import { browserZoneDifference, zonedParts } from "../components/CalendarTime"
 import type { Descriptor } from "../components/FormDefs"
@@ -278,9 +278,9 @@ export function useSchedule(notify: Notify, options: { link?: TelemetryLink } = 
 		editModel.value = {}
 		resetMessages()
 	}
-	/** A new task with the first timer plugin, in the first document; false when no plugin can run on a timer. */
+	/** A new task with the first timer plugin that draws (a page, not only a chime), in the first document; false when no plugin can run on a timer. */
 	function newTask(): boolean {
-		const first = timerPlugins.value[0]
+		const first = timerPlugins.value.find(p => timerLayer(p.features) !== undefined) ?? timerPlugins.value[0]
 		if(!first) return false
 		resetMessages()
 		newTaskDocument.value = documents.value[0]?.id

@@ -12,6 +12,8 @@ vi.mock("../api/client", () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn
 const mocked = api as unknown as Record<"get" | "post" | "put" | "patch" | "delete", ReturnType<typeof vi.fn>>
 
 const PRIORITY = { id: "priority-update", name: "Priority Update", features: ["layer-priority"], instanceSettings: {} }
+// a timer plugin that draws nothing, listed first (the folders' order puts clock_chime first)
+const CHIME = { id: "clock-chime", name: "Clock Chime", features: ["timer-output"], instanceSettings: {} }
 const SLIDES = { id: "slide-show", name: "Slide Show", features: ["layer-background"], instanceSettings: {} }
 const TASK = { id: "t1", _rev: "r1", title: "Clock", enabled: true, trigger: DEFAULT_TRIGGER, task: { plugin_name: "priority-update", content: { slideMinutes: 5 } } }
 const ORPHAN = { ...TASK, id: "t2", _rev: "r2", title: "Gone", task: { plugin_name: "uninstalled", content: {} } }
@@ -31,7 +33,7 @@ function render(start = "2026-10-23", days = 7) {
 function serve(documents = [{ id: "tasks-a", name: "Timer tasks" }]) {
 	mocked.get.mockImplementation(async (path: string, options?: { query?: { start?: string, days?: number } }) => {
 		if(path === "/api/schedule/tasks/render") return render(options?.query?.start ?? "2026-10-23", options?.query?.days ?? 7)
-		if(path === "/api/plugins/list") return [PRIORITY, SLIDES]
+		if(path === "/api/plugins/list") return [CHIME, PRIORITY, SLIDES]
 		if(path === "/api/datasources/list") return []
 		if(path === "/api/schedule/timer/list") return { timed: documents }
 		throw new Error(`no route ${path}`)
@@ -57,8 +59,8 @@ describe("the window", () => {
 		// the layer is a glyph beside the title; a plugin that is not installed has none and keeps its id in the text
 		expect(sc.eventList.value.map(e => (e.data as { layer?: string }).layer)).toEqual(["Priority", "Priority", undefined])
 		expect(sc.eventList.value[0]?.data).toMatchObject({ id: "t1", schedule: "tasks-a" })
-		// only the plugins of the timer's layers are offered for a new task
-		expect(sc.pluginOptions.value).toEqual([{ id: "priority-update", name: "Priority Update" }])
+		// only the timer's plugins are offered for a new task: its layers', and the chime's that plays on an output
+		expect(sc.pluginOptions.value).toEqual([{ id: "clock-chime", name: "Clock Chime" }, { id: "priority-update", name: "Priority Update" }])
 		expect(notices).toEqual([])
 	})
 
@@ -116,7 +118,7 @@ describe("a task in the dialog", () => {
 		expect(notices).toEqual(["warn: This task uses a plugin that is not installed."])
 	})
 
-	it("a new task starts with the first timer plugin in the first document", async () => {
+	it("a new task starts with the first timer plugin that draws, in the first document", async () => {
 		const { sc } = await started()
 		expect(sc.newTask()).toBe(true)
 		expect(sc.editModel.value).toEqual({ title: "", enabled: true, trigger: DEFAULT_TRIGGER, plugin_name: "priority-update", content: {} })

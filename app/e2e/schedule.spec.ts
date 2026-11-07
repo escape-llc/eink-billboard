@@ -190,9 +190,10 @@ test("a new task is offered the timer plugins only, and the form follows the plu
 	await page.getByRole("button", { name: "New task" }).click()
 	const created = page.getByRole("dialog", { name: "New task" })
 	await expect(created).toBeVisible()
-	// the plugin list: the timer plugins (priority, overlay), not the playlist's Slide Show
+	// the plugin list: the timer plugins (priority, overlay, the Clock Chime), not the playlist's Slide Show
 	await created.locator(".p-select").filter({ hasText: "Overlay" }).first().click()
-	await expect(page.getByRole("option")).toHaveCount(2)
+	await expect(page.getByRole("option")).toHaveCount(3)
+	await expect(page.getByRole("option").filter({ hasText: "Clock Chime" })).toHaveCount(1)
 	await expect(page.getByRole("option").filter({ hasText: "Slide Show" })).toHaveCount(0)
 	// the plugin is the form's own field list: each brings its own fields
 	await expect(created.locator("label", { hasText: "Zone" })).toBeVisible()
