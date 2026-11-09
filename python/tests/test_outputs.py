@@ -8,7 +8,7 @@ import threading
 import time
 import unittest
 from types import SimpleNamespace
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 from unittest.mock import patch
 
 from ..device import gpio_output
@@ -24,7 +24,7 @@ from ..plugins.plugin_base import PermanentError
 from ..task.application import Application
 from ..task.configure_event import ConfigureEvent, ConfigureOptions
 from ..task.device_io import DeviceIO
-from ..task.messages import Indicate, InputEvent, OutputTest, QuitMessage
+from ..task.messages import Happened, Indicate, InputEvent, OutputTest, QuitMessage
 from .test_device_io import FakeDevice, router_that_records
 from .test_web_api import WebApiTestBase
 from .utils import temp_configuration_manager
@@ -122,7 +122,8 @@ class TestCueRules(unittest.TestCase):
 			self.assertEqual([i["name"] for i in cues], [CUES[c].title for c in KIND_CUES[each]], each)
 			self.assertEqual(tuple(i["value"] for i in lookups[row["event"]["lookup"]]["items"]), KIND_EVENTS[each], each)
 		self.assertEqual(KIND_EVENTS["gpio"], EVENTS)
-		self.assertNotIn("drawing", KIND_EVENTS["haptic"], "a motor is felt only while touching the device")
+		self.assertNotIn("drawing", KIND_EVENTS["haptic"], "a motor answers no state that lasts")
+		self.assertTrue({ "started", "pushed", "failed" } <= set(KIND_EVENTS["haptic"]), "what happens on the device: a motor loud enough is heard")
 		self.assertEqual(set(PATTERNS), set(PLAYABLE), "the LED plays every cue, a clock's changes too")
 		self.assertEqual(sum(BLINK), NORMAL_BLINK, "the normal speed is the blink the patterns are written for")
 		factory = schema["default"]
@@ -222,6 +223,24 @@ class TestPlayer(unittest.TestCase):
 			# the player sees it end (a refresh is half a minute apart from the next)
 			time.sleep(0.1)
 		self.assertEqual(self.played, [("Steady", "the panel drawing"), ("Off", "the panel drawn")] * 2, "the second refresh is said as the first was")
+
+	def test_what_happens_on_the_device_plays_its_cue_once_and_says_what_it_was(self):
+		player, fake = self.open(cues={ **FACTORY, "started": "two", "failed": "three" })
+		player.happened("started")
+		self.assertTrue(wait_until(lambda: fake.lit_count() == 2 and not fake.lit))
+		player.happened("failed")
+		self.assertTrue(wait_until(lambda: fake.lit_count() == 5 and not fake.lit))
+		player.happened("pushed")
+		player.happened("press")
+		time.sleep(0.15)
+		self.assertEqual(fake.lit_count(), 5, "no row for pushed; a press is a gesture, not a happening")
+		self.assertEqual(self.played, [("Two", "the device started"), ("Three", "a failure")])
+
+	def test_the_quiet_hours_keep_what_happens_still(self):
+		player, fake = self.open(clock_hour=23, cues={ "failed": "three" }, quietFrom=22, quietTo=7)
+		player.happened("failed")
+		time.sleep(0.2)
+		self.assertEqual((fake.lit_count(), self.played), (0, []))
 
 	def test_a_gesture_over_nothing_says_no_off(self):
 		player, fake = self.open()
@@ -506,6 +525,16 @@ class TestOutputsInDeviceIO(unittest.TestCase):
 			self.assertIn("LED: one, a press", said)
 			self.assertIn("LED: three, a test", said)
 
+	def test_what_happens_on_the_device_reaches_the_led_that_answers_it(self):
+		with patch.dict(gpio_output.PATTERNS, FAST):
+			self.configure(**led_settings(cues={ "pushed": "three" }))
+			[fake] = self.fakes
+			self.io.accept(Happened(NOW, "started"))
+			self.io.accept(Happened(NOW, "pushed"))
+			self.assertTrue(wait_until(lambda: fake.lit_count() == 3 and not fake.lit))
+			said = [m.values["message"] for m in self.sent.wait_for("telemetry", 1) if m.values.get("kind") == "output"]
+			self.assertEqual(said, ["LED: three, a pushed message"], "started has no row: nothing")
+
 	def test_held_past_a_long_press_the_led_says_let_go_and_then_plays_the_long_press(self):
 		with patch.dict(gpio_output.PATTERNS, FAST):
 			self.configure(**led_settings(), triggers=[{ "pin": 5, "action": "next" }])
@@ -572,6 +601,17 @@ class TestPlaylistFault(unittest.TestCase):
 		layer._show_fault(False, NOW)
 		layer._show_fault(False, NOW)
 		self.assertEqual([(m.signal, m.on) for m in sent.on("indicator")], [("faulted", True), ("faulted", False)])
+
+class TestApplicationHappenings(unittest.TestCase):
+	def test_the_layers_starting_is_told_to_the_outputs(self):
+		app = Application.__new__(Application)
+		app._now = lambda: NOW  # type: ignore[method-assign]
+		sent: list[tuple[str, Any]] = []
+		app.router = SimpleNamespace(send=lambda route, msg: sent.append((route, msg)))  # type: ignore[assignment]
+		app.playlist_layer = SimpleNamespace(accept=lambda msg: None)  # type: ignore[assignment]
+		app.timer_layer = SimpleNamespace(accept=lambda msg: None)  # type: ignore[assignment]
+		app._start_layers(cast(Any, "playlists"), cast(Any, "timers"))
+		self.assertEqual([(route, msg.event) for route, msg in sent if isinstance(msg, Happened)], [("indicator", "started")])
 
 class TestApplicationOutputTest(unittest.TestCase):
 	def test_a_test_goes_to_the_device_io_task_only_when_its_output_is_open(self):

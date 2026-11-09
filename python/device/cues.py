@@ -3,7 +3,8 @@ What the outputs say, and when (#867, #891). One vocabulary of cues for every ki
 sound card plays a tone). The feedback rows are in a section per kind (`FEEDBACK`), each offering its kind's outputs, events and cues (#897): every kind plays the
 shared cues, and a kind's own (a haptic effect, a sound, an I²C LED's colour wheel) are added to its section alone, so a row never shows a choice its output cannot play.
 
-An event is what the device says: a gesture (a button's `press`, `long-press`) happens once; a state (`holding`, `problem`, `drawing`) begins and ends.
+An event is what the device says: a gesture (a button's `press`, `long-press`) happens once, as does a happening on the device (`started`, `pushed`, `failed`, #935); a state (`holding`,
+`problem`, `drawing`) begins and ends.
 """
 from dataclasses import dataclass
 from typing import Mapping
@@ -41,13 +42,16 @@ GESTURES: Mapping[str, str] = { "press": "a press", "long-press": "a long press"
 STATES: Mapping[str, str] = { "holding": "a button held", "problem": "a problem", "drawing": "the panel drawing" }
 # why an output that showed a state goes off: the state is over (the live view's words)
 ENDED: Mapping[str, str] = { "holding": "the button let go", "problem": "the problem over", "drawing": "the panel drawn" }
+# what happens on the device once (#935), answered like a gesture: the playlist and the timer tasks started, a message pushed through the API, a timer task or a playlist page failed
+HAPPENINGS: Mapping[str, str] = { "started": "the device started", "pushed": "a pushed message", "failed": "a failure" }
 QUIET = "the quiet hours"
-EVENTS = (*GESTURES, *STATES)
+EVENTS = (*GESTURES, *STATES, *HAPPENINGS)
 
 # the kinds of output (the schema's `kind` of an output row), each with the settings list of its feedback rows and its title in our sentences
 FEEDBACK: Mapping[str, str] = { "gpio": "gpioFeedback", "haptic": "hapticFeedback", "audio": "audioFeedback" }
 KIND_TITLES: Mapping[str, str] = { "gpio": "GPIO", "haptic": "haptic", "audio": "audio" }
 KINDS = tuple(FEEDBACK)
-# what each kind's section offers (the schema's `<kind>Cues` and events lookups): a haptic motor is felt only while touching the device, so it answers the buttons alone
+# what each kind's section offers (the schema's `<kind>Cues` and events lookups): a haptic motor answers the buttons and what happens on the device (one loud enough is heard, like a phone on
+# vibrate, #935), not the states that last (Problem, Drawing)
 KIND_CUES: Mapping[str, tuple[str, ...]] = { kind: tuple(CUES) for kind in KINDS }
-KIND_EVENTS: Mapping[str, tuple[str, ...]] = { "gpio": EVENTS, "haptic": ("press", "long-press", "holding"), "audio": EVENTS }
+KIND_EVENTS: Mapping[str, tuple[str, ...]] = { "gpio": EVENTS, "haptic": ("press", "long-press", "holding", *HAPPENINGS), "audio": EVENTS }

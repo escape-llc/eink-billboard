@@ -64,7 +64,10 @@
 					{ "name": "Long press", "value": "long-press" },
 					{ "name": "Held", "value": "holding" },
 					{ "name": "Problem", "value": "problem" },
-					{ "name": "Drawing", "value": "drawing" }
+					{ "name": "Drawing", "value": "drawing" },
+					{ "name": "Started", "value": "started" },
+					{ "name": "Message pushed", "value": "pushed" },
+					{ "name": "Failed", "value": "failed" }
 				]
 			},
 			"cards": {
@@ -74,11 +77,14 @@
 					{ "name": "HDMI", "value": "hdmi" }
 				]
 			},
-			"buttonEvents": {
+			"hapticEvents": {
 				"items": [
 					{ "name": "Press", "value": "press" },
 					{ "name": "Long press", "value": "long-press" },
-					{ "name": "Held", "value": "holding" }
+					{ "name": "Held", "value": "holding" },
+					{ "name": "Started", "value": "started" },
+					{ "name": "Message pushed", "value": "pushed" },
+					{ "name": "Failed", "value": "failed" }
 				]
 			},
 			"gpioOutputs": {
@@ -224,7 +230,7 @@
 								"audio"
 							],
 							"default": "gpio",
-							"description": "GPIO: an LED or a buzzer on a pin. Haptic: a vibration motor (felt only while touching the device, so for the buttons). Audio: a sound card."
+							"description": "GPIO: an LED or a buzzer on a pin. Haptic: a vibration motor (felt while touching the device, or heard when it is loud enough, like a phone on vibrate). Audio: a sound card."
 						},
 						{
 							"name": "pin",
@@ -285,7 +291,7 @@
 				"type": "array",
 				"title": "GPIO Feedback",
 				"required": false,
-				"description": "What the GPIO outputs say, and when: one row for each event and output. Press and Long Press play once, when the button is let go; Held plays once a button has been held for a second (the cue that letting go is a long press); Problem while every track of the playlist has failed or the device waits to be set up; Drawing while the panel refreshes. One cue plays at a time on an output: a press plays over the others, Held comes before Problem, and Problem before Drawing. An LED keeps a Steady, Slow, Fast or Heartbeat cue going while the state lasts.",
+				"description": "What the GPIO outputs say, and when: one row for each event and output. Press and Long Press play once, when the button is let go; Held plays once a button has been held for a second (the cue that letting go is a long press); Problem while every track of the playlist has failed or the device waits to be set up; Drawing while the panel refreshes. Started, Message pushed and Failed play once: when the playlist and the timer tasks start, when a message arrives through the push API, and when a timer task or a playlist page fails. One cue plays at a time on an output: a press plays over the others, Held comes before Problem, and Problem before Drawing. An LED keeps a Steady, Slow, Fast or Heartbeat cue going while the state lasts.",
 				"items": {
 					"type": "object",
 					"properties": [
@@ -325,7 +331,7 @@
 				"type": "array",
 				"title": "Haptic Feedback",
 				"required": false,
-				"description": "What the haptic outputs say, and when: one row for each event and output. A motor is felt only while touching the device, so it answers the buttons: Press and Long Press once, when the button is let go; Held once a button has been held for a second (the cue that letting go is a long press). A press plays over Held.",
+				"description": "What the haptic outputs say, and when: one row for each event and output. A motor answers the buttons and what happens on the device, not the states that last: Press and Long Press once, when the button is let go; Held once a button has been held for a second (the cue that letting go is a long press); Started, Message pushed and Failed once, as in GPIO Feedback (a motor loud enough is heard, like a phone on vibrate). A press plays over Held.",
 				"items": {
 					"type": "object",
 					"properties": [
@@ -335,7 +341,7 @@
 							"title": "Event",
 							"required": true,
 							"default": "press",
-							"lookup": "buttonEvents",
+							"lookup": "hapticEvents",
 							"description": "When the output says it."
 						},
 						{

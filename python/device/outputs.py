@@ -206,6 +206,10 @@ class Outputs:
 		for player in self._players.values():
 			player.gesture(gesture)
 
+	def happened(self, event: str) -> None:
+		for player in self._players.values():
+			player.happened(event)
+
 	def state(self, name: str, on: bool) -> None:
 		with self._lock:
 			if on:

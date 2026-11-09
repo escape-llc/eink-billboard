@@ -20,7 +20,7 @@ from ..task.display_messages import DisplaySettings, OverlayDefinition, OverlayI
 from ..task.coalescer import Coalescer
 from ..task.message_router import MessageRouter
 from ..task.source_router import SourceRouter, image_source
-from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, OutputCue, QuitMessage, ReloadSchedules, RunTask, RunTrigger, Telemetry
+from ..task.messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, Happened, OutputCue, QuitMessage, ReloadSchedules, RunTask, RunTrigger, Telemetry
 from ..task.protocols import IProvideTimer, IRequireShutdown, MessageSink
 from ..task.configure_event import ConfigureEvent
 from ..task.playlist_layer import StartPlayback
@@ -240,6 +240,7 @@ class TimerLayer(DispatcherTask):
 			self.state = 'error'
 			self._task_event("task-started", tod, item, index, playlist, sched_ts)
 			self._error_with_telemetry(f"The {kind} task '{item.title}' failed", tod.current_time(), PermanentError(f"Plugin '{item.task.plugin_name}' is not available"), log=False)
+			self.router.send("indicator", Happened(tod.current_time(), "failed"))
 			await self._show_error(item, f"Plugin '{item.task.plugin_name}' is not available", tod.current_time())
 			self._task_event("task-ended", tod, item, index, playlist, sched_ts)
 			return
@@ -277,6 +278,7 @@ class TimerLayer(DispatcherTask):
 				# it failed before it could say it began: the slot still has a start, a failure and an end
 				self._task_event("task-started", tod, item, index, playlist, sched_ts)
 			self._error_with_telemetry(f"The {kind} task '{item.title}' failed", tod.current_time(), e)
+			self.router.send("indicator", Happened(tod.current_time(), "failed"))
 			await self._show_error(item, safe_reason(e), tod.current_time())
 			# the failure was announced after `task-started`: its slot ends like any other (the error page is what the task showed)
 			self._task_event("task-ended", tod, item, index, playlist, sched_ts)

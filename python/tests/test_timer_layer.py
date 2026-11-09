@@ -18,7 +18,7 @@ from ..model.schedule_loader import ScheduleLoaderDict
 from ..model.service_container import ServiceContainer
 from ..model.time_of_day import TimeOfDay
 from ..task.async_http_worker_pool import AsyncHttpWorkerPool
-from ..task.messages import AsyncTaskCompleted, BasicMessage, Telemetry
+from ..task.messages import AsyncTaskCompleted, BasicMessage, Happened, Telemetry
 from ..task.message_router import MessageRouter, Route
 from ..task.playlist_layer import StartPlayback
 from ..task.protocols import IProvideTimer
@@ -137,6 +137,19 @@ class TestFailedTask(unittest.TestCase):
 		with mock.patch("python.task.timer_layer.render_error_image", side_effect=lambda stm, dims, title, lines, theme=None, **kw: Image.new("RGB", (8, 8))) as render:
 			asyncio.run(layer._run_task_item(isp, clock, item, "scheduled", 0, None, None))
 		return sent, render, PriorityImage
+
+	def test_a_failing_task_is_told_to_the_outputs_and_one_that_works_is_not(self):
+		class Boom:
+			async def task_async(self, context, track, donev):
+				raise ConnectionError("down")
+		class Fine:
+			async def task_async(self, context, track, donev):
+				donev.set()
+		item = TimerTaskItem("a", "Weather", True, TimerTaskTask("p", { "slideMinutes": 5 }), cast(TriggerDict, at(9, 0)))
+		sent, _, _ = self._run(Boom(), item)
+		self.assertEqual([(route, m.event) for route, m in sent if isinstance(m, Happened)], [("indicator", "failed")])
+		sent, _, _ = self._run(Fine(), item)
+		self.assertEqual([m for _, m in sent if isinstance(m, Happened)], [])
 
 	def test_a_failing_task_shows_an_error_page_for_its_slide_time(self):
 		class Boom:

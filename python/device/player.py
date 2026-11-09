@@ -14,7 +14,7 @@ import logging
 import threading
 from typing import Any, Callable, Mapping, Protocol
 
-from .cues import CUES, ENDED, GESTURES, PLAYABLE, QUIET, STATES, Steps
+from .cues import CUES, ENDED, GESTURES, HAPPENINGS, PLAYABLE, QUIET, STATES, Steps
 from ..plugins.plugin_base import PermanentError
 
 logger = logging.getLogger(__name__)
@@ -94,6 +94,12 @@ class Player:
 		cue = self._cues.get(gesture)
 		if gesture in GESTURES and cue is not None:
 			self._play_once(((cue, 1),), GESTURES[gesture], False, None)
+
+	def happened(self, event: str) -> None:
+		"""Something happened on the device (`started`, `pushed`, `failed`): its cue, once."""
+		cue = self._cues.get(event)
+		if event in HAPPENINGS and cue is not None:
+			self._play_once(((cue, 1),), HAPPENINGS[event], False, None)
 
 	def state(self, name: str, on: bool) -> None:
 		"""A state began or ended (`holding`, `problem`, `drawing`)."""

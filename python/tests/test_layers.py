@@ -16,7 +16,7 @@ from ..model.service_container import ServiceContainer
 from ..model.time_of_day import TimeOfDay
 from ..plugins.plugin_base import PermanentError, PluginAsync, PluginExecutionContext, TrackType
 from ..task.display_messages import DisplaySettings
-from ..task.messages import BasicMessage, QuitMessage, ReloadSchedules, Telemetry
+from ..task.messages import BasicMessage, Happened, QuitMessage, ReloadSchedules, Telemetry
 from ..task.protocols import MessageSink
 from ..task.configure_event import ConfigureEvent, ConfigureOptions
 from ..task.playlist_layer import LayerFaulted, PlaylistLayer, RetryStruckOut, StartPlayback
@@ -316,6 +316,17 @@ class PlaylistLayerTests(unittest.TestCase):
 		# struck out: a later pass does not run it again
 		self.assertIsInstance(self._run_pass(layer, playlists, root), LayerFaulted)
 		self.assertEqual(len(calls), 3)
+
+	def test_each_failure_of_a_page_is_told_to_the_outputs(self):
+		class Flaky:
+			def __init__(self, id, name):
+				self.id, self.name = id, name
+			async def task_async(self, ctx, track, donev):
+				raise ConnectionError("network down")
+		layer, playlists, root, _ = self._strike_setup(Flaky)
+		self._run_pass(layer, playlists, root)
+		self._run_pass(layer, playlists, root)
+		self.assertEqual([(route, m.event) for route, m in self.sent if isinstance(m, Happened)], [("indicator", "failed")] * 2)
 
 	def test_a_struck_out_track_is_tried_again_after_its_wait_and_a_success_clears_it(self):
 		class Recovers:
