@@ -24,10 +24,14 @@ export function usedBy(item: any, dataSources: any[]): string[] {
 		.map(d => d.id)
 }
 
+/** A copy in the order of the names the viewer reads. */
+const byName = (items: Descriptor[]) => [...items].sort((a, b) => a.name.localeCompare(b.name))
+
 export function useSettings(notify: Notify) {
 	// what is installed, from the cache every view shares; the display devices are what the Display tab's display type (a `schema` field) chooses among
 	const catalog = useCatalog()
-	const plugins = computed<Descriptor[]>(() => catalog.plugins.data.value ?? [])
+	// the Settings tabs choose among these by name, so they are listed by name
+	const plugins = computed<Descriptor[]>(() => byName(catalog.plugins.data.value ?? []))
 	const dataSources = computed<Descriptor[]>(() => catalog.dataSources.data.value ?? [])
 	const displays = computed<Descriptor[]>(() => catalog.displays.data.value ?? [])
 	const schemaSystem = ref<any>(undefined)
@@ -41,8 +45,8 @@ export function useSettings(notify: Notify) {
 	const schemaDisplay = ref<any>(undefined)
 	const settingsDisplay = ref<any>(undefined)
 
-	const pageSources = computed(() => (dataSources.value as any[]).filter(d => !isProvider(d)))
-	const providerSources = computed(() => (dataSources.value as any[]).filter(isProvider))
+	const pageSources = computed(() => byName(dataSources.value).filter(d => !isProvider(d)))
+	const providerSources = computed(() => byName(dataSources.value).filter(isProvider))
 
 	function downloadToRef(asked: Promise<unknown>, vref: Ref<any>) {
 		return asked.then(data => { vref.value = data })

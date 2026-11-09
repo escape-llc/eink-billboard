@@ -24,7 +24,7 @@ async function openMyStops(page: Page) {
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Providers" }).click()
 	await page.locator(".p-select").last().click()
-	await page.getByRole("option").filter({ hasText: "transitland-api" }).click()
+	await page.getByRole("option", { name: "Transitland", exact: true }).click()
 }
 
 test("a stop of My Stops is chosen from the stops near the device", async ({ page }) => {

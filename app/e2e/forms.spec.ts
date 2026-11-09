@@ -240,7 +240,7 @@ test("a list row with a location is chosen on a map, as everywhere else, and the
 	expect(build!.height).toBeLessThan(30)
 	await page.getByRole("tab", { name: "Data Sources" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
-	await page.getByRole("option", { name: "thunderforest-map", exact: true }).click()
+	await page.getByRole("option", { name: "Thunderforest Map", exact: true }).click()
 	await page.getByRole("button", { name: "Add to Places" }).click()
 	// the row has a map picker (search, Locate Me, Locate by IP), not two number fields
 	const places = page.getByRole("group", { name: "Places" })

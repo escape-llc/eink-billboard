@@ -75,7 +75,7 @@ describe("loading", () => {
 describe("the item tabs", () => {
 	it("the Data Sources tab lists what draws; the Providers tab what supplies, and who relies on each", async () => {
 		const { st } = await started()
-		expect(st.pageSources.value.map(d => d.id)).toEqual(["comic", "weather", "thunderforest-map"])
+		expect(st.pageSources.value.map(d => d.id)).toEqual(["comic", "thunderforest-map", "weather"]) // by name: Comic, Map, Weather
 		expect(st.providerSources.value.map(d => d.id)).toEqual(["openweathermap-api", "thunderforest-api"])
 		expect(st.usedBy(OWM)).toEqual(["weather"])
 		expect(st.usedBy(TF)).toEqual(["thunderforest-map"])
