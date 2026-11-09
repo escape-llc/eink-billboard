@@ -9,8 +9,9 @@
 # What it does on the Pi itself (everything else, Python, the browser that draws the pages, the panel drivers, is inside the container):
 #   installs Podman and git; turns on SPI and I2C (the panel's connections); adds you to the spi, i2c and gpio groups;
 #   clones the app to ~/eink-billboard, on the newest release (or with --insider the newest snapshot: every change, a few minutes after it);
-#   asks which display you have; downloads the app (GitHub makes the image: nothing is built on the Pi);
-#   starts it on port 8080; makes it start when the Pi starts; prints the address and the setup code.
+#   asks which display you have; asks the settings the first time (the port, the address, other names, HTTPS, a token for scripts; kept in
+#   ~/.config/eink-billboard/eink.env); downloads the app (GitHub makes the image: nothing is built on the Pi);
+#   starts it; makes it start when the Pi starts; prints the address and the setup code.
 #
 # Options:     --yes      do not ask (the display is EINK_DISPLAY, an Inky that answers, or mock)       --dry-run   say what it would do, change nothing
 #              --stable   the releases (the default)                              --insider   every change (--master is the same)
@@ -48,8 +49,9 @@ eInk Billboard setup for a Raspberry Pi 3 B+, 4 or 5 (Raspberry Pi OS 64-bit, ba
   curl -fsSL https://raw.githubusercontent.com/escape-llc/eink-billboard/master/deploy/bootstrap.sh | bash
 
 It says what it will do and asks once, then: installs Podman and git, turns on SPI and I2C, adds you to the spi, i2c and gpio
-groups, clones the app to ~/eink-billboard, asks which display you have, downloads the app,
-starts it on port 8080, makes it start when the Pi starts, and prints the address and the setup code.
+groups, clones the app to ~/eink-billboard, asks which display you have, asks the settings the first time
+(the port, 8080; the address; HTTPS; a token for scripts), downloads the app,
+starts it, makes it start when the Pi starts, and prints the address and the setup code.
 Run it again at any time: it continues after a restart it asked for, and later it updates the app.
 
 Options (after "| bash -s --"):  --dry-run  say what it would do, change nothing     --yes  ask nothing     --help  this text
@@ -349,6 +351,17 @@ EOF
 		pick_display
 	fi
 
+	# ---- the settings ------------------------------------------------------------------------------------------------------------------------------
+	# asked the first time (#940), before the restart a first run may ask for, so they are asked once; the kit keeps them, and every start and update uses them
+	if [ ! -f "$STATE_DIR/eink.env" ]; then
+		step "Your settings"
+		if [ "$YES" -eq 1 ]; then
+			say "The defaults: port 8080, the Pi's own address and names, plain HTTP, no token for scripts ('$KIT settings ask' changes them)."
+		else
+			EINK_SETTINGS_ONLY=1 "$KIT" settings ask < "$TTY" || exit 1
+		fi
+	fi
+
 	# ---- the app's image ---------------------------------------------------------------------------------------------------------------------------
 	step "Getting the app (a download)"
 	# IN_UPDATE=1: the kit leaves out its "Start it with" hint, since this starts the app itself (now, or on the run after the restart)
@@ -365,7 +378,7 @@ EOF
 
 	# ---- start ---------------------------------------------------------------------------------------------------------------------------------
 	step "Starting the app"
-	EINK_PORT=8080 "$KIT" start || exit 1
+	"$KIT" start || exit 1
 	if [ -z "$kind" ]; then
 		# nothing said which display: an Inky panel answers for itself, and then there is nothing to choose (also with --yes). Not answering is no reason to stop: it is asked as before (mock with --yes)
 		step "Your display"

@@ -231,6 +231,22 @@
 				</AccordionContent>
 			</AccordionPanel>
 
+			<AccordionPanel value="push">
+				<AccordionHeader>Pushing a message from a script</AccordionHeader>
+				<AccordionContent>
+					<p>A script (Home Assistant, a doorbell, cron) can put a message or a picture on the panel: it is shown over everything for a few minutes, then the playlist is back. Messages wait their turn behind each other and behind the panel's rest after its last refresh. A <b>Message pushed</b> row in Settings, GPIO, Feedback chimes, blinks or buzzes when one arrives.</p>
+					<ul>
+						<li><b>A token for scripts.</b> A script signs in with the API token, not the device password: on a Raspberry Pi, the setup offers to make one, or <code>~/eink-billboard/deploy/eink-container.sh token new</code> makes it, keeps it and shows it (<code>token show</code> shows it again; elsewhere, <code>--token</code>). The script sends it as <code>Authorization: Bearer &lt;the token&gt;</code>; below, <code>$TOKEN</code> holds it.</li>
+						<li><b>A message</b>, drawn in the device's theme (<code>text</code> up to 1000 characters, line breaks kept; <code>title</code> optional, up to 80; <code>minutes</code> 1 to 60, 5 if left out):<br />
+							<code data-testid="push-message-example">curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"title":"Doorbell","text":"Someone is at the door","minutes":2}' {{ origin }}/api/display/message</code></li>
+						<li><b>A picture</b>, the file itself as the body (PNG, JPEG, GIF or WEBP, at most 10 MB), shown whole on a blurred margin of its own colours:<br />
+							<code>curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: image/jpeg" --data-binary @door.jpg "{{ origin }}/api/display/image?title=Door&amp;minutes=2"</code></li>
+						<li><b>The answer</b> gives the message's <code>id</code> and <code>startsInSeconds</code>, the least it waits. <code>DELETE {{ origin }}/api/display/message/&lt;id&gt;</code> takes it down, showing or waiting. Twenty may be waiting or showing at once; a title already in use gets <code>(2)</code>, <code>(3)</code>.</li>
+						<li>Every route is described, and can be tried, at <code>{{ origin }}/api/docs</code> (signed in).</li>
+					</ul>
+				</AccordionContent>
+			</AccordionPanel>
+
 			<AccordionPanel value="kept">
 				<AccordionHeader>Kept downloads and answers</AccordionHeader>
 				<AccordionContent>
@@ -321,6 +337,8 @@ const emit = defineEmits<{ (e: "update:visible", value: boolean): void }>()
 const open = ref<string[]>(["start"])
 const version = `v${__APP_VERSION__}`
 const commit = __APP_COMMIT__
+/** where the web app is open: the device the push examples are sent to */
+const origin = window.location.origin
 watch(() => [props.visible, props.section] as const, async ([visible, section]) => {
 	if (!visible || !section) return
 	if (!open.value.includes(section)) open.value = [...open.value, section]

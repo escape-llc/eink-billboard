@@ -20,6 +20,10 @@
 #   deploy/eink-container.sh models              the Waveshare models there are drivers for
 #   deploy/eink-container.sh detect              ask whether an Inky panel is attached (an Inky says what it is; a Waveshare cannot)
 #   deploy/eink-container.sh autostart on|off    start the app when the Pi starts, or not (status: which it is)
+#   deploy/eink-container.sh settings            the settings this Pi keeps (the port, the address, other names, HTTPS, whether there is a token; never its value)
+#   deploy/eink-container.sh settings ask        ask them again, and restart with them; 'settings edit' opens the file in an editor (any setting the app reads)
+#   deploy/eink-container.sh token new           a token for scripts (the push API, Home Assistant): made, kept, shown once, and the app restarted with it
+#   deploy/eink-container.sh token show|off      show it again, or remove it ('token' alone: whether there is one)
 #   deploy/eink-container.sh ssl on [CERT KEY]   HTTPS (the app serves it itself) and restart: with your certificate and key (PEM files, kept as Podman
 #                                                secrets, not copied), else the device's own self-signed certificate (a browser warns until it is trusted)
 #   deploy/eink-container.sh ssl off             plain HTTP again, and restart (a certificate you gave is kept for the next 'ssl on')
@@ -28,11 +32,16 @@
 #   deploy/eink-container.sh wipe                delete everything the app keeps (settings, schedules, password) and start as new; asks first
 #   deploy/eink-container.sh help                this text
 #
-# Settings, from the environment (all optional), e.g. "EINK_PORT=8090 deploy/eink-container.sh start":
+# The settings this Pi keeps (#940) are in ~/.config/eink-billboard/eink.env, one NAME=value a line, readable only by you: the bootstrap writes it from its questions,
+# 'settings ask', 'token' and 'ssl' change it, and every start, update and start at boot uses it (Podman hands the whole file to the app). In it:
 #   EINK_PORT          the port on the Pi (8080; below 1024 needs a system setting, see "start")
 #   EINK_PUBLIC_URL    the address people open the web app at (http://<the Pi's address>:<port>); shown on the panel and with the setup code
 #   EINK_ALLOW_HOSTS   names the app answers to besides addresses, comma separated (<hostname>,<hostname>.local)
-#   EINK_API_TOKEN     a token for scripts; it also counts as setting the device up (no setup code then)
+#   EINK_API_TOKEN     a token for scripts ('token new'); it also counts as setting the device up (no setup code then)
+#   EINK_SSL           1: HTTPS ('ssl on')
+#   and any other setting the app reads, e.g. EINK_LOG_LEVEL=DEBUG. One given in the environment wins for that one command: "EINK_PORT=8090 deploy/eink-container.sh start".
+#
+# Settings of the kit itself, from the environment (all optional):
 #   EINK_NAME, EINK_IMAGE, EINK_VOLUME   the container (eink), the image (localhost/eink-device), the data volume (eink-data)
 #   EINK_REGISTRY      where the images GitHub made are downloaded from (ghcr.io/escape-llc/eink-billboard)
 #   EINK_PULL          0: never download: get builds here instead
@@ -52,11 +61,23 @@ IMAGE=${EINK_IMAGE:-localhost/eink-device}
 PREVIOUS="$IMAGE-previous"
 REGISTRY=${EINK_REGISTRY:-ghcr.io/escape-llc/eink-billboard}
 VOLUME=${EINK_VOLUME:-eink-data}
+# the settings this Pi keeps (#940): the app's (Podman hands the file to it with --env-file, read as text, never run) and the kit's port. The kit reads the ones it
+# needs from it the same way, unless the environment gives one for this command. Only you may read it: it holds the token
+ENV_FILE=${XDG_CONFIG_HOME:-$HOME/.config}/eink-billboard/eink.env
+KEPT=(EINK_PORT EINK_PUBLIC_URL EINK_ALLOW_HOSTS EINK_API_TOKEN EINK_SSL)
+file_value() { [ -r "$ENV_FILE" ] && sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1; }
+for kept in "${KEPT[@]}"; do
+	if [ -z "${!kept+x}" ]; then
+		value=$(file_value "$kept")
+		# exported: the token goes to Podman by name, never on a command line
+		[ -z "$value" ] || export "$kept=$value"
+	fi
+done
+unset kept value
 PORT=${EINK_PORT:-8080}
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 SCRIPT="deploy/eink-container.sh"
-# HTTPS (#ssl): "on" or "off", remembered; the certificate a person gives is two Podman secrets, mounted for the app's user only
-SSL_FILE=${XDG_CONFIG_HOME:-$HOME/.config}/eink-billboard/ssl
+# HTTPS is EINK_SSL in the settings; the certificate a person gives is two Podman secrets, mounted for the app's user only
 SECRET_CERT=${EINK_SECRET_PREFIX:-eink}-tls-cert
 SECRET_KEY=${EINK_SECRET_PREFIX:-eink}-tls-key
 LOG_DIR=${XDG_CACHE_HOME:-$HOME/.cache}/eink-billboard
@@ -88,17 +109,12 @@ preflight() {
 	command -v podman >/dev/null || fail "Podman is not installed. Install it with:  sudo apt update && sudo apt install -y podman"
 	command -v curl >/dev/null || fail "curl is not installed. Install it with:  sudo apt install -y curl"
 	[ -f "$HERE/Dockerfile" ] && [ -f "$HERE/python/eink-billboard.py" ] || fail "this script must stay in the deploy folder of the eInk Billboard checkout (it builds from $HERE)."
-	case "$PORT" in
-		''|*[!0-9]*) fail "EINK_PORT must be a number, not '$PORT'." ;;
-	esac
-	{ [ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ]; } || fail "EINK_PORT must be between 1 and 65535, not $PORT."
-	if [ -n "${EINK_PUBLIC_URL:-}" ]; then
-		case "$EINK_PUBLIC_URL" in
-			http://?*|https://?*) ;;
-			*) fail "EINK_PUBLIC_URL must start with http:// or https:// and name a host, e.g. http://192.168.1.20:8080 (it is '$EINK_PUBLIC_URL')." ;;
-		esac
-	fi
+	port_ok "$PORT" || fail "EINK_PORT must be a number from 1 to 65535, not '$PORT'."
+	[ -z "${EINK_PUBLIC_URL:-}" ] || url_ok "$EINK_PUBLIC_URL" \
+		|| fail "EINK_PUBLIC_URL must start with http:// or https:// and name a host, e.g. http://192.168.1.20:8080 (it is '$EINK_PUBLIC_URL')."
 }
+port_ok() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ "$1" -ge 1 ] && [ "$1" -le 65535 ]; }
+url_ok() { case "$1" in http://?*|https://?*) return 0 ;; *) return 1 ;; esac; }
 
 # Raspberry Pi OS Trixie's (#853): the only one this is tested with
 PODMAN_MIN_MAJOR=5
@@ -150,7 +166,7 @@ board_config() { if [ -f /boot/firmware/config.txt ]; then echo /boot/firmware/c
 # an Inky's driver works the panel's chip select (GPIO 8) itself, so the kernel's SPI must leave it: this line in config.txt (the bootstrap writes it); a Waveshare panel needs the kernel's
 CS_OVERLAY="dtoverlay=spi0-0cs"
 chip_select_ours() { grep -qE "^[[:space:]]*${CS_OVERLAY}[[:space:]]*$" "$(board_config)" 2>/dev/null; }
-ssl_on() { [ "$(cat "$SSL_FILE" 2>/dev/null)" = "on" ]; }
+ssl_on() { case "${EINK_SSL:-}" in 1|[Tt][Rr][Uu][Ee]|[Yy][Ee][Ss]|[Oo][Nn]) return 0 ;; *) return 1 ;; esac; }
 scheme() { if ssl_on; then echo https; else echo http; fi; }
 own_certificate() { podman secret inspect "$SECRET_CERT" >/dev/null 2>&1 && podman secret inspect "$SECRET_KEY" >/dev/null 2>&1; }
 # -k: this asks the app on the Pi's own loopback whether it answers, which the device's own (self-signed) certificate cannot prove to curl
@@ -685,7 +701,7 @@ cmd_start() {
 		podman rm -f "$NAME" >/dev/null 2>&1 || fail "the old container '$NAME' could not be removed: podman rm -f $NAME"
 	fi
 	if command -v ss >/dev/null && ss -ltnH 2>/dev/null | awk '{print $4}' | grep -qE "[:.]$PORT\$"; then
-		fail "something else already uses port $PORT on this Pi. Stop it, or choose another port:  EINK_PORT=8090 $SCRIPT start"
+		fail "something else already uses port $PORT on this Pi. Stop it, or choose another port:  $SCRIPT settings ask"
 	fi
 
 	local url hosts devices=() missing_groups=() g
@@ -706,8 +722,10 @@ cmd_start() {
 	# a sound card, for an audio output (#867): /dev/snd as a folder, not its devices one by one, because a USB card's come and go with it and Podman refuses to start a container
 	# made with a device that is gone (rootless: what you may open is what your audio group, which comes in with the others, may open)
 	[ -d /dev/snd ] && devices+=(--volume /dev/snd:/dev/snd)
-	local token=()
-	# passed by name, so the token is not on a command line (anyone on the Pi can read those)
+	# the settings this Pi keeps, as they are; then the ones the kit works out (the address, the names) and the token, which the environment may give for this
+	# command: passed by name, so it is not on a command line (anyone on the Pi can read those)
+	local token=() kept=()
+	[ -r "$ENV_FILE" ] && kept=(--env-file "$ENV_FILE")
 	[ -n "${EINK_API_TOKEN:-}" ] && token=(-e EINK_API_TOKEN)
 	# HTTPS is the app's own (uvicorn): a certificate you gave is mounted as secrets that only the app's user can read, else the app makes its own
 	local tls_mounts=() tls_args=() uid gid
@@ -731,7 +749,7 @@ cmd_start() {
 	# --stop-timeout: every stop and restart lets the app end in order (it gives itself 20 s, RESTART_FORCE_SECONDS; a panel refresh can be in progress): Podman's 10 s killed it
 	if ! podman run -d --name "$NAME" --restart unless-stopped --stop-timeout 30 \
 		--network host --security-opt unmask=/sys/firmware -v "$VOLUME:/data" \
-		-e EINK_PUBLIC_URL="$url" -e EINK_ALLOW_HOSTS="$hosts" -e EINK_RESTARTABLE=1 "${token[@]}" \
+		"${kept[@]}" -e EINK_PUBLIC_URL="$url" -e EINK_ALLOW_HOSTS="$hosts" -e EINK_RESTARTABLE=1 "${token[@]}" \
 		"${devices[@]}" "${tls_mounts[@]}" "${clock[@]}" \
 		"$IMAGE" uv run --no-sync python -m python.eink-billboard --host :: --port "$PORT" --storage /data --app /work/app/dist "${tls_args[@]}" >/dev/null; then
 		fail "the app did not start: the lines above say why. '$SCRIPT check' looks at everything."
@@ -1099,11 +1117,9 @@ cmd_autostart() {
 				|| fail "your user's systemd is not reachable from this shell (logged in with su or sudo?). Log in as $(id -un) directly (or over ssh) and run it again."
 			mkdir -p "$(dirname "$(unit_file)")"
 			# the container keeps the devices it was made with: when one is gone after a restart (dtoverlay=spi0-0cs for an Inky removes /dev/spidev0.1), Podman
-			# refuses to start it, so then this script's own "start" makes it again from the devices there are, with the settings below (a token is not written
-			# into the unit: one given with EINK_API_TOKEN is not passed to the container made again, and the device password still applies)
-			local settings="EINK_NAME=$NAME EINK_IMAGE=$IMAGE EINK_VOLUME=$VOLUME EINK_PORT=$PORT"
-			[ -z "${EINK_PUBLIC_URL:-}" ] || settings="$settings EINK_PUBLIC_URL=$EINK_PUBLIC_URL"
-			[ -z "${EINK_ALLOW_HOSTS:-}" ] || settings="$settings EINK_ALLOW_HOSTS=$EINK_ALLOW_HOSTS"
+			# refuses to start it, so then this script's own "start" makes it again from the devices there are, with the container's names below and the settings this
+			# Pi keeps (read from its file then, the token included: nothing of them is written into the unit)
+			local settings="EINK_NAME=$NAME EINK_IMAGE=$IMAGE EINK_VOLUME=$VOLUME"
 			# on the host's network the container gets a copy of the Pi's /etc/resolv.conf when it starts, and at boot that can be before the network is up (no
 			# nameserver: every download fails, found on a Pi 3 B+ on Wi-Fi). A unit of one's own cannot wait for the system's network-online.target, so it waits for
 			# the nameserver itself, at most 2 minutes ($$ is systemd's way to write a $)
@@ -1242,11 +1258,11 @@ cmd_ssl() {
 			elif [ $# -ne 1 ]; then
 				fail "ssl on takes nothing (the device's own certificate, or the one you gave before), or a certificate and its key:  $SCRIPT ssl on cert.pem key.pem"
 			fi
-			mkdir -p "$(dirname "$SSL_FILE")" && echo on > "$SSL_FILE" || fail "$SSL_FILE could not be written."
+			set_setting EINK_SSL 1
 			if own_certificate; then say "HTTPS with your certificate."; else say "HTTPS with the device's own certificate: a browser warns the first time (it is self-signed); compare the fingerprint '$SCRIPT logs' gives with the one the browser shows, then accept it."; fi
 			cmd_start ;;
 		off)
-			mkdir -p "$(dirname "$SSL_FILE")" && echo off > "$SSL_FILE" || fail "$SSL_FILE could not be written."
+			set_setting EINK_SSL ""
 			say "Plain HTTP again."
 			cmd_start ;;
 		forget)
@@ -1261,6 +1277,123 @@ cmd_ssl() {
 			elif own_certificate; then say "HTTPS with your certificate (Podman secrets $SECRET_CERT, $SECRET_KEY)."
 			else say "HTTPS with the device's own self-signed certificate."; fi ;;
 		*) fail "ssl takes on, on CERT KEY, off, forget, or nothing (which it is)." ;;
+	esac
+}
+
+# ---- the settings this Pi keeps (#940) ---------------------------------------------------------------------------------------------------------------
+
+set_setting() {
+	# $1 the name, $2 its value (empty: removed from the file). The file is made with only you able to read it, before anything goes into it, and replaced whole
+	local dir tmp
+	dir=$(dirname "$ENV_FILE")
+	mkdir -p "$dir" && tmp=$(mktemp "$dir/.eink.env.XXXXXX") || fail "$ENV_FILE could not be written."
+	chmod 600 "$tmp"
+	{ [ -r "$ENV_FILE" ] && grep -v "^$1=" "$ENV_FILE"; [ -z "$2" ] || printf '%s=%s\n' "$1" "$2"; } > "$tmp"
+	mv -f "$tmp" "$ENV_FILE" || { rm -f "$tmp"; fail "$ENV_FILE could not be written."; }
+	if [ -n "$2" ]; then export "$1=$2"; else unset "$1"; fi
+	[ "$1" != EINK_PORT ] || PORT=${2:-8080}
+}
+
+new_token() { od -An -N24 -tx1 /dev/urandom | tr -d ' \n'; }
+
+yes_no() {
+	# $1 the question, $2 the answer Enter gives (y or n); 0 for yes
+	local reply hint="[y/N]"
+	[ "$2" = y ] && hint="[Y/n]"
+	read -r -p "$1 $hint " reply || reply=""
+	case "${reply:-$2}" in [Yy]|[Yy][Ee][Ss]) return 0 ;; *) return 1 ;; esac
+}
+
+show_settings() {
+	say "Port:               $PORT"
+	say "Address:            $(public_url)$([ -n "${EINK_PUBLIC_URL:-}" ] || echo " (found at each start)")"
+	say "Other names:        ${EINK_ALLOW_HOSTS:-$(hostname),$(hostname).local}$([ -n "${EINK_ALLOW_HOSTS:-}" ] || echo " (the Pi's own)")"
+	if ! ssl_on; then say "HTTPS:              off"
+	elif own_certificate; then say "HTTPS:              on, with your certificate"
+	else say "HTTPS:              on, with the device's own certificate"; fi
+	if [ -n "${EINK_API_TOKEN:-}" ]; then say "Token for scripts:  set ('$SCRIPT token show' shows it)"
+	else say "Token for scripts:  none ('$SCRIPT token new' makes one)"; fi
+	say "Kept in $ENV_FILE ('$SCRIPT settings ask' changes them)."
+}
+
+ask_settings() {
+	[ -t 0 ] || fail "this asks questions, and there is no keyboard to ask them on. Change them in the file instead:  $SCRIPT settings edit"
+	local reply made_token=""
+	say "Press Enter to keep what is in [brackets]."
+	while :; do
+		read -r -p "The port the web app is on [$PORT]: " reply || reply=""
+		reply=${reply:-$PORT}
+		port_ok "$reply" && break
+		say "A number from 1 to 65535 (8080 is the usual one; below 1024 needs a system setting)."
+	done
+	if [ "$reply" = 8080 ]; then set_setting EINK_PORT ""; else set_setting EINK_PORT "$reply"; fi
+	say "The address people open the web app at, shown on the panel and with the setup code: auto finds the Pi's address at each start ($(scheme)://$(first_address):$PORT now)."
+	while :; do
+		read -r -p "Address [${EINK_PUBLIC_URL:-auto}]: " reply || reply=""
+		reply=${reply:-${EINK_PUBLIC_URL:-auto}}
+		if [ "$reply" = auto ]; then set_setting EINK_PUBLIC_URL ""; break; fi
+		if url_ok "$reply"; then set_setting EINK_PUBLIC_URL "$reply"; break; fi
+		say "An address starts with http:// or https://, e.g. http://192.168.1.20:8080, or type auto."
+	done
+	say "The names the app answers to besides its addresses, comma separated: auto is the Pi's own ($(hostname),$(hostname).local)."
+	read -r -p "Names [${EINK_ALLOW_HOSTS:-auto}]: " reply || reply=""
+	reply=${reply:-${EINK_ALLOW_HOSTS:-auto}}
+	if [ "$reply" = auto ]; then set_setting EINK_ALLOW_HOSTS ""; else set_setting EINK_ALLOW_HOSTS "$(tr -d ' ' <<< "$reply")"; fi
+	say "HTTPS keeps the password and the settings private on the way to the Pi. It uses the device's own certificate (a browser warns the first time); '$SCRIPT ssl on CERT KEY' gives one of your own later."
+	if yes_no "HTTPS?" "$(ssl_on && echo y || echo n)"; then set_setting EINK_SSL 1; else set_setting EINK_SSL ""; fi
+	say "A token for scripts lets Home Assistant, a doorbell or cron push a message to the panel (the web app's Help, Pushing a message from a script). With one, the device needs no setup code: the web app's first sign-in is the token, and a password can be set on the System page after."
+	if [ -n "${EINK_API_TOKEN:-}" ]; then
+		yes_no "Keep the token for scripts?" y || set_setting EINK_API_TOKEN ""
+	elif yes_no "A token for scripts?" n; then
+		made_token=$(new_token)
+		set_setting EINK_API_TOKEN "$made_token"
+	fi
+	say ""
+	say "Saved in $ENV_FILE (only you can read it)."
+	if [ -n "$made_token" ]; then
+		say "The token for scripts ('$SCRIPT token show' shows it again):"
+		say "    $made_token"
+	fi
+}
+
+cmd_settings() {
+	case "${1:-show}" in
+		show) show_settings ;;
+		ask)
+			ask_settings
+			# EINK_SETTINGS_ONLY=1: the bootstrap asks before the app is there, and starts it itself
+			if [ "${EINK_SETTINGS_ONLY:-0}" != 1 ] && exists; then cmd_start; fi ;;
+		edit)
+			# made first, readable only by you, so the editor opens that file
+			[ -f "$ENV_FILE" ] || set_setting EINK_PORT "${EINK_PORT:-}"
+			${EDITOR:-nano} "$ENV_FILE" || fail "the editor did not finish:  ${EDITOR:-nano} $ENV_FILE"
+			# a new run reads the file again and checks it, as every command does
+			if exists; then exec "$0" start; fi
+			say "Saved. They are used when the app starts:  $SCRIPT start" ;;
+		*) fail "settings takes ask, edit, or nothing (what they are)." ;;
+	esac
+}
+
+cmd_token() {
+	case "${1:-status}" in
+		new)
+			set_setting EINK_API_TOKEN "$(new_token)"
+			say "The token for scripts ('$SCRIPT token show' shows it again):"
+			say "    $EINK_API_TOKEN"
+			say "A script sends it as:  Authorization: Bearer <the token>   (the web app's Help, Pushing a message from a script, has examples)"
+			if exists; then cmd_start; else say "It is used when the app starts:  $SCRIPT start"; fi ;;
+		show)
+			[ -n "${EINK_API_TOKEN:-}" ] || fail "there is no token for scripts:  $SCRIPT token new"
+			say "$EINK_API_TOKEN" ;;
+		off)
+			[ -n "${EINK_API_TOKEN:-}" ] || { say "There is no token for scripts."; return; }
+			set_setting EINK_API_TOKEN ""
+			say "The token is removed: scripts are refused, and the web app signs in with the device password (with none set yet, the device asks for a setup code again)."
+			if exists; then cmd_start; fi ;;
+		status)
+			if [ -n "${EINK_API_TOKEN:-}" ]; then say "There is a token for scripts ('$SCRIPT token show' shows it)."
+			else say "There is no token for scripts ('$SCRIPT token new' makes one)."; return 1; fi ;;
+		*) fail "token takes new, show, off, or nothing (whether there is one)." ;;
 	esac
 }
 
@@ -1287,6 +1420,8 @@ case "$command" in
 	detect) cmd_detect ;;
 	autostart) cmd_autostart "$@" ;;
 	ssl) cmd_ssl "$@" ;;
+	settings) cmd_settings "$@" ;;
+	token) cmd_token "$@" ;;
 	reset-password) cmd_reset_password ;;
 	storage) cmd_storage ;;
 	wipe) cmd_wipe ;;

@@ -32,10 +32,16 @@ Every command first checks the basics (Linux, not root, Podman and curl installe
 | `autostart on` | Starts the app when the Pi starts: a systemd unit of your own (`~/.config/systemd/user/eink-billboard.service`) that waits until the Pi has a name server (at most 2 minutes: on the Pi's own network the container copies its DNS settings when it starts), then starts the container, or makes it again with `start` when Podman refuses it (a device it was made with is gone, e.g. `/dev/spidev0.1` after `dtoverlay=spi0-0cs`), and *linger*, which runs your units at boot without a login (asks for your password once). Needs the container to exist (`start` first). |
 | `autostart off` | No longer starts at boot (the app keeps running now). |
 | `autostart` | Whether it starts at boot (`status`). |
-| `ssl on` | **HTTPS**, served by the app itself on the same port, with the device's own self-signed certificate (or the one you gave before). Remembered (`~/.config/eink-billboard/ssl`) and restarts the app; `start` and `update` keep it. A browser warns the first time: the log's line "Serving HTTPS with ..." gives the certificate's SHA-256 fingerprint to compare. |
+| `ssl on` | **HTTPS**, served by the app itself on the same port, with the device's own self-signed certificate (or the one you gave before). Kept in the settings (`EINK_SSL=1`) and restarts the app; `start` and `update` keep it. A browser warns the first time: the log's line "Serving HTTPS with ..." gives the certificate's SHA-256 fingerprint to compare. |
 | `ssl on CERT KEY` | HTTPS with a certificate of your own: two PEM files (the certificate with its chain, and its key without a passphrase), kept as the Podman secrets `eink-tls-cert` and `eink-tls-key` and mounted for the app's user only (mode 0400); the files themselves can be deleted afterwards. Giving another replaces them. |
 | `ssl off` | Plain HTTP again, and restarts the app; a certificate you gave is kept for the next `ssl on`. |
 | `ssl forget` | Removes the certificate you gave (the secrets); while HTTPS is on the device's own is used. `ssl` alone says which is in use. |
+| `settings` | The settings this Pi keeps (below): the port, the address, the other names, HTTPS, and whether there is a token for scripts (never its value). |
+| `settings ask` | Asks them again, as the setup did, keeps the answers and restarts the app with them. Needs someone at the keyboard. |
+| `settings edit` | Opens the settings file in your editor (`$EDITOR`, else nano), then restarts the app with it. Any setting the app reads can go in it. |
+| `token new` | Makes a token for scripts (48 random hex characters), keeps it in the settings, shows it once and restarts the app with it. A script sends it as `Authorization: Bearer <the token>` (the web app's Help, Pushing a message from a script). A token also counts as setting the device up: the web app's first sign-in is the token. |
+| `token show` | Shows the token again. |
+| `token off` | Removes it and restarts: scripts are refused (with no device password set yet, the device asks for a setup code again). `token` alone says whether there is one. |
 | `storage` | When `check` says Podman keeps images the slow way (`vfs`: every layer a full copy, so every update writes and takes far more than it needs to), changes it to overlay. That needs `podman system reset`, which deletes all of your Podman images, containers and volumes, so it first tries overlay in a scratch store and stops with nothing changed if it does not work, then saves the app's data to a file in your home folder, checks it, puts it back after and downloads the app again. Asks you to type `reset` first. (`get` does this by itself when Podman holds nothing yet.) |
 | `reset-password` | Forgets the device password, restarts and shows the new setup code. Asks you to type `yes` first. |
 | `wipe` | Deletes everything the app keeps (settings with their API keys, playlists, schedules, password) and the container, so the next `start` is a new device. Asks you to type the volume's name (`eink-data`) first. |
@@ -44,14 +50,20 @@ Every command first checks the basics (Linux, not root, Podman and curl installe
 
 ## Settings
 
-Optional, from the environment, for one command (`EINK_PORT=8090 ~/eink-billboard/deploy/eink-container.sh start`):
+Kept in `~/.config/eink-billboard/eink.env`, one `NAME=value` a line, readable only by you (it holds the token). The setup asks for them the first time; `settings ask`, `settings edit`, `token` and `ssl` change them; every `start`, `update` and start at boot uses them (Podman hands the whole file to the app, so any setting the app reads can go in it, such as `EINK_LOG_LEVEL=DEBUG`). One given in the environment wins for that one command (`EINK_PORT=8090 ~/eink-billboard/deploy/eink-container.sh start`):
 
 | Setting | Default | What it is |
 |---|---|---|
 | `EINK_PORT` | `8080` | The port on the Pi. Below 1024 needs a system setting, which `start` explains |
 | `EINK_PUBLIC_URL` | `http://<the Pi's address>:<port>` (`https://` with `ssl on`) | The address people open the web app at (see [On your network](../readme.md#on-your-network)) |
 | `EINK_ALLOW_HOSTS` | `<name>,<name>.local` | Names the app answers to besides addresses |
-| `EINK_API_TOKEN` | none | A token for scripts |
+| `EINK_SSL` | none | `1`: HTTPS (`ssl on`) |
+| `EINK_API_TOKEN` | none | A token for scripts (`token new`) |
+
+The kit's own, from the environment only:
+
+| Setting | Default | What it is |
+|---|---|---|
 | `EINK_NAME` | `eink` | The container's name |
 | `EINK_IMAGE` | `localhost/eink-device` | The image's name |
 | `EINK_VOLUME` | `eink-data` | The volume that holds the app's data |
