@@ -25,6 +25,9 @@ test("the Help button opens a drawer over the page, with the guide in it, and it
 	// every plugin and data source has its entry
 	await help.getByRole("button", { name: "Sources: pictures" }).click()
 	await expect(help.getByText("Image from a Web Address")).toBeVisible()
+	// a script's push is explained with the device's own address
+	await help.getByRole("button", { name: "Pushing a message from a script" }).click()
+	await expect(help.getByTestId("push-message-example")).toContainText(`${new URL(page.url()).origin}/api/display/message`)
 	// the build is the one in the header
 	await help.getByRole("button", { name: "When something is wrong" }).click()
 	await expect(help.getByText(/^v\S+ \(\S+\)$/)).toBeVisible()
