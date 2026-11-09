@@ -31,6 +31,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      # init and analyze must be the same version, or CodeQL fails (#923, #924 were proposed apart)
+      codeql:
+        patterns: ["github/codeql-action*"]
   # the base images and the pinned uv image in the Dockerfile (#456): a pin by digest gets its update proposed here
   - package-ecosystem: "docker"
     directory: "/"
