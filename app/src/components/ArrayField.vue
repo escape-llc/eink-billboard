@@ -67,17 +67,22 @@
 			</div>
 			<RowAction v-if="rowItems?.action && baseUrl !== undefined" class="array-action" :action="rowItems.action" :baseUrl="baseUrl"
 				:rowKey="rowItems.key ? row[rowItems.key] : undefined" :label="`${field.title} ${index + 1}`" />
+			<div class="array-end">
+			<!-- a row that carries a plugin's settings (items.plugin): they are set in the plugin's own form, in a dialog, and tried with Run now -->
+			<InputGroup v-if="carries(row)" class="array-buttons">
+				<Button size="small" icon="mi mi-settings" type="button" :title="hasContent(row) ? 'Task settings' : 'Set up the task'" :aria-label="`Task settings ${index + 1}`" @click="editing = index" />
+				<Button v-if="rowPlugin?.run && baseUrl !== undefined" size="small" icon="mi mi-play-arrow" type="button" title="Run now" :aria-label="`Run task ${index + 1} now`"
+					:loading="running === index" :disabled="running === index || !hasContent(row) || row[rowItems?.key ?? ''] === undefined || row[rowItems?.key ?? ''] === null" @click="runRow(index, row)" />
+			</InputGroup>
 			<InputGroup class="array-buttons">
 				<Button icon="mi mi-arrow-upward" size="small" title="Move up" :aria-label="`Move ${index + 1} up`" :disabled="index === 0" @click="move(index, -1)" />
 				<Button icon="mi mi-arrow-downward" size="small" title="Move down" :aria-label="`Move ${index + 1} down`" :disabled="index === rows.length - 1" @click="move(index, 1)" />
 				<Button icon="mi mi-delete" size="small" severity="danger" title="Remove" :aria-label="`Remove ${index + 1}`" @click="remove(index)" />
 			</InputGroup>
+			</div>
 		</div>
-		<!-- a row that carries a plugin's settings (items.plugin): they are set in the plugin's own form, in a dialog -->
-		<div v-if="carries(row)" class="array-plugin">
-			<Button size="small" icon="mi mi-settings" type="button" :title="hasContent(row) ? 'Task settings' : 'Set up the task'" :aria-label="`Task settings ${index + 1}`" @click="editing = index" />
-			<Button v-if="rowPlugin?.run && baseUrl !== undefined" size="small" icon="mi mi-play-arrow" type="button" title="Run now" :aria-label="`Run task ${index + 1} now`"
-				:loading="running === index" :disabled="running === index || !hasContent(row) || row[rowItems?.key ?? ''] === undefined || row[rowItems?.key ?? ''] === null" @click="runRow(index, row)" />
+		<!-- what the row's task said: Run now's answer, or what its settings lack -->
+		<div v-if="carries(row) && ((ranIndex === index && ran) || (rowPlugin && cellError(index, rowPlugin.field)))" class="array-plugin">
 			<Message v-if="ranIndex === index && ran" :severity="ran.ok ? 'success' : 'error'" size="small" variant="simple">{{ ran.message }}</Message>
 			<Message v-if="rowPlugin && cellError(index, rowPlugin.field)" severity="error" size="small" variant="simple">{{ cellError(index, rowPlugin.field) }}</Message>
 		</div>
@@ -378,7 +383,13 @@ function cellError(index: number, name: string): string|undefined {
 .array-row:has(.array-action) {
 	flex-wrap: wrap;
 }
-.stacked .array-buttons {
+/* the row's button groups (its task's, then move and remove), side by side at its end */
+.array-end {
+	display: flex;
+	flex: 0 0 auto;
+	gap: .25rem;
+}
+.stacked .array-end {
 	flex-basis: 100%;
 	justify-content: flex-end;
 }
