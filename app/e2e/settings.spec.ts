@@ -238,7 +238,7 @@ test("a settings form that only opened is not unsaved, whatever it filled in its
 	const watch = watchProblems(page)
 	// each tab's form, and an item's settings on the item tabs (the calendar's rows hold secrets and choices; a form fills defaults and masks as it opens)
 	const forms: [string, string | null][] = [["System", null], ["Display", null], ["Theme", null], ["Master Prompts", null], ["GPIO", null],
-		["Plugins", "slide-show"], ["Data Sources", "image-folder"], ["Providers", "calendar-sources"], ["Providers", "openai-api"]]
+		["Plugins", "Slide Show"], ["Data Sources", "Image Folder"], ["Providers", "Calendar Sources"], ["Providers", "OpenAI"]]
 	for (const [tab, item] of forms) {
 		await page.goto("/#/settings")
 		await page.getByRole("tab", { name: tab }).click()
