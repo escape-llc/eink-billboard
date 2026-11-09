@@ -18,7 +18,7 @@ test("folders are added in the data source's settings, and a track chooses among
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Data Sources" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
-	await page.getByRole("option").filter({ hasText: "image-folder" }).click()
+	await page.getByRole("option", { name: "Image Folder", exact: true }).click()
 	await expect(page.getByRole("textbox", { name: "Name 1", exact: true })).toHaveValue("E2E images")
 
 	await page.getByRole("button", { name: "Add to Folders" }).click()
@@ -48,7 +48,7 @@ test("the RSS Feed settings test an address through the real route, which refuse
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Data Sources" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
-	await page.getByRole("option", { name: /^rss/ }).click()
+	await page.getByRole("option", { name: "RSS Feed", exact: true }).click()
 	await page.getByRole("button", { name: "Add to Feeds" }).click()
 	await page.getByRole("textbox", { name: "Name 1", exact: true }).fill("Loopback")
 	const url = page.getByRole("textbox", { name: "Feed URL 1", exact: true })

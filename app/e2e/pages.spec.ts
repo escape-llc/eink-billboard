@@ -108,9 +108,9 @@ test("the provider and data source selectors show names, not [object Object]", a
 	const select = page.getByRole("tabpanel").locator(".p-select").first()
 	await select.click()
 	// options are identified by their name, not by the string form of the object
-	await page.getByRole("option", { name: /openai-image/ }).click()
-	await expect(select).toContainText("openai-image")
+	await page.getByRole("option", { name: "OpenAI Image", exact: true }).click()
+	await expect(select).toContainText("OpenAI Image")
 	await expect(select).not.toContainText("[object Object]")
-	await expect(select.getByRole("combobox")).toHaveAttribute("aria-label", "openai-image")
+	await expect(select.getByRole("combobox")).toHaveAttribute("aria-label", "OpenAI Image")
 	watch.expectNone()
 })

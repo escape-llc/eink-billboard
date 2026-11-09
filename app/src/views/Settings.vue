@@ -135,13 +135,13 @@
 					@submit="submitForm"
 					>
 					<template #tb-center>
-						<Select size="small" :options="plugins" optionLabel="id" v-model="selectedPlugin" style="width:20rem">
+						<Select size="small" :options="plugins" optionLabel="name" v-model="selectedPlugin" style="width:20rem">
 							<template #value="slotProps">
-								<div v-if="slotProps.value">{{ slotProps.value.id }} ({{ slotProps.value.version }})</div>
+								<div v-if="slotProps.value">{{ slotProps.value.name }} ({{ slotProps.value.version }})</div>
 							</template>
 							<template #option="slotProps">
 								<div class="flex flex-column">
-									<div>{{ slotProps.option.id }} ({{ slotProps.option.version }})</div>
+									<div>{{ slotProps.option.name }} ({{ slotProps.option.version }})</div>
 									<div style="max-width:17rem">{{ slotProps.option.description }}</div>
 								</div>
 							</template>
@@ -164,13 +164,13 @@
 					@submit="submitForm"
 					>
 					<template #tb-center>
-						<Select size="small" :options="pageSources" optionLabel="id" v-model="selectedDatasource" style="width:20rem">
+						<Select size="small" :options="pageSources" optionLabel="name" v-model="selectedDatasource" style="width:20rem">
 							<template #value="slotProps">
-								<div v-if="slotProps.value">{{ slotProps.value.id }} ({{ slotProps.value.version }})</div>
+								<div v-if="slotProps.value">{{ slotProps.value.name }} ({{ slotProps.value.version }})</div>
 							</template>
 							<template #option="slotProps">
 								<div class="flex flex-column">
-									<div>{{ slotProps.option.id }} ({{ slotProps.option.version }})</div>
+									<div>{{ slotProps.option.name }} ({{ slotProps.option.version }})</div>
 									<div style="max-width:17rem">{{ slotProps.option.description }}</div>
 								</div>
 							</template>
@@ -194,13 +194,13 @@
 					@submit="submitForm"
 					>
 					<template #tb-center>
-						<Select size="small" :options="providerSources" optionLabel="id" v-model="provider.selected.value" style="width:20rem">
+						<Select size="small" :options="providerSources" optionLabel="name" v-model="provider.selected.value" style="width:20rem">
 							<template #value="slotProps">
-								<div v-if="slotProps.value">{{ slotProps.value.id }} ({{ slotProps.value.version }})</div>
+								<div v-if="slotProps.value">{{ slotProps.value.name }} ({{ slotProps.value.version }})</div>
 							</template>
 							<template #option="slotProps">
 								<div class="flex flex-column">
-									<div>{{ slotProps.option.id }} ({{ slotProps.option.version }})</div>
+									<div>{{ slotProps.option.name }} ({{ slotProps.option.version }})</div>
 									<div style="max-width:17rem">{{ slotProps.option.description }}</div>
 								</div>
 							</template>

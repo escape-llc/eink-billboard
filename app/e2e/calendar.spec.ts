@@ -23,7 +23,7 @@ async function openCalendarSettings(page: Page) {
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Providers" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
-	await page.getByRole("option", { name: "calendar-sources", exact: true }).click()
+	await page.getByRole("option", { name: "Calendar Sources", exact: true }).click()
 	await expect(page.getByRole("textbox", { name: "Name 1", exact: true }).first()).toHaveValue("Family")
 }
 const calendars = (page: Page) => page.getByRole("group", { name: "Calendars" })

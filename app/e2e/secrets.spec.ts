@@ -18,7 +18,7 @@ async function openKeyForm(page: Page) {
 	await page.goto("/#/settings")
 	await page.getByRole("tab", { name: "Providers" }).click()
 	await page.getByRole("tabpanel").locator(".p-select").first().click()
-	await page.getByRole("option", { name: "openai-api", exact: true }).click()
+	await page.getByRole("option", { name: "OpenAI", exact: true }).click()
 	return page.getByRole("tabpanel").locator("input[type=password]")
 }
 
