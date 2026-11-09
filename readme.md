@@ -51,11 +51,12 @@ flowchart TD
     C -- no --> X["Nothing changed"]
     C -- yes --> D["sudo: install Podman and git,<br/>turn on SPI and I2C,<br/>add you to spi, i2c, gpio"]
     D --> E["Clone (or update) ~/eink-billboard,<br/>on the newest release (or snapshot)"]
-    E --> G["Download the app GitHub made"]
+    E --> S["The first time: your settings<br/>(port, address, HTTPS, a token for scripts)"]
+    S --> G["Download the app GitHub made"]
     G --> H{"SPI, I2C or groups<br/>just changed?"}
     H -- yes --> R["Restart the Pi,<br/>run the same command again"]
     R --> A
-    H -- no --> I["Start the app on port 8080"]
+    H -- no --> I["Start the app"]
     I --> J["An Inky identifies itself and is used;<br/>otherwise: which display? none / Inky / Waveshare + model"]
     J --> K["Start the app when the Pi starts"]
     K --> L["Print the address and the setup code"]
@@ -99,17 +100,19 @@ The channel is remembered (`~/.config/eink-billboard/channel`); a Pi with no cha
 
 ## On your network
 
-The setup starts the app with these settings from the environment, so set them in front of `start` (or the setup command) to change them, e.g. `EINK_ALLOW_HOSTS=billboard.home.arpa ~/eink-billboard/deploy/eink-container.sh start`:
+The setup asks for these the first time and keeps them in `~/.config/eink-billboard/eink.env` (readable only by you), which every start, update and start at boot uses. `~/eink-billboard/deploy/eink-container.sh settings` shows them, `settings ask` asks again and restarts with the answers, and `settings edit` opens the file (any setting the app reads can go in it, such as `EINK_LOG_LEVEL=DEBUG`):
 
 | Setting | What it does |
 |---|---|
+| `EINK_PORT` | The port the web app is on (8080) |
 | `EINK_PUBLIC_URL` | The address people open, shown with the setup code and on the panel's pages. The default is `http://<the Pi's address>:8080`; set it when you reach the Pi by a name of your own (`http://billboard.home.arpa:8080`) |
 | `EINK_ALLOW_HOSTS` | Names the app answers to, besides IP addresses and the Pi's own name (`<name>` and `<name>.local`), comma separated. Any other name is refused (421): that stops a web page on another site from reaching the device by DNS rebinding. A name in `EINK_PUBLIC_URL` counts too |
-| `EINK_API_TOKEN` | A token for scripts (`Authorization: Bearer ...`); it also counts as setting the device up. Passed to the container by name, never on a command line |
+| `EINK_SSL` | `1`: HTTPS (below) |
+| `EINK_API_TOKEN` | A token for scripts (`Authorization: Bearer ...`), to push messages to the panel: `deploy/eink-container.sh token new` makes one and shows it, `token show` shows it again, `token off` removes it. It also counts as setting the device up (the web app's first sign-in is the token). Passed to the container in the file, never on a command line |
 
 A client that gets the password or token wrong repeatedly has to wait (429), and each failure is in the log.
 
-**HTTPS.** The app speaks plain HTTP until you turn HTTPS on (over plain HTTP the password reaches the Pi in the clear). The app serves HTTPS itself, on the same port; no proxy is needed:
+**HTTPS.** The app speaks plain HTTP until you turn HTTPS on, at the setup's question or later (over plain HTTP the password reaches the Pi in the clear). The app serves HTTPS itself, on the same port; no proxy is needed:
 
 ```
 ~/eink-billboard/deploy/eink-container.sh ssl on                     # the device's own certificate

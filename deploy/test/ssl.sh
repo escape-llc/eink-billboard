@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The kit's HTTPS (deploy/eink-container.sh ssl), end to end, with no Pi: in a Debian Trixie container (the Pi's Podman 5.4), rootless Podman runs a
+# The kit's HTTPS (deploy/eink-container.sh ssl) and the settings it keeps (settings, token: #940), end to end, with no Pi: in a Debian Trixie container (the Pi's Podman 5.4), rootless Podman runs a
 # stand-in for the app's image (its user is a system user, as the real one's is, and its "uv" serves /api/access over HTTPS with the files it was given,
 # the way uvicorn does). The real script then turns HTTPS on with the device's own certificate (the stand-in makes one, as the app does), with a
 # certificate of one's own (two Podman secrets that only the app's user can read), off again, and forgets the certificate.
@@ -101,7 +101,7 @@ check "it says the browser warns (self-signed)" contains "$out" "self-signed"
 check "--ssl, and no files of one's own" bash -c 'grep -q -- "--ssl" <<< "$1" && ! grep -q -- "--ssl-certfile" <<< "$1"' _ "$(args_of)"
 check "the app answers https" bash -c 'curl -fsSk https://127.0.0.1:8080/api/access | grep -q "\"scheme\": \"https\""'
 check "plain http is not served" bash -c '! curl -fsS --max-time 3 http://127.0.0.1:8080/api/access >/dev/null 2>&1'
-check "remembered" bash -c '[ "$(cat ~/.config/eink-billboard/ssl)" = on ]'
+check "remembered in the settings" bash -c 'grep -qx "EINK_SSL=1" ~/.config/eink-billboard/eink.env'
 check "check says which" contains "$(kit https check 2>&1)" "device's own self-signed"
 
 echo "== HTTPS with a certificate of one's own"
@@ -130,6 +130,35 @@ check "forget removes the secrets and goes on with the device's own" bash -c 'gr
 check "nothing of one's own is passed after forget" bash -c '! grep -q -- "--ssl-certfile" <<< "$1"' _ "$(args_of)"
 check "forget again says there is nothing" contains "$(kit https ssl forget 2>&1)" "no certificate of yours"
 check "a wrong word is refused" contains "$(kit https ssl maybe 2>&1)" "ssl takes on"
+kit http ssl off >/dev/null 2>&1
+check "off takes EINK_SSL out of the settings" bash -c '! grep -q "^EINK_SSL=" ~/.config/eink-billboard/eink.env'
+
+echo "== the settings this Pi keeps (#940)"
+SETTINGS=~/.config/eink-billboard/eink.env
+env_of() { podman inspect -f '{{range .Config.Env}}{{println .}}{{end}}' eink 2>/dev/null; }
+created_by() { podman inspect -f '{{join .Config.CreateCommand " "}}' eink 2>/dev/null; }
+out=$(kit http token new 2>&1)
+token=$(sed -n 's/^EINK_API_TOKEN=//p' "$SETTINGS")
+check "token new makes one, says how a script sends it, and restarts" bash -c 'grep -q "Bearer" <<< "$1" && grep -q "ready." <<< "$1" && [ ${#2} -eq 48 ]' _ "$out" "$token"
+check "only you can read the settings" bash -c '[ "$(stat -c %a "$1")" = 600 ]' _ "$SETTINGS"
+check "the app has the token" bash -c 'grep -qx "EINK_API_TOKEN=$2" <<< "$1"' _ "$(env_of)" "$token"
+check "the token is not on the command that made the container" bash -c '! grep -qF -- "$2" <<< "$1"' _ "$(created_by)" "$token"
+check "token show gives it" bash -c '[ "$1" = "$2" ]' _ "$(kit http token show 2>&1)" "$token"
+check "settings say there is one, never what it is" bash -c 'grep -q "Token for scripts:  set" <<< "$1" && ! grep -qF -- "$2" <<< "$1"' _ "$(kit http settings 2>&1)" "$token"
+echo "EINK_LOG_LEVEL=DEBUG" >> "$SETTINGS"
+kit http start >/dev/null 2>&1
+check "a start keeps the token, and any setting of the app's reaches it" bash -c 'grep -qx "EINK_API_TOKEN=$2" <<< "$1" && grep -qx "EINK_LOG_LEVEL=DEBUG" <<< "$1"' _ "$(env_of)" "$token"
+check "one given for a command wins" bash -c 'grep -qx "EINK_API_TOKEN=for-now" <<< "$1"' _ "$(EINK_API_TOKEN=for-now kit http start >/dev/null 2>&1; env_of)"
+out=$(kit http token off 2>&1)
+check "token off removes it from the settings and the app" bash -c '! grep -q "^EINK_API_TOKEN=" "$1" && ! grep -q "^EINK_API_TOKEN=" <<< "$2"' _ "$SETTINGS" "$(env_of)"
+# the questions, answered at a keyboard (script gives the kit a terminal): the port kept, an address of one's own, the names auto, HTTPS on, a token
+out=$(printf '\nhttps://billboard.example:8080\nauto\ny\ny\n' | script -qec "cd $CLONE && deploy/eink-container.sh settings ask" /dev/null 2>&1)
+check "settings ask saves the answers and restarts with them" bash -c 'grep -q "Saved in" <<< "$1" && grep -q "ready." <<< "$1"' _ "$out"
+check "the address, HTTPS and a new token are kept; the port and the names are the defaults, not written" bash -c 'grep -qx "EINK_PUBLIC_URL=https://billboard.example:8080" "$1" && grep -qx "EINK_SSL=1" "$1" && grep -q "^EINK_API_TOKEN=" "$1" && ! grep -q "^EINK_PORT=\|^EINK_ALLOW_HOSTS=" "$1"' _ "$SETTINGS"
+check "and the app has them" bash -c 'grep -qx "EINK_PUBLIC_URL=https://billboard.example:8080" <<< "$1" && grep -q -- "--ssl" <<< "$2"' _ "$(env_of)" "$(args_of)"
+check "the token made is shown once" bash -c 'grep -qF -- "$(sed -n "s/^EINK_API_TOKEN=//p" "$2")" <<< "$1"' _ "$out" "$SETTINGS"
+check "a wrong address is asked again" contains "$(printf '\nnot-an-address\nauto\nauto\nn\nn\n' | script -qec "cd $CLONE && deploy/eink-container.sh settings ask" /dev/null 2>&1)" "starts with http://"
+check "with no keyboard it says to edit the file" contains "$(cd "$CLONE" && deploy/eink-container.sh settings ask < /dev/null 2>&1)" "settings edit"
 
 podman rm -f eink >/dev/null 2>&1
 echo
