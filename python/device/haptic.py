@@ -1,6 +1,6 @@
 """
 A haptic output (#867, #891): a vibration motor driven by a TI DRV2605 (or DRV2605L) on the Pi's I²C bus, such as Seeed's Grove Haptic Motor on the Inky Impression's Qw/ST socket. It is
-felt only while touching the device, so it suits the buttons. It does not hold: every cue plays once, from the chip's own library of effects (a click, a double click, a buzz).
+felt while touching the device, or heard when it is loud enough (#935), so it suits the buttons and what happens on the device. It does not hold: every cue plays once, from the chip's own library of effects (a click, a double click, a buzz).
 
 The chip is reached with `smbus2` (pure Python, already brought by the `inky` package; the device dependency group, Linux), imported only when the output is opened. Its registers are the
 datasheet's (TI SLOS854): the motor is an ERM (eccentric rotating mass), so the ERM library and open loop are chosen.

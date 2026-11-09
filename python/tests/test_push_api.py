@@ -18,7 +18,7 @@ from ..model.configuration_manager import StaticConfigurationManager
 from ..task.application import MAX_PUSHED_ACTIVE, Application, PushRefused
 from ..task.display_messages import PriorityImage, PriorityRevoke
 from ..task.message_router import MessageRouter
-from ..task.messages import PushedImage, Telemetry
+from ..task.messages import Happened, PushedImage, Telemetry
 from ..utils.image_utils import chrome_command
 from ..utils.message_image import MAX_TEXT_CHARACTERS, plain_message_image, render_message_image, text_size
 from ..utils.upload_image import MAX_UPLOAD_BYTES, MAX_UPLOAD_PIXELS, decode_upload
@@ -246,6 +246,7 @@ class TestApplicationPush(unittest.TestCase):
 		self.assertEqual((shown.title, shown.duration, shown.origin), ("Doorbell", datetime.timedelta(minutes=2), { "kind": "api", "title": "Doorbell", "plugin": "Push API" }))
 		told = [m for route, m in recorder.sent if route == "telemetry"]
 		self.assertEqual([m.values["kind"] for m in told if isinstance(m, Telemetry)], ["pushed"])
+		self.assertEqual([(route, m.event) for route, m in recorder.sent if isinstance(m, Happened)], [("indicator", "pushed")], "and told to the outputs")
 
 	def test_a_message_is_taken_down_by_its_id_and_only_once(self):
 		app, recorder = application(self)

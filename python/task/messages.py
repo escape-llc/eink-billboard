@@ -139,6 +139,14 @@ class Indicate(BasicMessage):
 	on: bool
 
 @dataclass(frozen=True, slots=True)
+class Happened(BasicMessage):
+	"""
+	Something happened on the device that a feedback row may answer once (#935), on the `indicator` route to the DeviceIO task: `started` (the Application, as the layers start), `pushed`
+	(the Application, a pushed message), `failed` (the timer layer, a task; the playlist layer, a page). Sent whether there is an output or not.
+	"""
+	event: str
+
+@dataclass(frozen=True, slots=True)
 class OutputTest(BasicMessage):
 	"""Play a cue on one output now (the GPIO settings' Test beside a feedback row's cue, or an output's speed), for the DeviceIO task. `options` are the form's (a `speed`), else the saved ones."""
 	output: str

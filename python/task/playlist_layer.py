@@ -12,7 +12,7 @@ from typing import Any, Mapping, NamedTuple, NotRequired, ReadOnly, TypedDict, c
 from PIL import Image
 from .display_messages import DisplayImage, DisplaySettings
 from .coalescer import Coalescer
-from .messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, Indicate, QuitMessage, ReloadSchedules, Telemetry
+from .messages import AsyncTaskCompleted, BasicMessage, ConfigurationChanged, Happened, Indicate, QuitMessage, ReloadSchedules, Telemetry
 from .configure_event import ConfigureEvent
 from .message_router import MessageRouter
 from .source_router import SourceRouter, image_source
@@ -209,6 +209,7 @@ class PlaylistLayer(DispatcherTask):
 		self._strikes[key] = count
 		self._reasons[key] = safe_reason(e)
 		self._unfit.discard(key)
+		self.router.send("indicator", Happened(ts, "failed"))
 		if count >= strikes:
 			self._struck_at[key] = self._clock()
 			self._error_with_telemetry(f"Track '{track.title}' struck out: it is not run, its error page is shown instead, and it is tried again in {self._words(self._retry_seconds(count))} (or when the configuration changes)", ts, e)
@@ -221,6 +222,7 @@ class PlaylistLayer(DispatcherTask):
 		self._struck_at[key] = self._clock()
 		self._reasons[key] = safe_reason(e)
 		self._unfit.add(key)
+		self.router.send("indicator", Happened(ts, "failed"))
 		self._error_with_telemetry(f"Track '{track.title}' does not fit this board: it is not run, its error page is shown instead, and it is tried again in {self._words(self.UNFIT_RETRY_SECONDS)} (or when the configuration changes)", ts, e)
 	def _slot_minutes(self, track: PlaylistSchedule) -> float:
 		data = track.content.data if track.content is not None else {}

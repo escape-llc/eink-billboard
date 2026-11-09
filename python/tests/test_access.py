@@ -354,7 +354,8 @@ class TestSetupPageOnThePanel(unittest.TestCase):
 		playlist, timer = self.layers_of(app, now, lambda: None)
 		playlist.accept.assert_called_once()
 		timer.accept.assert_called_once()
-		app.router.send.assert_not_called()
+		# no setup page: the only thing sent is that the layers started, for the outputs (#935)
+		self.assertEqual([(call.args[0], getattr(call.args[1], "event", None)) for call in app.router.send.call_args_list], [("indicator", "started")])
 
 	def test_a_new_setup_code_is_put_on_the_panel(self):
 		from ..task.display_messages import PriorityImage, PriorityRevoke

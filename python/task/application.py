@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Callable, Mapping
 
-from .messages import ClockCheck, ConfigurationChanged, ConfigurationWatcherEvent, Indicate, InputEvent, OutputTest, PushedImage, RestoreBegin, RestoreEnd, RestoreSettled, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, RunTask, RunTrigger, Telemetry, TransportCommand
+from .messages import ClockCheck, ConfigurationChanged, ConfigurationWatcherEvent, Happened, Indicate, InputEvent, OutputTest, PushedImage, RestoreBegin, RestoreEnd, RestoreSettled, SetupCodeChanged, SetupDone, StartEvent, StartOptions, StopEvent, QuitMessage, RunTask, RunTrigger, Telemetry, TransportCommand
 from .configure_event import ConfigureEvent, ConfigureOptions, ConfigureNotify
 from .coalescer import Coalescer
 from .protocols import MessageSink, IProvideTimer
@@ -296,9 +296,10 @@ class Application(DispatcherTask):
 			self.report_failure("Could not tell whether the device is claimed", e)
 			return False
 	def _start_layers(self, configs: ConfigureEvent, configt: ConfigureEvent):
-		assert self.playlist_layer is not None and self.timer_layer is not None
+		assert self.playlist_layer is not None and self.timer_layer is not None and self.router is not None
 		self.playlist_layer.accept(configs)
 		self.timer_layer.accept(configt)
+		self.router.send("indicator", Happened(self._now(), "started"))
 	def _layers_held(self) -> bool:
 		"""The layers are not started yet: they wait for the device to be claimed, or for the clock."""
 		return self._held is not None or self._clock_held is not None
@@ -501,6 +502,7 @@ class Application(DispatcherTask):
 		self.logger.info(f"'{self.name}' pushed: '{msg.title}' for {msg.duration}")
 		self.router.send("telemetry", Telemetry(msg.timestamp, "application", { "kind": "pushed", "title": msg.title, "minutes": round(msg.duration.total_seconds() / 60), "message": f"A message was pushed: '{msg.title}'." }))
 		self.router.send("display", PriorityImage(msg.timestamp, msg.title, msg.img, msg.duration, origin={ "kind": "api", "title": msg.title, "plugin": "Push API" }))
+		self.router.send("indicator", Happened(msg.timestamp, "pushed"))
 	@property
 	def playback_stopped(self) -> bool:
 		"""Whether the playlist layer is stopped by a transport command (what the play/stop button shows)."""
