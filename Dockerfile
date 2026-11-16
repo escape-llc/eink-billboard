@@ -19,7 +19,7 @@ RUN npm run build
 # --- Python base: same OS packages and Python as .github/workflows/unittest.yaml ----------
 # Pinned by digest as uv is (#568): Docker Hub republishes a tag when Debian ships fixes, and a new base changes every layer above it, so every Pi would download
 # the whole image again on a day nobody chose. Dependabot (docker) proposes the next one.
-FROM python:3.13.18-slim@sha256:76baad6037690d6e8c4397fbcaef17bca6f19eecef822b708fe8fa3417d30bb5 AS base
+FROM python:3.13.18-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90 AS base
 # apt runs without anyone to ask: no debconf prompt (and no "Can't locate Term/ReadLine.pm" while it looks for one). An ARG, so it is not left in the image.
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update 	&& apt-get install -y --no-install-recommends chromium-headless-shell unzip zip 	&& rm -rf /var/lib/apt/lists/*
